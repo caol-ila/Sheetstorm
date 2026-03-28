@@ -258,6 +258,28 @@ FOLLOW_UP: [Empfohlenes Follow-up]
 
 **Regel:** Kein Agent beendet seine Arbeit ohne expliziten Escalation-Grade.
 
+## E2E-Tests (Playwright)
+
+Alle benutzersichtbaren Workflows MÜSSEN E2E-Testabdeckung haben.
+
+- **Framework:** Playwright (TypeScript)
+- **Testverzeichnis:** `sheetstorm_app/e2e/`
+- **Konfiguration:** `sheetstorm_app/playwright.config.ts`
+- **Ausführung:** `cd sheetstorm_app && npm run test:e2e`
+- **Interaktiver Modus:** `npm run test:e2e:ui`
+- **Mit Browser:** `npm run test:e2e:headed`
+
+**Voraussetzungen:**
+- Dev-Stack muss laufen (`.\start.ps1 -Web`)
+- Flutter Web auf Port 8080: `flutter run -d chrome --web-port 8080`
+- Alternativ: `FLUTTER_WEB_URL` Environment-Variable setzen
+
+**Regeln:**
+- Neue Features erfordern E2E-Tests vor dem Merge
+- Tests verwenden Accessibility-Selektoren (`getByRole`, `getByText`) wo möglich
+- Bei CanvasKit-Rendering: Keyboard-Navigation + Screenshots als Fallback
+- Nativer File-Picker kann nicht automatisiert werden — dokumentieren, nicht skippen
+
 ## Squad-Integration
 
 Dieses Projekt nutzt das **Squad**-Framework für AI-gestützte Entwicklung:
