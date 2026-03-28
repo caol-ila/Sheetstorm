@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
+using Moq;
 using Sheetstorm.Domain.Auth;
 using Sheetstorm.Infrastructure.Auth;
+using Sheetstorm.Infrastructure.Email;
 using Sheetstorm.Infrastructure.Persistence;
 using Sheetstorm.Tests.Helpers;
 using Xunit;
@@ -19,7 +21,8 @@ public class AuthServiceTests : IDisposable
     public AuthServiceTests()
     {
         _db = TestDbContextFactory.Create();
-        _sut = new AuthService(_db, TestJwtConfig.Create());
+        var emailService = new Mock<IEmailService>().Object;
+        _sut = new AuthService(_db, TestJwtConfig.Create(), emailService);
     }
 
     // ─── Register ────────────────────────────────────────────────────────────
@@ -246,12 +249,18 @@ public class AuthServiceTests : IDisposable
     [Fact]
     public async Task ResetPassword_ValidToken_ChangesPasswordAndRevokesAllRefreshTokens()
     {
-        var authResponse = await RegisterDefaultUser();
+        await RegisterDefaultUser();
         await _sut.ForgotPasswordAsync(new ForgotPasswordRequest(ValidEmail));
 
         var musiker = await _db.Musiker.SingleAsync();
         var resetToken = musiker.PasswordResetToken!;
         const string newPassword = "NewPassword1!";
+
+        // Capture the token IDs created before reset
+        var tokenIdsBefore = await _db.RefreshTokens
+            .Where(t => t.MusikerId == musiker.Id)
+            .Select(t => t.Id)
+            .ToListAsync();
 
         var response = await _sut.ResetPasswordAsync(new ResetPasswordRequest(resetToken, newPassword));
 
@@ -264,9 +273,11 @@ public class AuthServiceTests : IDisposable
         Assert.Null(updatedMusiker.PasswordResetTokenExpiresAt);
         Assert.True(BCrypt.Net.BCrypt.Verify(newPassword, updatedMusiker.PasswordHash));
 
-        var originalToken = await _db.RefreshTokens
-            .SingleAsync(t => t.Token == authResponse.RefreshToken);
-        Assert.True(originalToken.IsRevoked);
+        // All tokens that existed BEFORE the reset should now be revoked
+        var revokedTokens = await _db.RefreshTokens
+            .Where(t => tokenIdsBefore.Contains(t.Id))
+            .ToListAsync();
+        Assert.True(revokedTokens.All(t => t.IsRevoked));
     }
 
     [Fact]
@@ -301,7 +312,12 @@ public class AuthServiceTests : IDisposable
     private async Task<AuthResponse> RegisterDefaultUser()
     {
         var request = new RegisterRequest(ValidEmail, ValidPassword, ValidDisplayName, null);
-        return await _sut.RegisterAsync(request);
+        var response = await _sut.RegisterAsync(request);
+        // Mark email as verified so login tests don't hit the email-verification guard
+        var musiker = await _db.Musiker.SingleAsync(m => m.Email == ValidEmail);
+        musiker.EmailVerified = true;
+        await _db.SaveChangesAsync();
+        return response;
     }
 
     public void Dispose() => _db.Dispose();

@@ -1,6 +1,8 @@
 using System.IdentityModel.Tokens.Jwt;
+using Moq;
 using Sheetstorm.Domain.Auth;
 using Sheetstorm.Infrastructure.Auth;
+using Sheetstorm.Infrastructure.Email;
 using Sheetstorm.Infrastructure.Persistence;
 using Sheetstorm.Tests.Helpers;
 using Xunit;
@@ -19,7 +21,8 @@ public class JwtGenerationTests : IDisposable
     public JwtGenerationTests()
     {
         _db = TestDbContextFactory.Create();
-        _sut = new AuthService(_db, TestJwtConfig.Create());
+        var emailService = new Mock<IEmailService>().Object;
+        _sut = new AuthService(_db, TestJwtConfig.Create(), emailService);
     }
 
     [Fact]
@@ -79,6 +82,11 @@ public class JwtGenerationTests : IDisposable
     {
         var request = new RegisterRequest(ValidEmail, ValidPassword, ValidDisplayName, null);
         var response1 = await _sut.RegisterAsync(request);
+
+        // Mark email as verified so login is allowed
+        var musiker = _db.Musiker.Single();
+        musiker.EmailVerified = true;
+        await _db.SaveChangesAsync();
 
         // Login to get a second token
         var loginResponse = await _sut.LoginAsync(new LoginRequest(ValidEmail, ValidPassword));
