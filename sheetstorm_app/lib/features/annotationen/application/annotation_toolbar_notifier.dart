@@ -75,8 +75,9 @@ enum ToolbarDock { left, right, top, bottom }
 
 // ─── Notifier ─────────────────────────────────────────────────────────────────
 
-class AnnotationToolbarNotifier extends StateNotifier<AnnotationToolbarState> {
-  AnnotationToolbarNotifier() : super(const AnnotationToolbarState());
+class AnnotationToolbarNotifier extends Notifier<AnnotationToolbarState> {
+  @override
+  AnnotationToolbarState build() => const AnnotationToolbarState();
 
   void selectTool(AnnotationTool tool) {
     if (tool == AnnotationTool.stamp) {
@@ -151,7 +152,7 @@ class AnnotationToolbarNotifier extends StateNotifier<AnnotationToolbarState> {
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
-final annotationToolbarProvider = StateNotifierProvider<
+final annotationToolbarProvider = NotifierProvider<
     AnnotationToolbarNotifier, AnnotationToolbarState>(
-  (ref) => AnnotationToolbarNotifier(),
+  AnnotationToolbarNotifier.new,
 );
