@@ -175,6 +175,39 @@ docs/                         # Spezifikation, UX, Architektur
 .squad/                       # AI-Team Setup (Squad Framework)
 ```
 
+## Escalation-Grade für Agenten
+
+Jeder Agent MUSS seinen Abschlussstatus mit einem der folgenden Grade melden:
+
+| Grade | Bedeutung | Pflichtangaben |
+|-------|-----------|----------------|
+| `DONE` | Aufgabe vollständig erledigt | — |
+| `DONE_WITH_CONCERNS` | Erledigt, aber mit Risiken | Was funktioniert, was riskant ist, empfohlenes Follow-up |
+| `NEEDS_CONTEXT` | Kann nicht fortfahren ohne Info | Konkrete Frage, welche Datei/Entscheidung fehlt |
+| `BLOCKED` | Kann nicht weiterarbeiten | Was blockiert, welche Info benötigt wird, Lösungsvorschlag |
+
+**Format am Ende jeder Agenten-Antwort:**
+
+```
+STATUS: DONE | DONE_WITH_CONCERNS | NEEDS_CONTEXT | BLOCKED
+
+# Bei BLOCKED:
+BLOCKED_BY: [Was blockiert]
+NEEDED: [Welche Information/Entscheidung fehlt]
+SUGGESTED_RESOLUTION: [Vorgeschlagene Lösung]
+
+# Bei NEEDS_CONTEXT:
+QUESTION: [Konkrete Frage]
+MISSING: [Welche Datei/Entscheidung/Kontext fehlt]
+
+# Bei DONE_WITH_CONCERNS:
+WORKS: [Was funktioniert]
+RISK: [Was riskant ist]
+FOLLOW_UP: [Empfohlenes Follow-up]
+```
+
+**Regel:** Kein Agent beendet seine Arbeit ohne expliziten Escalation-Grade.
+
 ## Squad-Integration
 
 Dieses Projekt nutzt das **Squad**-Framework für AI-gestützte Entwicklung:
