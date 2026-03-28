@@ -242,3 +242,47 @@
 - Stimmenauswahl: Pro-Stück-Wahl Server-synchronisiert oder nur lokal?
 - Konfiguration: Welche Policies für M1? (Alle 3 oder nur Nachtmodus?)
 - Konfiguration: Nutzer-AI-Key ohne Admin-Bestätigung erlauben?
+
+### 2026-03-28 — Issue #37: Annotationen (3 Ebenen) UX-Spec
+
+**Branch:** `squad/37-annotationen-ux`  
+**Commit:** `7a2dbfa`
+
+**Durchgeführte Arbeit:** Vollständige UX-Spec für das 3-Ebenen-Annotationssystem erstellt.
+
+**Datei:** `docs/ux-specs/annotationen.md`
+
+**Was erstellt wurde:**
+
+1. **3 Sichtbarkeitsebenen** — Privat (Blau 🔵), Stimme (Grün 🟢), Orchester (Orange 🟠) mit vollständigem visuellen Encoding-System (Rand + Icon + Muster für Barrierefreiheit)
+
+2. **7 Annotationstypen** — Freihand-Zeichnung (Stift-First, Druck-sensitiv), Text-Notizen, Textmarker, Durchstreichen, Stamp-Tools (Dynamik/Artikulation/Atem/Navigation + benutzerdefiniert), Radierer, Auswahl
+
+3. **Vollständige Interaction Patterns** — 3 Einstiegswege (Long-Press 600ms, Stift-Erkennung sofort, Toolbar-Button), Toolbar-Aufbau (Phone horizontal / Tablet vertikal + verschiebbar), Ebenen-Flyout, Farbkodierung Toolbar = aktive Ebene, Undo/Redo per Touch-Geste, Long-Press Kontextmenü
+
+4. **Integration im Spielmodus** — SVG-Layer (relative Koordinaten, zoom/rotationsunabhängig), Z-Order definiert, Layer-Toggle pro Ebene (pro Stück gemerkt), Fokus-Schutz (kein versehentliches Annotieren), Nachtmodus-Kompatibilität
+
+5. **Sync-Verhalten** — Privat=lokal+Konto-Backup, Stimme/Orchester=SignalR Real-time, Delta-Sync (Patches, kein Full-State), Latenz-Ziel <500ms LAN
+
+6. **6 Edge Cases** — Offline (pending_sync + auto-sync bei Verbindung), Konflikte (Last-Write-Wins per UUID + Timestamp), gelöschte Seite (Warnung + Soft-Delete 30 Tage), Berechtigungssperren, Aushilfen-Session (kein persistentes Privat), Performance (lazy load + 500 Annotations Warnung)
+
+7. **ASCII Wireframes** — 6 Phone-States (inaktiv, Long-Press-Einstieg, aktiver Freihand-Modus, Ebenen-Flyout, Kontextmenü, Layer-Toggle) + 4 Tablet-States (aktiver Modus, Stempel-Picker, Dirigenten-Orchester-Ebene, Offline-Zustand)
+
+**Neue Erkenntnisse:**
+
+1. **Farb-Konflikt entdeckt:** `spezifikation.md` setzt Privat=Grün/Stimme=Blau/Orchester=Orange, aber das Konfigurationssystem nutzt Privat=Blau/Stimme=Grün/Orchester=Orange. Diese Inkonsistenz ist ein offener Punkt für Thomas (Q1 im Spec). Empfehlung: Konsistenz mit dem Konfigurationssystem — Farbe = konzeptuelle Ebene.
+
+2. **„Senden"-Bestätigung für Orchester-Layer** ist eine wichtige UX-Entscheidung: Sofort-Sync (wie forScore/Newzik) vs. explizites Bestätigen (weniger Fehler, aber mehr Reibung). Muss Thomas entscheiden (Q3).
+
+3. **Stimmen-Annotationen bei Fallback-Stimme** ist ein ungelöster Grenzfall: Wenn Musiker Fallback-Stimme spielt — Stimmen-Layer der Fallback-Stimme oder eigentlichen Stimme? Relevant für Banner und Stark (Q6).
+
+4. **Toolbar verschiebbar auf Tablet** ist essenziell für Linkshänder und für Dirigenten mit einhändiger Bedienung (Taktstock in der anderen Hand).
+
+**Abhängigkeiten für Hill:** 10 Flutter-Komponenten definiert (F1–F10)  
+**Abhängigkeiten für Banner:** 10 API-Endpoints + SignalR Hub definiert (B1–B10)
+
+**Offene Fragen für Thomas:**
+- Farbschema: Annotations-Ebenen konsistent mit Konfigurations-Ebenen?
+- Stimmen-Annotationen für andere Register sichtbar (ja/nein)?
+- Orchester-Annotation: sofort senden oder [Senden]-Button?
+- Kapellenweite Stamp-Sets für M1?
