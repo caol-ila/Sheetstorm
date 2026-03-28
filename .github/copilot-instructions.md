@@ -175,6 +175,29 @@ docs/                         # Spezifikation, UX, Architektur
 .squad/                       # AI-Team Setup (Squad Framework)
 ```
 
+## File-Structure-Mapping vor Task-Dekomposition
+
+**Bevor** eine Aufgabe in Teilaufgaben zerlegt wird, MUSS ein File-Structure-Mapping erstellt werden:
+
+```
+### File-Structure-Map
+
+**CREATE:**
+- `path/to/new/file.dart` — Zweck: [Beschreibung] — Abhängigkeiten: [Liste]
+
+**MODIFY:**
+- `path/to/existing/file.dart` — Änderung: [Was sich ändert] — Abhängigkeiten: [Liste]
+
+**DELETE:**
+- `path/to/obsolete/file.dart` — Grund: [Warum gelöscht]
+```
+
+**Regeln:**
+- Kein Task-Breakdown ohne vorheriges File-Structure-Mapping
+- Jeder Eintrag braucht: Pfad, Zweck/Änderung, Abhängigkeiten
+- Das Mapping verhindert "oh wait, wir müssen auch X ändern" mitten in der Implementierung
+- Bei Design Reviews (Ceremony) ist das Mapping Pflicht-Input
+
 ## Escalation-Grade für Agenten
 
 Jeder Agent MUSS seinen Abschlussstatus mit einem der folgenden Grade melden:
