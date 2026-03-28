@@ -34,124 +34,124 @@ public class ConfigServiceTests : IDisposable
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private async Task<(Guid musikerId, Guid kapelleId)> CreateAdminAsync()
+    private async Task<(Guid musicianId, Guid bandId)> CreateAdminAsync()
     {
-        var musiker = new Musiker { Name = "Admin", Email = $"admin-{Guid.NewGuid()}@test.de", PasswordHash = "x" };
-        var kapelle = new Kapelle { Name = "Testkapelle" };
-        _db.Musiker.Add(musiker);
-        _db.Kapellen.Add(kapelle);
+        var Musician = new Musician { Name = "Admin", Email = $"admin-{Guid.NewGuid()}@test.de", PasswordHash = "x" };
+        var band = new Band { Name = "Testkapelle" };
+        _db.Musicians.Add(Musician);
+        _db.Bands.Add(band);
         await _db.SaveChangesAsync();
 
-        _db.Mitgliedschaften.Add(new Mitgliedschaft
+        _db.Memberships.Add(new Membership
         {
-            MusikerID = musiker.Id,
-            KapelleID = kapelle.Id,
-            Rolle = MitgliedRolle.Administrator,
-            IstAktiv = true
+            MusicianId = Musician.Id,
+            BandId = band.Id,
+            Role = MemberRole.Administrator,
+            IsActive = true
         });
         await _db.SaveChangesAsync();
 
-        return (musiker.Id, kapelle.Id);
+        return (Musician.Id, band.Id);
     }
 
-    private async Task<Guid> AddMemberAsync(Guid kapelleId, MitgliedRolle rolle = MitgliedRolle.Musiker)
+    private async Task<Guid> AddMemberAsync(Guid bandId, MemberRole rolle = MemberRole.Musician)
     {
-        var musiker = new Musiker { Name = "Musiker", Email = $"m-{Guid.NewGuid()}@test.de", PasswordHash = "x" };
-        _db.Musiker.Add(musiker);
+        var Musician = new Musician { Name = "Musician", Email = $"m-{Guid.NewGuid()}@test.de", PasswordHash = "x" };
+        _db.Musicians.Add(Musician);
         await _db.SaveChangesAsync();
 
-        _db.Mitgliedschaften.Add(new Mitgliedschaft
+        _db.Memberships.Add(new Membership
         {
-            MusikerID = musiker.Id,
-            KapelleID = kapelleId,
-            Rolle = rolle,
-            IstAktiv = true
+            MusicianId = Musician.Id,
+            BandId = bandId,
+            Role = rolle,
+            IsActive = true
         });
         await _db.SaveChangesAsync();
 
-        return musiker.Id;
+        return Musician.Id;
     }
 
     // ══════════════════════════════════════════════════════════════════════════
-    // KAPELLE CONFIG CRUD
+    // Band CONFIG CRUD
     // ══════════════════════════════════════════════════════════════════════════
 
     [Fact]
-    public async Task SetKapelleConfigAsync_ValidKey_PersistsEntry()
+    public async Task SetBandConfigAsync_ValidKey_PersistsEntry()
     {
-        var (adminId, kapelleId) = await CreateAdminAsync();
+        var (adminId, bandId) = await CreateAdminAsync();
 
-        var result = await _sut.SetKapelleConfigAsync(
-            kapelleId, "kapelle.name", new ConfigWertSetzenRequest(Json("\"Meine Kapelle\"")), adminId);
+        var result = await _sut.SetBandConfigAsync(
+            bandId, "band.name", new SetConfigValueRequest(Json("\"Meine Band\"")), adminId);
 
         Assert.True(result.Success);
-        Assert.Equal("Meine Kapelle", result.NeuerWert.GetString());
-        Assert.Null(result.AlterWert);
-        var stored = await _db.ConfigKapelle.SingleAsync(c => c.KapelleId == kapelleId && c.Schluessel == "kapelle.name");
-        Assert.Equal("\"Meine Kapelle\"", stored.Wert);
+        Assert.Equal("Meine Band", result.NewValue.GetString());
+        Assert.Null(result.OldValue);
+        var stored = await _db.ConfigBand.SingleAsync(c => c.BandId == bandId && c.Key == "band.name");
+        Assert.Equal("\"Meine Band\"", stored.Value);
     }
 
     [Fact]
-    public async Task SetKapelleConfigAsync_UpdateExisting_ReturnsAlterWert()
+    public async Task SetBandConfigAsync_UpdateExisting_ReturnsOldValue()
     {
-        var (adminId, kapelleId) = await CreateAdminAsync();
-        await _sut.SetKapelleConfigAsync(kapelleId, "kapelle.name", new ConfigWertSetzenRequest(Json("\"Alt\"")), adminId);
+        var (adminId, bandId) = await CreateAdminAsync();
+        await _sut.SetBandConfigAsync(bandId, "band.name", new SetConfigValueRequest(Json("\"Alt\"")), adminId);
 
-        var result = await _sut.SetKapelleConfigAsync(
-            kapelleId, "kapelle.name", new ConfigWertSetzenRequest(Json("\"Neu\"")), adminId);
+        var result = await _sut.SetBandConfigAsync(
+            bandId, "band.name", new SetConfigValueRequest(Json("\"Neu\"")), adminId);
 
         Assert.True(result.Success);
-        Assert.Equal("Alt", result.AlterWert!.Value.GetString());
-        Assert.Equal("Neu", result.NeuerWert.GetString());
+        Assert.Equal("Alt", result.OldValue!.Value.GetString());
+        Assert.Equal("Neu", result.NewValue.GetString());
     }
 
     [Fact]
-    public async Task GetKapelleConfigAsync_ReturnsPersisted()
+    public async Task GetBandConfigAsync_ReturnsPersisted()
     {
-        var (adminId, kapelleId) = await CreateAdminAsync();
-        await _sut.SetKapelleConfigAsync(kapelleId, "kapelle.name", new ConfigWertSetzenRequest(Json("\"Test\"")), adminId);
-        await _sut.SetKapelleConfigAsync(kapelleId, "kapelle.ort", new ConfigWertSetzenRequest(Json("\"Wien\"")), adminId);
+        var (adminId, bandId) = await CreateAdminAsync();
+        await _sut.SetBandConfigAsync(bandId, "band.name", new SetConfigValueRequest(Json("\"Test\"")), adminId);
+        await _sut.SetBandConfigAsync(bandId, "band.location", new SetConfigValueRequest(Json("\"Wien\"")), adminId);
 
-        var list = await _sut.GetKapelleConfigAsync(kapelleId, adminId);
+        var list = await _sut.GetBandConfigAsync(bandId, adminId);
 
         Assert.Equal(2, list.Count);
-        Assert.Contains(list, e => e.Schluessel == "kapelle.name" && e.Wert.GetString() == "Test");
-        Assert.Contains(list, e => e.Schluessel == "kapelle.ort" && e.Wert.GetString() == "Wien");
+        Assert.Contains(list, e => e.Key == "band.name" && e.Value.GetString() == "Test");
+        Assert.Contains(list, e => e.Key == "band.location" && e.Value.GetString() == "Wien");
     }
 
     [Fact]
-    public async Task DeleteKapelleConfigAsync_RemovesEntry()
+    public async Task DeleteBandConfigAsync_RemovesEntry()
     {
-        var (adminId, kapelleId) = await CreateAdminAsync();
-        await _sut.SetKapelleConfigAsync(kapelleId, "kapelle.name", new ConfigWertSetzenRequest(Json("\"Test\"")), adminId);
+        var (adminId, bandId) = await CreateAdminAsync();
+        await _sut.SetBandConfigAsync(bandId, "band.name", new SetConfigValueRequest(Json("\"Test\"")), adminId);
 
-        await _sut.DeleteKapelleConfigAsync(kapelleId, "kapelle.name", adminId);
+        await _sut.DeleteBandConfigAsync(bandId, "band.name", adminId);
 
-        var stored = await _db.ConfigKapelle.FirstOrDefaultAsync(c => c.KapelleId == kapelleId && c.Schluessel == "kapelle.name");
+        var stored = await _db.ConfigBand.FirstOrDefaultAsync(c => c.BandId == bandId && c.Key == "band.name");
         Assert.Null(stored);
     }
 
     [Fact]
-    public async Task DeleteKapelleConfigAsync_NotFound_Throws404()
+    public async Task DeleteBandConfigAsync_NotFound_Throws404()
     {
-        var (adminId, kapelleId) = await CreateAdminAsync();
+        var (adminId, bandId) = await CreateAdminAsync();
 
         var ex = await Assert.ThrowsAsync<DomainException>(
-            () => _sut.DeleteKapelleConfigAsync(kapelleId, "kapelle.name", adminId));
+            () => _sut.DeleteBandConfigAsync(bandId, "band.name", adminId));
 
         Assert.Equal("CONFIG_NOT_FOUND", ex.ErrorCode);
         Assert.Equal(404, ex.StatusCode);
     }
 
     [Fact]
-    public async Task SetKapelleConfigAsync_NonAdmin_Throws403()
+    public async Task SetBandConfigAsync_NonAdmin_Throws403()
     {
-        var (_, kapelleId) = await CreateAdminAsync();
-        var musikerId = await AddMemberAsync(kapelleId, MitgliedRolle.Musiker);
+        var (_, bandId) = await CreateAdminAsync();
+        var musicianId = await AddMemberAsync(bandId, MemberRole.Musician);
 
         var ex = await Assert.ThrowsAsync<AuthException>(
-            () => _sut.SetKapelleConfigAsync(kapelleId, "kapelle.name",
-                new ConfigWertSetzenRequest(Json("\"x\"")), musikerId));
+            () => _sut.SetBandConfigAsync(bandId, "band.name",
+                new SetConfigValueRequest(Json("\"x\"")), musicianId));
 
         Assert.Equal(403, ex.StatusCode);
     }
@@ -161,75 +161,75 @@ public class ConfigServiceTests : IDisposable
     // ══════════════════════════════════════════════════════════════════════════
 
     [Fact]
-    public async Task SetNutzerConfigAsync_ValidKey_PersistsEntry()
+    public async Task SetUserConfigAsync_ValidKey_PersistsEntry()
     {
-        var musiker = new Musiker { Name = "User", Email = "user@test.de", PasswordHash = "x" };
-        _db.Musiker.Add(musiker);
+        var Musician = new Musician { Name = "User", Email = "user@test.de", PasswordHash = "x" };
+        _db.Musicians.Add(Musician);
         await _db.SaveChangesAsync();
 
-        var result = await _sut.SetNutzerConfigAsync(
-            musiker.Id, "nutzer.theme", new ConfigWertSetzenRequest(Json("\"dark\"")));
+        var result = await _sut.SetUserConfigAsync(
+            Musician.Id, "user.theme", new SetConfigValueRequest(Json("\"dark\"")));
 
         Assert.True(result.Success);
-        Assert.Equal("dark", result.NeuerWert.GetString());
-        Assert.Null(result.AlterWert);
+        Assert.Equal("dark", result.NewValue.GetString());
+        Assert.Null(result.OldValue);
     }
 
     [Fact]
-    public async Task GetNutzerConfigAsync_ReturnsUserEntries()
+    public async Task GetUserConfigAsync_ReturnsUserEntries()
     {
-        var musiker = new Musiker { Name = "User", Email = "user2@test.de", PasswordHash = "x" };
-        _db.Musiker.Add(musiker);
+        var Musician = new Musician { Name = "User", Email = "user2@test.de", PasswordHash = "x" };
+        _db.Musicians.Add(Musician);
         await _db.SaveChangesAsync();
 
-        await _sut.SetNutzerConfigAsync(musiker.Id, "nutzer.theme", new ConfigWertSetzenRequest(Json("\"light\"")));
-        await _sut.SetNutzerConfigAsync(musiker.Id, "nutzer.sprache", new ConfigWertSetzenRequest(Json("\"en\"")));
+        await _sut.SetUserConfigAsync(Musician.Id, "user.theme", new SetConfigValueRequest(Json("\"light\"")));
+        await _sut.SetUserConfigAsync(Musician.Id, "user.language", new SetConfigValueRequest(Json("\"en\"")));
 
-        var list = await _sut.GetNutzerConfigAsync(musiker.Id);
+        var list = await _sut.GetUserConfigAsync(Musician.Id);
 
         Assert.Equal(2, list.Count);
-        Assert.Contains(list, e => e.Schluessel == "nutzer.theme" && e.Wert.GetString() == "light");
-        Assert.Contains(list, e => e.Schluessel == "nutzer.sprache" && e.Wert.GetString() == "en");
+        Assert.Contains(list, e => e.Key == "user.theme" && e.Value.GetString() == "light");
+        Assert.Contains(list, e => e.Key == "user.language" && e.Value.GetString() == "en");
     }
 
     [Fact]
-    public async Task SetNutzerConfigAsync_UpdateExisting_IncrementsVersion()
+    public async Task SetUserConfigAsync_UpdateExisting_IncrementsVersion()
     {
-        var musiker = new Musiker { Name = "User", Email = "ver@test.de", PasswordHash = "x" };
-        _db.Musiker.Add(musiker);
+        var Musician = new Musician { Name = "User", Email = "ver@test.de", PasswordHash = "x" };
+        _db.Musicians.Add(Musician);
         await _db.SaveChangesAsync();
 
-        await _sut.SetNutzerConfigAsync(musiker.Id, "nutzer.theme", new ConfigWertSetzenRequest(Json("\"dark\"")));
-        await _sut.SetNutzerConfigAsync(musiker.Id, "nutzer.theme", new ConfigWertSetzenRequest(Json("\"light\"")));
+        await _sut.SetUserConfigAsync(Musician.Id, "user.theme", new SetConfigValueRequest(Json("\"dark\"")));
+        await _sut.SetUserConfigAsync(Musician.Id, "user.theme", new SetConfigValueRequest(Json("\"light\"")));
 
-        var entry = await _db.ConfigNutzer.SingleAsync(c => c.MusikerId == musiker.Id && c.Schluessel == "nutzer.theme");
+        var entry = await _db.ConfigUser.SingleAsync(c => c.MusicianId == Musician.Id && c.Key == "user.theme");
         Assert.Equal(2, entry.Version);
     }
 
     [Fact]
-    public async Task DeleteNutzerConfigAsync_RemovesEntry()
+    public async Task DeleteUserConfigAsync_RemovesEntry()
     {
-        var musiker = new Musiker { Name = "User", Email = "del@test.de", PasswordHash = "x" };
-        _db.Musiker.Add(musiker);
+        var Musician = new Musician { Name = "User", Email = "del@test.de", PasswordHash = "x" };
+        _db.Musicians.Add(Musician);
         await _db.SaveChangesAsync();
 
-        await _sut.SetNutzerConfigAsync(musiker.Id, "nutzer.theme", new ConfigWertSetzenRequest(Json("\"dark\"")));
-        await _sut.DeleteNutzerConfigAsync(musiker.Id, "nutzer.theme");
+        await _sut.SetUserConfigAsync(Musician.Id, "user.theme", new SetConfigValueRequest(Json("\"dark\"")));
+        await _sut.DeleteUserConfigAsync(Musician.Id, "user.theme");
 
-        var stored = await _db.ConfigNutzer.FirstOrDefaultAsync(
-            c => c.MusikerId == musiker.Id && c.Schluessel == "nutzer.theme");
+        var stored = await _db.ConfigUser.FirstOrDefaultAsync(
+            c => c.MusicianId == Musician.Id && c.Key == "user.theme");
         Assert.Null(stored);
     }
 
     [Fact]
-    public async Task DeleteNutzerConfigAsync_NotFound_Throws404()
+    public async Task DeleteUserConfigAsync_NotFound_Throws404()
     {
-        var musiker = new Musiker { Name = "User", Email = "delnf@test.de", PasswordHash = "x" };
-        _db.Musiker.Add(musiker);
+        var Musician = new Musician { Name = "User", Email = "delnf@test.de", PasswordHash = "x" };
+        _db.Musicians.Add(Musician);
         await _db.SaveChangesAsync();
 
         var ex = await Assert.ThrowsAsync<DomainException>(
-            () => _sut.DeleteNutzerConfigAsync(musiker.Id, "nutzer.theme"));
+            () => _sut.DeleteUserConfigAsync(Musician.Id, "user.theme"));
 
         Assert.Equal("CONFIG_NOT_FOUND", ex.ErrorCode);
         Assert.Equal(404, ex.StatusCode);
@@ -242,72 +242,72 @@ public class ConfigServiceTests : IDisposable
     [Fact]
     public async Task GetResolvedConfigAsync_NoOverrides_UsesDefault()
     {
-        var (adminId, kapelleId) = await CreateAdminAsync();
+        var (adminId, bandId) = await CreateAdminAsync();
 
-        var resolved = await _sut.GetResolvedConfigAsync(kapelleId, adminId);
+        var resolved = await _sut.GetResolvedConfigAsync(bandId, adminId);
 
-        var theme = resolved.Single(r => r.Schluessel == "nutzer.theme");
-        Assert.Equal("system", theme.Wert.GetString());
-        Assert.Equal("default", theme.Ebene);
+        var theme = resolved.Single(r => r.Key == "user.theme");
+        Assert.Equal("system", theme.Value.GetString());
+        Assert.Equal("default", theme.Level);
         Assert.False(theme.PolicyEnforced);
     }
 
     [Fact]
     public async Task GetResolvedConfigAsync_KapelleSet_NutzerNot_UsesKapelle()
     {
-        var (adminId, kapelleId) = await CreateAdminAsync();
-        // kapelle.sprache falls through to nutzer.sprache via equivalent-key lookup
-        await _sut.SetKapelleConfigAsync(kapelleId, "kapelle.sprache",
-            new ConfigWertSetzenRequest(Json("\"fr\"")), adminId);
+        var (adminId, bandId) = await CreateAdminAsync();
+        // Band.sprache falls through to nutzer.sprache via equivalent-key lookup
+        await _sut.SetBandConfigAsync(bandId, "band.language",
+            new SetConfigValueRequest(Json("\"fr\"")), adminId);
 
-        var resolved = await _sut.GetResolvedConfigAsync(kapelleId, adminId);
+        var resolved = await _sut.GetResolvedConfigAsync(bandId, adminId);
 
-        var sprache = resolved.Single(r => r.Schluessel == "nutzer.sprache");
-        Assert.Equal("fr", sprache.Wert.GetString());
-        Assert.Equal("kapelle", sprache.Ebene);
+        var sprache = resolved.Single(r => r.Key == "user.language");
+        Assert.Equal("fr", sprache.Value.GetString());
+        Assert.Equal("Band", sprache.Level);
         Assert.False(sprache.PolicyEnforced);
     }
 
     [Fact]
     public async Task GetResolvedConfigAsync_NutzerAndKapelleSet_NutzerWins()
     {
-        var (adminId, kapelleId) = await CreateAdminAsync();
-        await _sut.SetKapelleConfigAsync(kapelleId, "kapelle.sprache",
-            new ConfigWertSetzenRequest(Json("\"fr\"")), adminId);
-        await _sut.SetNutzerConfigAsync(adminId, "nutzer.sprache",
-            new ConfigWertSetzenRequest(Json("\"it\"")));
+        var (adminId, bandId) = await CreateAdminAsync();
+        await _sut.SetBandConfigAsync(bandId, "band.language",
+            new SetConfigValueRequest(Json("\"fr\"")), adminId);
+        await _sut.SetUserConfigAsync(adminId, "user.language",
+            new SetConfigValueRequest(Json("\"it\"")));
 
-        var resolved = await _sut.GetResolvedConfigAsync(kapelleId, adminId);
+        var resolved = await _sut.GetResolvedConfigAsync(bandId, adminId);
 
-        var sprache = resolved.Single(r => r.Schluessel == "nutzer.sprache");
-        Assert.Equal("it", sprache.Wert.GetString());
-        Assert.Equal("nutzer", sprache.Ebene);
+        var sprache = resolved.Single(r => r.Key == "user.language");
+        Assert.Equal("it", sprache.Value.GetString());
+        Assert.Equal("user", sprache.Level);
     }
 
     [Fact]
     public async Task GetResolvedConfigAsync_KapelleKeyOnlyFromKapelleLevel()
     {
-        var (adminId, kapelleId) = await CreateAdminAsync();
-        await _sut.SetKapelleConfigAsync(kapelleId, "kapelle.kammerton",
-            new ConfigWertSetzenRequest(Json("440")), adminId);
+        var (adminId, bandId) = await CreateAdminAsync();
+        await _sut.SetBandConfigAsync(bandId, "band.concert_pitch",
+            new SetConfigValueRequest(Json("440")), adminId);
 
-        var resolved = await _sut.GetResolvedConfigAsync(kapelleId, adminId);
+        var resolved = await _sut.GetResolvedConfigAsync(bandId, adminId);
 
-        var kammerton = resolved.Single(r => r.Schluessel == "kapelle.kammerton");
-        Assert.Equal(440, kammerton.Wert.GetInt32());
-        Assert.Equal("kapelle", kammerton.Ebene);
+        var kammerton = resolved.Single(r => r.Key == "band.concert_pitch");
+        Assert.Equal(440, kammerton.Value.GetInt32());
+        Assert.Equal("Band", kammerton.Level);
     }
 
     [Fact]
     public async Task GetResolvedConfigAsync_MissingKapelleKey_UsesRegistryDefault()
     {
-        var (adminId, kapelleId) = await CreateAdminAsync();
+        var (adminId, bandId) = await CreateAdminAsync();
 
-        var resolved = await _sut.GetResolvedConfigAsync(kapelleId, adminId);
+        var resolved = await _sut.GetResolvedConfigAsync(bandId, adminId);
 
-        var kammerton = resolved.Single(r => r.Schluessel == "kapelle.kammerton");
-        Assert.Equal(442, kammerton.Wert.GetInt32());
-        Assert.Equal("default", kammerton.Ebene);
+        var kammerton = resolved.Single(r => r.Key == "band.concert_pitch");
+        Assert.Equal(442, kammerton.Value.GetInt32());
+        Assert.Equal("default", kammerton.Level);
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -317,77 +317,77 @@ public class ConfigServiceTests : IDisposable
     [Fact]
     public async Task SetPolicyAsync_ForceLocaleTrue_BlocksNutzerSpracheOverride()
     {
-        var (adminId, kapelleId) = await CreateAdminAsync();
-        await _sut.SetNutzerConfigAsync(adminId, "nutzer.sprache",
-            new ConfigWertSetzenRequest(Json("\"it\"")));
-        await _sut.SetPolicyAsync(kapelleId, "policy.force_locale",
-            new ConfigWertSetzenRequest(Json("true")), adminId);
+        var (adminId, bandId) = await CreateAdminAsync();
+        await _sut.SetUserConfigAsync(adminId, "user.language",
+            new SetConfigValueRequest(Json("\"it\"")));
+        await _sut.SetPolicyAsync(bandId, "policy.force_locale",
+            new SetConfigValueRequest(Json("true")), adminId);
 
-        var resolved = await _sut.GetResolvedConfigAsync(kapelleId, adminId);
+        var resolved = await _sut.GetResolvedConfigAsync(bandId, adminId);
 
-        var sprache = resolved.Single(r => r.Schluessel == "nutzer.sprache");
+        var sprache = resolved.Single(r => r.Key == "user.language");
         Assert.True(sprache.PolicyEnforced);
-        Assert.NotEqual("nutzer", sprache.Ebene);
+        Assert.NotEqual("user", sprache.Level);
     }
 
     [Fact]
     public async Task SetPolicyAsync_ForceLocaleFalse_AllowsNutzerSpracheOverride()
     {
-        var (adminId, kapelleId) = await CreateAdminAsync();
-        await _sut.SetNutzerConfigAsync(adminId, "nutzer.sprache",
-            new ConfigWertSetzenRequest(Json("\"it\"")));
-        await _sut.SetPolicyAsync(kapelleId, "policy.force_locale",
-            new ConfigWertSetzenRequest(Json("false")), adminId);
+        var (adminId, bandId) = await CreateAdminAsync();
+        await _sut.SetUserConfigAsync(adminId, "user.language",
+            new SetConfigValueRequest(Json("\"it\"")));
+        await _sut.SetPolicyAsync(bandId, "policy.force_locale",
+            new SetConfigValueRequest(Json("false")), adminId);
 
-        var resolved = await _sut.GetResolvedConfigAsync(kapelleId, adminId);
+        var resolved = await _sut.GetResolvedConfigAsync(bandId, adminId);
 
-        var sprache = resolved.Single(r => r.Schluessel == "nutzer.sprache");
+        var sprache = resolved.Single(r => r.Key == "user.language");
         Assert.False(sprache.PolicyEnforced);
-        Assert.Equal("nutzer", sprache.Ebene);
-        Assert.Equal("it", sprache.Wert.GetString());
+        Assert.Equal("user", sprache.Level);
+        Assert.Equal("it", sprache.Value.GetString());
     }
 
     [Fact]
     public async Task SetPolicyAsync_AllowUserAiKeysFalse_BlocksAiProviderOverride()
     {
-        var (adminId, kapelleId) = await CreateAdminAsync();
-        await _sut.SetNutzerConfigAsync(adminId, "nutzer.ai.provider",
-            new ConfigWertSetzenRequest(Json("\"openai_vision\"")));
-        await _sut.SetPolicyAsync(kapelleId, "policy.allow_user_ai_keys",
-            new ConfigWertSetzenRequest(Json("false")), adminId);
+        var (adminId, bandId) = await CreateAdminAsync();
+        await _sut.SetUserConfigAsync(adminId, "user.ai.provider",
+            new SetConfigValueRequest(Json("\"openai_vision\"")));
+        await _sut.SetPolicyAsync(bandId, "policy.allow_user_ai_keys",
+            new SetConfigValueRequest(Json("false")), adminId);
 
-        var resolved = await _sut.GetResolvedConfigAsync(kapelleId, adminId);
+        var resolved = await _sut.GetResolvedConfigAsync(bandId, adminId);
 
-        var aiProvider = resolved.Single(r => r.Schluessel == "nutzer.ai.provider");
+        var aiProvider = resolved.Single(r => r.Key == "user.ai.provider");
         Assert.True(aiProvider.PolicyEnforced);
-        Assert.NotEqual("nutzer", aiProvider.Ebene);
+        Assert.NotEqual("user", aiProvider.Level);
     }
 
     [Fact]
     public async Task SetPolicyAsync_AllowUserAiKeysTrue_AllowsAiProviderOverride()
     {
-        var (adminId, kapelleId) = await CreateAdminAsync();
-        await _sut.SetNutzerConfigAsync(adminId, "nutzer.ai.provider",
-            new ConfigWertSetzenRequest(Json("\"openai_vision\"")));
-        await _sut.SetPolicyAsync(kapelleId, "policy.allow_user_ai_keys",
-            new ConfigWertSetzenRequest(Json("true")), adminId);
+        var (adminId, bandId) = await CreateAdminAsync();
+        await _sut.SetUserConfigAsync(adminId, "user.ai.provider",
+            new SetConfigValueRequest(Json("\"openai_vision\"")));
+        await _sut.SetPolicyAsync(bandId, "policy.allow_user_ai_keys",
+            new SetConfigValueRequest(Json("true")), adminId);
 
-        var resolved = await _sut.GetResolvedConfigAsync(kapelleId, adminId);
+        var resolved = await _sut.GetResolvedConfigAsync(bandId, adminId);
 
-        var aiProvider = resolved.Single(r => r.Schluessel == "nutzer.ai.provider");
+        var aiProvider = resolved.Single(r => r.Key == "user.ai.provider");
         Assert.False(aiProvider.PolicyEnforced);
-        Assert.Equal("nutzer", aiProvider.Ebene);
+        Assert.Equal("user", aiProvider.Level);
     }
 
     [Fact]
     public async Task SetPolicyAsync_NonAdmin_Throws403()
     {
-        var (_, kapelleId) = await CreateAdminAsync();
-        var musikerId = await AddMemberAsync(kapelleId, MitgliedRolle.Musiker);
+        var (_, bandId) = await CreateAdminAsync();
+        var musicianId = await AddMemberAsync(bandId, MemberRole.Musician);
 
         var ex = await Assert.ThrowsAsync<AuthException>(
-            () => _sut.SetPolicyAsync(kapelleId, "policy.force_locale",
-                new ConfigWertSetzenRequest(Json("true")), musikerId));
+            () => _sut.SetPolicyAsync(bandId, "policy.force_locale",
+                new SetConfigValueRequest(Json("true")), musicianId));
 
         Assert.Equal(403, ex.StatusCode);
     }
@@ -395,25 +395,25 @@ public class ConfigServiceTests : IDisposable
     [Fact]
     public async Task GetPoliciesAsync_ReturnsSetPolicies()
     {
-        var (adminId, kapelleId) = await CreateAdminAsync();
-        await _sut.SetPolicyAsync(kapelleId, "policy.force_locale",
-            new ConfigWertSetzenRequest(Json("true")), adminId);
+        var (adminId, bandId) = await CreateAdminAsync();
+        await _sut.SetPolicyAsync(bandId, "policy.force_locale",
+            new SetConfigValueRequest(Json("true")), adminId);
 
-        var policies = await _sut.GetPoliciesAsync(kapelleId, adminId);
+        var policies = await _sut.GetPoliciesAsync(bandId, adminId);
 
         Assert.Single(policies);
-        Assert.Equal("policy.force_locale", policies[0].Schluessel);
-        Assert.Equal(JsonValueKind.True, policies[0].Wert.ValueKind);
+        Assert.Equal("policy.force_locale", policies[0].Key);
+        Assert.Equal(JsonValueKind.True, policies[0].Value.ValueKind);
     }
 
     [Fact]
     public async Task GetPoliciesAsync_NonAdmin_Throws403()
     {
-        var (_, kapelleId) = await CreateAdminAsync();
-        var musikerId = await AddMemberAsync(kapelleId, MitgliedRolle.Musiker);
+        var (_, bandId) = await CreateAdminAsync();
+        var musicianId = await AddMemberAsync(bandId, MemberRole.Musician);
 
         var ex = await Assert.ThrowsAsync<AuthException>(
-            () => _sut.GetPoliciesAsync(kapelleId, musikerId));
+            () => _sut.GetPoliciesAsync(bandId, musicianId));
 
         Assert.Equal(403, ex.StatusCode);
     }
@@ -421,24 +421,24 @@ public class ConfigServiceTests : IDisposable
     [Fact]
     public async Task DeletePolicyAsync_RemovesPolicy()
     {
-        var (adminId, kapelleId) = await CreateAdminAsync();
-        await _sut.SetPolicyAsync(kapelleId, "policy.force_locale",
-            new ConfigWertSetzenRequest(Json("true")), adminId);
+        var (adminId, bandId) = await CreateAdminAsync();
+        await _sut.SetPolicyAsync(bandId, "policy.force_locale",
+            new SetConfigValueRequest(Json("true")), adminId);
 
-        await _sut.DeletePolicyAsync(kapelleId, "policy.force_locale", adminId);
+        await _sut.DeletePolicyAsync(bandId, "policy.force_locale", adminId);
 
         var stored = await _db.ConfigPolicies.FirstOrDefaultAsync(
-            p => p.KapelleId == kapelleId && p.Schluessel == "policy.force_locale");
+            p => p.BandId == bandId && p.Key == "policy.force_locale");
         Assert.Null(stored);
     }
 
     [Fact]
     public async Task DeletePolicyAsync_NotFound_Throws404()
     {
-        var (adminId, kapelleId) = await CreateAdminAsync();
+        var (adminId, bandId) = await CreateAdminAsync();
 
         var ex = await Assert.ThrowsAsync<DomainException>(
-            () => _sut.DeletePolicyAsync(kapelleId, "policy.force_locale", adminId));
+            () => _sut.DeletePolicyAsync(bandId, "policy.force_locale", adminId));
 
         Assert.Equal("POLICY_NOT_FOUND", ex.ErrorCode);
         Assert.Equal(404, ex.StatusCode);
@@ -447,16 +447,16 @@ public class ConfigServiceTests : IDisposable
     [Fact]
     public async Task GetResolvedConfigAsync_IncludesPoliciesAsEntries()
     {
-        var (adminId, kapelleId) = await CreateAdminAsync();
-        await _sut.SetPolicyAsync(kapelleId, "policy.force_locale",
-            new ConfigWertSetzenRequest(Json("true")), adminId);
+        var (adminId, bandId) = await CreateAdminAsync();
+        await _sut.SetPolicyAsync(bandId, "policy.force_locale",
+            new SetConfigValueRequest(Json("true")), adminId);
 
-        var resolved = await _sut.GetResolvedConfigAsync(kapelleId, adminId);
+        var resolved = await _sut.GetResolvedConfigAsync(bandId, adminId);
 
-        var forceLocale = resolved.SingleOrDefault(r => r.Schluessel == "policy.force_locale");
+        var forceLocale = resolved.SingleOrDefault(r => r.Key == "policy.force_locale");
         Assert.NotNull(forceLocale);
-        Assert.Equal("policy", forceLocale.Ebene);
-        Assert.Equal(JsonValueKind.True, forceLocale.Wert.ValueKind);
+        Assert.Equal("policy", forceLocale.Level);
+        Assert.Equal(JsonValueKind.True, forceLocale.Value.ValueKind);
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -464,105 +464,105 @@ public class ConfigServiceTests : IDisposable
     // ══════════════════════════════════════════════════════════════════════════
 
     [Fact]
-    public async Task SetKapelleConfigAsync_CreatesAuditLog()
+    public async Task SetBandConfigAsync_CreatesAuditLog()
     {
-        var (adminId, kapelleId) = await CreateAdminAsync();
+        var (adminId, bandId) = await CreateAdminAsync();
 
-        await _sut.SetKapelleConfigAsync(kapelleId, "kapelle.name",
-            new ConfigWertSetzenRequest(Json("\"Test\"")), adminId);
+        await _sut.SetBandConfigAsync(bandId, "band.name",
+            new SetConfigValueRequest(Json("\"Test\"")), adminId);
 
         var audit = await _db.ConfigAudit.SingleAsync(
-            a => a.Schluessel == "kapelle.name" && a.Ebene == "kapelle");
-        Assert.Equal(kapelleId, audit.KapelleId);
-        Assert.Equal(adminId, audit.MusikerId);
-        Assert.Null(audit.AlterWert);
-        Assert.Equal("\"Test\"", audit.NeuerWert);
-        Assert.True(audit.Zeitstempel > DateTime.UtcNow.AddMinutes(-1));
+            a => a.Key == "band.name" && a.Level == "band");
+        Assert.Equal(bandId, audit.BandId);
+        Assert.Equal(adminId, audit.MusicianId);
+        Assert.Null(audit.OldValue);
+        Assert.Equal("\"Test\"", audit.NewValue);
+        Assert.True(audit.Timestamp > DateTime.UtcNow.AddMinutes(-1));
     }
 
     [Fact]
-    public async Task SetKapelleConfigAsync_Update_AuditLogHasOldAndNewValue()
+    public async Task SetBandConfigAsync_Update_AuditLogHasOldAndNewValue()
     {
-        var (adminId, kapelleId) = await CreateAdminAsync();
-        await _sut.SetKapelleConfigAsync(kapelleId, "kapelle.name",
-            new ConfigWertSetzenRequest(Json("\"Alt\"")), adminId);
-        await _sut.SetKapelleConfigAsync(kapelleId, "kapelle.name",
-            new ConfigWertSetzenRequest(Json("\"Neu\"")), adminId);
+        var (adminId, bandId) = await CreateAdminAsync();
+        await _sut.SetBandConfigAsync(bandId, "band.name",
+            new SetConfigValueRequest(Json("\"Alt\"")), adminId);
+        await _sut.SetBandConfigAsync(bandId, "band.name",
+            new SetConfigValueRequest(Json("\"Neu\"")), adminId);
 
         var audits = await _db.ConfigAudit
-            .Where(a => a.Schluessel == "kapelle.name" && a.Ebene == "kapelle")
-            .OrderBy(a => a.Zeitstempel)
+            .Where(a => a.Key == "band.name" && a.Level == "band")
+            .OrderBy(a => a.Timestamp)
             .ToListAsync();
 
         Assert.Equal(2, audits.Count);
-        Assert.Null(audits[0].AlterWert);
-        Assert.Equal("\"Alt\"", audits[1].AlterWert);
-        Assert.Equal("\"Neu\"", audits[1].NeuerWert);
+        Assert.Null(audits[0].OldValue);
+        Assert.Equal("\"Alt\"", audits[1].OldValue);
+        Assert.Equal("\"Neu\"", audits[1].NewValue);
     }
 
     [Fact]
-    public async Task SetNutzerConfigAsync_CreatesAuditLog()
+    public async Task SetUserConfigAsync_CreatesAuditLog()
     {
-        var musiker = new Musiker { Name = "User", Email = "audit@test.de", PasswordHash = "x" };
-        _db.Musiker.Add(musiker);
+        var Musician = new Musician { Name = "User", Email = "audit@test.de", PasswordHash = "x" };
+        _db.Musicians.Add(Musician);
         await _db.SaveChangesAsync();
 
-        await _sut.SetNutzerConfigAsync(musiker.Id, "nutzer.theme",
-            new ConfigWertSetzenRequest(Json("\"dark\"")));
+        await _sut.SetUserConfigAsync(Musician.Id, "user.theme",
+            new SetConfigValueRequest(Json("\"dark\"")));
 
         var audit = await _db.ConfigAudit.SingleAsync(
-            a => a.Schluessel == "nutzer.theme" && a.Ebene == "nutzer");
-        Assert.Equal(musiker.Id, audit.MusikerId);
-        Assert.Null(audit.AlterWert);
-        Assert.Equal("\"dark\"", audit.NeuerWert);
+            a => a.Key == "user.theme" && a.Level == "user");
+        Assert.Equal(Musician.Id, audit.MusicianId);
+        Assert.Null(audit.OldValue);
+        Assert.Equal("\"dark\"", audit.NewValue);
     }
 
     [Fact]
     public async Task SetPolicyAsync_CreatesAuditLog()
     {
-        var (adminId, kapelleId) = await CreateAdminAsync();
+        var (adminId, bandId) = await CreateAdminAsync();
 
-        await _sut.SetPolicyAsync(kapelleId, "policy.force_locale",
-            new ConfigWertSetzenRequest(Json("true")), adminId);
+        await _sut.SetPolicyAsync(bandId, "policy.force_locale",
+            new SetConfigValueRequest(Json("true")), adminId);
 
         var audit = await _db.ConfigAudit.SingleAsync(
-            a => a.Schluessel == "policy.force_locale" && a.Ebene == "policy");
-        Assert.Equal(kapelleId, audit.KapelleId);
-        Assert.Equal(adminId, audit.MusikerId);
-        Assert.Equal("true", audit.NeuerWert);
+            a => a.Key == "policy.force_locale" && a.Level == "policy");
+        Assert.Equal(bandId, audit.BandId);
+        Assert.Equal(adminId, audit.MusicianId);
+        Assert.Equal("true", audit.NewValue);
     }
 
     [Fact]
-    public async Task DeleteKapelleConfigAsync_AuditLogsOldValueWithNullNeuerWert()
+    public async Task DeleteBandConfigAsync_AuditLogsOldValueWithNullNewValue()
     {
-        var (adminId, kapelleId) = await CreateAdminAsync();
-        await _sut.SetKapelleConfigAsync(kapelleId, "kapelle.name",
-            new ConfigWertSetzenRequest(Json("\"Wird gelöscht\"")), adminId);
+        var (adminId, bandId) = await CreateAdminAsync();
+        await _sut.SetBandConfigAsync(bandId, "band.name",
+            new SetConfigValueRequest(Json("\"Wird gelöscht\"")), adminId);
 
-        await _sut.DeleteKapelleConfigAsync(kapelleId, "kapelle.name", adminId);
+        await _sut.DeleteBandConfigAsync(bandId, "band.name", adminId);
 
         var deleteAudit = await _db.ConfigAudit
-            .Where(a => a.Schluessel == "kapelle.name" && a.NeuerWert == null)
+            .Where(a => a.Key == "band.name" && a.NewValue == null)
             .SingleAsync();
-        Assert.Equal("\"Wird gelöscht\"", deleteAudit.AlterWert);
-        Assert.Null(deleteAudit.NeuerWert);
+        Assert.Equal("\"Wird gelöscht\"", deleteAudit.OldValue);
+        Assert.Null(deleteAudit.NewValue);
     }
 
     [Fact]
-    public async Task DeleteNutzerConfigAsync_AuditLogsOldValue()
+    public async Task DeleteUserConfigAsync_AuditLogsOldValue()
     {
-        var musiker = new Musiker { Name = "User", Email = "auddel@test.de", PasswordHash = "x" };
-        _db.Musiker.Add(musiker);
+        var Musician = new Musician { Name = "User", Email = "auddel@test.de", PasswordHash = "x" };
+        _db.Musicians.Add(Musician);
         await _db.SaveChangesAsync();
-        await _sut.SetNutzerConfigAsync(musiker.Id, "nutzer.theme",
-            new ConfigWertSetzenRequest(Json("\"dark\"")));
+        await _sut.SetUserConfigAsync(Musician.Id, "user.theme",
+            new SetConfigValueRequest(Json("\"dark\"")));
 
-        await _sut.DeleteNutzerConfigAsync(musiker.Id, "nutzer.theme");
+        await _sut.DeleteUserConfigAsync(Musician.Id, "user.theme");
 
         var deleteAudit = await _db.ConfigAudit
-            .Where(a => a.Schluessel == "nutzer.theme" && a.NeuerWert == null)
+            .Where(a => a.Key == "user.theme" && a.NewValue == null)
             .SingleAsync();
-        Assert.Equal("\"dark\"", deleteAudit.AlterWert);
+        Assert.Equal("\"dark\"", deleteAudit.OldValue);
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -570,146 +570,146 @@ public class ConfigServiceTests : IDisposable
     // ══════════════════════════════════════════════════════════════════════════
 
     [Fact]
-    public async Task SetKapelleConfigAsync_UnknownKey_Throws400()
+    public async Task SetBandConfigAsync_UnknownKey_Throws400()
     {
-        var (adminId, kapelleId) = await CreateAdminAsync();
+        var (adminId, bandId) = await CreateAdminAsync();
 
         var ex = await Assert.ThrowsAsync<DomainException>(
-            () => _sut.SetKapelleConfigAsync(kapelleId, "unbekannt.schluessel",
-                new ConfigWertSetzenRequest(Json("\"x\"")), adminId));
+            () => _sut.SetBandConfigAsync(bandId, "unbekannt.schluessel",
+                new SetConfigValueRequest(Json("\"x\"")), adminId));
 
         Assert.Equal("INVALID_CONFIG_KEY", ex.ErrorCode);
         Assert.Equal(400, ex.StatusCode);
     }
 
     [Fact]
-    public async Task SetKapelleConfigAsync_NutzerLevelKey_Throws400()
+    public async Task SetBandConfigAsync_NutzerLevelKey_Throws400()
     {
-        var (adminId, kapelleId) = await CreateAdminAsync();
+        var (adminId, bandId) = await CreateAdminAsync();
 
         var ex = await Assert.ThrowsAsync<DomainException>(
-            () => _sut.SetKapelleConfigAsync(kapelleId, "nutzer.theme",
-                new ConfigWertSetzenRequest(Json("\"dark\"")), adminId));
+            () => _sut.SetBandConfigAsync(bandId, "user.theme",
+                new SetConfigValueRequest(Json("\"dark\"")), adminId));
 
         Assert.Equal("INVALID_CONFIG_KEY", ex.ErrorCode);
         Assert.Equal(400, ex.StatusCode);
     }
 
     [Fact]
-    public async Task SetKapelleConfigAsync_WrongType_Throws422()
+    public async Task SetBandConfigAsync_WrongType_Throws422()
     {
-        var (adminId, kapelleId) = await CreateAdminAsync();
+        var (adminId, bandId) = await CreateAdminAsync();
 
-        // kapelle.name expects String, not a number
+        // Band.name expects String, not a number
         var ex = await Assert.ThrowsAsync<DomainException>(
-            () => _sut.SetKapelleConfigAsync(kapelleId, "kapelle.name",
-                new ConfigWertSetzenRequest(Json("42")), adminId));
+            () => _sut.SetBandConfigAsync(bandId, "band.name",
+                new SetConfigValueRequest(Json("42")), adminId));
 
         Assert.Equal("VALIDATION_ERROR", ex.ErrorCode);
         Assert.Equal(422, ex.StatusCode);
     }
 
     [Fact]
-    public async Task SetKapelleConfigAsync_IntBelowMin_Throws422()
+    public async Task SetBandConfigAsync_IntBelowMin_Throws422()
     {
-        var (adminId, kapelleId) = await CreateAdminAsync();
+        var (adminId, bandId) = await CreateAdminAsync();
 
-        // kapelle.kammerton MinValue=415
+        // Band.kammerton MinValue=415
         var ex = await Assert.ThrowsAsync<DomainException>(
-            () => _sut.SetKapelleConfigAsync(kapelleId, "kapelle.kammerton",
-                new ConfigWertSetzenRequest(Json("400")), adminId));
+            () => _sut.SetBandConfigAsync(bandId, "band.concert_pitch",
+                new SetConfigValueRequest(Json("400")), adminId));
 
         Assert.Equal("VALIDATION_ERROR", ex.ErrorCode);
         Assert.Equal(422, ex.StatusCode);
     }
 
     [Fact]
-    public async Task SetKapelleConfigAsync_IntAboveMax_Throws422()
+    public async Task SetBandConfigAsync_IntAboveMax_Throws422()
     {
-        var (adminId, kapelleId) = await CreateAdminAsync();
+        var (adminId, bandId) = await CreateAdminAsync();
 
-        // kapelle.kammerton MaxValue=466
+        // Band.kammerton MaxValue=466
         var ex = await Assert.ThrowsAsync<DomainException>(
-            () => _sut.SetKapelleConfigAsync(kapelleId, "kapelle.kammerton",
-                new ConfigWertSetzenRequest(Json("500")), adminId));
+            () => _sut.SetBandConfigAsync(bandId, "band.concert_pitch",
+                new SetConfigValueRequest(Json("500")), adminId));
 
         Assert.Equal("VALIDATION_ERROR", ex.ErrorCode);
         Assert.Equal(422, ex.StatusCode);
     }
 
     [Fact]
-    public async Task SetNutzerConfigAsync_InvalidEnumValue_Throws422()
+    public async Task SetUserConfigAsync_InvalidEnumValue_Throws422()
     {
-        var musiker = new Musiker { Name = "User", Email = "valenum@test.de", PasswordHash = "x" };
-        _db.Musiker.Add(musiker);
+        var Musician = new Musician { Name = "User", Email = "valenum@test.de", PasswordHash = "x" };
+        _db.Musicians.Add(Musician);
         await _db.SaveChangesAsync();
 
         // nutzer.theme only allows "dark", "light", "system"
         var ex = await Assert.ThrowsAsync<DomainException>(
-            () => _sut.SetNutzerConfigAsync(musiker.Id, "nutzer.theme",
-                new ConfigWertSetzenRequest(Json("\"blau\""))));
+            () => _sut.SetUserConfigAsync(Musician.Id, "user.theme",
+                new SetConfigValueRequest(Json("\"blau\""))));
 
         Assert.Equal("VALIDATION_ERROR", ex.ErrorCode);
         Assert.Equal(422, ex.StatusCode);
     }
 
     [Fact]
-    public async Task SetNutzerConfigAsync_FloatBelowMin_Throws422()
+    public async Task SetUserConfigAsync_FloatBelowMin_Throws422()
     {
-        var musiker = new Musiker { Name = "User", Email = "valfloat@test.de", PasswordHash = "x" };
-        _db.Musiker.Add(musiker);
+        var Musician = new Musician { Name = "User", Email = "valfloat@test.de", PasswordHash = "x" };
+        _db.Musicians.Add(Musician);
         await _db.SaveChangesAsync();
 
         // nutzer.spielmodus.half_page_ratio MinFloat=0.3
         var ex = await Assert.ThrowsAsync<DomainException>(
-            () => _sut.SetNutzerConfigAsync(musiker.Id, "nutzer.spielmodus.half_page_ratio",
-                new ConfigWertSetzenRequest(Json("0.1"))));
+            () => _sut.SetUserConfigAsync(Musician.Id, "user.performance_mode.half_page_ratio",
+                new SetConfigValueRequest(Json("0.1"))));
 
         Assert.Equal("VALIDATION_ERROR", ex.ErrorCode);
         Assert.Equal(422, ex.StatusCode);
     }
 
     [Fact]
-    public async Task SetNutzerConfigAsync_FloatAboveMax_Throws422()
+    public async Task SetUserConfigAsync_FloatAboveMax_Throws422()
     {
-        var musiker = new Musiker { Name = "User", Email = "valfmax@test.de", PasswordHash = "x" };
-        _db.Musiker.Add(musiker);
+        var Musician = new Musician { Name = "User", Email = "valfmax@test.de", PasswordHash = "x" };
+        _db.Musicians.Add(Musician);
         await _db.SaveChangesAsync();
 
         // nutzer.spielmodus.half_page_ratio MaxFloat=0.7
         var ex = await Assert.ThrowsAsync<DomainException>(
-            () => _sut.SetNutzerConfigAsync(musiker.Id, "nutzer.spielmodus.half_page_ratio",
-                new ConfigWertSetzenRequest(Json("0.9"))));
+            () => _sut.SetUserConfigAsync(Musician.Id, "user.performance_mode.half_page_ratio",
+                new SetConfigValueRequest(Json("0.9"))));
 
         Assert.Equal("VALIDATION_ERROR", ex.ErrorCode);
         Assert.Equal(422, ex.StatusCode);
     }
 
     [Fact]
-    public async Task SetNutzerConfigAsync_UnknownKey_Throws400()
+    public async Task SetUserConfigAsync_UnknownKey_Throws400()
     {
-        var musiker = new Musiker { Name = "User", Email = "valunk@test.de", PasswordHash = "x" };
-        _db.Musiker.Add(musiker);
+        var Musician = new Musician { Name = "User", Email = "valunk@test.de", PasswordHash = "x" };
+        _db.Musicians.Add(Musician);
         await _db.SaveChangesAsync();
 
         var ex = await Assert.ThrowsAsync<DomainException>(
-            () => _sut.SetNutzerConfigAsync(musiker.Id, "kein.schluessel",
-                new ConfigWertSetzenRequest(Json("\"x\""))));
+            () => _sut.SetUserConfigAsync(Musician.Id, "kein.schluessel",
+                new SetConfigValueRequest(Json("\"x\""))));
 
         Assert.Equal("INVALID_CONFIG_KEY", ex.ErrorCode);
         Assert.Equal(400, ex.StatusCode);
     }
 
     [Fact]
-    public async Task SetNutzerConfigAsync_KapelleLevelKey_Throws400()
+    public async Task SetUserConfigAsync_KapelleLevelKey_Throws400()
     {
-        var musiker = new Musiker { Name = "User", Email = "valkap@test.de", PasswordHash = "x" };
-        _db.Musiker.Add(musiker);
+        var Musician = new Musician { Name = "User", Email = "valkap@test.de", PasswordHash = "x" };
+        _db.Musicians.Add(Musician);
         await _db.SaveChangesAsync();
 
         var ex = await Assert.ThrowsAsync<DomainException>(
-            () => _sut.SetNutzerConfigAsync(musiker.Id, "kapelle.name",
-                new ConfigWertSetzenRequest(Json("\"x\""))));
+            () => _sut.SetUserConfigAsync(Musician.Id, "band.name",
+                new SetConfigValueRequest(Json("\"x\""))));
 
         Assert.Equal("INVALID_CONFIG_KEY", ex.ErrorCode);
         Assert.Equal(400, ex.StatusCode);
@@ -718,11 +718,11 @@ public class ConfigServiceTests : IDisposable
     [Fact]
     public async Task SetPolicyAsync_NonPolicyKey_Throws400()
     {
-        var (adminId, kapelleId) = await CreateAdminAsync();
+        var (adminId, bandId) = await CreateAdminAsync();
 
         var ex = await Assert.ThrowsAsync<DomainException>(
-            () => _sut.SetPolicyAsync(kapelleId, "kapelle.name",
-                new ConfigWertSetzenRequest(Json("\"x\"")), adminId));
+            () => _sut.SetPolicyAsync(bandId, "band.name",
+                new SetConfigValueRequest(Json("\"x\"")), adminId));
 
         Assert.Equal("INVALID_POLICY_KEY", ex.ErrorCode);
         Assert.Equal(400, ex.StatusCode);
@@ -737,69 +737,69 @@ public class ConfigServiceTests : IDisposable
     {
         var error = ConfigKeyRegistry.Validate("nicht.vorhanden", Json("\"x\""));
         Assert.NotNull(error);
-        Assert.Contains("Unbekannter", error);
+        Assert.Contains("Unknown", error);
     }
 
     [Fact]
     public void ConfigKeyRegistry_BoolTypeMismatch_ReturnsError()
     {
-        var error = ConfigKeyRegistry.Validate("kapelle.ai.enabled", Json("\"ja\""));
+        var error = ConfigKeyRegistry.Validate("band.ai.enabled", Json("\"ja\""));
         Assert.NotNull(error);
     }
 
     [Fact]
     public void ConfigKeyRegistry_ValidBool_ReturnsNull()
     {
-        var error = ConfigKeyRegistry.Validate("kapelle.ai.enabled", Json("true"));
+        var error = ConfigKeyRegistry.Validate("band.ai.enabled", Json("true"));
         Assert.Null(error);
     }
 
     [Fact]
     public void ConfigKeyRegistry_IntOutOfRange_ReturnsError()
     {
-        var error = ConfigKeyRegistry.Validate("kapelle.kammerton", Json("414"));
+        var error = ConfigKeyRegistry.Validate("band.concert_pitch", Json("414"));
         Assert.NotNull(error);
     }
 
     [Fact]
     public void ConfigKeyRegistry_ValidInt_ReturnsNull()
     {
-        var error = ConfigKeyRegistry.Validate("kapelle.kammerton", Json("440"));
+        var error = ConfigKeyRegistry.Validate("band.concert_pitch", Json("440"));
         Assert.Null(error);
     }
 
     [Fact]
     public void ConfigKeyRegistry_InvalidEnumValue_ReturnsError()
     {
-        var error = ConfigKeyRegistry.Validate("nutzer.theme", Json("\"blau\""));
+        var error = ConfigKeyRegistry.Validate("user.theme", Json("\"blau\""));
         Assert.NotNull(error);
     }
 
     [Fact]
     public void ConfigKeyRegistry_ValidEnumValue_ReturnsNull()
     {
-        var error = ConfigKeyRegistry.Validate("nutzer.theme", Json("\"dark\""));
+        var error = ConfigKeyRegistry.Validate("user.theme", Json("\"dark\""));
         Assert.Null(error);
     }
 
     [Fact]
     public void ConfigKeyRegistry_FloatBelowMin_ReturnsError()
     {
-        var error = ConfigKeyRegistry.Validate("nutzer.spielmodus.half_page_ratio", Json("0.1"));
+        var error = ConfigKeyRegistry.Validate("user.performance_mode.half_page_ratio", Json("0.1"));
         Assert.NotNull(error);
     }
 
     [Fact]
     public void ConfigKeyRegistry_FloatAboveMax_ReturnsError()
     {
-        var error = ConfigKeyRegistry.Validate("nutzer.spielmodus.half_page_ratio", Json("0.9"));
+        var error = ConfigKeyRegistry.Validate("user.performance_mode.half_page_ratio", Json("0.9"));
         Assert.NotNull(error);
     }
 
     [Fact]
     public void ConfigKeyRegistry_ValidFloat_ReturnsNull()
     {
-        var error = ConfigKeyRegistry.Validate("nutzer.spielmodus.half_page_ratio", Json("0.5"));
+        var error = ConfigKeyRegistry.Validate("user.performance_mode.half_page_ratio", Json("0.5"));
         Assert.Null(error);
     }
 
@@ -808,95 +808,95 @@ public class ConfigServiceTests : IDisposable
     // ══════════════════════════════════════════════════════════════════════════
 
     [Fact]
-    public async Task GetKapelleConfigAsync_NonMember_ThrowsNotFound()
+    public async Task GetBandConfigAsync_NonMember_ThrowsNotFound()
     {
-        var (_, kapelleId) = await CreateAdminAsync();
-        var stranger = new Musiker { Name = "X", Email = "stranger@test.de", PasswordHash = "x" };
-        _db.Musiker.Add(stranger);
+        var (_, bandId) = await CreateAdminAsync();
+        var stranger = new Musician { Name = "X", Email = "stranger@test.de", PasswordHash = "x" };
+        _db.Musicians.Add(stranger);
         await _db.SaveChangesAsync();
 
         var ex = await Assert.ThrowsAsync<DomainException>(
-            () => _sut.GetKapelleConfigAsync(kapelleId, stranger.Id));
+            () => _sut.GetBandConfigAsync(bandId, stranger.Id));
 
-        Assert.Equal("KAPELLE_NOT_FOUND", ex.ErrorCode);
+        Assert.Equal("BAND_NOT_FOUND", ex.ErrorCode);
         Assert.Equal(404, ex.StatusCode);
     }
 
     [Fact]
     public async Task MultiKapelleUser_SeparateConfigsPerKapelle()
     {
-        var musiker = new Musiker { Name = "MultiUser", Email = "multi@test.de", PasswordHash = "x" };
-        var kapelle1 = new Kapelle { Name = "Alpha" };
-        var kapelle2 = new Kapelle { Name = "Beta" };
-        _db.Musiker.Add(musiker);
-        _db.Kapellen.AddRange(kapelle1, kapelle2);
+        var Musician = new Musician { Name = "MultiUser", Email = "multi@test.de", PasswordHash = "x" };
+        var kapelle1 = new Band { Name = "Alpha" };
+        var kapelle2 = new Band { Name = "Beta" };
+        _db.Musicians.Add(Musician);
+        _db.Bands.AddRange(kapelle1, kapelle2);
         await _db.SaveChangesAsync();
 
-        var admin1 = new Musiker { Name = "A1", Email = "a1@test.de", PasswordHash = "x" };
-        var admin2 = new Musiker { Name = "A2", Email = "a2@test.de", PasswordHash = "x" };
-        _db.Musiker.AddRange(admin1, admin2);
+        var admin1 = new Musician { Name = "A1", Email = "a1@test.de", PasswordHash = "x" };
+        var admin2 = new Musician { Name = "A2", Email = "a2@test.de", PasswordHash = "x" };
+        _db.Musicians.AddRange(admin1, admin2);
         await _db.SaveChangesAsync();
 
-        _db.Mitgliedschaften.AddRange(
-            new Mitgliedschaft { MusikerID = admin1.Id, KapelleID = kapelle1.Id, Rolle = MitgliedRolle.Administrator, IstAktiv = true },
-            new Mitgliedschaft { MusikerID = admin2.Id, KapelleID = kapelle2.Id, Rolle = MitgliedRolle.Administrator, IstAktiv = true },
-            new Mitgliedschaft { MusikerID = musiker.Id, KapelleID = kapelle1.Id, Rolle = MitgliedRolle.Musiker, IstAktiv = true },
-            new Mitgliedschaft { MusikerID = musiker.Id, KapelleID = kapelle2.Id, Rolle = MitgliedRolle.Musiker, IstAktiv = true }
+        _db.Memberships.AddRange(
+            new Membership { MusicianId = admin1.Id, BandId = kapelle1.Id, Role = MemberRole.Administrator, IsActive = true },
+            new Membership { MusicianId = admin2.Id, BandId = kapelle2.Id, Role = MemberRole.Administrator, IsActive = true },
+            new Membership { MusicianId = Musician.Id, BandId = kapelle1.Id, Role = MemberRole.Musician, IsActive = true },
+            new Membership { MusicianId = Musician.Id, BandId = kapelle2.Id, Role = MemberRole.Musician, IsActive = true }
         );
         await _db.SaveChangesAsync();
 
-        await _sut.SetKapelleConfigAsync(kapelle1.Id, "kapelle.name",
-            new ConfigWertSetzenRequest(Json("\"Band Alpha\"")), admin1.Id);
-        await _sut.SetKapelleConfigAsync(kapelle2.Id, "kapelle.name",
-            new ConfigWertSetzenRequest(Json("\"Band Beta\"")), admin2.Id);
+        await _sut.SetBandConfigAsync(kapelle1.Id, "band.name",
+            new SetConfigValueRequest(Json("\"Band Alpha\"")), admin1.Id);
+        await _sut.SetBandConfigAsync(kapelle2.Id, "band.name",
+            new SetConfigValueRequest(Json("\"Band Beta\"")), admin2.Id);
 
-        var resolved1 = await _sut.GetResolvedConfigAsync(kapelle1.Id, musiker.Id);
-        var resolved2 = await _sut.GetResolvedConfigAsync(kapelle2.Id, musiker.Id);
+        var resolved1 = await _sut.GetResolvedConfigAsync(kapelle1.Id, Musician.Id);
+        var resolved2 = await _sut.GetResolvedConfigAsync(kapelle2.Id, Musician.Id);
 
-        var name1 = resolved1.Single(r => r.Schluessel == "kapelle.name");
-        var name2 = resolved2.Single(r => r.Schluessel == "kapelle.name");
+        var name1 = resolved1.Single(r => r.Key == "band.name");
+        var name2 = resolved2.Single(r => r.Key == "band.name");
 
-        Assert.Equal("Band Alpha", name1.Wert.GetString());
-        Assert.Equal("Band Beta", name2.Wert.GetString());
+        Assert.Equal("Band Alpha", name1.Value.GetString());
+        Assert.Equal("Band Beta", name2.Value.GetString());
     }
 
     [Fact]
     public async Task MultiKapelleUser_PolicyOnlyAffectsItsKapelle()
     {
-        var musiker = new Musiker { Name = "PolicyUser", Email = "policy-multi@test.de", PasswordHash = "x" };
-        var kapelle1 = new Kapelle { Name = "Locked" };
-        var kapelle2 = new Kapelle { Name = "Free" };
-        _db.Musiker.Add(musiker);
-        _db.Kapellen.AddRange(kapelle1, kapelle2);
+        var Musician = new Musician { Name = "PolicyUser", Email = "policy-multi@test.de", PasswordHash = "x" };
+        var kapelle1 = new Band { Name = "Locked" };
+        var kapelle2 = new Band { Name = "Free" };
+        _db.Musicians.Add(Musician);
+        _db.Bands.AddRange(kapelle1, kapelle2);
         await _db.SaveChangesAsync();
 
-        var admin1 = new Musiker { Name = "A1", Email = "pm-a1@test.de", PasswordHash = "x" };
-        var admin2 = new Musiker { Name = "A2", Email = "pm-a2@test.de", PasswordHash = "x" };
-        _db.Musiker.AddRange(admin1, admin2);
+        var admin1 = new Musician { Name = "A1", Email = "pm-a1@test.de", PasswordHash = "x" };
+        var admin2 = new Musician { Name = "A2", Email = "pm-a2@test.de", PasswordHash = "x" };
+        _db.Musicians.AddRange(admin1, admin2);
         await _db.SaveChangesAsync();
 
-        _db.Mitgliedschaften.AddRange(
-            new Mitgliedschaft { MusikerID = admin1.Id, KapelleID = kapelle1.Id, Rolle = MitgliedRolle.Administrator, IstAktiv = true },
-            new Mitgliedschaft { MusikerID = admin2.Id, KapelleID = kapelle2.Id, Rolle = MitgliedRolle.Administrator, IstAktiv = true },
-            new Mitgliedschaft { MusikerID = musiker.Id, KapelleID = kapelle1.Id, Rolle = MitgliedRolle.Musiker, IstAktiv = true },
-            new Mitgliedschaft { MusikerID = musiker.Id, KapelleID = kapelle2.Id, Rolle = MitgliedRolle.Musiker, IstAktiv = true }
+        _db.Memberships.AddRange(
+            new Membership { MusicianId = admin1.Id, BandId = kapelle1.Id, Role = MemberRole.Administrator, IsActive = true },
+            new Membership { MusicianId = admin2.Id, BandId = kapelle2.Id, Role = MemberRole.Administrator, IsActive = true },
+            new Membership { MusicianId = Musician.Id, BandId = kapelle1.Id, Role = MemberRole.Musician, IsActive = true },
+            new Membership { MusicianId = Musician.Id, BandId = kapelle2.Id, Role = MemberRole.Musician, IsActive = true }
         );
         await _db.SaveChangesAsync();
 
-        await _sut.SetNutzerConfigAsync(musiker.Id, "nutzer.sprache", new ConfigWertSetzenRequest(Json("\"it\"")));
+        await _sut.SetUserConfigAsync(Musician.Id, "user.language", new SetConfigValueRequest(Json("\"it\"")));
         // Lock locale in kapelle1 only
         await _sut.SetPolicyAsync(kapelle1.Id, "policy.force_locale",
-            new ConfigWertSetzenRequest(Json("true")), admin1.Id);
+            new SetConfigValueRequest(Json("true")), admin1.Id);
 
-        var resolved1 = await _sut.GetResolvedConfigAsync(kapelle1.Id, musiker.Id);
-        var resolved2 = await _sut.GetResolvedConfigAsync(kapelle2.Id, musiker.Id);
+        var resolved1 = await _sut.GetResolvedConfigAsync(kapelle1.Id, Musician.Id);
+        var resolved2 = await _sut.GetResolvedConfigAsync(kapelle2.Id, Musician.Id);
 
-        var sprache1 = resolved1.Single(r => r.Schluessel == "nutzer.sprache");
-        var sprache2 = resolved2.Single(r => r.Schluessel == "nutzer.sprache");
+        var sprache1 = resolved1.Single(r => r.Key == "user.language");
+        var sprache2 = resolved2.Single(r => r.Key == "user.language");
 
         Assert.True(sprache1.PolicyEnforced);    // Locked in kapelle1
         Assert.False(sprache2.PolicyEnforced);   // Free in kapelle2
-        Assert.Equal("nutzer", sprache2.Ebene);
+        Assert.Equal("user", sprache2.Level);
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -904,162 +904,162 @@ public class ConfigServiceTests : IDisposable
     // ══════════════════════════════════════════════════════════════════════════
 
     [Fact]
-    public async Task SyncNutzerConfigAsync_NewEntry_Applied()
+    public async Task SyncUserConfigAsync_NewEntry_Applied()
     {
-        var musiker = new Musiker { Name = "Sync", Email = "sync@test.de", PasswordHash = "x" };
-        _db.Musiker.Add(musiker);
+        var Musician = new Musician { Name = "Sync", Email = "sync@test.de", PasswordHash = "x" };
+        _db.Musicians.Add(Musician);
         await _db.SaveChangesAsync();
 
         var req = new ConfigSyncRequest(new[]
         {
-            new ConfigSyncEintrag("nutzer.theme", Json("\"dark\""), 1, DateTime.UtcNow)
+            new ConfigSyncEntry("user.theme", Json("\"dark\""), 1, DateTime.UtcNow)
         });
 
-        var resp = await _sut.SyncNutzerConfigAsync(musiker.Id, req);
+        var resp = await _sut.SyncUserConfigAsync(Musician.Id, req);
 
         Assert.Single(resp.Applied);
-        Assert.Equal("nutzer.theme", resp.Applied[0].Schluessel);
+        Assert.Equal("user.theme", resp.Applied[0].Key);
         Assert.Empty(resp.Conflicts);
     }
 
     [Fact]
-    public async Task SyncNutzerConfigAsync_ClientVersionNewer_ClientWins()
+    public async Task SyncUserConfigAsync_ClientVersionNewer_ClientWins()
     {
-        var musiker = new Musiker { Name = "Sync2", Email = "sync2@test.de", PasswordHash = "x" };
-        _db.Musiker.Add(musiker);
+        var Musician = new Musician { Name = "Sync2", Email = "sync2@test.de", PasswordHash = "x" };
+        _db.Musicians.Add(Musician);
         await _db.SaveChangesAsync();
 
-        _db.ConfigNutzer.Add(new ConfigNutzer
+        _db.ConfigUser.Add(new ConfigUser
         {
-            MusikerId = musiker.Id, Schluessel = "nutzer.theme", Wert = "\"light\"", Version = 1
+            MusicianId = Musician.Id, Key = "user.theme", Value = "\"light\"", Version = 1
         });
         await _db.SaveChangesAsync();
 
         var req = new ConfigSyncRequest(new[]
         {
-            new ConfigSyncEintrag("nutzer.theme", Json("\"dark\""), 5, DateTime.UtcNow)
+            new ConfigSyncEntry("user.theme", Json("\"dark\""), 5, DateTime.UtcNow)
         });
 
-        var resp = await _sut.SyncNutzerConfigAsync(musiker.Id, req);
+        var resp = await _sut.SyncUserConfigAsync(Musician.Id, req);
 
         Assert.Single(resp.Applied);
         Assert.Empty(resp.Conflicts);
-        var stored = await _db.ConfigNutzer.SingleAsync(
-            c => c.MusikerId == musiker.Id && c.Schluessel == "nutzer.theme");
+        var stored = await _db.ConfigUser.SingleAsync(
+            c => c.MusicianId == Musician.Id && c.Key == "user.theme");
         Assert.Equal(5, stored.Version);
-        Assert.Equal("\"dark\"", stored.Wert);
+        Assert.Equal("\"dark\"", stored.Value);
     }
 
     [Fact]
-    public async Task SyncNutzerConfigAsync_ServerVersionNewer_Conflict()
+    public async Task SyncUserConfigAsync_ServerVersionNewer_Conflict()
     {
-        var musiker = new Musiker { Name = "Sync3", Email = "sync3@test.de", PasswordHash = "x" };
-        _db.Musiker.Add(musiker);
+        var Musician = new Musician { Name = "Sync3", Email = "sync3@test.de", PasswordHash = "x" };
+        _db.Musicians.Add(Musician);
         await _db.SaveChangesAsync();
 
-        _db.ConfigNutzer.Add(new ConfigNutzer
+        _db.ConfigUser.Add(new ConfigUser
         {
-            MusikerId = musiker.Id, Schluessel = "nutzer.theme", Wert = "\"dark\"", Version = 10
+            MusicianId = Musician.Id, Key = "user.theme", Value = "\"dark\"", Version = 10
         });
         await _db.SaveChangesAsync();
 
         var req = new ConfigSyncRequest(new[]
         {
-            new ConfigSyncEintrag("nutzer.theme", Json("\"light\""), 3, DateTime.UtcNow)
+            new ConfigSyncEntry("user.theme", Json("\"light\""), 3, DateTime.UtcNow)
         });
 
-        var resp = await _sut.SyncNutzerConfigAsync(musiker.Id, req);
+        var resp = await _sut.SyncUserConfigAsync(Musician.Id, req);
 
         Assert.Empty(resp.Applied);
         Assert.Single(resp.Conflicts);
-        Assert.Equal("nutzer.theme", resp.Conflicts[0].Schluessel);
+        Assert.Equal("user.theme", resp.Conflicts[0].Key);
         Assert.Equal(10, resp.Conflicts[0].ServerVersion);
     }
 
     [Fact]
-    public async Task SyncNutzerConfigAsync_SameVersionNewerClientTimestamp_ClientWins()
+    public async Task SyncUserConfigAsync_SameVersionNewerClientTimestamp_ClientWins()
     {
-        var musiker = new Musiker { Name = "Sync4", Email = "sync4@test.de", PasswordHash = "x" };
-        _db.Musiker.Add(musiker);
+        var Musician = new Musician { Name = "Sync4", Email = "sync4@test.de", PasswordHash = "x" };
+        _db.Musicians.Add(Musician);
         await _db.SaveChangesAsync();
 
-        _db.ConfigNutzer.Add(new ConfigNutzer
+        _db.ConfigUser.Add(new ConfigUser
         {
-            MusikerId = musiker.Id, Schluessel = "nutzer.theme", Wert = "\"light\"", Version = 2
+            MusicianId = Musician.Id, Key = "user.theme", Value = "\"light\"", Version = 2
         });
         await _db.SaveChangesAsync();
 
         var req = new ConfigSyncRequest(new[]
         {
-            new ConfigSyncEintrag("nutzer.theme", Json("\"dark\""), 2, DateTime.UtcNow.AddMinutes(5))
+            new ConfigSyncEntry("user.theme", Json("\"dark\""), 2, DateTime.UtcNow.AddMinutes(5))
         });
 
-        var resp = await _sut.SyncNutzerConfigAsync(musiker.Id, req);
+        var resp = await _sut.SyncUserConfigAsync(Musician.Id, req);
 
         Assert.Single(resp.Applied);
         Assert.Empty(resp.Conflicts);
     }
 
     [Fact]
-    public async Task SyncNutzerConfigAsync_UnknownKey_SkippedSilently()
+    public async Task SyncUserConfigAsync_UnknownKey_SkippedSilently()
     {
-        var musiker = new Musiker { Name = "Sync5", Email = "sync5@test.de", PasswordHash = "x" };
-        _db.Musiker.Add(musiker);
+        var Musician = new Musician { Name = "Sync5", Email = "sync5@test.de", PasswordHash = "x" };
+        _db.Musicians.Add(Musician);
         await _db.SaveChangesAsync();
 
         var req = new ConfigSyncRequest(new[]
         {
-            new ConfigSyncEintrag("kein.schluessel", Json("\"x\""), 1, DateTime.UtcNow)
+            new ConfigSyncEntry("kein.schluessel", Json("\"x\""), 1, DateTime.UtcNow)
         });
 
-        var resp = await _sut.SyncNutzerConfigAsync(musiker.Id, req);
+        var resp = await _sut.SyncUserConfigAsync(Musician.Id, req);
 
         Assert.Empty(resp.Applied);
         Assert.Empty(resp.Conflicts);
     }
 
     [Fact]
-    public async Task SyncNutzerConfigAsync_KapelleLevelKey_SkippedSilently()
+    public async Task SyncUserConfigAsync_KapelleLevelKey_SkippedSilently()
     {
-        var musiker = new Musiker { Name = "Sync6", Email = "sync6@test.de", PasswordHash = "x" };
-        _db.Musiker.Add(musiker);
+        var Musician = new Musician { Name = "Sync6", Email = "sync6@test.de", PasswordHash = "x" };
+        _db.Musicians.Add(Musician);
         await _db.SaveChangesAsync();
 
         var req = new ConfigSyncRequest(new[]
         {
-            new ConfigSyncEintrag("kapelle.name", Json("\"x\""), 1, DateTime.UtcNow)
+            new ConfigSyncEntry("band.name", Json("\"x\""), 1, DateTime.UtcNow)
         });
 
-        var resp = await _sut.SyncNutzerConfigAsync(musiker.Id, req);
+        var resp = await _sut.SyncUserConfigAsync(Musician.Id, req);
 
         Assert.Empty(resp.Applied);
         Assert.Empty(resp.Conflicts);
     }
 
     [Fact]
-    public async Task SyncNutzerConfigAsync_ServerChangesReturnedForFullSync()
+    public async Task SyncUserConfigAsync_ServerChangesReturnedForFullSync()
     {
-        var musiker = new Musiker { Name = "Sync7", Email = "sync7@test.de", PasswordHash = "x" };
-        _db.Musiker.Add(musiker);
+        var Musician = new Musician { Name = "Sync7", Email = "sync7@test.de", PasswordHash = "x" };
+        _db.Musicians.Add(Musician);
         await _db.SaveChangesAsync();
 
         // Pre-seed server entry
-        _db.ConfigNutzer.Add(new ConfigNutzer
+        _db.ConfigUser.Add(new ConfigUser
         {
-            MusikerId = musiker.Id, Schluessel = "nutzer.sprache", Wert = "\"fr\"", Version = 3
+            MusicianId = Musician.Id, Key = "user.language", Value = "\"fr\"", Version = 3
         });
         await _db.SaveChangesAsync();
 
         var req = new ConfigSyncRequest(new[]
         {
-            new ConfigSyncEintrag("nutzer.theme", Json("\"dark\""), 1, DateTime.UtcNow)
+            new ConfigSyncEntry("user.theme", Json("\"dark\""), 1, DateTime.UtcNow)
         });
 
-        var resp = await _sut.SyncNutzerConfigAsync(musiker.Id, req);
+        var resp = await _sut.SyncUserConfigAsync(Musician.Id, req);
 
         // ServerChanges must include all entries (both the new and the pre-seeded)
         Assert.Equal(2, resp.ServerChanges.Count);
-        Assert.Contains(resp.ServerChanges, e => e.Schluessel == "nutzer.sprache");
-        Assert.Contains(resp.ServerChanges, e => e.Schluessel == "nutzer.theme");
+        Assert.Contains(resp.ServerChanges, e => e.Key == "user.language");
+        Assert.Contains(resp.ServerChanges, e => e.Key == "user.theme");
     }
 }

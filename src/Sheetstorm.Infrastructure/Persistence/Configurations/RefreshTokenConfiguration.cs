@@ -21,9 +21,9 @@ public class RefreshTokenConfiguration : IEntityTypeConfiguration<RefreshToken>
 
         builder.Property(rt => rt.ExpiresAt).IsRequired();
 
-        builder.HasOne(rt => rt.Musiker)
+        builder.HasOne(rt => rt.Musician)
             .WithMany(m => m.RefreshTokens)
-            .HasForeignKey(rt => rt.MusikerId)
+            .HasForeignKey(rt => rt.MusicianId)
             .OnDelete(DeleteBehavior.Cascade);
     }
 }

@@ -16,8 +16,8 @@ public class ImportControllerTests
 {
     private readonly IImportService _importService;
     private readonly ImportController _sut;
-    private readonly Guid _musikerId = Guid.NewGuid();
-    private readonly Guid _kapelleId = Guid.NewGuid();
+    private readonly Guid _musicianId = Guid.NewGuid();
+    private readonly Guid _bandId = Guid.NewGuid();
 
     public ImportControllerTests()
     {
@@ -25,7 +25,7 @@ public class ImportControllerTests
         _sut = new ImportController(_importService);
 
         var claims = new ClaimsPrincipal(new ClaimsIdentity([
-            new Claim(JwtRegisteredClaimNames.Sub, _musikerId.ToString())
+            new Claim(JwtRegisteredClaimNames.Sub, _musicianId.ToString())
         ]));
         _sut.ControllerContext = new ControllerContext
         {
@@ -46,16 +46,16 @@ public class ImportControllerTests
         return file;
     }
 
-    private ImportResultDto MakeImportResult(Guid kapelleId) =>
+    private ImportResultDto MakeImportResult(Guid bandId) =>
         new(Guid.NewGuid(), "Test Stück", ImportStatus.Completed,
-            new StueckMetadataDto("Test Stück", null, null, null, null));
+            new PieceMetadataDto("Test Stück", null, null, null, null));
 
     // ── No file ───────────────────────────────────────────────────────────────
 
     [Fact]
     public async Task Import_NullFile_ReturnsBadRequest()
     {
-        var result = await _sut.Import(_kapelleId, null!, CancellationToken.None);
+        var result = await _sut.Import(_bandId, null!, CancellationToken.None);
 
         var bad = Assert.IsType<BadRequestObjectResult>(result);
         var err = Assert.IsType<ErrorResponse>(bad.Value);
@@ -68,7 +68,7 @@ public class ImportControllerTests
         var file = Substitute.For<IFormFile>();
         file.Length.Returns(0);
 
-        var result = await _sut.Import(_kapelleId, file, CancellationToken.None);
+        var result = await _sut.Import(_bandId, file, CancellationToken.None);
 
         var bad = Assert.IsType<BadRequestObjectResult>(result);
         var err = Assert.IsType<ErrorResponse>(bad.Value);
@@ -86,10 +86,10 @@ public class ImportControllerTests
     {
         var file = MakeFormFile(fileName, contentType);
         _importService.ImportAsync(
-                Arg.Any<Stream>(), fileName, contentType, _kapelleId, _musikerId, Arg.Any<CancellationToken>())
-            .Returns(MakeImportResult(_kapelleId));
+                Arg.Any<Stream>(), fileName, contentType, _bandId, _musicianId, Arg.Any<CancellationToken>())
+            .Returns(MakeImportResult(_bandId));
 
-        var result = await _sut.Import(_kapelleId, file, CancellationToken.None);
+        var result = await _sut.Import(_bandId, file, CancellationToken.None);
 
         Assert.IsType<ObjectResult>(result);
         var obj = (ObjectResult)result;
@@ -109,7 +109,7 @@ public class ImportControllerTests
     {
         var file = MakeFormFile(fileName, contentType);
 
-        var result = await _sut.Import(_kapelleId, file, CancellationToken.None);
+        var result = await _sut.Import(_bandId, file, CancellationToken.None);
 
         var bad = Assert.IsType<BadRequestObjectResult>(result);
         var err = Assert.IsType<ErrorResponse>(bad.Value);
@@ -121,7 +121,7 @@ public class ImportControllerTests
     {
         var file = MakeFormFile("malware.exe", "application/x-executable");
 
-        await _sut.Import(_kapelleId, file, CancellationToken.None);
+        await _sut.Import(_bandId, file, CancellationToken.None);
 
         await _importService.DidNotReceive().ImportAsync(
             Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<string>(),
@@ -134,34 +134,34 @@ public class ImportControllerTests
     public async Task Import_ValidPdf_Returns201WithImportResult()
     {
         var file = MakeFormFile("polka.pdf", "application/pdf");
-        var expected = MakeImportResult(_kapelleId);
+        var expected = MakeImportResult(_bandId);
         _importService.ImportAsync(
-                Arg.Any<Stream>(), "polka.pdf", "application/pdf", _kapelleId, _musikerId, Arg.Any<CancellationToken>())
+                Arg.Any<Stream>(), "polka.pdf", "application/pdf", _bandId, _musicianId, Arg.Any<CancellationToken>())
             .Returns(expected);
 
-        var result = await _sut.Import(_kapelleId, file, CancellationToken.None);
+        var result = await _sut.Import(_bandId, file, CancellationToken.None);
 
         var obj = Assert.IsType<ObjectResult>(result);
         Assert.Equal(StatusCodes.Status201Created, obj.StatusCode);
         var returned = Assert.IsType<ImportResultDto>(obj.Value);
-        Assert.Equal(expected.StueckId, returned.StueckId);
+        Assert.Equal(expected.PieceId, returned.PieceId);
         Assert.Equal(ImportStatus.Completed, returned.ImportStatus);
     }
 
     [Fact]
-    public async Task Import_ValidFile_PassesKapelleIdAndMusikerIdToService()
+    public async Task Import_ValidFile_PassesBandIdAndMusicianIdToService()
     {
         var file = MakeFormFile("song.pdf", "application/pdf");
         _importService.ImportAsync(
                 Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<string>(),
                 Arg.Any<Guid?>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>())
-            .Returns(MakeImportResult(_kapelleId));
+            .Returns(MakeImportResult(_bandId));
 
-        await _sut.Import(_kapelleId, file, CancellationToken.None);
+        await _sut.Import(_bandId, file, CancellationToken.None);
 
         await _importService.Received(1).ImportAsync(
             Arg.Any<Stream>(), "song.pdf", "application/pdf",
-            _kapelleId, _musikerId, Arg.Any<CancellationToken>());
+            _bandId, _musicianId, Arg.Any<CancellationToken>());
     }
 
     // ── Content-type case insensitivity ───────────────────────────────────────
@@ -173,9 +173,9 @@ public class ImportControllerTests
         _importService.ImportAsync(
                 Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<string>(),
                 Arg.Any<Guid?>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>())
-            .Returns(MakeImportResult(_kapelleId));
+            .Returns(MakeImportResult(_bandId));
 
-        var result = await _sut.Import(_kapelleId, file, CancellationToken.None);
+        var result = await _sut.Import(_bandId, file, CancellationToken.None);
 
         // Should be 201, not 400 — content-type validation is case-insensitive
         var obj = Assert.IsType<ObjectResult>(result);

@@ -6,9 +6,9 @@ using Sheetstorm.Infrastructure.Auth;
 using Sheetstorm.Infrastructure.Config;
 using Sheetstorm.Infrastructure.Email;
 using Sheetstorm.Infrastructure.Import;
-using Sheetstorm.Infrastructure.KapelleManagement;
+using Sheetstorm.Infrastructure.BandManagement;
 using Sheetstorm.Infrastructure.Persistence;
-using Sheetstorm.Infrastructure.Stimmen;
+using Sheetstorm.Infrastructure.Voices;
 
 namespace Sheetstorm.Infrastructure;
 
@@ -28,9 +28,9 @@ public static class DependencyInjection
 
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IEmailService, DevEmailService>();
-        services.AddScoped<IKapelleService, KapelleService>();
+        services.AddScoped<IBandService, BandService>();
         services.AddScoped<IConfigService, ConfigService>();
-        services.AddScoped<IStimmenService, StimmenService>();
+        services.AddScoped<IVoiceService, VoiceService>();
 
         // Import pipeline
         services.AddScoped<IImportService, ImportService>();

@@ -5,22 +5,22 @@ namespace Sheetstorm.Infrastructure.Persistence;
 
 public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
-    public DbSet<Musiker> Musiker => Set<Musiker>();
+    public DbSet<Musician> Musicians => Set<Musician>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
-    public DbSet<Kapelle> Kapellen => Set<Kapelle>();
-    public DbSet<Mitgliedschaft> Mitgliedschaften => Set<Mitgliedschaft>();
-    public DbSet<Einladung> Einladungen => Set<Einladung>();
-    public DbSet<KapelleStimmenMapping> KapelleStimmenMappings => Set<KapelleStimmenMapping>();
-    public DbSet<Stueck> Stuecke => Set<Stueck>();
-    public DbSet<Stimme> Stimmen => Set<Stimme>();
-    public DbSet<Notenblatt> Notenblaetter => Set<Notenblatt>();
-    public DbSet<StueckSeite> StueckSeiten => Set<StueckSeite>();
-    public DbSet<ConfigKapelle> ConfigKapelle => Set<ConfigKapelle>();
-    public DbSet<ConfigNutzer> ConfigNutzer => Set<ConfigNutzer>();
+    public DbSet<Band> Bands => Set<Band>();
+    public DbSet<Membership> Memberships => Set<Membership>();
+    public DbSet<Invitation> Invitations => Set<Invitation>();
+    public DbSet<BandVoiceMapping> BandVoiceMappings => Set<BandVoiceMapping>();
+    public DbSet<Piece> Pieces => Set<Piece>();
+    public DbSet<Voice> Voices => Set<Voice>();
+    public DbSet<SheetMusic> SheetMusic => Set<SheetMusic>();
+    public DbSet<PiecePage> PiecePages => Set<PiecePage>();
+    public DbSet<ConfigBand> ConfigBand => Set<ConfigBand>();
+    public DbSet<ConfigUser> ConfigUser => Set<ConfigUser>();
     public DbSet<ConfigPolicy> ConfigPolicies => Set<ConfigPolicy>();
     public DbSet<ConfigAudit> ConfigAudit => Set<ConfigAudit>();
-    public DbSet<NutzerInstrument> NutzerInstrumente => Set<NutzerInstrument>();
-    public DbSet<StimmeVorauswahl> StimmeVorauswahlen => Set<StimmeVorauswahl>();
+    public DbSet<UserInstrument> UserInstruments => Set<UserInstrument>();
+    public DbSet<VoicePreselection> VoicePreselections => Set<VoicePreselection>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

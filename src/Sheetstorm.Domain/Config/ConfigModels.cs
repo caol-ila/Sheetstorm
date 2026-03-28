@@ -5,80 +5,80 @@ namespace Sheetstorm.Domain.Config;
 
 // ── Requests ──────────────────────────────────────────────────────────────────
 
-public record ConfigWertSetzenRequest(
-    [Required] JsonElement Wert
+public record SetConfigValueRequest(
+    [Required] JsonElement Value
 );
 
 public record ConfigSyncRequest(
-    [Required] IReadOnlyList<ConfigSyncEintrag> Changes
+    [Required] IReadOnlyList<ConfigSyncEntry> Changes
 );
 
-public record ConfigSyncEintrag(
-    [Required] string Schluessel,
-    [Required] JsonElement Wert,
+public record ConfigSyncEntry(
+    [Required] string Key,
+    [Required] JsonElement Value,
     long Version,
-    DateTime Zeitstempel
+    DateTime Timestamp
 );
 
 // ── Responses ─────────────────────────────────────────────────────────────────
 
-public record ConfigEintragResponse(
-    string Schluessel,
-    JsonElement Wert,
-    DateTime AktualisiertAm
+public record ConfigEntryResponse(
+    string Key,
+    JsonElement Value,
+    DateTime UpdatedAt
 );
 
-public record ConfigNutzerEintragResponse(
-    string Schluessel,
-    JsonElement Wert,
+public record ConfigUserEntryResponse(
+    string Key,
+    JsonElement Value,
     long Version,
-    DateTime AktualisiertAm
+    DateTime UpdatedAt
 );
 
-public record ConfigPolicyEintragResponse(
-    string Schluessel,
-    JsonElement Wert,
-    DateTime AktualisiertAm
+public record ConfigPolicyEntryResponse(
+    string Key,
+    JsonElement Value,
+    DateTime UpdatedAt
 );
 
-public record ConfigAenderungResponse(
+public record ConfigChangeResponse(
     bool Success,
-    JsonElement? AlterWert,
-    JsonElement NeuerWert,
-    DateTime Zeitstempel
+    JsonElement? OldValue,
+    JsonElement NewValue,
+    DateTime Timestamp
 );
 
-public record ConfigResolvedEintrag(
-    string Schluessel,
-    JsonElement Wert,
-    string Ebene,
+public record ConfigResolvedEntry(
+    string Key,
+    JsonElement Value,
+    string Level,
     bool PolicyEnforced
 );
 
 public record ConfigSyncResponse(
     IReadOnlyList<ConfigSyncApplied> Applied,
-    IReadOnlyList<ConfigNutzerEintragResponse> ServerChanges,
+    IReadOnlyList<ConfigUserEntryResponse> ServerChanges,
     IReadOnlyList<ConfigSyncConflict> Conflicts
 );
 
 public record ConfigSyncApplied(
-    string Schluessel,
-    long NeueVersion
+    string Key,
+    long NewVersion
 );
 
 public record ConfigSyncConflict(
-    string Schluessel,
-    JsonElement ServerWert,
+    string Key,
+    JsonElement ServerValue,
     long ServerVersion,
     string Grund
 );
 
-public record ConfigAuditEintragResponse(
+public record ConfigAuditEntryResponse(
     Guid Id,
-    string Ebene,
-    string Schluessel,
-    JsonElement? AlterWert,
-    JsonElement? NeuerWert,
-    Guid? MusikerId,
-    DateTime Zeitstempel
+    string Level,
+    string Key,
+    JsonElement? OldValue,
+    JsonElement? NewValue,
+    Guid? MusicianId,
+    DateTime Timestamp
 );

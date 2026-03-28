@@ -42,16 +42,16 @@ public class ImportEdgeCaseTests : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    private async Task<(Guid musikerId, Guid kapelleId)> SeedMitgliedAsync()
+    private async Task<(Guid musicianId, Guid bandId)> SeedMitgliedAsync()
     {
-        var musiker = new Musiker { Email = $"m{Guid.NewGuid()}@test.com", Name = "Test" };
-        var kapelle = new Kapelle { Name = "Test Kapelle" };
-        var mitglied = new Mitgliedschaft { Musiker = musiker, Kapelle = kapelle, IstAktiv = true };
-        _db.Musiker.Add(musiker);
-        _db.Kapellen.Add(kapelle);
-        _db.Mitgliedschaften.Add(mitglied);
+        var musician = new Musician { Email = $"m{Guid.NewGuid()}@test.com", Name = "Test" };
+        var band = new Band { Name = "Test Band" };
+        var mitglied = new Membership { Musician = musician, Band = band, IsActive = true };
+        _db.Musicians.Add(musician);
+        _db.Bands.Add(band);
+        _db.Memberships.Add(mitglied);
         await _db.SaveChangesAsync();
-        return (musiker.Id, kapelle.Id);
+        return (musician.Id, band.Id);
     }
 
     // ── Corrupt / empty files ─────────────────────────────────────────────────
@@ -61,23 +61,23 @@ public class ImportEdgeCaseTests : IDisposable
     {
         // An empty file passes controller checks if Length > 0 but content is empty.
         // ImportService itself doesn't validate content — that's the AI's job.
-        var (musikerId, kapelleId) = await SeedMitgliedAsync();
+        var (musicianId, bandId) = await SeedMitgliedAsync();
         _storage.UploadAsync(Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns("storage/empty.pdf");
         _ai.ExtractMetadataAsync(Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(new StueckMetadataDto(null, null, null, null, null));
+            .Returns(new PieceMetadataDto(null, null, null, null, null));
 
         using var stream = new MemoryStream(); // 0 bytes
-        var result = await _sut.ImportAsync(stream, "empty.pdf", "application/pdf", kapelleId, musikerId);
+        var result = await _sut.ImportAsync(stream, "empty.pdf", "application/pdf", bandId, musicianId);
 
-        Assert.NotEqual(Guid.Empty, result.StueckId);
+        Assert.NotEqual(Guid.Empty, result.PieceId);
         await _storage.Received(1).UploadAsync(stream, "empty.pdf", "application/pdf", Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task ImportAsync_CorruptFile_AiThrowsException_StatusSetToFailed()
     {
-        var (musikerId, kapelleId) = await SeedMitgliedAsync();
+        var (musicianId, bandId) = await SeedMitgliedAsync();
         _storage.UploadAsync(Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns("storage/corrupt.pdf");
 
@@ -88,7 +88,7 @@ public class ImportEdgeCaseTests : IDisposable
         // Corrupt: random bytes that aren't a valid PDF
         var corruptBytes = new byte[] { 0x00, 0xFF, 0xFE, 0xAB, 0xCD };
         using var stream = new MemoryStream(corruptBytes);
-        var result = await _sut.ImportAsync(stream, "corrupt.pdf", "application/pdf", kapelleId, musikerId);
+        var result = await _sut.ImportAsync(stream, "corrupt.pdf", "application/pdf", bandId, musicianId);
 
         Assert.Equal(ImportStatus.Failed, result.ImportStatus);
         Assert.Null(result.ExtractedMetadata);
@@ -97,32 +97,32 @@ public class ImportEdgeCaseTests : IDisposable
     [Fact]
     public async Task ImportAsync_CorruptFile_FileNamePreservedInStueck()
     {
-        var (musikerId, kapelleId) = await SeedMitgliedAsync();
+        var (musicianId, bandId) = await SeedMitgliedAsync();
         _storage.UploadAsync(Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns("storage/corrupt.pdf");
         _ai.ExtractMetadataAsync(Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .ThrowsAsync(new Exception("Parse error"));
 
         using var stream = new MemoryStream([0x00, 0xFF]);
-        var result = await _sut.ImportAsync(stream, "broken-file.pdf", "application/pdf", kapelleId, musikerId);
+        var result = await _sut.ImportAsync(stream, "broken-file.pdf", "application/pdf", bandId, musicianId);
 
-        var stueck = await _db.Stuecke.FirstAsync(s => s.Id == result.StueckId);
-        Assert.Equal("broken-file.pdf", stueck.OriginalDateiname);
+        var piece = await _db.Pieces.FirstAsync(s => s.Id == result.PieceId);
+        Assert.Equal("broken-file.pdf", piece.OriginalFileName);
     }
 
     [Fact]
     public async Task ImportAsync_StorageUploadFails_ThrowsExceptionBeforeCreatingStueck()
     {
-        var (musikerId, kapelleId) = await SeedMitgliedAsync();
+        var (musicianId, bandId) = await SeedMitgliedAsync();
         _storage.UploadAsync(Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .ThrowsAsync(new IOException("S3 disk full"));
 
         using var stream = new MemoryStream([1, 2, 3]);
         await Assert.ThrowsAsync<IOException>(
-            () => _sut.ImportAsync(stream, "song.pdf", "application/pdf", kapelleId, musikerId));
+            () => _sut.ImportAsync(stream, "song.pdf", "application/pdf", bandId, musicianId));
 
-        // No Stueck should have been created since upload failed
-        Assert.False(await _db.Stuecke.AnyAsync());
+        // No Piece should have been created since upload failed
+        Assert.False(await _db.Pieces.AnyAsync());
     }
 
     // ── Non-seekable streams ──────────────────────────────────────────────────
@@ -130,14 +130,14 @@ public class ImportEdgeCaseTests : IDisposable
     [Fact]
     public async Task ImportAsync_NonSeekableStream_AiIsStillCalled()
     {
-        var (musikerId, kapelleId) = await SeedMitgliedAsync();
+        var (musicianId, bandId) = await SeedMitgliedAsync();
         _storage.UploadAsync(Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns("storage/key.pdf");
         _ai.ExtractMetadataAsync(Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(new StueckMetadataDto("Title", null, null, null, null));
+            .Returns(new PieceMetadataDto("Title", null, null, null, null));
 
         using var nonSeekable = new NonSeekableStream([1, 2, 3, 4, 5]);
-        var result = await _sut.ImportAsync(nonSeekable, "test.pdf", "application/pdf", kapelleId, musikerId);
+        var result = await _sut.ImportAsync(nonSeekable, "test.pdf", "application/pdf", bandId, musicianId);
 
         await _ai.Received(1).ExtractMetadataAsync(Arg.Any<Stream>(), "test.pdf", Arg.Any<CancellationToken>());
         Assert.Equal(ImportStatus.Completed, result.ImportStatus);
@@ -146,35 +146,35 @@ public class ImportEdgeCaseTests : IDisposable
     // ── File naming edge cases ────────────────────────────────────────────────
 
     [Fact]
-    public async Task ImportAsync_FileNameWithoutExtension_TitelEqualsFullFileName()
+    public async Task ImportAsync_FileNameWithoutExtension_TitleEqualsFullFileName()
     {
-        var (musikerId, kapelleId) = await SeedMitgliedAsync();
+        var (musicianId, bandId) = await SeedMitgliedAsync();
         _storage.UploadAsync(Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns("key");
         _ai.ExtractMetadataAsync(Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(new StueckMetadataDto(null, null, null, null, null));
+            .Returns(new PieceMetadataDto(null, null, null, null, null));
 
         using var stream = new MemoryStream([1, 2, 3]);
-        var result = await _sut.ImportAsync(stream, "mysong", "application/pdf", kapelleId, musikerId);
+        var result = await _sut.ImportAsync(stream, "mysong", "application/pdf", bandId, musicianId);
 
         // Path.GetFileNameWithoutExtension("mysong") == "mysong"
-        Assert.Equal("mysong", result.Titel);
+        Assert.Equal("mysong", result.Title);
     }
 
     [Fact]
-    public async Task ImportAsync_FileNameWithMultipleDots_TitelUsesCorrectBaseName()
+    public async Task ImportAsync_FileNameWithMultipleDots_TitleUsesCorrectBaseName()
     {
-        var (musikerId, kapelleId) = await SeedMitgliedAsync();
+        var (musicianId, bandId) = await SeedMitgliedAsync();
         _storage.UploadAsync(Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns("key");
         _ai.ExtractMetadataAsync(Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(new StueckMetadataDto(null, null, null, null, null));
+            .Returns(new PieceMetadataDto(null, null, null, null, null));
 
         using var stream = new MemoryStream([1, 2, 3]);
-        var result = await _sut.ImportAsync(stream, "my.polka.v2.pdf", "application/pdf", kapelleId, musikerId);
+        var result = await _sut.ImportAsync(stream, "my.polka.v2.pdf", "application/pdf", bandId, musicianId);
 
         // Path.GetFileNameWithoutExtension strips only last extension
-        Assert.Equal("my.polka.v2", result.Titel);
+        Assert.Equal("my.polka.v2", result.Title);
     }
 
     // ── Concurrent uploads ────────────────────────────────────────────────────
@@ -182,97 +182,97 @@ public class ImportEdgeCaseTests : IDisposable
     [Fact]
     public async Task ImportAsync_ConcurrentUploadsToSameKapelle_BothSucceed()
     {
-        var (musikerId, kapelleId) = await SeedMitgliedAsync();
+        var (musicianId, bandId) = await SeedMitgliedAsync();
 
         _storage.UploadAsync(Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(callInfo => Task.FromResult($"storage/{callInfo.ArgAt<string>(1)}"));
         _ai.ExtractMetadataAsync(Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(new StueckMetadataDto(null, null, null, null, null));
+            .Returns(new PieceMetadataDto(null, null, null, null, null));
 
         using var stream1 = new MemoryStream([1, 2, 3]);
         using var stream2 = new MemoryStream([4, 5, 6]);
 
-        var task1 = _sut.ImportAsync(stream1, "song1.pdf", "application/pdf", kapelleId, musikerId);
-        var task2 = _sut.ImportAsync(stream2, "song2.pdf", "application/pdf", kapelleId, musikerId);
+        var task1 = _sut.ImportAsync(stream1, "song1.pdf", "application/pdf", bandId, musicianId);
+        var task2 = _sut.ImportAsync(stream2, "song2.pdf", "application/pdf", bandId, musicianId);
 
         var results = await Task.WhenAll(task1, task2);
 
         Assert.Equal(2, results.Length);
         Assert.All(results, r => Assert.Equal(ImportStatus.Completed, r.ImportStatus));
-        Assert.Equal(2, await _db.Stuecke.CountAsync(s => s.KapelleID == kapelleId));
+        Assert.Equal(2, await _db.Pieces.CountAsync(s => s.BandId == bandId));
     }
 
     [Fact]
     public async Task ImportAsync_ConcurrentUploadsFromDifferentMusiker_BothSucceed()
     {
-        // Two different members of the same Kapelle upload simultaneously
-        var kapelle = new Kapelle { Name = "Shared Kapelle" };
-        _db.Kapellen.Add(kapelle);
+        // Two different members of the same Band upload simultaneously
+        var band = new Band { Name = "Shared Band" };
+        _db.Bands.Add(band);
 
-        var musiker1 = new Musiker { Email = "m1@test.com", Name = "M1" };
-        var musiker2 = new Musiker { Email = "m2@test.com", Name = "M2" };
-        _db.Musiker.AddRange(musiker1, musiker2);
-        _db.Mitgliedschaften.AddRange(
-            new Mitgliedschaft { Musiker = musiker1, Kapelle = kapelle, IstAktiv = true },
-            new Mitgliedschaft { Musiker = musiker2, Kapelle = kapelle, IstAktiv = true });
+        var musiker1 = new Musician { Email = "m1@test.com", Name = "M1" };
+        var musiker2 = new Musician { Email = "m2@test.com", Name = "M2" };
+        _db.Musicians.AddRange(musiker1, musiker2);
+        _db.Memberships.AddRange(
+            new Membership { Musician = musiker1, Band = band, IsActive = true },
+            new Membership { Musician = musiker2, Band = band, IsActive = true });
         await _db.SaveChangesAsync();
 
         _storage.UploadAsync(Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(callInfo => Task.FromResult($"storage/{Guid.NewGuid()}.pdf"));
         _ai.ExtractMetadataAsync(Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(new StueckMetadataDto(null, null, null, null, null));
+            .Returns(new PieceMetadataDto(null, null, null, null, null));
 
         using var s1 = new MemoryStream([1, 2, 3]);
         using var s2 = new MemoryStream([4, 5, 6]);
 
-        var t1 = _sut.ImportAsync(s1, "upload1.pdf", "application/pdf", kapelle.Id, musiker1.Id);
-        var t2 = _sut.ImportAsync(s2, "upload2.pdf", "application/pdf", kapelle.Id, musiker2.Id);
+        var t1 = _sut.ImportAsync(s1, "upload1.pdf", "application/pdf", band.Id, musiker1.Id);
+        var t2 = _sut.ImportAsync(s2, "upload2.pdf", "application/pdf", band.Id, musiker2.Id);
 
         var results = await Task.WhenAll(t1, t2);
 
         Assert.Equal(2, results.Length);
-        Assert.Equal(2, await _db.Stuecke.CountAsync());
+        Assert.Equal(2, await _db.Pieces.CountAsync());
     }
 
-    // ── Labeling: assign pages (StueckSeite) ──────────────────────────────────
+    // ── Labeling: assign pages (PiecePage) ──────────────────────────────────
 
     [Fact]
     public async Task ImportAsync_CreatedStueck_HasEmptyPageCollection()
     {
-        var (musikerId, kapelleId) = await SeedMitgliedAsync();
+        var (musicianId, bandId) = await SeedMitgliedAsync();
         _storage.UploadAsync(Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns("key");
         _ai.ExtractMetadataAsync(Arg.Any<Stream>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-            .Returns(new StueckMetadataDto(null, null, null, null, null));
+            .Returns(new PieceMetadataDto(null, null, null, null, null));
 
         using var stream = new MemoryStream([1, 2, 3]);
-        var result = await _sut.ImportAsync(stream, "song.pdf", "application/pdf", kapelleId, musikerId);
+        var result = await _sut.ImportAsync(stream, "song.pdf", "application/pdf", bandId, musicianId);
 
-        var stueck = await _db.Stuecke
-            .Include(s => s.Seiten)
-            .FirstAsync(s => s.Id == result.StueckId);
+        var piece = await _db.Pieces
+            .Include(s => s.Pages)
+            .FirstAsync(s => s.Id == result.PieceId);
 
         // Pages are assigned post-import in a separate labeling step
-        Assert.Empty(stueck.Seiten);
+        Assert.Empty(piece.Pages);
     }
 
     [Fact]
-    public async Task DeleteStueck_WithPages_StueckIsRemovedFromDb()
+    public async Task DeletePiece_WithPages_StueckIsRemovedFromDb()
     {
-        var (musikerId, kapelleId) = await SeedMitgliedAsync();
-        var stueck = new Stueck
+        var (musicianId, bandId) = await SeedMitgliedAsync();
+        var piece = new Piece
         {
-            KapelleID = kapelleId, Titel = "With Pages",
+            BandId = bandId, Title = "With Pages",
             StorageKey = "key", ImportStatus = ImportStatus.Completed
         };
-        _db.Stuecke.Add(stueck);
+        _db.Pieces.Add(piece);
         await _db.SaveChangesAsync();
 
         _storage.DeleteAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(Task.CompletedTask);
 
-        await _sut.DeleteStueckAsync(kapelleId, stueck.Id, musikerId);
+        await _sut.DeletePieceAsync(bandId, piece.Id, musicianId);
 
-        Assert.False(await _db.Stuecke.AnyAsync(s => s.Id == stueck.Id));
+        Assert.False(await _db.Pieces.AnyAsync(s => s.Id == piece.Id));
     }
 }
 

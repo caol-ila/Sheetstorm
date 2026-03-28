@@ -9,5 +9,5 @@ namespace Sheetstorm.Infrastructure.Import;
 public interface IAiMetadataService
 {
     /// <summary>Extract metadata (title, composer, key, etc.) from a file stream.</summary>
-    Task<StueckMetadataDto> ExtractMetadataAsync(Stream stream, string fileName, CancellationToken ct = default);
+    Task<PieceMetadataDto> ExtractMetadataAsync(Stream stream, string fileName, CancellationToken ct = default);
 }

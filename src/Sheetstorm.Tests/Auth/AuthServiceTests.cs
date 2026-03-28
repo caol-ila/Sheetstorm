@@ -34,12 +34,12 @@ public class AuthServiceTests : IDisposable
 
         await _sut.RegisterAsync(request);
 
-        var musiker = await _db.Musiker.SingleAsync();
-        Assert.Equal(ValidEmail, musiker.Email);
-        Assert.Equal(ValidDisplayName, musiker.Name);
-        Assert.False(musiker.OnboardingCompleted);
-        Assert.NotEqual(ValidPassword, musiker.PasswordHash);
-        Assert.True(BCrypt.Net.BCrypt.Verify(ValidPassword, musiker.PasswordHash));
+        var Musician = await _db.Musicians.SingleAsync();
+        Assert.Equal(ValidEmail, Musician.Email);
+        Assert.Equal(ValidDisplayName, Musician.Name);
+        Assert.False(Musician.OnboardingCompleted);
+        Assert.NotEqual(ValidPassword, Musician.PasswordHash);
+        Assert.True(BCrypt.Net.BCrypt.Verify(ValidPassword, Musician.PasswordHash));
     }
 
     [Fact]
@@ -74,8 +74,8 @@ public class AuthServiceTests : IDisposable
 
         await _sut.RegisterAsync(request);
 
-        var musiker = await _db.Musiker.SingleAsync();
-        Assert.Equal("test@example.com", musiker.Email);
+        var Musician = await _db.Musicians.SingleAsync();
+        Assert.Equal("test@example.com", Musician.Email);
     }
 
     [Fact]
@@ -229,11 +229,11 @@ public class AuthServiceTests : IDisposable
 
         await _sut.ForgotPasswordAsync(new ForgotPasswordRequest(ValidEmail));
 
-        var musiker = await _db.Musiker.SingleAsync();
-        Assert.NotNull(musiker.PasswordResetToken);
-        Assert.NotNull(musiker.PasswordResetTokenExpiresAt);
-        Assert.True(musiker.PasswordResetTokenExpiresAt > before.AddMinutes(29));
-        Assert.True(musiker.PasswordResetTokenExpiresAt <= before.AddMinutes(31));
+        var Musician = await _db.Musicians.SingleAsync();
+        Assert.NotNull(Musician.PasswordResetToken);
+        Assert.NotNull(Musician.PasswordResetTokenExpiresAt);
+        Assert.True(Musician.PasswordResetTokenExpiresAt > before.AddMinutes(29));
+        Assert.True(Musician.PasswordResetTokenExpiresAt <= before.AddMinutes(31));
     }
 
     [Fact]
@@ -252,13 +252,13 @@ public class AuthServiceTests : IDisposable
         await RegisterDefaultUser();
         await _sut.ForgotPasswordAsync(new ForgotPasswordRequest(ValidEmail));
 
-        var musiker = await _db.Musiker.SingleAsync();
-        var resetToken = musiker.PasswordResetToken!;
+        var Musician = await _db.Musicians.SingleAsync();
+        var resetToken = Musician.PasswordResetToken!;
         const string newPassword = "NewPassword1!";
 
         // Capture the token IDs created before reset
         var tokenIdsBefore = await _db.RefreshTokens
-            .Where(t => t.MusikerId == musiker.Id)
+            .Where(t => t.MusicianId == Musician.Id)
             .Select(t => t.Id)
             .ToListAsync();
 
@@ -268,7 +268,7 @@ public class AuthServiceTests : IDisposable
         Assert.NotEmpty(response.AccessToken);
         Assert.NotEmpty(response.RefreshToken);
 
-        var updatedMusiker = await _db.Musiker.SingleAsync();
+        var updatedMusiker = await _db.Musicians.SingleAsync();
         Assert.Null(updatedMusiker.PasswordResetToken);
         Assert.Null(updatedMusiker.PasswordResetTokenExpiresAt);
         Assert.True(BCrypt.Net.BCrypt.Verify(newPassword, updatedMusiker.PasswordHash));
@@ -286,13 +286,13 @@ public class AuthServiceTests : IDisposable
         await RegisterDefaultUser();
         await _sut.ForgotPasswordAsync(new ForgotPasswordRequest(ValidEmail));
 
-        var musiker = await _db.Musiker.SingleAsync();
-        musiker.PasswordResetTokenExpiresAt = DateTime.UtcNow.AddMinutes(-1);
+        var Musician = await _db.Musicians.SingleAsync();
+        Musician.PasswordResetTokenExpiresAt = DateTime.UtcNow.AddMinutes(-1);
         await _db.SaveChangesAsync();
 
         var ex = await Assert.ThrowsAsync<AuthException>(
             () => _sut.ResetPasswordAsync(
-                new ResetPasswordRequest(musiker.PasswordResetToken!, "NewPassword1!")));
+                new ResetPasswordRequest(Musician.PasswordResetToken!, "NewPassword1!")));
 
         Assert.Equal("INVALID_RESET_TOKEN", ex.ErrorCode);
         Assert.Equal(400, ex.StatusCode);
@@ -314,8 +314,8 @@ public class AuthServiceTests : IDisposable
         var request = new RegisterRequest(ValidEmail, ValidPassword, ValidDisplayName, null);
         var response = await _sut.RegisterAsync(request);
         // Mark email as verified so login tests don't hit the email-verification guard
-        var musiker = await _db.Musiker.SingleAsync(m => m.Email == ValidEmail);
-        musiker.EmailVerified = true;
+        var Musician = await _db.Musicians.SingleAsync(m => m.Email == ValidEmail);
+        Musician.EmailVerified = true;
         await _db.SaveChangesAsync();
         return response;
     }

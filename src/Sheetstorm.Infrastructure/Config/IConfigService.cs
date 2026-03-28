@@ -4,36 +4,36 @@ namespace Sheetstorm.Infrastructure.Config;
 
 public interface IConfigService
 {
-    // ── Kapelle Config ────────────────────────────────────────────────────────
+    // ── Band Config ────────────────────────────────────────────────────────
 
-    Task<IReadOnlyList<ConfigEintragResponse>> GetKapelleConfigAsync(Guid kapelleId, Guid musikerId);
+    Task<IReadOnlyList<ConfigEntryResponse>> GetBandConfigAsync(Guid bandId, Guid musicianId);
 
-    Task<ConfigAenderungResponse> SetKapelleConfigAsync(
-        Guid kapelleId, string schluessel, ConfigWertSetzenRequest request, Guid musikerId);
+    Task<ConfigChangeResponse> SetBandConfigAsync(
+        Guid bandId, string schluessel, SetConfigValueRequest request, Guid musicianId);
 
-    Task DeleteKapelleConfigAsync(Guid kapelleId, string schluessel, Guid musikerId);
+    Task DeleteBandConfigAsync(Guid bandId, string schluessel, Guid musicianId);
 
     // ── Policies ──────────────────────────────────────────────────────────────
 
-    Task<IReadOnlyList<ConfigPolicyEintragResponse>> GetPoliciesAsync(Guid kapelleId, Guid musikerId);
+    Task<IReadOnlyList<ConfigPolicyEntryResponse>> GetPoliciesAsync(Guid bandId, Guid musicianId);
 
-    Task<ConfigAenderungResponse> SetPolicyAsync(
-        Guid kapelleId, string schluessel, ConfigWertSetzenRequest request, Guid musikerId);
+    Task<ConfigChangeResponse> SetPolicyAsync(
+        Guid bandId, string schluessel, SetConfigValueRequest request, Guid musicianId);
 
-    Task DeletePolicyAsync(Guid kapelleId, string schluessel, Guid musikerId);
+    Task DeletePolicyAsync(Guid bandId, string schluessel, Guid musicianId);
 
     // ── Nutzer Config ─────────────────────────────────────────────────────────
 
-    Task<IReadOnlyList<ConfigNutzerEintragResponse>> GetNutzerConfigAsync(Guid musikerId);
+    Task<IReadOnlyList<ConfigUserEntryResponse>> GetUserConfigAsync(Guid musicianId);
 
-    Task<ConfigAenderungResponse> SetNutzerConfigAsync(
-        Guid musikerId, string schluessel, ConfigWertSetzenRequest request);
+    Task<ConfigChangeResponse> SetUserConfigAsync(
+        Guid musicianId, string schluessel, SetConfigValueRequest request);
 
-    Task DeleteNutzerConfigAsync(Guid musikerId, string schluessel);
+    Task DeleteUserConfigAsync(Guid musicianId, string schluessel);
 
-    Task<ConfigSyncResponse> SyncNutzerConfigAsync(Guid musikerId, ConfigSyncRequest request);
+    Task<ConfigSyncResponse> SyncUserConfigAsync(Guid musicianId, ConfigSyncRequest request);
 
     // ── Resolved Config ───────────────────────────────────────────────────────
 
-    Task<IReadOnlyList<ConfigResolvedEintrag>> GetResolvedConfigAsync(Guid kapelleId, Guid musikerId);
+    Task<IReadOnlyList<ConfigResolvedEntry>> GetResolvedConfigAsync(Guid bandId, Guid musicianId);
 }

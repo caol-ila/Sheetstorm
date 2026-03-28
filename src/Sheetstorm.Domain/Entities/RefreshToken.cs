@@ -15,6 +15,6 @@ public class RefreshToken : BaseEntity
     public bool IsRevoked { get; set; }
     public DateTime ExpiresAt { get; set; }
 
-    public Guid MusikerId { get; set; }
-    public Musiker Musiker { get; set; } = null!;
+    public Guid MusicianId { get; set; }
+    public Musician Musician { get; set; } = null!;
 }

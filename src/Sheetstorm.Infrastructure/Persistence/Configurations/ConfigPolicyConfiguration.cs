@@ -10,25 +10,25 @@ public class ConfigPolicyConfiguration : IEntityTypeConfiguration<ConfigPolicy>
     {
         builder.HasKey(p => p.Id);
 
-        builder.Property(p => p.Schluessel)
+        builder.Property(p => p.Key)
             .IsRequired()
             .HasMaxLength(200);
 
-        builder.Property(p => p.Wert)
+        builder.Property(p => p.Value)
             .IsRequired()
             .HasColumnType("jsonb");
 
-        builder.HasIndex(p => new { p.KapelleId, p.Schluessel })
+        builder.HasIndex(p => new { p.BandId, p.Key })
             .IsUnique();
 
-        builder.HasOne(p => p.Kapelle)
+        builder.HasOne(p => p.Band)
             .WithMany()
-            .HasForeignKey(p => p.KapelleId)
+            .HasForeignKey(p => p.BandId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        builder.HasOne(p => p.AktualisiertVon)
+        builder.HasOne(p => p.UpdatedBy)
             .WithMany()
-            .HasForeignKey(p => p.AktualisiertVonId)
+            .HasForeignKey(p => p.UpdatedById)
             .OnDelete(DeleteBehavior.SetNull);
     }
 }

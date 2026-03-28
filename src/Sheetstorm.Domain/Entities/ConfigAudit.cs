@@ -8,14 +8,14 @@ public class ConfigAudit
 {
     public Guid Id { get; init; } = Guid.NewGuid();
 
-    public Guid? KapelleId { get; set; }
-    public Guid? MusikerId { get; set; }
+    public Guid? BandId { get; set; }
+    public Guid? MusicianId { get; set; }
 
-    public string Ebene { get; set; } = string.Empty; // "kapelle", "nutzer", "policy"
-    public string Schluessel { get; set; } = string.Empty;
+    public string Level { get; set; } = string.Empty; // "Band", "user", "policy"
+    public string Key { get; set; } = string.Empty;
 
-    public string? AlterWert { get; set; } // JSON string
-    public string? NeuerWert { get; set; } // JSON string
+    public string? OldValue { get; set; } // JSON string
+    public string? NewValue { get; set; } // JSON string
 
-    public DateTime Zeitstempel { get; set; } = DateTime.UtcNow;
+    public DateTime Timestamp { get; set; } = DateTime.UtcNow;
 }
