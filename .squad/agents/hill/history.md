@@ -82,3 +82,32 @@ Epic-Issues (#3, #4, #5) verlinken alle Child-Issues.
 - Server-side Enforcement als nicht-verhandelbar (Frontend blendet aus, Server erzwingt)
 - Abgelaufener Einladungslink → 410 Gone (nicht 404, semantisch korrekt)
 - Mitglied-Removal: Offline-Daten bleiben bis nächsten Sync — kein Hard-Delete vom Gerät
+
+### 2026-03-28: Feature-Spec Noten-Import & Labeling (#20) erstellt
+
+**Aufgabe:** Vollständige Feature-Spezifikation für Noten-Import & Labeling auf Basis von Wandas UX-Spec (#19, Branch `squad/14-19-kapelle-import-ux`).
+
+**Ergebnis:** `docs/feature-specs/noten-import-spec.md` erstellt (Branch `squad/20-import-spec`):
+
+1. **Feature-Überblick** — Kernproblem klar benannt: Import ist Existenz-kritisch für die App. Scope MS1 abgegrenzt (Cloud-Picker, MIDI, Audio Out of Scope).
+2. **5 INVEST-konforme User Stories:**
+   - US-01: PDF/Bild-Upload (Drag & Drop, Dateidialog, Share-Sheet)
+   - US-02: Kamera-Scan (mehrseitig, Phone/Tablet)
+   - US-03: Seiten-Labeling (Stückgrenzen, Drag & Drop, Metadaten)
+   - US-04: AI-Metadaten-Korrektur (Konfidenz-Anzeige, manuelle Überschreibung)
+   - US-05: Persönliche Sammlung (Musiker ohne Kapellen-Rolle)
+3. **17 testbare Akzeptanzkriterien** — AC-01 bis AC-17: Dateiformate, Batch, Fortschritt, PDF-Extraktion, Kamera, Share-Sheet, Labeling, Stückgrenzen, AI-Vorschläge, Isolation
+4. **API-Contract (5 Endpunkte):** POST /upload (multipart), POST /labeling, POST /metadata (AI-Trigger), PUT /metadata (manuelle Korrektur), POST /stimmen — jeweils mit Request/Response-Beispielen
+5. **Datenmodell (7 Tabellen):** stuecke (persönlich via musiker_id), notenblaetter (AI-Felder + konfidenz JSONB), seiten (multi-resolution), stimmen, stimm_zuordnungen, uploads, upload_dateien
+6. **AI-Integration:** Dual-Key (User→Kapelle→keine AI), Adapter-Pattern (AzureAIVisionAdapter MS1), Konfidenz-Schwellen, Key-Verschlüsselung AES-256
+7. **Berechtigungsmatrix:** 5 Rollen × alle Upload/Labeling-Aktionen; konfigurierbar per Kapelle
+8. **8 Edge Cases:** große Dateien (>20MB), schlechte Qualität, mehrere Lieder pro Dokument, Duplikate (SHA-256), Verbindungsabbruch (Retry + State-Resume), passwortgeschützte PDFs, unbekannte Stimmen, Labeling nach Pause
+9. **Definition of Done:** 25 Checkboxen (Funktional, Qualität ≥80% Coverage, UX, Technisch/Deployment)
+
+**Wichtigste Entscheidungen in der Spec:**
+- AI-Vorschläge sind immer Vorausfüllung, nie automatische Übernahme — Nutzer bestätigt explizit
+- `felder_bestaetigt`-Mechanismus: manuell korrigierte Felder werden nie durch AI überschrieben
+- Persönliche Sammlung = stueck mit musiker_id (kein separates System — Architektur-Entscheidung Stark)
+- Labeling-State bleibt 7 Tage erhalten — kein Datenverlust bei Pause
+- Duplikat-Warnung statt automatischer Ablehnung — Nutzer entscheidet
+- Seiten-Extraktion läuft asynchron; App ist während Extraktion nutzbar (persistenter Banner)
