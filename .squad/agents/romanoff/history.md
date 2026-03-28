@@ -54,3 +54,55 @@ flutter pub run build_runner build --delete-conflicting-outputs
 - Spielmodus: pdfrx-Integration, Half-Page-Turn-Logik
 - Annotationen: SVG-Layer-Implementation
 - Config: 3-Ebenen-Override-Logik
+
+---
+
+## 2026-03-28 — Issue #12: Flutter Auth UI & Token Management
+
+**Branch:** `squad/12-auth-flutter`  
+**Commit:** `33d1ce8`  
+**Worktree:** `C:\Source\Sheetstorm-12`
+
+### Was wurde gebaut
+
+**Daten-Schicht:**
+- `auth_models.dart` — `User`, `AuthTokens`, `AuthResponse` (manuelles JSON, kein build_runner nötig)
+- `TokenStorage` — `flutter_secure_storage 10.0.0`, persistiert Access/Refresh Token + User JSON in verschlüsseltem Storage (Android: EncryptedSharedPreferences)
+- `AuthService` — eigener Dio ohne Auth-Interceptor (vermeidet circular dependency), deckt alle Endpunkte: `login`, `register`, `refreshToken`, `forgotPassword`, `validateGuestToken`, `completeOnboarding`
+
+**State-Schicht:**
+- `AuthState` — sealed class: `AuthLoading / AuthUnauthenticated / AuthAuthenticated(User) / AuthError(String)`
+- `AuthNotifier` — Riverpod `Notifier` (keepAlive), initialisiert aus Storage beim App-Start, async `login/register/logout/forgotPassword`, `markOnboardingCompleted`, `onAuthError` (Callback für Dio-Interceptor)
+
+**Routing:**
+- go_router `redirect`-Guard mit `_RouterNotifier` (ChangeNotifier als `refreshListenable`)
+- Logik: AuthLoading → `/loading`, AuthAuthenticated + !onboardingCompleted → `/onboarding`, Authenticated auf Auth-Route → `/app/bibliothek`, Unauthenticated auf geschützter Route → `/login`
+- Neue Routen: `/loading`, `/register`, `/forgot-password`, `/onboarding`, `/aushilfe/:token` (Placeholder für Issue #15)
+
+**API-Client:**
+- `_AuthInterceptor` vollständig implementiert: Bearer-Token Injection, Auto-Refresh bei 401 (Retry-Request mit neuem Token), bei Refresh-Fehler `onAuthError()` aufrufen
+
+**Screens:**
+- `LoginScreen` — E-Mail + Passwort, Passwort vergessen Link, Social Login (Google immer, Apple nur iOS/macOS), Link zu Register
+- `RegisterScreen` — 4-Step progressiver Flow: E-Mail+PW (mit Stärke-Anzeige, Weiter-Button disabled bis gültig) → Name → Instrument (FilterChips, 25 Blaskapellen-Instrumente) → Kapelle (optional, überspringbar)
+- `ForgotPasswordScreen` — Email-Input, Success-State, 60s Cooldown-Timer auf "Erneut senden"
+- `OnboardingScreen` — 5-Step Wizard via PageView: Name bestätigen → Instrument → Kapelle & Standardstimme → Theme (Hell/Dunkel/System) → Fertig; jeder Schritt überspringbar
+
+**Shared Widgets:**
+- `AuthTextField` — 44px Touch-Target, Eye-Toggle für Passwortfelder
+- `PasswordStrengthIndicator` — Live-Balken (Schwach/Mittel/Stark) + Checkliste (8 Zeichen, Großbuchstabe, Zahl/Sonderzeichen)
+- `SocialLoginButtons` — `Platform.isIOS || Platform.isMacOS` Guard für Apple-Button
+
+### Wichtige Entscheidungen
+
+- **Kein build_runner nötig für Models**: Manuelle JSON-Serialisierung statt freezed/json_annotation
+- **Circular-Dep-Lösung**: `AuthService` hat eigenes Dio, `apiClient` liest `tokenStorageProvider` + `authServiceProvider` via `ref.read` (nicht watch)
+- **flutter_secure_storage 10.0.0** (neueste Version, per web_search verifiziert)
+- `authNotifierProvider` keepAlive — Auth-State überlebt Widget-Tree-Rebuild
+
+### Noch offen (spätere Issues)
+- Google Sign-In / Apple Sign-In OAuth-Integration (Placeholder-Buttons vorhanden)
+- Aushilfen-Deep-Link-Flow `/aushilfe/:token` (Issue #15)
+- Kapellen-Suche in Registrierung/Onboarding braucht API (Issue nach Backend-Auth)
+- build_runner nach Flutter-Installation für alle `.g.dart`-Stubs
+
