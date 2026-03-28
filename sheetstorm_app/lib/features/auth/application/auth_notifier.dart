@@ -171,12 +171,22 @@ class AuthNotifier extends _$AuthNotifier {
   }
 
   /// Update local user record after onboarding completes.
+  ///
+  /// Sets in-memory state first so the router redirect works immediately.
+  /// Storage persistence is best-effort — [TokenStorage] wraps all I/O in
+  /// try-catch, but we guard here as well in case of unexpected failures.
   Future<void> markOnboardingCompleted() async {
     final current = state;
     if (current is AuthAuthenticated) {
       final updated = current.user.copyWith(onboardingCompleted: true);
-      await ref.read(tokenStorageProvider).saveUser(updated);
       state = AuthAuthenticated(updated);
+      try {
+        await ref.read(tokenStorageProvider).saveUser(updated);
+      } catch (_) {
+        // Best-effort: state is already updated, navigation will work.
+        // On next cold start the persisted user may still show
+        // onboardingCompleted=false, but the server is the source of truth.
+      }
     }
   }
 

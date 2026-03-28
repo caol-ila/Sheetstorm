@@ -3,13 +3,12 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:sheetstorm/core/config/app_config.dart';
 import 'package:sheetstorm/features/auth/application/auth_notifier.dart';
 import 'package:sheetstorm/features/auth/data/services/auth_service.dart';
 import 'package:sheetstorm/features/auth/data/services/token_storage.dart';
 
 part 'api_client.g.dart';
-
-const String _baseUrl = 'https://api.sheetstorm.app/v1';
 
 @riverpod
 Dio apiClient(Ref ref) {
@@ -24,7 +23,7 @@ Dio apiClient(Ref ref) {
 
   final dio = Dio(
     BaseOptions(
-      baseUrl: _baseUrl,
+      baseUrl: AppConfig.apiBaseUrl,
       connectTimeout: const Duration(seconds: 10),
       receiveTimeout: const Duration(seconds: 30),
       headers: {
@@ -75,9 +74,19 @@ class _AuthInterceptor extends Interceptor {
     RequestOptions options,
     RequestInterceptorHandler handler,
   ) async {
-    final token = await _tokenStorage.getAccessToken();
-    if (token != null) {
-      options.headers['Authorization'] = 'Bearer $token';
+    try {
+      final token = await _tokenStorage.getAccessToken();
+      if (token != null) {
+        options.headers['Authorization'] = 'Bearer $token';
+      }
+    } catch (e) {
+      // Storage read failed (e.g. Web Crypto OperationError).
+      // Proceed without auth header — the 401 handler or server will
+      // deal with the missing token.
+      if (kDebugMode) {
+        // ignore: avoid_print
+        print('[AuthInterceptor] Token read failed: $e');
+      }
     }
     handler.next(options);
   }
