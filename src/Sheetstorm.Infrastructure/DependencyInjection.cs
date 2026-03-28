@@ -18,13 +18,20 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        var connectionString = configuration.GetConnectionString("DefaultConnection")
-            ?? throw new InvalidOperationException("ConnectionStrings:DefaultConnection not configured.");
+        var connectionString = configuration.GetConnectionString("DefaultConnection");
+        var useInMemory = string.IsNullOrEmpty(connectionString) 
+            || connectionString.Contains("CHANGE_ME")
+            || configuration.GetValue<bool>("UseInMemoryDatabase");
 
         services.AddDbContext<AppDbContext>(options =>
-            options.UseNpgsql(
-                connectionString,
-                npgsql => npgsql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName)));
+        {
+            if (useInMemory)
+                options.UseInMemoryDatabase("SheetstormDev");
+            else
+                options.UseNpgsql(
+                    connectionString!,
+                    npgsql => npgsql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName));
+        });
 
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IEmailService, DevEmailService>();
