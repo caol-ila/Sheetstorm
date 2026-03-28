@@ -1,6 +1,7 @@
 # Anforderungsvergleich: SheetHappens → Sheetstorm
 
 > **Erstellt:** 2026-03-28
+> **Aktualisiert:** 2026-03-28 (v2 — Abgleich gegen spezifikation.md v2)
 > **Autor:** Fury (Business Analyst)
 > **Status:** Zur Entscheidung durch Thomas
 > **Zweck:** Systematischer Vergleich des Vorgänger-Projekts SheetHappens mit dem aktuellen Sheetstorm-Projekt, um fehlende Anforderungen zu identifizieren und Übernahme-Empfehlungen auszusprechen.
@@ -54,7 +55,7 @@ SheetHappens ist ein voll spezifiziertes und teilweise implementiertes Vorgänge
 | 12 | Auto-Rotation (schräge Fotos gerade richten) | ❌ Konvertiert zu WebP, keine Auto-Rotation | ✅ F2.2 | 🆕 | Sheetstorm-Vorteil |
 | 13 | Auto-Zoom (optimale Darstellung) | ❌ Pinch-to-Zoom, „fit width" | ✅ F2.3 | 🆕 | Sheetstorm-Vorteil |
 | 14 | Dark Mode / Sepia / High Contrast | ✅ Im Viewer spezifiziert | ❌ Nicht in Spec (nur Gap-Analyse) | ❌ Nein | 🟡 Mittel — Für dunkle Auftrittsorte |
-| 15 | Bluetooth-Fußpedal-Support | ✅ HID-Profile, konfigurierbare Keys, Learn Mode | ❌ Nicht in Spec (nur Gap-Analyse) | ❌ Nein | 🔴 Hoch — Hände am Instrument |
+| 15 | Bluetooth-Fußpedal-Support | ✅ HID-Profile, konfigurierbare Keys, Learn Mode | ✅ F-SM-03 (Must, MS1) | ✅ Ja | — |
 | 16 | Thumbnail-Leiste für Schnellnavigation | ✅ Spezifiziert | ❌ Nicht spezifiziert | ❌ Nein | 🟢 Niedrig — UX-Verbesserung |
 | 17 | Zoom-Level pro Song speichern | ✅ Spezifiziert | ❌ Nicht spezifiziert | ❌ Nein | 🟢 Niedrig |
 | 18 | Bildschirm-Helligkeit im Viewer | ✅ Spezifiziert | ❌ Nicht spezifiziert | ❌ Nein | 🟢 Niedrig |
@@ -304,11 +305,12 @@ Sheetstorm hat auch Features, die SheetHappens fehlen:
 
 ### Sofort in Spezifikation aufnehmen (🔴 Hoch)
 
+> **Update v2:** Bluetooth-Fußpedal (Gap 3) ist jetzt ✅ F-SM-03. Verbleibende 🔴-Gaps:
+
 1. **GEMA-Meldung / Konzertberichte** — Gesetzliche Pflicht, hoher Schmerzpunkt, klarer Differentiator. SheetHappens-Datenmodell als Vorlage nutzen.
-2. **Conductor Mode** — Killer-Feature für Proben und Konzerte. SignalR-basiert, technisch gut machbar.
-3. **Bluetooth-Fußpedal** — Grundvoraussetzung für Blasmusiker. Bereits in unserer Gap-Analyse als 🔴 bewertet.
-4. **Offline-Architektur** — Detailliert spezifizieren statt nur Anforderungen listen. SheetHappens' Ansatz (SQLite + IndexedDB) als Referenz.
-5. **Server-seitige WebP-Konvertierung** — Architektur-Entscheidung, die alle Plattformen vereinheitlicht.
+2. **Conductor Mode** — Killer-Feature für Proben und Konzerte. SignalR-basiert, technisch gut machbar. SheetHappens hat ConductorHub vollständig implementiert.
+3. **Offline-Architektur** — Detailliert spezifizieren statt nur Anforderungen listen. SheetHappens' Ansatz (SQLite + IndexedDB) als Referenz.
+4. **Server-seitige WebP-Konvertierung** — Architektur-Entscheidung, die alle Plattformen vereinheitlicht.
 
 ### Zur Evaluierung (🟡 Mittel)
 
