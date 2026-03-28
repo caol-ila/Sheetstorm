@@ -41,6 +41,25 @@ public class MitgliederController(IKapelleService kapelleService) : ControllerBa
         return StatusCode(StatusCodes.Status201Created, result);
     }
 
+    // PUT /api/kapellen/{kapelleId}/mitglieder/{userId}/stimmen
+    // Admin can set anyone's stimme; members can set their own
+    [HttpPut("mitglieder/{userId:guid}/stimmen")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> SetNutzerStimmen(
+        Guid kapelleId,
+        Guid userId,
+        [FromBody] NutzerStimmenRequest request)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(new ErrorResponse("VALIDATION_ERROR", "Ungültige Stimmen-Eingabe."));
+
+        await kapelleService.SetNutzerStimmenAsync(kapelleId, userId, request, CurrentUserId);
+        return NoContent();
+    }
+
     // PUT /api/kapellen/{kapelleId}/mitglieder/{userId}/rolle  — Admin only (enforced in service)
     [HttpPut("mitglieder/{userId:guid}/rolle")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]

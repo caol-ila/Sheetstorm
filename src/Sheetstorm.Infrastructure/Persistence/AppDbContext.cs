@@ -10,6 +10,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Kapelle> Kapellen => Set<Kapelle>();
     public DbSet<Mitgliedschaft> Mitgliedschaften => Set<Mitgliedschaft>();
     public DbSet<Einladung> Einladungen => Set<Einladung>();
+    public DbSet<KapelleStimmenMapping> KapelleStimmenMappings => Set<KapelleStimmenMapping>();
     public DbSet<Stueck> Stuecke => Set<Stueck>();
     public DbSet<Stimme> Stimmen => Set<Stimme>();
     public DbSet<Notenblatt> Notenblaetter => Set<Notenblatt>();

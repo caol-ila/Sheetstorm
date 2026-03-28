@@ -13,6 +13,12 @@ public class Mitgliedschaft : BaseEntity
 
     public MitgliedRolle Rolle { get; set; } = MitgliedRolle.Musiker;
     public bool IstAktiv { get; set; } = true;
+
+    /// <summary>
+    /// Personal Stimmen override for this member in this Kapelle.
+    /// When set, takes precedence over the Kapelle default Stimmen mapping.
+    /// </summary>
+    public string? StimmenOverride { get; set; }
 }
 
 public enum MitgliedRolle

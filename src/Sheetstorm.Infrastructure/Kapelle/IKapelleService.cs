@@ -14,4 +14,9 @@ public interface IKapelleService
     Task<KapelleDto> BeitretenAsync(BeitretenRequest request, Guid musikerId);
     Task RolleAendernAsync(Guid kapelleId, Guid userId, RolleAendernRequest request, Guid musikerId);
     Task MitgliedEntfernenAsync(Guid kapelleId, Guid userId, Guid musikerId);
+
+    // Stimmen-Override
+    Task<StimmenMappingResponse> GetStimmenMappingAsync(Guid kapelleId, Guid musikerId);
+    Task<StimmenMappingResponse> SetStimmenMappingAsync(Guid kapelleId, StimmenMappingSetzenRequest request, Guid musikerId);
+    Task SetNutzerStimmenAsync(Guid kapelleId, Guid userId, NutzerStimmenRequest request, Guid musikerId);
 }

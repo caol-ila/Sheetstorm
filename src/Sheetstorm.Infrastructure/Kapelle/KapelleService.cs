@@ -281,6 +281,75 @@ public class KapelleService(AppDbContext db) : IKapelleService
         await db.SaveChangesAsync();
     }
 
+    // ── Stimmen-Mapping ───────────────────────────────────────────────────────
+
+    public async Task<StimmenMappingResponse> GetStimmenMappingAsync(Guid kapelleId, Guid musikerId)
+    {
+        await RequireMitgliedschaftAsync(kapelleId, musikerId);
+
+        var eintraege = await db.KapelleStimmenMappings
+            .Where(m => m.KapelleId == kapelleId)
+            .OrderBy(m => m.Instrument)
+            .Select(m => new StimmenMappingEintrag(m.Instrument, m.Stimme))
+            .ToListAsync();
+
+        return new StimmenMappingResponse(eintraege);
+    }
+
+    public async Task<StimmenMappingResponse> SetStimmenMappingAsync(
+        Guid kapelleId,
+        StimmenMappingSetzenRequest request,
+        Guid musikerId)
+    {
+        await RequireAdminAsync(kapelleId, musikerId);
+
+        // Replace all existing mappings for this Kapelle atomically
+        var existing = await db.KapelleStimmenMappings
+            .Where(m => m.KapelleId == kapelleId)
+            .ToListAsync();
+        db.KapelleStimmenMappings.RemoveRange(existing);
+
+        var newMappings = request.Eintraege.Select(e => new KapelleStimmenMapping
+        {
+            KapelleId = kapelleId,
+            Instrument = e.Instrument.Trim(),
+            Stimme = e.Stimme.Trim()
+        }).ToList();
+        db.KapelleStimmenMappings.AddRange(newMappings);
+
+        await db.SaveChangesAsync();
+
+        return new StimmenMappingResponse(
+            newMappings.OrderBy(m => m.Instrument)
+                .Select(m => new StimmenMappingEintrag(m.Instrument, m.Stimme))
+                .ToList());
+    }
+
+    public async Task SetNutzerStimmenAsync(
+        Guid kapelleId,
+        Guid userId,
+        NutzerStimmenRequest request,
+        Guid musikerId)
+    {
+        // Admins may set any member's override; members may only set their own
+        var requester = await RequireMitgliedschaftAsync(kapelleId, musikerId);
+
+        if (userId != musikerId && requester.Rolle != MitgliedRolle.Administrator)
+            throw new AuthException("FORBIDDEN", "Nur Admins dürfen die Stimme anderer Mitglieder setzen.", 403);
+
+        var target = userId == musikerId
+            ? requester
+            : await db.Mitgliedschaften
+                .FirstOrDefaultAsync(m => m.KapelleID == kapelleId && m.MusikerID == userId && m.IstAktiv)
+                ?? throw new AuthException("MEMBER_NOT_FOUND", "Mitglied nicht gefunden.", 404);
+
+        target.StimmenOverride = string.IsNullOrWhiteSpace(request.StimmenOverride)
+            ? null
+            : request.StimmenOverride.Trim();
+
+        await db.SaveChangesAsync();
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private async Task<Mitgliedschaft> RequireMitgliedschaftAsync(Guid kapelleId, Guid musikerId)

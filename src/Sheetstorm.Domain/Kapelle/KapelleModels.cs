@@ -30,6 +30,25 @@ public record RolleAendernRequest(
     [Required] MitgliedRolle Rolle
 );
 
+// ── Stimmen-Mapping ───────────────────────────────────────────────────────────
+
+public record StimmenMappingEintrag(
+    [Required][StringLength(100, MinimumLength = 1)] string Instrument,
+    [Required][StringLength(100, MinimumLength = 1)] string Stimme
+);
+
+public record StimmenMappingSetzenRequest(
+    [Required] IReadOnlyList<StimmenMappingEintrag> Eintraege
+);
+
+public record StimmenMappingResponse(
+    IReadOnlyList<StimmenMappingEintrag> Eintraege
+);
+
+public record NutzerStimmenRequest(
+    [StringLength(100)] string? StimmenOverride
+);
+
 // ── Responses ─────────────────────────────────────────────────────────────────
 
 public record KapelleDto(

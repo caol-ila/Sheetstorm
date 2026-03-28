@@ -14,4 +14,5 @@ public class Kapelle : BaseEntity
     public ICollection<Mitgliedschaft> Mitglieder { get; set; } = [];
     public ICollection<Stueck> Stuecke { get; set; } = [];
     public ICollection<Einladung> Einladungen { get; set; } = [];
+    public ICollection<KapelleStimmenMapping> StimmenMappings { get; set; } = [];
 }

@@ -72,6 +72,32 @@ public class KapelleController(IKapelleService kapelleService) : ControllerBase
         return NoContent();
     }
 
+    // GET /api/kapellen/{id}/stimmen-mapping — any member
+    [HttpGet("{id:guid}/stimmen-mapping")]
+    [ProducesResponseType(typeof(StimmenMappingResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetStimmenMapping(Guid id)
+    {
+        var result = await kapelleService.GetStimmenMappingAsync(id, CurrentUserId);
+        return Ok(result);
+    }
+
+    // PUT /api/kapellen/{id}/stimmen-mapping — Admin only
+    [HttpPut("{id:guid}/stimmen-mapping")]
+    [ProducesResponseType(typeof(StimmenMappingResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> SetStimmenMapping(Guid id, [FromBody] StimmenMappingSetzenRequest request)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(new ErrorResponse("VALIDATION_ERROR", "Ungültige Stimmen-Mapping-Daten."));
+
+        var result = await kapelleService.SetStimmenMappingAsync(id, request, CurrentUserId);
+        return Ok(result);
+    }
+
     // POST /api/kapellen/beitreten
     [HttpPost("beitreten")]
     [ProducesResponseType(typeof(KapelleDto), StatusCodes.Status200OK)]
