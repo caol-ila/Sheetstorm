@@ -253,4 +253,30 @@ Vollständiges 3-Schichten Backend-Scaffolding für Sheetstorm:
 - User Secrets lokal, nie Secrets im Code
 - Down-Methode in Migrations ist Pflicht
 
+### 2026-03-29: 12 Approved PRs in main gemergt
+
+**Anlass:** 15 offene PRs (#83–#97), davon 12 approved nach 3-Model-Review, 3 rejected mit Fix-Branches.
+
+**Merge-Reihenfolge (alle konfliktfrei):**
+1. `squad/7-backend-scaffolding` → PR #83 (Backend Scaffolding)
+2. `squad/8-frontend-scaffolding` → PR #85 (Frontend Scaffolding)
+3. `squad/6-projekt-setup-spec` → PR #84 (Projekt-Setup Spec)
+4. `squad/9-auth-ux` → PR #86 (Auth UX)
+5. `squad/10-auth-spec` → PR #87 (Auth Spec)
+6. `squad/13-auth-tests` → PR #94 (Auth Tests)
+7. `squad/14-19-kapelle-import-ux` → PR #89 (Kapelle+Import UX)
+8. `squad/15-kapelle-spec` → PR #90 (Kapelle Spec)
+9. `squad/20-import-spec` → PR #91 (Import Spec)
+10. `squad/24-28-32-spielmodus-stimmen-config-ux` → PR #92 (Spielmodus+Stimmen+Config UX)
+11. `squad/25-29-spielmodus-stimmen-spec` → PR #96 (Spielmodus+Stimmen Spec)
+12. `squad/37-annotationen-ux` → PR #97 (Annotationen UX)
+
+**Übersprungen (rejected):**
+- PR #88 (`squad/11-auth-backend`) — Fix-Branch: `squad/88-auth-fix`
+- PR #93 (`squad/12-auth-flutter`) — Fix-Branch: `squad/93-auth-flutter-fix`
+- PR #95 (`squad/16-kapelle-backend`) — Fix-Branch: `squad/95-kapelle-fix`
+
+**Ergebnis:** 12/12 Merges ohne Konflikte. Push auf main erfolgreich. Merge-Strategie "foundational first" (Backend → Frontend → Specs → Tests → UX) hat sich bewährt.
+
+**Fix-Branches Status:** Alle 3 Fix-Branches existieren auf Remote, haben aber noch keine PRs. Benötigen 3-Model Re-Review vor Merge.
 
