@@ -33,17 +33,17 @@ class ConfigSettingTile extends StatelessWidget {
   final ValueChanged<dynamic> onChanged;
   final VoidCallback? onOverride;
   final VoidCallback? onReset;
-  final ConfigEbene? viewLevel;
+  final ConfigLevel? viewLevel;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isLocked = resolved.istGesperrt;
-    final isInherited = viewLevel != null && resolved.herkunft != viewLevel;
-    final levelColor = ConfigLevelBadge.colorFor(resolved.herkunft);
+    final isLocked = resolved.isLocked;
+    final isInherited = viewLevel != null && resolved.source != viewLevel;
+    final levelColor = ConfigLevelBadge.colorFor(resolved.source);
 
     return Semantics(
-      label: '${keyDef.label}, ${resolved.herkunft.beschreibung}'
+      label: '${keyDef.label}, ${resolved.source.description}'
           '${isLocked ? ', gesperrt' : ''}',
       child: Container(
         decoration: BoxDecoration(
@@ -84,15 +84,15 @@ class ConfigSettingTile extends StatelessWidget {
                         ),
                       ),
                     ),
-                    ConfigLevelBadge(ebene: resolved.herkunft, compact: true),
+                    ConfigLevelBadge(level: resolved.source, compact: true),
                   ],
                 ),
 
                 // Description
-                if (keyDef.beschreibung != null) ...[
+                if (keyDef.description != null) ...[
                   const SizedBox(height: AppSpacing.xs),
                   Text(
-                    keyDef.beschreibung!,
+                    keyDef.description!,
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
@@ -109,7 +109,7 @@ class ConfigSettingTile extends StatelessWidget {
                 if (isInherited && !isLocked) ...[
                   const SizedBox(height: AppSpacing.sm),
                   _InheritedIndicator(
-                    herkunft: resolved.herkunft,
+                    source: resolved.source,
                     onOverride: onOverride,
                   ),
                 ],
@@ -124,7 +124,7 @@ class ConfigSettingTile extends StatelessWidget {
                 if (!isInherited && !isLocked && onReset != null) ...[
                   const SizedBox(height: AppSpacing.xs),
                   _ResetButton(
-                    herkunft: resolved.herkunft,
+                    source: resolved.source,
                     onReset: onReset!,
                   ),
                 ],
@@ -137,15 +137,15 @@ class ConfigSettingTile extends StatelessWidget {
   }
 
   Widget _buildControl(BuildContext context) {
-    final isLocked = resolved.istGesperrt;
-    final isInherited = viewLevel != null && resolved.herkunft != viewLevel;
+    final isLocked = resolved.isLocked;
+    final isInherited = viewLevel != null && resolved.source != viewLevel;
 
     switch (keyDef.widgetType) {
       case ConfigWidgetType.toggle:
         return SizedBox(
           height: AppSpacing.touchTargetMin,
           child: Switch(
-            value: (resolved.wert as bool?) ?? false,
+            value: (resolved.value as bool?) ?? false,
             onChanged: isLocked || isInherited ? null : (v) => onChanged(v),
           ),
         );
@@ -154,12 +154,12 @@ class ConfigSettingTile extends StatelessWidget {
         return SizedBox(
           height: AppSpacing.touchTargetMin,
           child: DropdownButton<String>(
-            value: resolved.wert?.toString(),
+            value: resolved.value?.toString(),
             isExpanded: true,
             onChanged: isLocked || isInherited
                 ? null
                 : (v) => onChanged(v),
-            items: (keyDef.optionen ?? []).map((o) {
+            items: (keyDef.options ?? []).map((o) {
               return DropdownMenuItem(value: o, child: Text(_formatOption(o)));
             }).toList(),
           ),
@@ -169,10 +169,10 @@ class ConfigSettingTile extends StatelessWidget {
         return SizedBox(
           height: AppSpacing.touchTargetMin,
           child: SegmentedButton<String>(
-            segments: (keyDef.optionen ?? []).map((o) {
+            segments: (keyDef.options ?? []).map((o) {
               return ButtonSegment(value: o, label: Text(_formatOption(o)));
             }).toList(),
-            selected: {resolved.wert?.toString() ?? ''},
+            selected: {resolved.value?.toString() ?? ''},
             onSelectionChanged: isLocked || isInherited
                 ? null
                 : (v) => onChanged(v.first),
@@ -182,8 +182,8 @@ class ConfigSettingTile extends StatelessWidget {
       case ConfigWidgetType.slider:
         final min = keyDef.min ?? 0.0;
         final max = keyDef.max ?? 1.0;
-        final currentValue = (resolved.wert is num)
-            ? (resolved.wert as num).toDouble()
+        final currentValue = (resolved.value is num)
+            ? (resolved.value as num).toDouble()
             : min;
         return SizedBox(
           height: AppSpacing.touchTargetMin,
@@ -203,7 +203,7 @@ class ConfigSettingTile extends StatelessWidget {
         return SizedBox(
           height: AppSpacing.touchTargetMin,
           child: _NumberInput(
-            value: resolved.wert is num ? (resolved.wert as num).toInt() : 0,
+            value: resolved.value is num ? (resolved.value as num).toInt() : 0,
             min: keyDef.min?.toInt(),
             max: keyDef.max?.toInt(),
             enabled: !isLocked && !isInherited,
@@ -213,7 +213,7 @@ class ConfigSettingTile extends StatelessWidget {
 
       case ConfigWidgetType.text:
         return TextField(
-          controller: TextEditingController(text: resolved.wert?.toString()),
+          controller: TextEditingController(text: resolved.value?.toString()),
           enabled: !isLocked && !isInherited,
           onSubmitted: (v) => onChanged(v),
           decoration: InputDecoration(
@@ -229,7 +229,7 @@ class ConfigSettingTile extends StatelessWidget {
       case ConfigWidgetType.colorPicker:
         // Simplified: show as text for now
         return Text(
-          resolved.wert?.toString() ?? '—',
+          resolved.value?.toString() ?? '—',
           style: Theme.of(context).textTheme.bodyLarge,
         );
     }
@@ -285,17 +285,17 @@ class ConfigSettingTile extends StatelessWidget {
 
 class _InheritedIndicator extends StatelessWidget {
   const _InheritedIndicator({
-    required this.herkunft,
+    required this.source,
     this.onOverride,
   });
 
-  final ConfigEbene herkunft;
+  final ConfigLevel source;
   final VoidCallback? onOverride;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final color = ConfigLevelBadge.colorFor(herkunft);
+    final color = ConfigLevelBadge.colorFor(source);
 
     return Container(
       padding: const EdgeInsets.symmetric(
@@ -308,10 +308,10 @@ class _InheritedIndicator extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(ConfigLevelBadge.iconFor(herkunft), size: 14, color: color),
+          Icon(ConfigLevelBadge.iconFor(source), size: 14, color: color),
           const SizedBox(width: AppSpacing.xs),
           Text(
-            'Standard von ${herkunft.label}',
+            'Standard von ${source.label}',
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),
@@ -337,11 +337,11 @@ class _InheritedIndicator extends StatelessWidget {
 
 class _ResetButton extends StatelessWidget {
   const _ResetButton({
-    required this.herkunft,
+    required this.source,
     required this.onReset,
   });
 
-  final ConfigEbene herkunft;
+  final ConfigLevel source;
   final VoidCallback onReset;
 
   @override

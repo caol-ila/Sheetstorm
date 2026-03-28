@@ -25,53 +25,53 @@ class ConfigApiService {
 
   // ─── Kapelle Config ──────────────────────────────────────────────────────
 
-  Future<Map<String, dynamic>> getKapelleConfig(String kapelleId) async {
+  Future<Map<String, dynamic>> getBandConfig(String bandId) async {
     final response = await _dio.get<Map<String, dynamic>>(
-      '/config/kapelle/$kapelleId',
+      '/config/band/$bandId',
     );
     return response.data ?? {};
   }
 
-  Future<void> putKapelleConfig(
-    String kapelleId,
+  Future<void> putBandConfig(
+    String bandId,
     String key,
-    dynamic wert,
+    dynamic value,
   ) async {
     await _dio.put<dynamic>(
-      '/config/kapelle/$kapelleId/$key',
-      data: {'wert': wert},
+      '/config/band/$bandId/$key',
+      data: {'value': value},
     );
   }
 
-  Future<void> deleteKapelleConfig(String kapelleId, String key) async {
-    await _dio.delete<dynamic>('/config/kapelle/$kapelleId/$key');
+  Future<void> deleteBandConfig(String bandId, String key) async {
+    await _dio.delete<dynamic>('/config/band/$bandId/$key');
   }
 
   // ─── Policies ────────────────────────────────────────────────────────────
 
-  Future<Map<String, ConfigPolicy>> getKapellePolicies(
-      String kapelleId) async {
+  Future<Map<String, ConfigPolicy>> getBandPolicies(
+      String bandId) async {
     final response = await _dio.get<Map<String, dynamic>>(
-      '/config/kapelle/$kapelleId/policies',
+      '/config/band/$bandId/policies',
     );
     final data = response.data ?? {};
     return data.map((key, value) => MapEntry(
           key,
           ConfigPolicy.fromJson({
-            'schluessel': key,
+            'key': key,
             ...value as Map<String, dynamic>,
           }),
         ));
   }
 
   Future<void> putPolicy(
-    String kapelleId,
+    String bandId,
     String key,
-    dynamic wert,
+    dynamic value,
   ) async {
     await _dio.put<dynamic>(
-      '/config/kapelle/$kapelleId/policies/$key',
-      data: {'wert': wert},
+      '/config/band/$bandId/policies/$key',
+      data: {'value': value},
     );
   }
 
@@ -82,8 +82,8 @@ class ConfigApiService {
     return response.data ?? {};
   }
 
-  Future<void> putNutzerConfig(String key, dynamic wert) async {
-    await _dio.put<dynamic>('/config/nutzer/$key', data: {'wert': wert});
+  Future<void> putNutzerConfig(String key, dynamic value) async {
+    await _dio.put<dynamic>('/config/nutzer/$key', data: {'value': value});
   }
 
   Future<void> deleteNutzerConfig(String key) async {
@@ -91,7 +91,7 @@ class ConfigApiService {
   }
 
   /// Delta-sync: send local changes, receive server changes.
-  Future<Map<String, dynamic>> syncNutzerConfig(
+  Future<Map<String, dynamic>> syncUserConfig(
     List<PendingSyncEntry> changes,
   ) async {
     final response = await _dio.post<Map<String, dynamic>>(
@@ -105,10 +105,10 @@ class ConfigApiService {
 
   // ─── Resolved Config ─────────────────────────────────────────────────────
 
-  Future<Map<String, dynamic>> getResolvedConfig(String kapelleId) async {
+  Future<Map<String, dynamic>> getResolvedConfig(String bandId) async {
     final response = await _dio.get<Map<String, dynamic>>(
       '/config/resolved',
-      queryParameters: {'kapelle_id': kapelleId},
+      queryParameters: {'band_id': bandId},
     );
     return response.data ?? {};
   }

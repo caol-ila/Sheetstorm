@@ -8,12 +8,12 @@ import 'package:sheetstorm/core/theme/app_tokens.dart';
 class UndoToast extends StatelessWidget {
   const UndoToast({
     super.key,
-    required this.nachricht,
+    required this.message,
     required this.onUndo,
     required this.onDismiss,
   });
 
-  final String nachricht;
+  final String message;
   final VoidCallback onUndo;
   final VoidCallback onDismiss;
 
@@ -36,7 +36,7 @@ class UndoToast extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  nachricht,
+                  message,
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.onInverseSurface,
                   ),
@@ -67,13 +67,13 @@ class UndoToast extends StatelessWidget {
   /// Show the undo toast as a SnackBar.
   static void show(
     BuildContext context, {
-    required String nachricht,
+    required String message,
     required VoidCallback onUndo,
   }) {
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(nachricht),
+        content: Text(message),
         action: SnackBarAction(
           label: 'Rückgängig',
           onPressed: onUndo,

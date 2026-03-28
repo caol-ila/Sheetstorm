@@ -11,11 +11,11 @@ import 'package:sheetstorm/features/config/domain/config_models.dart';
 class ConfigLevelBadge extends StatelessWidget {
   const ConfigLevelBadge({
     super.key,
-    required this.ebene,
+    required this.level,
     this.compact = false,
   });
 
-  final ConfigEbene ebene;
+  final ConfigLevel level;
   final bool compact;
 
   @override
@@ -37,7 +37,7 @@ class ConfigLevelBadge extends StatelessWidget {
           if (!compact) ...[
             const SizedBox(width: AppSpacing.xs),
             Text(
-              ebene.beschreibung,
+              level.description,
               style: TextStyle(
                 fontSize: compact ? AppTypography.fontSizeXs : AppTypography.fontSizeSm,
                 fontWeight: AppTypography.weightMedium,
@@ -51,47 +51,47 @@ class ConfigLevelBadge extends StatelessWidget {
   }
 
   Color get _color {
-    switch (ebene) {
-      case ConfigEbene.kapelle:
-        return AppColors.configKapelle;
-      case ConfigEbene.nutzer:
-        return AppColors.configNutzer;
-      case ConfigEbene.geraet:
-        return AppColors.configGerat;
+    switch (level) {
+      case ConfigLevel.band:
+        return AppColors.configBand;
+      case ConfigLevel.user:
+        return AppColors.configUser;
+      case ConfigLevel.device:
+        return AppColors.configDevice;
     }
   }
 
   IconData get _icon {
-    switch (ebene) {
-      case ConfigEbene.kapelle:
+    switch (level) {
+      case ConfigLevel.band:
         return Icons.account_balance;
-      case ConfigEbene.nutzer:
+      case ConfigLevel.user:
         return Icons.person;
-      case ConfigEbene.geraet:
+      case ConfigLevel.device:
         return Icons.phone_android;
     }
   }
 
   /// Helper to get the color for a given level (used across widgets).
-  static Color colorFor(ConfigEbene ebene) {
-    switch (ebene) {
-      case ConfigEbene.kapelle:
-        return AppColors.configKapelle;
-      case ConfigEbene.nutzer:
-        return AppColors.configNutzer;
-      case ConfigEbene.geraet:
-        return AppColors.configGerat;
+  static Color colorFor(ConfigLevel level) {
+    switch (level) {
+      case ConfigLevel.band:
+        return AppColors.configBand;
+      case ConfigLevel.user:
+        return AppColors.configUser;
+      case ConfigLevel.device:
+        return AppColors.configDevice;
     }
   }
 
   /// Helper to get the icon for a given level.
-  static IconData iconFor(ConfigEbene ebene) {
-    switch (ebene) {
-      case ConfigEbene.kapelle:
+  static IconData iconFor(ConfigLevel level) {
+    switch (level) {
+      case ConfigLevel.band:
         return Icons.account_balance;
-      case ConfigEbene.nutzer:
+      case ConfigLevel.user:
         return Icons.person;
-      case ConfigEbene.geraet:
+      case ConfigLevel.device:
         return Icons.phone_android;
     }
   }

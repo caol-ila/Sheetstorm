@@ -9,15 +9,15 @@ import 'package:sheetstorm/core/theme/app_tokens.dart';
 class ConfigPolicyIndicator extends StatelessWidget {
   const ConfigPolicyIndicator({
     super.key,
-    this.erklaerung,
+    this.explanation,
   });
 
-  final String? erklaerung;
+  final String? explanation;
 
   @override
   Widget build(BuildContext context) {
     return Tooltip(
-      message: erklaerung ?? 'Von deiner Kapelle festgelegt',
+      message: explanation ?? 'Von deiner Kapelle festgelegt',
       child: Container(
         padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.sm,

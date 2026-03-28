@@ -25,21 +25,21 @@ abstract final class AppColors {
 
   // ─── Config Level Colors (3-Ebenen-System) ───────────────────────────────────
   /// Kapelle-Einstellung (blau)
-  static const Color configKapelle = Color(0xFF1A56DB);
+  static const Color configBand = Color(0xFF1A56DB);
 
   /// Nutzer-Einstellung (grün)
-  static const Color configNutzer = Color(0xFF16A34A);
+  static const Color configUser = Color(0xFF16A34A);
 
   /// Gerät-Einstellung (orange)
-  static const Color configGerat = Color(0xFFD97706);
+  static const Color configDevice = Color(0xFFD97706);
 
   // ─── Annotation Layer Colors (UX-Spec: Farbe = Reichweite) ──────────────────
   /// Privat — Blau (#3B82F6) — nur für mich
   static const Color annotationPrivate = Color(0xFF3B82F6);
 
   /// Stimme — Grün (#22C55E) — alle mit gleicher Stimme
-  static const Color annotationStimme = Color(0xFF22C55E);
+  static const Color annotationVoice = Color(0xFF22C55E);
 
   /// Orchester — Orange (#F97316) — alle Kapellenmitglieder
-  static const Color annotationOrchester = Color(0xFFF97316);
+  static const Color annotationOrchestra = Color(0xFFF97316);
 }

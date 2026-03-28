@@ -108,7 +108,7 @@ class AuthNotifier extends _$AuthNotifier {
   }
 
   /// Returns the [AuthResponse] so callers can navigate after registration.
-  Future<AuthResponse?> register(
+  Future<AuthResponse?> sections(
     String email,
     String password,
     String displayName,
@@ -117,7 +117,7 @@ class AuthNotifier extends _$AuthNotifier {
     try {
       final service = ref.read(authServiceProvider);
       final storage = ref.read(tokenStorageProvider);
-      final response = await service.register(email, password, displayName);
+      final response = await service.sections(email, password, displayName);
       await storage.saveTokens(response.tokens);
       await storage.saveUser(response.user);
       state = _resolveAuthenticatedState(response.user);
@@ -180,7 +180,7 @@ class AuthNotifier extends _$AuthNotifier {
     }
   }
 
-  /// Resolves the post-login/register state based on email verification status.
+  /// Resolves the post-login/sections state based on email verification status.
   /// In dev mode (debug builds) email verification is skipped automatically.
   AuthState _resolveAuthenticatedState(User user) {
     if (!user.emailVerified && !AppConfig.devAutoVerifyEmail) {

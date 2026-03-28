@@ -45,7 +45,7 @@ class _EmailVerificationScreenState
       if (next is AuthAuthenticated) {
         // Verification succeeded — proceed to onboarding or app
         if (next.user.onboardingCompleted) {
-          context.go(AppRoutes.bibliothek);
+          context.go(AppRoutes.library);
         } else {
           context.go(AppRoutes.onboarding);
         }

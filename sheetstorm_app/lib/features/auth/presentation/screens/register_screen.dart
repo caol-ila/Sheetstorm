@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sheetstorm/core/routing/app_router.dart';
@@ -28,7 +28,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _nameController = TextEditingController();
-  final _kapelleController = TextEditingController();
+  final _bandController = TextEditingController();
 
   String _password = '';
   String? _selectedInstrument;
@@ -38,7 +38,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     _nameController.dispose();
-    _kapelleController.dispose();
+    _bandController.dispose();
     super.dispose();
   }
 
@@ -55,7 +55,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
   Future<void> _register() async {
     setState(() => _isLoading = true);
-    final response = await ref.read(authProvider.notifier).register(
+    final response = await ref.read(authProvider.notifier).sections(
           _emailController.text.trim(),
           _passwordController.text,
           _nameController.text.trim(),
@@ -148,7 +148,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         ),
       _ => _Step4(
           key: const ValueKey(4),
-          kapelleController: _kapelleController,
+          bandController: _bandController,
           isLoading: _isLoading,
           onRegister: _register,
           onSkip: _register,
@@ -293,7 +293,7 @@ class _Step2 extends StatelessWidget {
 
 // ─── Step 3: Instrument ───────────────────────────────────────────────────────
 
-const _blaskapelleInstrumente = [
+const _windBandInstruments = [
   'Flöte', 'Oboe', 'Fagott',
   'Klarinette (B)', 'Klarinette (Es)',
   'Altsaxophon', 'Tenorsaxophon', 'Baritonsaxophon', 'Sopransaxophon',
@@ -350,7 +350,7 @@ class _Step3 extends StatelessWidget {
         Wrap(
           spacing: AppSpacing.sm,
           runSpacing: AppSpacing.sm,
-          children: _blaskapelleInstrumente.map((instrument) {
+          children: _windBandInstruments.map((instrument) {
             final selected = selectedInstrument == instrument;
             return FilterChip(
               label: Text(instrument),
@@ -377,13 +377,13 @@ class _Step3 extends StatelessWidget {
 class _Step4 extends StatelessWidget {
   const _Step4({
     super.key,
-    required this.kapelleController,
+    required this.bandController,
     required this.isLoading,
     required this.onRegister,
     required this.onSkip,
   });
 
-  final TextEditingController kapelleController;
+  final TextEditingController bandController;
   final bool isLoading;
   final VoidCallback onRegister;
   final VoidCallback onSkip;
@@ -416,7 +416,7 @@ class _Step4 extends StatelessWidget {
         AuthTextField(
           label: 'Kapellenname',
           prefixIcon: Icons.search,
-          controller: kapelleController,
+          controller: bandController,
           keyboardType: TextInputType.text,
           textInputAction: TextInputAction.done,
           hint: 'z.B. Musikverein Musterhausen',

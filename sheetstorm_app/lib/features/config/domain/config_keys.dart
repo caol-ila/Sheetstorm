@@ -7,26 +7,26 @@ import 'package:sheetstorm/features/config/domain/config_models.dart';
 
 /// Metadata for a single configuration key.
 class ConfigKeyDef {
-  final String schluessel;
+  final String key;
   final String label;
-  final String? beschreibung;
-  final ConfigEbene ebene;
-  final String kategorie;
+  final String? description;
+  final ConfigLevel level;
+  final String category;
   final dynamic systemDefault;
   final ConfigWidgetType widgetType;
-  final List<String>? optionen;
+  final List<String>? options;
   final double? min;
   final double? max;
 
   const ConfigKeyDef({
-    required this.schluessel,
+    required this.key,
     required this.label,
-    this.beschreibung,
-    required this.ebene,
-    required this.kategorie,
+    this.description,
+    required this.level,
+    required this.category,
     required this.systemDefault,
     this.widgetType = ConfigWidgetType.text,
-    this.optionen,
+    this.options,
     this.min,
     this.max,
   });
@@ -45,100 +45,100 @@ enum ConfigWidgetType {
 }
 
 /// Categories for grouping settings in the UI.
-abstract final class ConfigKategorie {
-  static const String allgemein = 'Allgemein';
-  static const String darstellung = 'Darstellung';
+abstract final class ConfigCategory {
+  static const String general = 'Allgemein';
+  static const String display = 'Darstellung';
   static const String audio = 'Audio';
-  static const String spielmodus = 'Spielmodus';
-  static const String benachrichtigungen = 'Benachrichtigungen';
+  static const String performanceMode = 'Spielmodus';
+  static const String notifications = 'Notifications';
   static const String ai = 'AI & Import';
-  static const String berechtigungen = 'Mitglieder & Rollen';
+  static const String permissions = 'Mitglieder & Rollen';
   static const String policies = 'Policies';
   static const String touch = 'Touch & Gesten';
-  static const String fusspedal = 'Fußpedal';
-  static const String speicher = 'Speicher & Cache';
-  static const String profil = 'Profil & Konto';
-  static const String instrumente = 'Instrumente & Stimmen';
+  static const String footPedal = 'Fußpedal';
+  static const String storage = 'Speicher & Cache';
+  static const String profile = 'Profil & Konto';
+  static const String instruments = 'Instrumente & Stimmen';
 }
 
 /// All known configuration keys with defaults and metadata.
 abstract final class ConfigKeys {
   // ─── Kapelle ────────────────────────────────────────────────────────────────
 
-  static const kapelleName = ConfigKeyDef(
-    schluessel: 'kapelle.name',
+  static const bandName = ConfigKeyDef(
+    key: 'band.name',
     label: 'Kapellenname',
-    ebene: ConfigEbene.kapelle,
-    kategorie: ConfigKategorie.allgemein,
+    level: ConfigLevel.band,
+    category: ConfigCategory.general,
     systemDefault: '',
   );
 
-  static const kapelleSprache = ConfigKeyDef(
-    schluessel: 'kapelle.sprache',
+  static const bandLanguage = ConfigKeyDef(
+    key: 'band.language',
     label: 'Sprache des Archivs',
-    ebene: ConfigEbene.kapelle,
-    kategorie: ConfigKategorie.allgemein,
+    level: ConfigLevel.band,
+    category: ConfigCategory.general,
     systemDefault: 'de',
     widgetType: ConfigWidgetType.dropdown,
-    optionen: ['de', 'en'],
+    options: ['de', 'en'],
   );
 
-  static const kapelleAiEnabled = ConfigKeyDef(
-    schluessel: 'kapelle.ai.enabled',
+  static const bandAiEnabled = ConfigKeyDef(
+    key: 'band.ai.enabled',
     label: 'AI-Features aktiviert',
-    ebene: ConfigEbene.kapelle,
-    kategorie: ConfigKategorie.ai,
+    level: ConfigLevel.band,
+    category: ConfigCategory.ai,
     systemDefault: false,
     widgetType: ConfigWidgetType.toggle,
   );
 
-  static const kapelleAiProvider = ConfigKeyDef(
-    schluessel: 'kapelle.ai.provider',
+  static const bandAiProvider = ConfigKeyDef(
+    key: 'band.ai.provider',
     label: 'AI-Provider',
-    ebene: ConfigEbene.kapelle,
-    kategorie: ConfigKategorie.ai,
+    level: ConfigLevel.band,
+    category: ConfigCategory.ai,
     systemDefault: null,
     widgetType: ConfigWidgetType.dropdown,
-    optionen: ['azure_vision', 'openai_vision', 'google_vision'],
+    options: ['azure_vision', 'openai_vision', 'google_vision'],
   );
 
-  static const kapelleKammerton = ConfigKeyDef(
-    schluessel: 'kapelle.kammerton',
+  static const bandTuningPitch = ConfigKeyDef(
+    key: 'band.tuning_pitch',
     label: 'Kammerton A (Hz)',
-    beschreibung: 'Standard-Kammerton für die Kapelle',
-    ebene: ConfigEbene.kapelle,
-    kategorie: ConfigKategorie.allgemein,
+    description: 'Standard-Kammerton für die Kapelle',
+    level: ConfigLevel.band,
+    category: ConfigCategory.general,
     systemDefault: 442,
     widgetType: ConfigWidgetType.number,
     min: 430,
     max: 450,
   );
 
-  static const kapelleMetronomBpm = ConfigKeyDef(
-    schluessel: 'kapelle.metronom.default_bpm',
+  static const bandMetronomeBpm = ConfigKeyDef(
+    key: 'band.metronome.default_bpm',
     label: 'Standard-BPM',
-    ebene: ConfigEbene.kapelle,
-    kategorie: ConfigKategorie.allgemein,
+    level: ConfigLevel.band,
+    category: ConfigCategory.general,
     systemDefault: 120,
     widgetType: ConfigWidgetType.number,
     min: 20,
     max: 300,
   );
 
-  static const kapelleNotenUpload = ConfigKeyDef(
-    schluessel: 'kapelle.berechtigungen.noten_upload',
+  static const bandSheetMusicUpload = ConfigKeyDef(
+    key: 'band.permissions.sheet_music_upload',
     label: 'Noten-Upload erlaubt für',
-    ebene: ConfigEbene.kapelle,
-    kategorie: ConfigKategorie.berechtigungen,
+    level: ConfigLevel.band,
+    category: ConfigCategory.permissions,
     systemDefault: const ['admin', 'dirigent', 'notenwart'],
     widgetType: ConfigWidgetType.roleSelector,
   );
 
-  static const kapelleSetlistErstellen = ConfigKeyDef(
-    schluessel: 'kapelle.berechtigungen.setlist_erstellen',
+  static const bandSetlistCreate = ConfigKeyDef(
+    key: 'band.permissions.setlist_create',
     label: 'Setlist erstellen erlaubt für',
-    ebene: ConfigEbene.kapelle,
-    kategorie: ConfigKategorie.berechtigungen,
+    level: ConfigLevel.band,
+    category: ConfigCategory.permissions,
     systemDefault: const ['admin', 'dirigent', 'notenwart'],
     widgetType: ConfigWidgetType.roleSelector,
   );
@@ -146,245 +146,245 @@ abstract final class ConfigKeys {
   // ─── Policies ──────────────────────────────────────────────────────────────
 
   static const policyForceLocale = ConfigKeyDef(
-    schluessel: 'policy.force_locale',
+    key: 'policy.force_locale',
     label: 'Sprache erzwingen',
-    beschreibung: 'Alle Mitglieder verwenden die Kapellen-Sprache',
-    ebene: ConfigEbene.kapelle,
-    kategorie: ConfigKategorie.policies,
+    description: 'Alle Mitglieder verwenden die Kapellen-Sprache',
+    level: ConfigLevel.band,
+    category: ConfigCategory.policies,
     systemDefault: false,
     widgetType: ConfigWidgetType.toggle,
   );
 
   static const policyForceDarkMode = ConfigKeyDef(
-    schluessel: 'policy.force_dark_mode',
+    key: 'policy.force_dark_mode',
     label: 'Dark Mode erzwingen',
-    beschreibung: 'Nachtmodus bei Konzerten für alle erzwingen',
-    ebene: ConfigEbene.kapelle,
-    kategorie: ConfigKategorie.policies,
+    description: 'Nachtmodus bei Konzerten für alle erzwingen',
+    level: ConfigLevel.band,
+    category: ConfigCategory.policies,
     systemDefault: null,
     widgetType: ConfigWidgetType.dropdown,
-    optionen: ['null', 'true', 'false'],
+    options: ['null', 'true', 'false'],
   );
 
   static const policyAllowUserAiKeys = ConfigKeyDef(
-    schluessel: 'policy.allow_user_ai_keys',
+    key: 'policy.allow_user_ai_keys',
     label: 'Eigene AI-Keys erlauben',
-    beschreibung: 'Nutzer dürfen eigene AI-Schlüssel verwenden',
-    ebene: ConfigEbene.kapelle,
-    kategorie: ConfigKategorie.policies,
+    description: 'Nutzer dürfen eigene AI-Schlüssel verwenden',
+    level: ConfigLevel.band,
+    category: ConfigCategory.policies,
     systemDefault: true,
     widgetType: ConfigWidgetType.toggle,
   );
 
-  static const policyForceKammerton = ConfigKeyDef(
-    schluessel: 'policy.force_kammerton',
+  static const policyForceTuningPitch = ConfigKeyDef(
+    key: 'policy.force_tuning_pitch',
     label: 'Kammerton erzwingen',
-    beschreibung: 'Kammerton kann nicht lokal überschrieben werden',
-    ebene: ConfigEbene.kapelle,
-    kategorie: ConfigKategorie.policies,
+    description: 'Kammerton kann nicht lokal überschrieben werden',
+    level: ConfigLevel.band,
+    category: ConfigCategory.policies,
     systemDefault: false,
     widgetType: ConfigWidgetType.toggle,
   );
 
   // ─── Nutzer ────────────────────────────────────────────────────────────────
 
-  static const nutzerTheme = ConfigKeyDef(
-    schluessel: 'nutzer.theme',
+  static const userTheme = ConfigKeyDef(
+    key: 'user.theme',
     label: 'Theme',
-    ebene: ConfigEbene.nutzer,
-    kategorie: ConfigKategorie.darstellung,
+    level: ConfigLevel.user,
+    category: ConfigCategory.display,
     systemDefault: 'system',
     widgetType: ConfigWidgetType.segmented,
-    optionen: ['light', 'dark', 'system'],
+    options: ['light', 'dark', 'system'],
   );
 
-  static const nutzerSprache = ConfigKeyDef(
-    schluessel: 'nutzer.sprache',
+  static const userLanguage = ConfigKeyDef(
+    key: 'user.language',
     label: 'Sprache der App',
-    ebene: ConfigEbene.nutzer,
-    kategorie: ConfigKategorie.darstellung,
+    level: ConfigLevel.user,
+    category: ConfigCategory.display,
     systemDefault: 'de',
     widgetType: ConfigWidgetType.dropdown,
-    optionen: ['de', 'en'],
+    options: ['de', 'en'],
   );
 
-  static const nutzerHalfPageTurn = ConfigKeyDef(
-    schluessel: 'nutzer.spielmodus.half_page_turn',
+  static const userHalfPageTurn = ConfigKeyDef(
+    key: 'user.performance_mode.half_page_turn',
     label: 'Half-Page-Turn',
-    beschreibung: 'Halbes Blatt wenden statt ganzes',
-    ebene: ConfigEbene.nutzer,
-    kategorie: ConfigKategorie.spielmodus,
+    description: 'Halbes Blatt wenden statt ganzes',
+    level: ConfigLevel.user,
+    category: ConfigCategory.performanceMode,
     systemDefault: true,
     widgetType: ConfigWidgetType.toggle,
   );
 
-  static const nutzerHalfPageRatio = ConfigKeyDef(
-    schluessel: 'nutzer.spielmodus.half_page_ratio',
+  static const userHalfPageRatio = ConfigKeyDef(
+    key: 'user.performance_mode.half_page_ratio',
     label: 'Teilungsverhältnis',
-    ebene: ConfigEbene.nutzer,
-    kategorie: ConfigKategorie.spielmodus,
+    level: ConfigLevel.user,
+    category: ConfigCategory.performanceMode,
     systemDefault: 0.5,
     widgetType: ConfigWidgetType.slider,
     min: 0.3,
     max: 0.7,
   );
 
-  static const nutzerSwipeRichtung = ConfigKeyDef(
-    schluessel: 'nutzer.spielmodus.swipe_richtung',
+  static const userSwipeDirection = ConfigKeyDef(
+    key: 'user.performance_mode.swipe_direction',
     label: 'Wisch-Richtung',
-    ebene: ConfigEbene.nutzer,
-    kategorie: ConfigKategorie.spielmodus,
+    level: ConfigLevel.user,
+    category: ConfigCategory.performanceMode,
     systemDefault: 'horizontal',
     widgetType: ConfigWidgetType.segmented,
-    optionen: ['horizontal', 'vertikal'],
+    options: ['horizontal', 'vertikal'],
   );
 
-  static const nutzerAnnotationFarbe = ConfigKeyDef(
-    schluessel: 'nutzer.annotation.default_farbe',
+  static const userAnnotationColor = ConfigKeyDef(
+    key: 'user.annotation.default_color',
     label: 'Standard-Stiftfarbe',
-    ebene: ConfigEbene.nutzer,
-    kategorie: ConfigKategorie.darstellung,
+    level: ConfigLevel.user,
+    category: ConfigCategory.display,
     systemDefault: '#FF0000',
     widgetType: ConfigWidgetType.colorPicker,
   );
 
-  static const nutzerBenachrichtigungenTermine = ConfigKeyDef(
-    schluessel: 'nutzer.benachrichtigungen.termine',
+  static const userNotificationsEvents = ConfigKeyDef(
+    key: 'user.notifications.events',
     label: 'Probe-Erinnerungen',
-    ebene: ConfigEbene.nutzer,
-    kategorie: ConfigKategorie.benachrichtigungen,
+    level: ConfigLevel.user,
+    category: ConfigCategory.notifications,
     systemDefault: true,
     widgetType: ConfigWidgetType.toggle,
   );
 
-  static const nutzerBenachrichtigungenNoten = ConfigKeyDef(
-    schluessel: 'nutzer.benachrichtigungen.noten_neu',
+  static const userNotificationsSheetMusic = ConfigKeyDef(
+    key: 'user.notifications.new_sheet_music',
     label: 'Neue Noten verfügbar',
-    ebene: ConfigEbene.nutzer,
-    kategorie: ConfigKategorie.benachrichtigungen,
+    level: ConfigLevel.user,
+    category: ConfigCategory.notifications,
     systemDefault: true,
     widgetType: ConfigWidgetType.toggle,
   );
 
-  static const nutzerBenachrichtigungenAnnotation = ConfigKeyDef(
-    schluessel: 'nutzer.benachrichtigungen.annotation_update',
-    label: 'Orchester-Annotationen',
-    ebene: ConfigEbene.nutzer,
-    kategorie: ConfigKategorie.benachrichtigungen,
+  static const userNotificationsAnnotation = ConfigKeyDef(
+    key: 'user.notifications.annotation_update',
+    label: 'Orchester-annotations',
+    level: ConfigLevel.user,
+    category: ConfigCategory.notifications,
     systemDefault: true,
     widgetType: ConfigWidgetType.toggle,
   );
 
   // ─── Gerät ─────────────────────────────────────────────────────────────────
 
-  static const geraetHelligkeit = ConfigKeyDef(
-    schluessel: 'geraet.display.helligkeit',
+  static const deviceBrightness = ConfigKeyDef(
+    key: 'device.display.brightness',
     label: 'Helligkeit',
-    ebene: ConfigEbene.geraet,
-    kategorie: ConfigKategorie.darstellung,
+    level: ConfigLevel.device,
+    category: ConfigCategory.display,
     systemDefault: 1.0,
     widgetType: ConfigWidgetType.slider,
     min: 0.5,
     max: 1.5,
   );
 
-  static const geraetSchriftgroesse = ConfigKeyDef(
-    schluessel: 'geraet.display.schriftgroesse',
+  static const deviceFontSize = ConfigKeyDef(
+    key: 'device.display.font_size',
     label: 'Schriftgröße',
-    ebene: ConfigEbene.geraet,
-    kategorie: ConfigKategorie.darstellung,
+    level: ConfigLevel.device,
+    category: ConfigCategory.display,
     systemDefault: 'mittel',
     widgetType: ConfigWidgetType.segmented,
-    optionen: ['klein', 'mittel', 'gross', 'sehr_gross'],
+    options: ['klein', 'mittel', 'gross', 'sehr_gross'],
   );
 
-  static const geraetAutoRotation = ConfigKeyDef(
-    schluessel: 'geraet.display.auto_rotation',
+  static const deviceAutoRotation = ConfigKeyDef(
+    key: 'device.display.auto_rotation',
     label: 'Auto-Rotation',
-    ebene: ConfigEbene.geraet,
-    kategorie: ConfigKategorie.darstellung,
+    level: ConfigLevel.device,
+    category: ConfigCategory.display,
     systemDefault: true,
     widgetType: ConfigWidgetType.toggle,
   );
 
-  static const geraetTouchZonen = ConfigKeyDef(
-    schluessel: 'geraet.touch.zonen',
+  static const deviceTouchZones = ConfigKeyDef(
+    key: 'device.touch.zones',
     label: 'Tap-Zonen-Aufteilung',
-    beschreibung: 'Links/Rechts-Verteilung für Seitenwechsel',
-    ebene: ConfigEbene.geraet,
-    kategorie: ConfigKategorie.touch,
+    description: 'Links/Rechts-Verteilung für Seitenwechsel',
+    level: ConfigLevel.device,
+    category: ConfigCategory.touch,
     systemDefault: 0.4,
     widgetType: ConfigWidgetType.slider,
     min: 0.2,
     max: 0.5,
   );
 
-  static const geraetTouchEmpfindlichkeit = ConfigKeyDef(
-    schluessel: 'geraet.touch.empfindlichkeit',
+  static const deviceTouchSensitivity = ConfigKeyDef(
+    key: 'device.touch.sensitivity',
     label: 'Wisch-Empfindlichkeit',
-    ebene: ConfigEbene.geraet,
-    kategorie: ConfigKategorie.touch,
+    level: ConfigLevel.device,
+    category: ConfigCategory.touch,
     systemDefault: 'mittel',
     widgetType: ConfigWidgetType.segmented,
-    optionen: ['gering', 'mittel', 'hoch'],
+    options: ['gering', 'mittel', 'hoch'],
   );
 
-  static const geraetTunerKammerton = ConfigKeyDef(
-    schluessel: 'geraet.tuner.kammerton',
+  static const deviceTunerTuningPitch = ConfigKeyDef(
+    key: 'device.tuner.tuning_pitch',
     label: 'Tuner-Referenzton (Hz)',
-    ebene: ConfigEbene.geraet,
-    kategorie: ConfigKategorie.audio,
+    level: ConfigLevel.device,
+    category: ConfigCategory.audio,
     systemDefault: 440,
     widgetType: ConfigWidgetType.number,
     min: 430,
     max: 450,
   );
 
-  static const geraetMetronomLatenz = ConfigKeyDef(
-    schluessel: 'geraet.metronom.latenz_kompensation',
+  static const deviceMetronomeLatency = ConfigKeyDef(
+    key: 'device.metronome.latency_compensation',
     label: 'Latenz-Kompensation (ms)',
-    ebene: ConfigEbene.geraet,
-    kategorie: ConfigKategorie.audio,
+    level: ConfigLevel.device,
+    category: ConfigCategory.audio,
     systemDefault: 0,
     widgetType: ConfigWidgetType.number,
     min: -100,
     max: 100,
   );
 
-  static const geraetFusspedalAktiv = ConfigKeyDef(
-    schluessel: 'geraet.fusspedal.aktiv',
+  static const deviceFootPedalActive = ConfigKeyDef(
+    key: 'device.foot_pedal.active',
     label: 'Fußpedal aktiviert',
-    ebene: ConfigEbene.geraet,
-    kategorie: ConfigKategorie.fusspedal,
+    level: ConfigLevel.device,
+    category: ConfigCategory.footPedal,
     systemDefault: false,
     widgetType: ConfigWidgetType.toggle,
   );
 
-  static const geraetOfflineMaxSpeicher = ConfigKeyDef(
-    schluessel: 'geraet.offline.max_speicher_mb',
+  static const deviceOfflineMaxStorage = ConfigKeyDef(
+    key: 'device.offline.max_storage_mb',
     label: 'Maximaler Offline-Cache (MB)',
-    ebene: ConfigEbene.geraet,
-    kategorie: ConfigKategorie.speicher,
+    level: ConfigLevel.device,
+    category: ConfigCategory.storage,
     systemDefault: 500,
     widgetType: ConfigWidgetType.slider,
     min: 100,
     max: 5000,
   );
 
-  static const geraetOfflineAutoDownload = ConfigKeyDef(
-    schluessel: 'geraet.offline.auto_download',
+  static const deviceOfflineAutoDownload = ConfigKeyDef(
+    key: 'device.offline.auto_download',
     label: 'Noten automatisch herunterladen',
-    ebene: ConfigEbene.geraet,
-    kategorie: ConfigKategorie.speicher,
+    level: ConfigLevel.device,
+    category: ConfigCategory.storage,
     systemDefault: true,
     widgetType: ConfigWidgetType.toggle,
   );
 
-  static const geraetOfflineNurWifi = ConfigKeyDef(
-    schluessel: 'geraet.offline.nur_wifi',
+  static const deviceOfflineWifiOnly = ConfigKeyDef(
+    key: 'device.offline.wifi_only',
     label: 'Downloads nur über WLAN',
-    ebene: ConfigEbene.geraet,
-    kategorie: ConfigKategorie.speicher,
+    level: ConfigLevel.device,
+    category: ConfigCategory.storage,
     systemDefault: true,
     widgetType: ConfigWidgetType.toggle,
   );
@@ -392,7 +392,7 @@ abstract final class ConfigKeys {
   // ─── Lookup ────────────────────────────────────────────────────────────────
 
   static final Map<String, ConfigKeyDef> _all = {
-    for (final def in allKeys) def.schluessel: def,
+    for (final def in allKeys) def.key: def,
   };
 
   static ConfigKeyDef? lookup(String key) => _all[key];
@@ -401,33 +401,33 @@ abstract final class ConfigKeys {
 
   static List<ConfigKeyDef> get allKeys => [
         // Kapelle
-        kapelleName, kapelleSprache, kapelleAiEnabled, kapelleAiProvider,
-        kapelleKammerton, kapelleMetronomBpm, kapelleNotenUpload,
-        kapelleSetlistErstellen,
+        bandName, bandLanguage, bandAiEnabled, bandAiProvider,
+        bandTuningPitch, bandMetronomeBpm, bandSheetMusicUpload,
+        bandSetlistCreate,
         // Policies
         policyForceLocale, policyForceDarkMode, policyAllowUserAiKeys,
-        policyForceKammerton,
+        policyForceTuningPitch,
         // Nutzer
-        nutzerTheme, nutzerSprache, nutzerHalfPageTurn, nutzerHalfPageRatio,
-        nutzerSwipeRichtung, nutzerAnnotationFarbe,
-        nutzerBenachrichtigungenTermine, nutzerBenachrichtigungenNoten,
-        nutzerBenachrichtigungenAnnotation,
+        userTheme, userLanguage, userHalfPageTurn, userHalfPageRatio,
+        userSwipeDirection, userAnnotationColor,
+        userNotificationsEvents, userNotificationsSheetMusic,
+        userNotificationsAnnotation,
         // Gerät
-        geraetHelligkeit, geraetSchriftgroesse, geraetAutoRotation,
-        geraetTouchZonen, geraetTouchEmpfindlichkeit, geraetTunerKammerton,
-        geraetMetronomLatenz, geraetFusspedalAktiv, geraetOfflineMaxSpeicher,
-        geraetOfflineAutoDownload, geraetOfflineNurWifi,
+        deviceBrightness, deviceFontSize, deviceAutoRotation,
+        deviceTouchZones, deviceTouchSensitivity, deviceTunerTuningPitch,
+        deviceMetronomeLatency, deviceFootPedalActive, deviceOfflineMaxStorage,
+        deviceOfflineAutoDownload, deviceOfflineWifiOnly,
       ];
 
-  static List<ConfigKeyDef> forEbene(ConfigEbene ebene) =>
-      allKeys.where((k) => k.ebene == ebene).toList();
+  static List<ConfigKeyDef> forLevel(ConfigLevel level) =>
+      allKeys.where((k) => k.level == level).toList();
 
   /// Group keys by category for a given level.
-  static Map<String, List<ConfigKeyDef>> groupedByKategorie(ConfigEbene ebene) {
-    final keys = forEbene(ebene);
+  static Map<String, List<ConfigKeyDef>> groupedByCategory(ConfigLevel level) {
+    final keys = forLevel(level);
     final grouped = <String, List<ConfigKeyDef>>{};
     for (final key in keys) {
-      grouped.putIfAbsent(key.kategorie, () => []).add(key);
+      grouped.putIfAbsent(key.category, () => []).add(key);
     }
     return grouped;
   }

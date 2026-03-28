@@ -35,13 +35,13 @@ class AuthService {
     return AuthResponse.fromJson(res.data!);
   }
 
-  Future<AuthResponse> register(
+  Future<AuthResponse> sections(
     String email,
     String password,
     String displayName,
   ) async {
     final res = await _dio.post<Map<String, dynamic>>(
-      '/api/auth/register',
+      '/api/auth/sections',
       data: {
         'email': email,
         'password': password,

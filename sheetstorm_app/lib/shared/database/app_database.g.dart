@@ -3,11 +3,11 @@
 part of 'app_database.dart';
 
 // ignore_for_file: type=lint
-class $NotenTable extends Noten with TableInfo<$NotenTable, NotenData> {
+class $SheetMusicsTable extends SheetMusics with TableInfo<$SheetMusicsTable, SheetMusicsData> {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
-  $NotenTable(this.attachedDatabase, [this._alias]);
+  $SheetMusicsTable(this.attachedDatabase, [this._alias]);
   static const VerificationMeta _idMeta = const VerificationMeta('id');
   @override
   late final GeneratedColumn<int> id = GeneratedColumn<int>(
@@ -21,10 +21,10 @@ class $NotenTable extends Noten with TableInfo<$NotenTable, NotenData> {
       'PRIMARY KEY AUTOINCREMENT',
     ),
   );
-  static const VerificationMeta _titelMeta = const VerificationMeta('titel');
+  static const VerificationMeta _titelMeta = const VerificationMeta('title');
   @override
-  late final GeneratedColumn<String> titel = GeneratedColumn<String>(
-    'titel',
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
     aliasedName,
     false,
     additionalChecks: GeneratedColumn.checkTextLength(
@@ -34,12 +34,12 @@ class $NotenTable extends Noten with TableInfo<$NotenTable, NotenData> {
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
-  static const VerificationMeta _komponistMeta = const VerificationMeta(
-    'komponist',
+  static const VerificationMeta _composerMeta = const VerificationMeta(
+    'composer',
   );
   @override
-  late final GeneratedColumn<String> komponist = GeneratedColumn<String>(
-    'komponist',
+  late final GeneratedColumn<String> composer = GeneratedColumn<String>(
+    'composer',
     aliasedName,
     true,
     type: DriftSqlType.string,
@@ -54,21 +54,21 @@ class $NotenTable extends Noten with TableInfo<$NotenTable, NotenData> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
-  static const VerificationMeta _lokalerPfadMeta = const VerificationMeta(
-    'lokalerPfad',
+  static const VerificationMeta _localPathMeta = const VerificationMeta(
+    'localPath',
   );
   @override
-  late final GeneratedColumn<String> lokalerPfad = GeneratedColumn<String>(
+  late final GeneratedColumn<String> localPath = GeneratedColumn<String>(
     'lokaler_pfad',
     aliasedName,
     true,
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
-  static const VerificationMeta _istOfflineVerfuegbarMeta =
-      const VerificationMeta('istOfflineVerfuegbar');
+  static const VerificationMeta _isOfflineAvailableMeta =
+      const VerificationMeta('isOfflineAvailable');
   @override
-  late final GeneratedColumn<bool> istOfflineVerfuegbar = GeneratedColumn<bool>(
+  late final GeneratedColumn<bool> isOfflineAvailable = GeneratedColumn<bool>(
     'ist_offline_verfuegbar',
     aliasedName,
     false,
@@ -79,25 +79,25 @@ class $NotenTable extends Noten with TableInfo<$NotenTable, NotenData> {
     ),
     defaultValue: const Constant(false),
   );
-  static const VerificationMeta _erstelltAmMeta = const VerificationMeta(
-    'erstelltAm',
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
   );
   @override
-  late final GeneratedColumn<DateTime> erstelltAm = GeneratedColumn<DateTime>(
-    'erstellt_am',
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
     aliasedName,
     false,
     type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
     defaultValue: currentDateAndTime,
   );
-  static const VerificationMeta _aktualisiertAmMeta = const VerificationMeta(
-    'aktualisiertAm',
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
   );
   @override
-  late final GeneratedColumn<DateTime> aktualisiertAm =
+  late final GeneratedColumn<DateTime> updatedAt =
       GeneratedColumn<DateTime>(
-        'aktualisiert_am',
+        'updated_at',
         aliasedName,
         false,
         type: DriftSqlType.dateTime,
@@ -107,22 +107,22 @@ class $NotenTable extends Noten with TableInfo<$NotenTable, NotenData> {
   @override
   List<GeneratedColumn> get $columns => [
     id,
-    titel,
-    komponist,
+    title,
+    composer,
     genre,
-    lokalerPfad,
-    istOfflineVerfuegbar,
-    erstelltAm,
-    aktualisiertAm,
+    localPath,
+    isOfflineAvailable,
+    createdAt,
+    updatedAt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
   String get actualTableName => $name;
-  static const String $name = 'noten';
+  static const String $name = 'SheetMusics';
   @override
   VerificationContext validateIntegrity(
-    Insertable<NotenData> instance, {
+    Insertable<SheetMusicsData> instance, {
     bool isInserting = false,
   }) {
     final context = VerificationContext();
@@ -130,18 +130,18 @@ class $NotenTable extends Noten with TableInfo<$NotenTable, NotenData> {
     if (data.containsKey('id')) {
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
     }
-    if (data.containsKey('titel')) {
+    if (data.containsKey('title')) {
       context.handle(
         _titelMeta,
-        titel.isAcceptableOrUnknown(data['titel']!, _titelMeta),
+        title.isAcceptableOrUnknown(data['title']!, _titelMeta),
       );
     } else if (isInserting) {
       context.missing(_titelMeta);
     }
-    if (data.containsKey('komponist')) {
+    if (data.containsKey('composer')) {
       context.handle(
-        _komponistMeta,
-        komponist.isAcceptableOrUnknown(data['komponist']!, _komponistMeta),
+        _composerMeta,
+        composer.isAcceptableOrUnknown(data['composer']!, _composerMeta),
       );
     }
     if (data.containsKey('genre')) {
@@ -152,34 +152,34 @@ class $NotenTable extends Noten with TableInfo<$NotenTable, NotenData> {
     }
     if (data.containsKey('lokaler_pfad')) {
       context.handle(
-        _lokalerPfadMeta,
-        lokalerPfad.isAcceptableOrUnknown(
+        _localPathMeta,
+        localPath.isAcceptableOrUnknown(
           data['lokaler_pfad']!,
-          _lokalerPfadMeta,
+          _localPathMeta,
         ),
       );
     }
     if (data.containsKey('ist_offline_verfuegbar')) {
       context.handle(
-        _istOfflineVerfuegbarMeta,
-        istOfflineVerfuegbar.isAcceptableOrUnknown(
+        _isOfflineAvailableMeta,
+        isOfflineAvailable.isAcceptableOrUnknown(
           data['ist_offline_verfuegbar']!,
-          _istOfflineVerfuegbarMeta,
+          _isOfflineAvailableMeta,
         ),
       );
     }
-    if (data.containsKey('erstellt_am')) {
+    if (data.containsKey('created_at')) {
       context.handle(
-        _erstelltAmMeta,
-        erstelltAm.isAcceptableOrUnknown(data['erstellt_am']!, _erstelltAmMeta),
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
       );
     }
-    if (data.containsKey('aktualisiert_am')) {
+    if (data.containsKey('updated_at')) {
       context.handle(
-        _aktualisiertAmMeta,
-        aktualisiertAm.isAcceptableOrUnknown(
-          data['aktualisiert_am']!,
-          _aktualisiertAmMeta,
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(
+          data['updated_at']!,
+          _updatedAtMeta,
         ),
       );
     }
@@ -189,38 +189,38 @@ class $NotenTable extends Noten with TableInfo<$NotenTable, NotenData> {
   @override
   Set<GeneratedColumn> get $primaryKey => {id};
   @override
-  NotenData map(Map<String, dynamic> data, {String? tablePrefix}) {
+  SheetMusicsData map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return NotenData(
+    return SheetMusicsData(
       id: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}id'],
       )!,
-      titel: attachedDatabase.typeMapping.read(
+      title: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}titel'],
+        data['${effectivePrefix}title'],
       )!,
-      komponist: attachedDatabase.typeMapping.read(
+      composer: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}komponist'],
+        data['${effectivePrefix}composer'],
       ),
       genre: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}genre'],
       ),
-      lokalerPfad: attachedDatabase.typeMapping.read(
+      localPath: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}lokaler_pfad'],
       ),
-      istOfflineVerfuegbar: attachedDatabase.typeMapping.read(
+      isOfflineAvailable: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}ist_offline_verfuegbar'],
       )!,
-      erstelltAm: attachedDatabase.typeMapping.read(
+      createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}erstellt_am'],
       )!,
-      aktualisiertAm: attachedDatabase.typeMapping.read(
+      updatedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}aktualisiert_am'],
       )!,
@@ -228,85 +228,85 @@ class $NotenTable extends Noten with TableInfo<$NotenTable, NotenData> {
   }
 
   @override
-  $NotenTable createAlias(String alias) {
-    return $NotenTable(attachedDatabase, alias);
+  $SheetMusicsTable createAlias(String alias) {
+    return $SheetMusicsTable(attachedDatabase, alias);
   }
 }
 
-class NotenData extends DataClass implements Insertable<NotenData> {
+class SheetMusicsData extends DataClass implements Insertable<SheetMusicsData> {
   final int id;
-  final String titel;
-  final String? komponist;
+  final String title;
+  final String? composer;
   final String? genre;
-  final String? lokalerPfad;
-  final bool istOfflineVerfuegbar;
-  final DateTime erstelltAm;
-  final DateTime aktualisiertAm;
-  const NotenData({
+  final String? localPath;
+  final bool isOfflineAvailable;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  const SheetMusicsData({
     required this.id,
-    required this.titel,
-    this.komponist,
+    required this.title,
+    this.composer,
     this.genre,
-    this.lokalerPfad,
-    required this.istOfflineVerfuegbar,
-    required this.erstelltAm,
-    required this.aktualisiertAm,
+    this.localPath,
+    required this.isOfflineAvailable,
+    required this.createdAt,
+    required this.updatedAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['id'] = Variable<int>(id);
-    map['titel'] = Variable<String>(titel);
-    if (!nullToAbsent || komponist != null) {
-      map['komponist'] = Variable<String>(komponist);
+    map['title'] = Variable<String>(title);
+    if (!nullToAbsent || composer != null) {
+      map['composer'] = Variable<String>(composer);
     }
     if (!nullToAbsent || genre != null) {
       map['genre'] = Variable<String>(genre);
     }
-    if (!nullToAbsent || lokalerPfad != null) {
-      map['lokaler_pfad'] = Variable<String>(lokalerPfad);
+    if (!nullToAbsent || localPath != null) {
+      map['lokaler_pfad'] = Variable<String>(localPath);
     }
-    map['ist_offline_verfuegbar'] = Variable<bool>(istOfflineVerfuegbar);
-    map['erstellt_am'] = Variable<DateTime>(erstelltAm);
-    map['aktualisiert_am'] = Variable<DateTime>(aktualisiertAm);
+    map['ist_offline_verfuegbar'] = Variable<bool>(isOfflineAvailable);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
     return map;
   }
 
-  NotenCompanion toCompanion(bool nullToAbsent) {
-    return NotenCompanion(
+  SheetMusicsCompanion toCompanion(bool nullToAbsent) {
+    return SheetMusicsCompanion(
       id: Value(id),
-      titel: Value(titel),
-      komponist: komponist == null && nullToAbsent
+      title: Value(title),
+      composer: composer == null && nullToAbsent
           ? const Value.absent()
-          : Value(komponist),
+          : Value(composer),
       genre: genre == null && nullToAbsent
           ? const Value.absent()
           : Value(genre),
-      lokalerPfad: lokalerPfad == null && nullToAbsent
+      localPath: localPath == null && nullToAbsent
           ? const Value.absent()
-          : Value(lokalerPfad),
-      istOfflineVerfuegbar: Value(istOfflineVerfuegbar),
-      erstelltAm: Value(erstelltAm),
-      aktualisiertAm: Value(aktualisiertAm),
+          : Value(localPath),
+      isOfflineAvailable: Value(isOfflineAvailable),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
     );
   }
 
-  factory NotenData.fromJson(
+  factory SheetMusicsData.fromJson(
     Map<String, dynamic> json, {
     ValueSerializer? serializer,
   }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
-    return NotenData(
+    return SheetMusicsData(
       id: serializer.fromJson<int>(json['id']),
-      titel: serializer.fromJson<String>(json['titel']),
-      komponist: serializer.fromJson<String?>(json['komponist']),
+      title: serializer.fromJson<String>(json['title']),
+      composer: serializer.fromJson<String?>(json['composer']),
       genre: serializer.fromJson<String?>(json['genre']),
-      lokalerPfad: serializer.fromJson<String?>(json['lokalerPfad']),
-      istOfflineVerfuegbar: serializer.fromJson<bool>(
-        json['istOfflineVerfuegbar'],
+      localPath: serializer.fromJson<String?>(json['localPath']),
+      isOfflineAvailable: serializer.fromJson<bool>(
+        json['isOfflineAvailable'],
       ),
-      erstelltAm: serializer.fromJson<DateTime>(json['erstelltAm']),
-      aktualisiertAm: serializer.fromJson<DateTime>(json['aktualisiertAm']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
   }
   @override
@@ -314,67 +314,67 @@ class NotenData extends DataClass implements Insertable<NotenData> {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
       'id': serializer.toJson<int>(id),
-      'titel': serializer.toJson<String>(titel),
-      'komponist': serializer.toJson<String?>(komponist),
+      'title': serializer.toJson<String>(title),
+      'composer': serializer.toJson<String?>(composer),
       'genre': serializer.toJson<String?>(genre),
-      'lokalerPfad': serializer.toJson<String?>(lokalerPfad),
-      'istOfflineVerfuegbar': serializer.toJson<bool>(istOfflineVerfuegbar),
-      'erstelltAm': serializer.toJson<DateTime>(erstelltAm),
-      'aktualisiertAm': serializer.toJson<DateTime>(aktualisiertAm),
+      'localPath': serializer.toJson<String?>(localPath),
+      'isOfflineAvailable': serializer.toJson<bool>(isOfflineAvailable),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
   }
 
-  NotenData copyWith({
+  SheetMusicsData copyWith({
     int? id,
-    String? titel,
-    Value<String?> komponist = const Value.absent(),
+    String? title,
+    Value<String?> composer = const Value.absent(),
     Value<String?> genre = const Value.absent(),
-    Value<String?> lokalerPfad = const Value.absent(),
-    bool? istOfflineVerfuegbar,
-    DateTime? erstelltAm,
-    DateTime? aktualisiertAm,
-  }) => NotenData(
+    Value<String?> localPath = const Value.absent(),
+    bool? isOfflineAvailable,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) => SheetMusicsData(
     id: id ?? this.id,
-    titel: titel ?? this.titel,
-    komponist: komponist.present ? komponist.value : this.komponist,
+    title: title ?? this.title,
+    composer: composer.present ? composer.value : this.composer,
     genre: genre.present ? genre.value : this.genre,
-    lokalerPfad: lokalerPfad.present ? lokalerPfad.value : this.lokalerPfad,
-    istOfflineVerfuegbar: istOfflineVerfuegbar ?? this.istOfflineVerfuegbar,
-    erstelltAm: erstelltAm ?? this.erstelltAm,
-    aktualisiertAm: aktualisiertAm ?? this.aktualisiertAm,
+    localPath: localPath.present ? localPath.value : this.localPath,
+    isOfflineAvailable: isOfflineAvailable ?? this.isOfflineAvailable,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
   );
-  NotenData copyWithCompanion(NotenCompanion data) {
-    return NotenData(
+  SheetMusicsData copyWithCompanion(SheetMusicsCompanion data) {
+    return SheetMusicsData(
       id: data.id.present ? data.id.value : this.id,
-      titel: data.titel.present ? data.titel.value : this.titel,
-      komponist: data.komponist.present ? data.komponist.value : this.komponist,
+      title: data.title.present ? data.title.value : this.title,
+      composer: data.composer.present ? data.composer.value : this.composer,
       genre: data.genre.present ? data.genre.value : this.genre,
-      lokalerPfad: data.lokalerPfad.present
-          ? data.lokalerPfad.value
-          : this.lokalerPfad,
-      istOfflineVerfuegbar: data.istOfflineVerfuegbar.present
-          ? data.istOfflineVerfuegbar.value
-          : this.istOfflineVerfuegbar,
-      erstelltAm: data.erstelltAm.present
-          ? data.erstelltAm.value
-          : this.erstelltAm,
-      aktualisiertAm: data.aktualisiertAm.present
-          ? data.aktualisiertAm.value
-          : this.aktualisiertAm,
+      localPath: data.localPath.present
+          ? data.localPath.value
+          : this.localPath,
+      isOfflineAvailable: data.isOfflineAvailable.present
+          ? data.isOfflineAvailable.value
+          : this.isOfflineAvailable,
+      createdAt: data.createdAt.present
+          ? data.createdAt.value
+          : this.createdAt,
+      updatedAt: data.updatedAt.present
+          ? data.updatedAt.value
+          : this.updatedAt,
     );
   }
 
   @override
   String toString() {
-    return (StringBuffer('NotenData(')
+    return (StringBuffer('SheetMusicsData(')
           ..write('id: $id, ')
-          ..write('titel: $titel, ')
-          ..write('komponist: $komponist, ')
+          ..write('title: $title, ')
+          ..write('composer: $composer, ')
           ..write('genre: $genre, ')
-          ..write('lokalerPfad: $lokalerPfad, ')
-          ..write('istOfflineVerfuegbar: $istOfflineVerfuegbar, ')
-          ..write('erstelltAm: $erstelltAm, ')
-          ..write('aktualisiertAm: $aktualisiertAm')
+          ..write('localPath: $localPath, ')
+          ..write('isOfflineAvailable: $isOfflineAvailable, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
   }
@@ -382,99 +382,99 @@ class NotenData extends DataClass implements Insertable<NotenData> {
   @override
   int get hashCode => Object.hash(
     id,
-    titel,
-    komponist,
+    title,
+    composer,
     genre,
-    lokalerPfad,
-    istOfflineVerfuegbar,
-    erstelltAm,
-    aktualisiertAm,
+    localPath,
+    isOfflineAvailable,
+    createdAt,
+    updatedAt,
   );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is NotenData &&
+      (other is SheetMusicsData &&
           other.id == this.id &&
-          other.titel == this.titel &&
-          other.komponist == this.komponist &&
+          other.title == this.title &&
+          other.composer == this.composer &&
           other.genre == this.genre &&
-          other.lokalerPfad == this.lokalerPfad &&
-          other.istOfflineVerfuegbar == this.istOfflineVerfuegbar &&
-          other.erstelltAm == this.erstelltAm &&
-          other.aktualisiertAm == this.aktualisiertAm);
+          other.localPath == this.localPath &&
+          other.isOfflineAvailable == this.isOfflineAvailable &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
 }
 
-class NotenCompanion extends UpdateCompanion<NotenData> {
+class SheetMusicsCompanion extends UpdateCompanion<SheetMusicsData> {
   final Value<int> id;
-  final Value<String> titel;
-  final Value<String?> komponist;
+  final Value<String> title;
+  final Value<String?> composer;
   final Value<String?> genre;
-  final Value<String?> lokalerPfad;
-  final Value<bool> istOfflineVerfuegbar;
-  final Value<DateTime> erstelltAm;
-  final Value<DateTime> aktualisiertAm;
-  const NotenCompanion({
+  final Value<String?> localPath;
+  final Value<bool> isOfflineAvailable;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  const SheetMusicsCompanion({
     this.id = const Value.absent(),
-    this.titel = const Value.absent(),
-    this.komponist = const Value.absent(),
+    this.title = const Value.absent(),
+    this.composer = const Value.absent(),
     this.genre = const Value.absent(),
-    this.lokalerPfad = const Value.absent(),
-    this.istOfflineVerfuegbar = const Value.absent(),
-    this.erstelltAm = const Value.absent(),
-    this.aktualisiertAm = const Value.absent(),
+    this.localPath = const Value.absent(),
+    this.isOfflineAvailable = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
   });
-  NotenCompanion.insert({
+  SheetMusicsCompanion.insert({
     this.id = const Value.absent(),
-    required String titel,
-    this.komponist = const Value.absent(),
+    required String title,
+    this.composer = const Value.absent(),
     this.genre = const Value.absent(),
-    this.lokalerPfad = const Value.absent(),
-    this.istOfflineVerfuegbar = const Value.absent(),
-    this.erstelltAm = const Value.absent(),
-    this.aktualisiertAm = const Value.absent(),
-  }) : titel = Value(titel);
-  static Insertable<NotenData> custom({
+    this.localPath = const Value.absent(),
+    this.isOfflineAvailable = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+  }) : title = Value(title);
+  static Insertable<SheetMusicsData> custom({
     Expression<int>? id,
-    Expression<String>? titel,
-    Expression<String>? komponist,
+    Expression<String>? title,
+    Expression<String>? composer,
     Expression<String>? genre,
-    Expression<String>? lokalerPfad,
-    Expression<bool>? istOfflineVerfuegbar,
-    Expression<DateTime>? erstelltAm,
-    Expression<DateTime>? aktualisiertAm,
+    Expression<String>? localPath,
+    Expression<bool>? isOfflineAvailable,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
-      if (titel != null) 'titel': titel,
-      if (komponist != null) 'komponist': komponist,
+      if (title != null) 'title': title,
+      if (composer != null) 'composer': composer,
       if (genre != null) 'genre': genre,
-      if (lokalerPfad != null) 'lokaler_pfad': lokalerPfad,
-      if (istOfflineVerfuegbar != null)
-        'ist_offline_verfuegbar': istOfflineVerfuegbar,
-      if (erstelltAm != null) 'erstellt_am': erstelltAm,
-      if (aktualisiertAm != null) 'aktualisiert_am': aktualisiertAm,
+      if (localPath != null) 'lokaler_pfad': localPath,
+      if (isOfflineAvailable != null)
+        'ist_offline_verfuegbar': isOfflineAvailable,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
     });
   }
 
-  NotenCompanion copyWith({
+  SheetMusicsCompanion copyWith({
     Value<int>? id,
-    Value<String>? titel,
-    Value<String?>? komponist,
+    Value<String>? title,
+    Value<String?>? composer,
     Value<String?>? genre,
-    Value<String?>? lokalerPfad,
-    Value<bool>? istOfflineVerfuegbar,
-    Value<DateTime>? erstelltAm,
-    Value<DateTime>? aktualisiertAm,
+    Value<String?>? localPath,
+    Value<bool>? isOfflineAvailable,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
   }) {
-    return NotenCompanion(
+    return SheetMusicsCompanion(
       id: id ?? this.id,
-      titel: titel ?? this.titel,
-      komponist: komponist ?? this.komponist,
+      title: title ?? this.title,
+      composer: composer ?? this.composer,
       genre: genre ?? this.genre,
-      lokalerPfad: lokalerPfad ?? this.lokalerPfad,
-      istOfflineVerfuegbar: istOfflineVerfuegbar ?? this.istOfflineVerfuegbar,
-      erstelltAm: erstelltAm ?? this.erstelltAm,
-      aktualisiertAm: aktualisiertAm ?? this.aktualisiertAm,
+      localPath: localPath ?? this.localPath,
+      isOfflineAvailable: isOfflineAvailable ?? this.isOfflineAvailable,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
     );
   }
 
@@ -484,53 +484,53 @@ class NotenCompanion extends UpdateCompanion<NotenData> {
     if (id.present) {
       map['id'] = Variable<int>(id.value);
     }
-    if (titel.present) {
-      map['titel'] = Variable<String>(titel.value);
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
     }
-    if (komponist.present) {
-      map['komponist'] = Variable<String>(komponist.value);
+    if (composer.present) {
+      map['composer'] = Variable<String>(composer.value);
     }
     if (genre.present) {
       map['genre'] = Variable<String>(genre.value);
     }
-    if (lokalerPfad.present) {
-      map['lokaler_pfad'] = Variable<String>(lokalerPfad.value);
+    if (localPath.present) {
+      map['lokaler_pfad'] = Variable<String>(localPath.value);
     }
-    if (istOfflineVerfuegbar.present) {
+    if (isOfflineAvailable.present) {
       map['ist_offline_verfuegbar'] = Variable<bool>(
-        istOfflineVerfuegbar.value,
+        isOfflineAvailable.value,
       );
     }
-    if (erstelltAm.present) {
-      map['erstellt_am'] = Variable<DateTime>(erstelltAm.value);
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
     }
-    if (aktualisiertAm.present) {
-      map['aktualisiert_am'] = Variable<DateTime>(aktualisiertAm.value);
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
     }
     return map;
   }
 
   @override
   String toString() {
-    return (StringBuffer('NotenCompanion(')
+    return (StringBuffer('SheetMusicsCompanion(')
           ..write('id: $id, ')
-          ..write('titel: $titel, ')
-          ..write('komponist: $komponist, ')
+          ..write('title: $title, ')
+          ..write('composer: $composer, ')
           ..write('genre: $genre, ')
-          ..write('lokalerPfad: $lokalerPfad, ')
-          ..write('istOfflineVerfuegbar: $istOfflineVerfuegbar, ')
-          ..write('erstelltAm: $erstelltAm, ')
-          ..write('aktualisiertAm: $aktualisiertAm')
+          ..write('localPath: $localPath, ')
+          ..write('isOfflineAvailable: $isOfflineAvailable, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
   }
 }
 
-class $StimmenTable extends Stimmen with TableInfo<$StimmenTable, StimmenData> {
+class $VoicesTable extends Voices with TableInfo<$VoicesTable, VoicesData> {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
-  $StimmenTable(this.attachedDatabase, [this._alias]);
+  $VoicesTable(this.attachedDatabase, [this._alias]);
   static const VerificationMeta _idMeta = const VerificationMeta('id');
   @override
   late final GeneratedColumn<int> id = GeneratedColumn<int>(
@@ -544,18 +544,18 @@ class $StimmenTable extends Stimmen with TableInfo<$StimmenTable, StimmenData> {
       'PRIMARY KEY AUTOINCREMENT',
     ),
   );
-  static const VerificationMeta _notenIdMeta = const VerificationMeta(
-    'notenId',
+  static const VerificationMeta _sheetIdMeta = const VerificationMeta(
+    'sheetId',
   );
   @override
-  late final GeneratedColumn<int> notenId = GeneratedColumn<int>(
-    'noten_id',
+  late final GeneratedColumn<int> sheetId = GeneratedColumn<int>(
+    'SheetMusics_id',
     aliasedName,
     false,
     type: DriftSqlType.int,
     requiredDuringInsert: true,
     defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'REFERENCES noten (id)',
+      'REFERENCES SheetMusics (id)',
     ),
   );
   static const VerificationMeta _nameMeta = const VerificationMeta('name');
@@ -582,11 +582,11 @@ class $StimmenTable extends Stimmen with TableInfo<$StimmenTable, StimmenData> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
-  static const VerificationMeta _seitenAnzahlMeta = const VerificationMeta(
-    'seitenAnzahl',
+  static const VerificationMeta _pageCountMeta = const VerificationMeta(
+    'pageCount',
   );
   @override
-  late final GeneratedColumn<int> seitenAnzahl = GeneratedColumn<int>(
+  late final GeneratedColumn<int> pageCount = GeneratedColumn<int>(
     'seiten_anzahl',
     aliasedName,
     false,
@@ -597,19 +597,19 @@ class $StimmenTable extends Stimmen with TableInfo<$StimmenTable, StimmenData> {
   @override
   List<GeneratedColumn> get $columns => [
     id,
-    notenId,
+    sheetId,
     name,
     instrument,
-    seitenAnzahl,
+    pageCount,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
   String get actualTableName => $name;
-  static const String $name = 'stimmen';
+  static const String $name = 'voices';
   @override
   VerificationContext validateIntegrity(
-    Insertable<StimmenData> instance, {
+    Insertable<VoicesData> instance, {
     bool isInserting = false,
   }) {
     final context = VerificationContext();
@@ -617,13 +617,13 @@ class $StimmenTable extends Stimmen with TableInfo<$StimmenTable, StimmenData> {
     if (data.containsKey('id')) {
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
     }
-    if (data.containsKey('noten_id')) {
+    if (data.containsKey('SheetMusics_id')) {
       context.handle(
-        _notenIdMeta,
-        notenId.isAcceptableOrUnknown(data['noten_id']!, _notenIdMeta),
+        _sheetIdMeta,
+        sheetId.isAcceptableOrUnknown(data['SheetMusics_id']!, _sheetIdMeta),
       );
     } else if (isInserting) {
-      context.missing(_notenIdMeta);
+      context.missing(_sheetIdMeta);
     }
     if (data.containsKey('name')) {
       context.handle(
@@ -641,10 +641,10 @@ class $StimmenTable extends Stimmen with TableInfo<$StimmenTable, StimmenData> {
     }
     if (data.containsKey('seiten_anzahl')) {
       context.handle(
-        _seitenAnzahlMeta,
-        seitenAnzahl.isAcceptableOrUnknown(
+        _pageCountMeta,
+        pageCount.isAcceptableOrUnknown(
           data['seiten_anzahl']!,
-          _seitenAnzahlMeta,
+          _pageCountMeta,
         ),
       );
     }
@@ -654,16 +654,16 @@ class $StimmenTable extends Stimmen with TableInfo<$StimmenTable, StimmenData> {
   @override
   Set<GeneratedColumn> get $primaryKey => {id};
   @override
-  StimmenData map(Map<String, dynamic> data, {String? tablePrefix}) {
+  VoicesData map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return StimmenData(
+    return VoicesData(
       id: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}id'],
       )!,
-      notenId: attachedDatabase.typeMapping.read(
+      sheetId: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
-        data['${effectivePrefix}noten_id'],
+        data['${effectivePrefix}SheetMusics_id'],
       )!,
       name: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
@@ -673,7 +673,7 @@ class $StimmenTable extends Stimmen with TableInfo<$StimmenTable, StimmenData> {
         DriftSqlType.string,
         data['${effectivePrefix}instrument'],
       ),
-      seitenAnzahl: attachedDatabase.typeMapping.read(
+      pageCount: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}seiten_anzahl'],
       )!,
@@ -681,60 +681,60 @@ class $StimmenTable extends Stimmen with TableInfo<$StimmenTable, StimmenData> {
   }
 
   @override
-  $StimmenTable createAlias(String alias) {
-    return $StimmenTable(attachedDatabase, alias);
+  $VoicesTable createAlias(String alias) {
+    return $VoicesTable(attachedDatabase, alias);
   }
 }
 
-class StimmenData extends DataClass implements Insertable<StimmenData> {
+class VoicesData extends DataClass implements Insertable<VoicesData> {
   final int id;
-  final int notenId;
+  final int sheetId;
   final String name;
   final String? instrument;
-  final int seitenAnzahl;
-  const StimmenData({
+  final int pageCount;
+  const VoicesData({
     required this.id,
-    required this.notenId,
+    required this.sheetId,
     required this.name,
     this.instrument,
-    required this.seitenAnzahl,
+    required this.pageCount,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['id'] = Variable<int>(id);
-    map['noten_id'] = Variable<int>(notenId);
+    map['SheetMusics_id'] = Variable<int>(sheetId);
     map['name'] = Variable<String>(name);
     if (!nullToAbsent || instrument != null) {
       map['instrument'] = Variable<String>(instrument);
     }
-    map['seiten_anzahl'] = Variable<int>(seitenAnzahl);
+    map['seiten_anzahl'] = Variable<int>(pageCount);
     return map;
   }
 
-  StimmenCompanion toCompanion(bool nullToAbsent) {
-    return StimmenCompanion(
+  VoicesCompanion toCompanion(bool nullToAbsent) {
+    return VoicesCompanion(
       id: Value(id),
-      notenId: Value(notenId),
+      sheetId: Value(sheetId),
       name: Value(name),
       instrument: instrument == null && nullToAbsent
           ? const Value.absent()
           : Value(instrument),
-      seitenAnzahl: Value(seitenAnzahl),
+      pageCount: Value(pageCount),
     );
   }
 
-  factory StimmenData.fromJson(
+  factory VoicesData.fromJson(
     Map<String, dynamic> json, {
     ValueSerializer? serializer,
   }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
-    return StimmenData(
+    return VoicesData(
       id: serializer.fromJson<int>(json['id']),
-      notenId: serializer.fromJson<int>(json['notenId']),
+      sheetId: serializer.fromJson<int>(json['sheetId']),
       name: serializer.fromJson<String>(json['name']),
       instrument: serializer.fromJson<String?>(json['instrument']),
-      seitenAnzahl: serializer.fromJson<int>(json['seitenAnzahl']),
+      pageCount: serializer.fromJson<int>(json['pageCount']),
     );
   }
   @override
@@ -742,115 +742,115 @@ class StimmenData extends DataClass implements Insertable<StimmenData> {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
       'id': serializer.toJson<int>(id),
-      'notenId': serializer.toJson<int>(notenId),
+      'sheetId': serializer.toJson<int>(sheetId),
       'name': serializer.toJson<String>(name),
       'instrument': serializer.toJson<String?>(instrument),
-      'seitenAnzahl': serializer.toJson<int>(seitenAnzahl),
+      'pageCount': serializer.toJson<int>(pageCount),
     };
   }
 
-  StimmenData copyWith({
+  VoicesData copyWith({
     int? id,
-    int? notenId,
+    int? sheetId,
     String? name,
     Value<String?> instrument = const Value.absent(),
-    int? seitenAnzahl,
-  }) => StimmenData(
+    int? pageCount,
+  }) => VoicesData(
     id: id ?? this.id,
-    notenId: notenId ?? this.notenId,
+    sheetId: sheetId ?? this.sheetId,
     name: name ?? this.name,
     instrument: instrument.present ? instrument.value : this.instrument,
-    seitenAnzahl: seitenAnzahl ?? this.seitenAnzahl,
+    pageCount: pageCount ?? this.pageCount,
   );
-  StimmenData copyWithCompanion(StimmenCompanion data) {
-    return StimmenData(
+  VoicesData copyWithCompanion(VoicesCompanion data) {
+    return VoicesData(
       id: data.id.present ? data.id.value : this.id,
-      notenId: data.notenId.present ? data.notenId.value : this.notenId,
+      sheetId: data.sheetId.present ? data.sheetId.value : this.sheetId,
       name: data.name.present ? data.name.value : this.name,
       instrument: data.instrument.present
           ? data.instrument.value
           : this.instrument,
-      seitenAnzahl: data.seitenAnzahl.present
-          ? data.seitenAnzahl.value
-          : this.seitenAnzahl,
+      pageCount: data.pageCount.present
+          ? data.pageCount.value
+          : this.pageCount,
     );
   }
 
   @override
   String toString() {
-    return (StringBuffer('StimmenData(')
+    return (StringBuffer('VoicesData(')
           ..write('id: $id, ')
-          ..write('notenId: $notenId, ')
+          ..write('sheetId: $sheetId, ')
           ..write('name: $name, ')
           ..write('instrument: $instrument, ')
-          ..write('seitenAnzahl: $seitenAnzahl')
+          ..write('pageCount: $pageCount')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, notenId, name, instrument, seitenAnzahl);
+  int get hashCode => Object.hash(id, sheetId, name, instrument, pageCount);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is StimmenData &&
+      (other is VoicesData &&
           other.id == this.id &&
-          other.notenId == this.notenId &&
+          other.sheetId == this.sheetId &&
           other.name == this.name &&
           other.instrument == this.instrument &&
-          other.seitenAnzahl == this.seitenAnzahl);
+          other.pageCount == this.pageCount);
 }
 
-class StimmenCompanion extends UpdateCompanion<StimmenData> {
+class VoicesCompanion extends UpdateCompanion<VoicesData> {
   final Value<int> id;
-  final Value<int> notenId;
+  final Value<int> sheetId;
   final Value<String> name;
   final Value<String?> instrument;
-  final Value<int> seitenAnzahl;
-  const StimmenCompanion({
+  final Value<int> pageCount;
+  const VoicesCompanion({
     this.id = const Value.absent(),
-    this.notenId = const Value.absent(),
+    this.sheetId = const Value.absent(),
     this.name = const Value.absent(),
     this.instrument = const Value.absent(),
-    this.seitenAnzahl = const Value.absent(),
+    this.pageCount = const Value.absent(),
   });
-  StimmenCompanion.insert({
+  VoicesCompanion.insert({
     this.id = const Value.absent(),
-    required int notenId,
+    required int sheetId,
     required String name,
     this.instrument = const Value.absent(),
-    this.seitenAnzahl = const Value.absent(),
-  }) : notenId = Value(notenId),
+    this.pageCount = const Value.absent(),
+  }) : sheetId = Value(sheetId),
        name = Value(name);
-  static Insertable<StimmenData> custom({
+  static Insertable<VoicesData> custom({
     Expression<int>? id,
-    Expression<int>? notenId,
+    Expression<int>? sheetId,
     Expression<String>? name,
     Expression<String>? instrument,
-    Expression<int>? seitenAnzahl,
+    Expression<int>? pageCount,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
-      if (notenId != null) 'noten_id': notenId,
+      if (sheetId != null) 'SheetMusics_id': sheetId,
       if (name != null) 'name': name,
       if (instrument != null) 'instrument': instrument,
-      if (seitenAnzahl != null) 'seiten_anzahl': seitenAnzahl,
+      if (pageCount != null) 'seiten_anzahl': pageCount,
     });
   }
 
-  StimmenCompanion copyWith({
+  VoicesCompanion copyWith({
     Value<int>? id,
-    Value<int>? notenId,
+    Value<int>? sheetId,
     Value<String>? name,
     Value<String?>? instrument,
-    Value<int>? seitenAnzahl,
+    Value<int>? pageCount,
   }) {
-    return StimmenCompanion(
+    return VoicesCompanion(
       id: id ?? this.id,
-      notenId: notenId ?? this.notenId,
+      sheetId: sheetId ?? this.sheetId,
       name: name ?? this.name,
       instrument: instrument ?? this.instrument,
-      seitenAnzahl: seitenAnzahl ?? this.seitenAnzahl,
+      pageCount: pageCount ?? this.pageCount,
     );
   }
 
@@ -860,8 +860,8 @@ class StimmenCompanion extends UpdateCompanion<StimmenData> {
     if (id.present) {
       map['id'] = Variable<int>(id.value);
     }
-    if (notenId.present) {
-      map['noten_id'] = Variable<int>(notenId.value);
+    if (sheetId.present) {
+      map['SheetMusics_id'] = Variable<int>(sheetId.value);
     }
     if (name.present) {
       map['name'] = Variable<String>(name.value);
@@ -869,31 +869,31 @@ class StimmenCompanion extends UpdateCompanion<StimmenData> {
     if (instrument.present) {
       map['instrument'] = Variable<String>(instrument.value);
     }
-    if (seitenAnzahl.present) {
-      map['seiten_anzahl'] = Variable<int>(seitenAnzahl.value);
+    if (pageCount.present) {
+      map['seiten_anzahl'] = Variable<int>(pageCount.value);
     }
     return map;
   }
 
   @override
   String toString() {
-    return (StringBuffer('StimmenCompanion(')
+    return (StringBuffer('VoicesCompanion(')
           ..write('id: $id, ')
-          ..write('notenId: $notenId, ')
+          ..write('sheetId: $sheetId, ')
           ..write('name: $name, ')
           ..write('instrument: $instrument, ')
-          ..write('seitenAnzahl: $seitenAnzahl')
+          ..write('pageCount: $pageCount')
           ..write(')'))
         .toString();
   }
 }
 
-class $AnnotationenTable extends Annotationen
-    with TableInfo<$AnnotationenTable, AnnotationenData> {
+class $AnnotationsTable extends Annotations
+    with TableInfo<$AnnotationsTable, AnnotationsData> {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
-  $AnnotationenTable(this.attachedDatabase, [this._alias]);
+  $AnnotationsTable(this.attachedDatabase, [this._alias]);
   static const VerificationMeta _idMeta = const VerificationMeta('id');
   @override
   late final GeneratedColumn<int> id = GeneratedColumn<int>(
@@ -907,77 +907,77 @@ class $AnnotationenTable extends Annotationen
       'PRIMARY KEY AUTOINCREMENT',
     ),
   );
-  static const VerificationMeta _stimmeIdMeta = const VerificationMeta(
-    'stimmeId',
+  static const VerificationMeta _voiceIdMeta = const VerificationMeta(
+    'voiceId',
   );
   @override
-  late final GeneratedColumn<int> stimmeId = GeneratedColumn<int>(
-    'stimme_id',
+  late final GeneratedColumn<int> voiceId = GeneratedColumn<int>(
+    'voice_id',
     aliasedName,
     false,
     type: DriftSqlType.int,
     requiredDuringInsert: true,
     defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'REFERENCES stimmen (id)',
+      'REFERENCES voices (id)',
     ),
   );
-  static const VerificationMeta _ebeneMeta = const VerificationMeta('ebene');
+  static const VerificationMeta _ebeneMeta = const VerificationMeta('level');
   @override
-  late final GeneratedColumn<String> ebene = GeneratedColumn<String>(
-    'ebene',
+  late final GeneratedColumn<String> level = GeneratedColumn<String>(
+    'level',
     aliasedName,
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
-  static const VerificationMeta _xRelativMeta = const VerificationMeta(
-    'xRelativ',
+  static const VerificationMeta _xRelativeMeta = const VerificationMeta(
+    'xRelative',
   );
   @override
-  late final GeneratedColumn<double> xRelativ = GeneratedColumn<double>(
+  late final GeneratedColumn<double> xRelative = GeneratedColumn<double>(
     'x_relativ',
     aliasedName,
     false,
     type: DriftSqlType.double,
     requiredDuringInsert: true,
   );
-  static const VerificationMeta _yRelativMeta = const VerificationMeta(
-    'yRelativ',
+  static const VerificationMeta _yRelativeMeta = const VerificationMeta(
+    'yRelative',
   );
   @override
-  late final GeneratedColumn<double> yRelativ = GeneratedColumn<double>(
+  late final GeneratedColumn<double> yRelative = GeneratedColumn<double>(
     'y_relativ',
     aliasedName,
     false,
     type: DriftSqlType.double,
     requiredDuringInsert: true,
   );
-  static const VerificationMeta _seiteMeta = const VerificationMeta('seite');
+  static const VerificationMeta _seiteMeta = const VerificationMeta('page');
   @override
-  late final GeneratedColumn<double> seite = GeneratedColumn<double>(
-    'seite',
+  late final GeneratedColumn<double> page = GeneratedColumn<double>(
+    'page',
     aliasedName,
     false,
     type: DriftSqlType.double,
     requiredDuringInsert: true,
   );
-  static const VerificationMeta _svgDatenMeta = const VerificationMeta(
-    'svgDaten',
+  static const VerificationMeta _svgDataMeta = const VerificationMeta(
+    'svgData',
   );
   @override
-  late final GeneratedColumn<String> svgDaten = GeneratedColumn<String>(
+  late final GeneratedColumn<String> svgData = GeneratedColumn<String>(
     'svg_daten',
     aliasedName,
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
-  static const VerificationMeta _erstelltAmMeta = const VerificationMeta(
-    'erstelltAm',
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
   );
   @override
-  late final GeneratedColumn<DateTime> erstelltAm = GeneratedColumn<DateTime>(
-    'erstellt_am',
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
     aliasedName,
     false,
     type: DriftSqlType.dateTime,
@@ -987,22 +987,22 @@ class $AnnotationenTable extends Annotationen
   @override
   List<GeneratedColumn> get $columns => [
     id,
-    stimmeId,
-    ebene,
-    xRelativ,
-    yRelativ,
-    seite,
-    svgDaten,
-    erstelltAm,
+    voiceId,
+    level,
+    xRelative,
+    yRelative,
+    page,
+    svgData,
+    createdAt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
   String get actualTableName => $name;
-  static const String $name = 'annotationen';
+  static const String $name = 'Annotations';
   @override
   VerificationContext validateIntegrity(
-    Insertable<AnnotationenData> instance, {
+    Insertable<AnnotationsData> instance, {
     bool isInserting = false,
   }) {
     final context = VerificationContext();
@@ -1010,58 +1010,58 @@ class $AnnotationenTable extends Annotationen
     if (data.containsKey('id')) {
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
     }
-    if (data.containsKey('stimme_id')) {
+    if (data.containsKey('voice_id')) {
       context.handle(
-        _stimmeIdMeta,
-        stimmeId.isAcceptableOrUnknown(data['stimme_id']!, _stimmeIdMeta),
+        _voiceIdMeta,
+        voiceId.isAcceptableOrUnknown(data['voice_id']!, _voiceIdMeta),
       );
     } else if (isInserting) {
-      context.missing(_stimmeIdMeta);
+      context.missing(_voiceIdMeta);
     }
-    if (data.containsKey('ebene')) {
+    if (data.containsKey('level')) {
       context.handle(
         _ebeneMeta,
-        ebene.isAcceptableOrUnknown(data['ebene']!, _ebeneMeta),
+        level.isAcceptableOrUnknown(data['level']!, _ebeneMeta),
       );
     } else if (isInserting) {
       context.missing(_ebeneMeta);
     }
     if (data.containsKey('x_relativ')) {
       context.handle(
-        _xRelativMeta,
-        xRelativ.isAcceptableOrUnknown(data['x_relativ']!, _xRelativMeta),
+        _xRelativeMeta,
+        xRelative.isAcceptableOrUnknown(data['x_relativ']!, _xRelativeMeta),
       );
     } else if (isInserting) {
-      context.missing(_xRelativMeta);
+      context.missing(_xRelativeMeta);
     }
     if (data.containsKey('y_relativ')) {
       context.handle(
-        _yRelativMeta,
-        yRelativ.isAcceptableOrUnknown(data['y_relativ']!, _yRelativMeta),
+        _yRelativeMeta,
+        yRelative.isAcceptableOrUnknown(data['y_relativ']!, _yRelativeMeta),
       );
     } else if (isInserting) {
-      context.missing(_yRelativMeta);
+      context.missing(_yRelativeMeta);
     }
-    if (data.containsKey('seite')) {
+    if (data.containsKey('page')) {
       context.handle(
         _seiteMeta,
-        seite.isAcceptableOrUnknown(data['seite']!, _seiteMeta),
+        page.isAcceptableOrUnknown(data['page']!, _seiteMeta),
       );
     } else if (isInserting) {
       context.missing(_seiteMeta);
     }
     if (data.containsKey('svg_daten')) {
       context.handle(
-        _svgDatenMeta,
-        svgDaten.isAcceptableOrUnknown(data['svg_daten']!, _svgDatenMeta),
+        _svgDataMeta,
+        svgData.isAcceptableOrUnknown(data['svg_daten']!, _svgDataMeta),
       );
     } else if (isInserting) {
-      context.missing(_svgDatenMeta);
+      context.missing(_svgDataMeta);
     }
-    if (data.containsKey('erstellt_am')) {
+    if (data.containsKey('created_at')) {
       context.handle(
-        _erstelltAmMeta,
-        erstelltAm.isAcceptableOrUnknown(data['erstellt_am']!, _erstelltAmMeta),
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
       );
     }
     return context;
@@ -1070,38 +1070,38 @@ class $AnnotationenTable extends Annotationen
   @override
   Set<GeneratedColumn> get $primaryKey => {id};
   @override
-  AnnotationenData map(Map<String, dynamic> data, {String? tablePrefix}) {
+  AnnotationsData map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return AnnotationenData(
+    return AnnotationsData(
       id: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}id'],
       )!,
-      stimmeId: attachedDatabase.typeMapping.read(
+      voiceId: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}stimme_id'],
       )!,
-      ebene: attachedDatabase.typeMapping.read(
+      level: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}ebene'],
+        data['${effectivePrefix}level'],
       )!,
-      xRelativ: attachedDatabase.typeMapping.read(
+      xRelative: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}x_relativ'],
       )!,
-      yRelativ: attachedDatabase.typeMapping.read(
+      yRelative: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}y_relativ'],
       )!,
-      seite: attachedDatabase.typeMapping.read(
+      page: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
-        data['${effectivePrefix}seite'],
+        data['${effectivePrefix}page'],
       )!,
-      svgDaten: attachedDatabase.typeMapping.read(
+      svgData: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}svg_daten'],
       )!,
-      erstelltAm: attachedDatabase.typeMapping.read(
+      createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}erstellt_am'],
       )!,
@@ -1109,72 +1109,72 @@ class $AnnotationenTable extends Annotationen
   }
 
   @override
-  $AnnotationenTable createAlias(String alias) {
-    return $AnnotationenTable(attachedDatabase, alias);
+  $AnnotationsTable createAlias(String alias) {
+    return $AnnotationsTable(attachedDatabase, alias);
   }
 }
 
-class AnnotationenData extends DataClass
-    implements Insertable<AnnotationenData> {
+class AnnotationsData extends DataClass
+    implements Insertable<AnnotationsData> {
   final int id;
-  final int stimmeId;
-  final String ebene;
-  final double xRelativ;
-  final double yRelativ;
-  final double seite;
-  final String svgDaten;
-  final DateTime erstelltAm;
-  const AnnotationenData({
+  final int voiceId;
+  final String level;
+  final double xRelative;
+  final double yRelative;
+  final double page;
+  final String svgData;
+  final DateTime createdAt;
+  const AnnotationsData({
     required this.id,
-    required this.stimmeId,
-    required this.ebene,
-    required this.xRelativ,
-    required this.yRelativ,
-    required this.seite,
-    required this.svgDaten,
-    required this.erstelltAm,
+    required this.voiceId,
+    required this.level,
+    required this.xRelative,
+    required this.yRelative,
+    required this.page,
+    required this.svgData,
+    required this.createdAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['id'] = Variable<int>(id);
-    map['stimme_id'] = Variable<int>(stimmeId);
-    map['ebene'] = Variable<String>(ebene);
-    map['x_relativ'] = Variable<double>(xRelativ);
-    map['y_relativ'] = Variable<double>(yRelativ);
-    map['seite'] = Variable<double>(seite);
-    map['svg_daten'] = Variable<String>(svgDaten);
-    map['erstellt_am'] = Variable<DateTime>(erstelltAm);
+    map['voice_id'] = Variable<int>(voiceId);
+    map['level'] = Variable<String>(level);
+    map['x_relativ'] = Variable<double>(xRelative);
+    map['y_relativ'] = Variable<double>(yRelative);
+    map['page'] = Variable<double>(page);
+    map['svg_daten'] = Variable<String>(svgData);
+    map['created_at'] = Variable<DateTime>(createdAt);
     return map;
   }
 
-  AnnotationenCompanion toCompanion(bool nullToAbsent) {
-    return AnnotationenCompanion(
+  AnnotationsCompanion toCompanion(bool nullToAbsent) {
+    return AnnotationsCompanion(
       id: Value(id),
-      stimmeId: Value(stimmeId),
-      ebene: Value(ebene),
-      xRelativ: Value(xRelativ),
-      yRelativ: Value(yRelativ),
-      seite: Value(seite),
-      svgDaten: Value(svgDaten),
-      erstelltAm: Value(erstelltAm),
+      voiceId: Value(voiceId),
+      level: Value(level),
+      xRelative: Value(xRelative),
+      yRelative: Value(yRelative),
+      page: Value(page),
+      svgData: Value(svgData),
+      createdAt: Value(createdAt),
     );
   }
 
-  factory AnnotationenData.fromJson(
+  factory AnnotationsData.fromJson(
     Map<String, dynamic> json, {
     ValueSerializer? serializer,
   }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
-    return AnnotationenData(
+    return AnnotationsData(
       id: serializer.fromJson<int>(json['id']),
-      stimmeId: serializer.fromJson<int>(json['stimmeId']),
-      ebene: serializer.fromJson<String>(json['ebene']),
-      xRelativ: serializer.fromJson<double>(json['xRelativ']),
-      yRelativ: serializer.fromJson<double>(json['yRelativ']),
-      seite: serializer.fromJson<double>(json['seite']),
-      svgDaten: serializer.fromJson<String>(json['svgDaten']),
-      erstelltAm: serializer.fromJson<DateTime>(json['erstelltAm']),
+      voiceId: serializer.fromJson<int>(json['voiceId']),
+      level: serializer.fromJson<String>(json['level']),
+      xRelative: serializer.fromJson<double>(json['xRelative']),
+      yRelative: serializer.fromJson<double>(json['yRelative']),
+      page: serializer.fromJson<double>(json['page']),
+      svgData: serializer.fromJson<String>(json['svgData']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
     );
   }
   @override
@@ -1182,61 +1182,61 @@ class AnnotationenData extends DataClass
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
       'id': serializer.toJson<int>(id),
-      'stimmeId': serializer.toJson<int>(stimmeId),
-      'ebene': serializer.toJson<String>(ebene),
-      'xRelativ': serializer.toJson<double>(xRelativ),
-      'yRelativ': serializer.toJson<double>(yRelativ),
-      'seite': serializer.toJson<double>(seite),
-      'svgDaten': serializer.toJson<String>(svgDaten),
-      'erstelltAm': serializer.toJson<DateTime>(erstelltAm),
+      'voiceId': serializer.toJson<int>(voiceId),
+      'level': serializer.toJson<String>(level),
+      'xRelative': serializer.toJson<double>(xRelative),
+      'yRelative': serializer.toJson<double>(yRelative),
+      'page': serializer.toJson<double>(page),
+      'svgData': serializer.toJson<String>(svgData),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
     };
   }
 
-  AnnotationenData copyWith({
+  AnnotationsData copyWith({
     int? id,
-    int? stimmeId,
-    String? ebene,
-    double? xRelativ,
-    double? yRelativ,
-    double? seite,
-    String? svgDaten,
-    DateTime? erstelltAm,
-  }) => AnnotationenData(
+    int? voiceId,
+    String? level,
+    double? xRelative,
+    double? yRelative,
+    double? page,
+    String? svgData,
+    DateTime? createdAt,
+  }) => AnnotationsData(
     id: id ?? this.id,
-    stimmeId: stimmeId ?? this.stimmeId,
-    ebene: ebene ?? this.ebene,
-    xRelativ: xRelativ ?? this.xRelativ,
-    yRelativ: yRelativ ?? this.yRelativ,
-    seite: seite ?? this.seite,
-    svgDaten: svgDaten ?? this.svgDaten,
-    erstelltAm: erstelltAm ?? this.erstelltAm,
+    voiceId: voiceId ?? this.voiceId,
+    level: level ?? this.level,
+    xRelative: xRelative ?? this.xRelative,
+    yRelative: yRelative ?? this.yRelative,
+    page: page ?? this.page,
+    svgData: svgData ?? this.svgData,
+    createdAt: createdAt ?? this.createdAt,
   );
-  AnnotationenData copyWithCompanion(AnnotationenCompanion data) {
-    return AnnotationenData(
+  AnnotationsData copyWithCompanion(AnnotationsCompanion data) {
+    return AnnotationsData(
       id: data.id.present ? data.id.value : this.id,
-      stimmeId: data.stimmeId.present ? data.stimmeId.value : this.stimmeId,
-      ebene: data.ebene.present ? data.ebene.value : this.ebene,
-      xRelativ: data.xRelativ.present ? data.xRelativ.value : this.xRelativ,
-      yRelativ: data.yRelativ.present ? data.yRelativ.value : this.yRelativ,
-      seite: data.seite.present ? data.seite.value : this.seite,
-      svgDaten: data.svgDaten.present ? data.svgDaten.value : this.svgDaten,
-      erstelltAm: data.erstelltAm.present
-          ? data.erstelltAm.value
-          : this.erstelltAm,
+      voiceId: data.voiceId.present ? data.voiceId.value : this.voiceId,
+      level: data.level.present ? data.level.value : this.level,
+      xRelative: data.xRelative.present ? data.xRelative.value : this.xRelative,
+      yRelative: data.yRelative.present ? data.yRelative.value : this.yRelative,
+      page: data.page.present ? data.page.value : this.page,
+      svgData: data.svgData.present ? data.svgData.value : this.svgData,
+      createdAt: data.createdAt.present
+          ? data.createdAt.value
+          : this.createdAt,
     );
   }
 
   @override
   String toString() {
-    return (StringBuffer('AnnotationenData(')
+    return (StringBuffer('AnnotationsData(')
           ..write('id: $id, ')
-          ..write('stimmeId: $stimmeId, ')
-          ..write('ebene: $ebene, ')
-          ..write('xRelativ: $xRelativ, ')
-          ..write('yRelativ: $yRelativ, ')
-          ..write('seite: $seite, ')
-          ..write('svgDaten: $svgDaten, ')
-          ..write('erstelltAm: $erstelltAm')
+          ..write('voiceId: $voiceId, ')
+          ..write('level: $level, ')
+          ..write('xRelative: $xRelative, ')
+          ..write('yRelative: $yRelative, ')
+          ..write('page: $page, ')
+          ..write('svgData: $svgData, ')
+          ..write('createdAt: $createdAt')
           ..write(')'))
         .toString();
   }
@@ -1244,103 +1244,103 @@ class AnnotationenData extends DataClass
   @override
   int get hashCode => Object.hash(
     id,
-    stimmeId,
-    ebene,
-    xRelativ,
-    yRelativ,
-    seite,
-    svgDaten,
-    erstelltAm,
+    voiceId,
+    level,
+    xRelative,
+    yRelative,
+    page,
+    svgData,
+    createdAt,
   );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is AnnotationenData &&
+      (other is AnnotationsData &&
           other.id == this.id &&
-          other.stimmeId == this.stimmeId &&
-          other.ebene == this.ebene &&
-          other.xRelativ == this.xRelativ &&
-          other.yRelativ == this.yRelativ &&
-          other.seite == this.seite &&
-          other.svgDaten == this.svgDaten &&
-          other.erstelltAm == this.erstelltAm);
+          other.voiceId == this.voiceId &&
+          other.level == this.level &&
+          other.xRelative == this.xRelative &&
+          other.yRelative == this.yRelative &&
+          other.page == this.page &&
+          other.svgData == this.svgData &&
+          other.createdAt == this.createdAt);
 }
 
-class AnnotationenCompanion extends UpdateCompanion<AnnotationenData> {
+class AnnotationsCompanion extends UpdateCompanion<AnnotationsData> {
   final Value<int> id;
-  final Value<int> stimmeId;
-  final Value<String> ebene;
-  final Value<double> xRelativ;
-  final Value<double> yRelativ;
-  final Value<double> seite;
-  final Value<String> svgDaten;
-  final Value<DateTime> erstelltAm;
-  const AnnotationenCompanion({
+  final Value<int> voiceId;
+  final Value<String> level;
+  final Value<double> xRelative;
+  final Value<double> yRelative;
+  final Value<double> page;
+  final Value<String> svgData;
+  final Value<DateTime> createdAt;
+  const AnnotationsCompanion({
     this.id = const Value.absent(),
-    this.stimmeId = const Value.absent(),
-    this.ebene = const Value.absent(),
-    this.xRelativ = const Value.absent(),
-    this.yRelativ = const Value.absent(),
-    this.seite = const Value.absent(),
-    this.svgDaten = const Value.absent(),
-    this.erstelltAm = const Value.absent(),
+    this.voiceId = const Value.absent(),
+    this.level = const Value.absent(),
+    this.xRelative = const Value.absent(),
+    this.yRelative = const Value.absent(),
+    this.page = const Value.absent(),
+    this.svgData = const Value.absent(),
+    this.createdAt = const Value.absent(),
   });
-  AnnotationenCompanion.insert({
+  AnnotationsCompanion.insert({
     this.id = const Value.absent(),
-    required int stimmeId,
-    required String ebene,
-    required double xRelativ,
-    required double yRelativ,
-    required double seite,
-    required String svgDaten,
-    this.erstelltAm = const Value.absent(),
-  }) : stimmeId = Value(stimmeId),
-       ebene = Value(ebene),
-       xRelativ = Value(xRelativ),
-       yRelativ = Value(yRelativ),
-       seite = Value(seite),
-       svgDaten = Value(svgDaten);
-  static Insertable<AnnotationenData> custom({
+    required int voiceId,
+    required String level,
+    required double xRelative,
+    required double yRelative,
+    required double page,
+    required String svgData,
+    this.createdAt = const Value.absent(),
+  }) : voiceId = Value(voiceId),
+       level = Value(level),
+       xRelative = Value(xRelative),
+       yRelative = Value(yRelative),
+       page = Value(page),
+       svgData = Value(svgData);
+  static Insertable<AnnotationsData> custom({
     Expression<int>? id,
-    Expression<int>? stimmeId,
-    Expression<String>? ebene,
-    Expression<double>? xRelativ,
-    Expression<double>? yRelativ,
-    Expression<double>? seite,
-    Expression<String>? svgDaten,
-    Expression<DateTime>? erstelltAm,
+    Expression<int>? voiceId,
+    Expression<String>? level,
+    Expression<double>? xRelative,
+    Expression<double>? yRelative,
+    Expression<double>? page,
+    Expression<String>? svgData,
+    Expression<DateTime>? createdAt,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
-      if (stimmeId != null) 'stimme_id': stimmeId,
-      if (ebene != null) 'ebene': ebene,
-      if (xRelativ != null) 'x_relativ': xRelativ,
-      if (yRelativ != null) 'y_relativ': yRelativ,
-      if (seite != null) 'seite': seite,
-      if (svgDaten != null) 'svg_daten': svgDaten,
-      if (erstelltAm != null) 'erstellt_am': erstelltAm,
+      if (voiceId != null) 'voice_id': voiceId,
+      if (level != null) 'level': level,
+      if (xRelative != null) 'x_relativ': xRelative,
+      if (yRelative != null) 'y_relativ': yRelative,
+      if (page != null) 'page': page,
+      if (svgData != null) 'svg_daten': svgData,
+      if (createdAt != null) 'created_at': createdAt,
     });
   }
 
-  AnnotationenCompanion copyWith({
+  AnnotationsCompanion copyWith({
     Value<int>? id,
-    Value<int>? stimmeId,
-    Value<String>? ebene,
-    Value<double>? xRelativ,
-    Value<double>? yRelativ,
-    Value<double>? seite,
-    Value<String>? svgDaten,
-    Value<DateTime>? erstelltAm,
+    Value<int>? voiceId,
+    Value<String>? level,
+    Value<double>? xRelative,
+    Value<double>? yRelative,
+    Value<double>? page,
+    Value<String>? svgData,
+    Value<DateTime>? createdAt,
   }) {
-    return AnnotationenCompanion(
+    return AnnotationsCompanion(
       id: id ?? this.id,
-      stimmeId: stimmeId ?? this.stimmeId,
-      ebene: ebene ?? this.ebene,
-      xRelativ: xRelativ ?? this.xRelativ,
-      yRelativ: yRelativ ?? this.yRelativ,
-      seite: seite ?? this.seite,
-      svgDaten: svgDaten ?? this.svgDaten,
-      erstelltAm: erstelltAm ?? this.erstelltAm,
+      voiceId: voiceId ?? this.voiceId,
+      level: level ?? this.level,
+      xRelative: xRelative ?? this.xRelative,
+      yRelative: yRelative ?? this.yRelative,
+      page: page ?? this.page,
+      svgData: svgData ?? this.svgData,
+      createdAt: createdAt ?? this.createdAt,
     );
   }
 
@@ -1350,52 +1350,52 @@ class AnnotationenCompanion extends UpdateCompanion<AnnotationenData> {
     if (id.present) {
       map['id'] = Variable<int>(id.value);
     }
-    if (stimmeId.present) {
-      map['stimme_id'] = Variable<int>(stimmeId.value);
+    if (voiceId.present) {
+      map['voice_id'] = Variable<int>(voiceId.value);
     }
-    if (ebene.present) {
-      map['ebene'] = Variable<String>(ebene.value);
+    if (level.present) {
+      map['level'] = Variable<String>(level.value);
     }
-    if (xRelativ.present) {
-      map['x_relativ'] = Variable<double>(xRelativ.value);
+    if (xRelative.present) {
+      map['x_relativ'] = Variable<double>(xRelative.value);
     }
-    if (yRelativ.present) {
-      map['y_relativ'] = Variable<double>(yRelativ.value);
+    if (yRelative.present) {
+      map['y_relativ'] = Variable<double>(yRelative.value);
     }
-    if (seite.present) {
-      map['seite'] = Variable<double>(seite.value);
+    if (page.present) {
+      map['page'] = Variable<double>(page.value);
     }
-    if (svgDaten.present) {
-      map['svg_daten'] = Variable<String>(svgDaten.value);
+    if (svgData.present) {
+      map['svg_daten'] = Variable<String>(svgData.value);
     }
-    if (erstelltAm.present) {
-      map['erstellt_am'] = Variable<DateTime>(erstelltAm.value);
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
     }
     return map;
   }
 
   @override
   String toString() {
-    return (StringBuffer('AnnotationenCompanion(')
+    return (StringBuffer('AnnotationsCompanion(')
           ..write('id: $id, ')
-          ..write('stimmeId: $stimmeId, ')
-          ..write('ebene: $ebene, ')
-          ..write('xRelativ: $xRelativ, ')
-          ..write('yRelativ: $yRelativ, ')
-          ..write('seite: $seite, ')
-          ..write('svgDaten: $svgDaten, ')
-          ..write('erstelltAm: $erstelltAm')
+          ..write('voiceId: $voiceId, ')
+          ..write('level: $level, ')
+          ..write('xRelative: $xRelative, ')
+          ..write('yRelative: $yRelative, ')
+          ..write('page: $page, ')
+          ..write('svgData: $svgData, ')
+          ..write('createdAt: $createdAt')
           ..write(')'))
         .toString();
   }
 }
 
-class $KonfigurationEintraegeTable extends KonfigurationEintraege
-    with TableInfo<$KonfigurationEintraegeTable, KonfigurationEintraegeData> {
+class $ConfigEntriesTable extends ConfigEntries
+    with TableInfo<$ConfigEntriesTable, ConfigEntriesData> {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
-  $KonfigurationEintraegeTable(this.attachedDatabase, [this._alias]);
+  $ConfigEntriesTable(this.attachedDatabase, [this._alias]);
   static const VerificationMeta _idMeta = const VerificationMeta('id');
   @override
   late final GeneratedColumn<int> id = GeneratedColumn<int>(
@@ -1409,40 +1409,40 @@ class $KonfigurationEintraegeTable extends KonfigurationEintraege
       'PRIMARY KEY AUTOINCREMENT',
     ),
   );
-  static const VerificationMeta _ebeneMeta = const VerificationMeta('ebene');
+  static const VerificationMeta _ebeneMeta = const VerificationMeta('level');
   @override
-  late final GeneratedColumn<String> ebene = GeneratedColumn<String>(
-    'ebene',
+  late final GeneratedColumn<String> level = GeneratedColumn<String>(
+    'level',
     aliasedName,
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
-  static const VerificationMeta _schluesselMeta = const VerificationMeta(
-    'schluessel',
+  static const VerificationMeta _keyMeta = const VerificationMeta(
+    'key',
   );
   @override
-  late final GeneratedColumn<String> schluessel = GeneratedColumn<String>(
-    'schluessel',
+  late final GeneratedColumn<String> key = GeneratedColumn<String>(
+    'key',
     aliasedName,
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
-  static const VerificationMeta _wertMeta = const VerificationMeta('wert');
+  static const VerificationMeta _wertMeta = const VerificationMeta('value');
   @override
-  late final GeneratedColumn<String> wert = GeneratedColumn<String>(
-    'wert',
+  late final GeneratedColumn<String> value = GeneratedColumn<String>(
+    'value',
     aliasedName,
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
-  static const VerificationMeta _istGesperrtMeta = const VerificationMeta(
-    'istGesperrt',
+  static const VerificationMeta _isLockedMeta = const VerificationMeta(
+    'isLocked',
   );
   @override
-  late final GeneratedColumn<bool> istGesperrt = GeneratedColumn<bool>(
+  late final GeneratedColumn<bool> isLocked = GeneratedColumn<bool>(
     'ist_gesperrt',
     aliasedName,
     false,
@@ -1456,10 +1456,10 @@ class $KonfigurationEintraegeTable extends KonfigurationEintraege
   @override
   List<GeneratedColumn> get $columns => [
     id,
-    ebene,
-    schluessel,
-    wert,
-    istGesperrt,
+    level,
+    key,
+    value,
+    isLocked,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1468,7 +1468,7 @@ class $KonfigurationEintraegeTable extends KonfigurationEintraege
   static const String $name = 'konfiguration_eintraege';
   @override
   VerificationContext validateIntegrity(
-    Insertable<KonfigurationEintraegeData> instance, {
+    Insertable<ConfigEntriesData> instance, {
     bool isInserting = false,
   }) {
     final context = VerificationContext();
@@ -1476,36 +1476,36 @@ class $KonfigurationEintraegeTable extends KonfigurationEintraege
     if (data.containsKey('id')) {
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
     }
-    if (data.containsKey('ebene')) {
+    if (data.containsKey('level')) {
       context.handle(
         _ebeneMeta,
-        ebene.isAcceptableOrUnknown(data['ebene']!, _ebeneMeta),
+        level.isAcceptableOrUnknown(data['level']!, _ebeneMeta),
       );
     } else if (isInserting) {
       context.missing(_ebeneMeta);
     }
-    if (data.containsKey('schluessel')) {
+    if (data.containsKey('key')) {
       context.handle(
-        _schluesselMeta,
-        schluessel.isAcceptableOrUnknown(data['schluessel']!, _schluesselMeta),
+        _keyMeta,
+        key.isAcceptableOrUnknown(data['key']!, _keyMeta),
       );
     } else if (isInserting) {
-      context.missing(_schluesselMeta);
+      context.missing(_keyMeta);
     }
-    if (data.containsKey('wert')) {
+    if (data.containsKey('value')) {
       context.handle(
         _wertMeta,
-        wert.isAcceptableOrUnknown(data['wert']!, _wertMeta),
+        value.isAcceptableOrUnknown(data['value']!, _wertMeta),
       );
     } else if (isInserting) {
       context.missing(_wertMeta);
     }
     if (data.containsKey('ist_gesperrt')) {
       context.handle(
-        _istGesperrtMeta,
-        istGesperrt.isAcceptableOrUnknown(
+        _isLockedMeta,
+        isLocked.isAcceptableOrUnknown(
           data['ist_gesperrt']!,
-          _istGesperrtMeta,
+          _isLockedMeta,
         ),
       );
     }
@@ -1515,29 +1515,29 @@ class $KonfigurationEintraegeTable extends KonfigurationEintraege
   @override
   Set<GeneratedColumn> get $primaryKey => {id};
   @override
-  KonfigurationEintraegeData map(
+  ConfigEntriesData map(
     Map<String, dynamic> data, {
     String? tablePrefix,
   }) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return KonfigurationEintraegeData(
+    return ConfigEntriesData(
       id: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}id'],
       )!,
-      ebene: attachedDatabase.typeMapping.read(
+      level: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}ebene'],
+        data['${effectivePrefix}level'],
       )!,
-      schluessel: attachedDatabase.typeMapping.read(
+      key: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}schluessel'],
+        data['${effectivePrefix}key'],
       )!,
-      wert: attachedDatabase.typeMapping.read(
+      value: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}wert'],
+        data['${effectivePrefix}value'],
       )!,
-      istGesperrt: attachedDatabase.typeMapping.read(
+      isLocked: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}ist_gesperrt'],
       )!,
@@ -1545,57 +1545,57 @@ class $KonfigurationEintraegeTable extends KonfigurationEintraege
   }
 
   @override
-  $KonfigurationEintraegeTable createAlias(String alias) {
-    return $KonfigurationEintraegeTable(attachedDatabase, alias);
+  $ConfigEntriesTable createAlias(String alias) {
+    return $ConfigEntriesTable(attachedDatabase, alias);
   }
 }
 
-class KonfigurationEintraegeData extends DataClass
-    implements Insertable<KonfigurationEintraegeData> {
+class ConfigEntriesData extends DataClass
+    implements Insertable<ConfigEntriesData> {
   final int id;
-  final String ebene;
-  final String schluessel;
-  final String wert;
-  final bool istGesperrt;
-  const KonfigurationEintraegeData({
+  final String level;
+  final String key;
+  final String value;
+  final bool isLocked;
+  const ConfigEntriesData({
     required this.id,
-    required this.ebene,
-    required this.schluessel,
-    required this.wert,
-    required this.istGesperrt,
+    required this.level,
+    required this.key,
+    required this.value,
+    required this.isLocked,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['id'] = Variable<int>(id);
-    map['ebene'] = Variable<String>(ebene);
-    map['schluessel'] = Variable<String>(schluessel);
-    map['wert'] = Variable<String>(wert);
-    map['ist_gesperrt'] = Variable<bool>(istGesperrt);
+    map['level'] = Variable<String>(level);
+    map['key'] = Variable<String>(key);
+    map['value'] = Variable<String>(value);
+    map['ist_gesperrt'] = Variable<bool>(isLocked);
     return map;
   }
 
-  KonfigurationEintraegeCompanion toCompanion(bool nullToAbsent) {
-    return KonfigurationEintraegeCompanion(
+  ConfigEntriesCompanion toCompanion(bool nullToAbsent) {
+    return ConfigEntriesCompanion(
       id: Value(id),
-      ebene: Value(ebene),
-      schluessel: Value(schluessel),
-      wert: Value(wert),
-      istGesperrt: Value(istGesperrt),
+      level: Value(level),
+      key: Value(key),
+      value: Value(value),
+      isLocked: Value(isLocked),
     );
   }
 
-  factory KonfigurationEintraegeData.fromJson(
+  factory ConfigEntriesData.fromJson(
     Map<String, dynamic> json, {
     ValueSerializer? serializer,
   }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
-    return KonfigurationEintraegeData(
+    return ConfigEntriesData(
       id: serializer.fromJson<int>(json['id']),
-      ebene: serializer.fromJson<String>(json['ebene']),
-      schluessel: serializer.fromJson<String>(json['schluessel']),
-      wert: serializer.fromJson<String>(json['wert']),
-      istGesperrt: serializer.fromJson<bool>(json['istGesperrt']),
+      level: serializer.fromJson<String>(json['level']),
+      key: serializer.fromJson<String>(json['key']),
+      value: serializer.fromJson<String>(json['value']),
+      isLocked: serializer.fromJson<bool>(json['isLocked']),
     );
   }
   @override
@@ -1603,119 +1603,119 @@ class KonfigurationEintraegeData extends DataClass
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
       'id': serializer.toJson<int>(id),
-      'ebene': serializer.toJson<String>(ebene),
-      'schluessel': serializer.toJson<String>(schluessel),
-      'wert': serializer.toJson<String>(wert),
-      'istGesperrt': serializer.toJson<bool>(istGesperrt),
+      'level': serializer.toJson<String>(level),
+      'key': serializer.toJson<String>(key),
+      'value': serializer.toJson<String>(value),
+      'isLocked': serializer.toJson<bool>(isLocked),
     };
   }
 
-  KonfigurationEintraegeData copyWith({
+  ConfigEntriesData copyWith({
     int? id,
-    String? ebene,
-    String? schluessel,
-    String? wert,
-    bool? istGesperrt,
-  }) => KonfigurationEintraegeData(
+    String? level,
+    String? key,
+    String? value,
+    bool? isLocked,
+  }) => ConfigEntriesData(
     id: id ?? this.id,
-    ebene: ebene ?? this.ebene,
-    schluessel: schluessel ?? this.schluessel,
-    wert: wert ?? this.wert,
-    istGesperrt: istGesperrt ?? this.istGesperrt,
+    level: level ?? this.level,
+    key: key ?? this.key,
+    value: value ?? this.value,
+    isLocked: isLocked ?? this.isLocked,
   );
-  KonfigurationEintraegeData copyWithCompanion(
-    KonfigurationEintraegeCompanion data,
+  ConfigEntriesData copyWithCompanion(
+    ConfigEntriesCompanion data,
   ) {
-    return KonfigurationEintraegeData(
+    return ConfigEntriesData(
       id: data.id.present ? data.id.value : this.id,
-      ebene: data.ebene.present ? data.ebene.value : this.ebene,
-      schluessel: data.schluessel.present
-          ? data.schluessel.value
-          : this.schluessel,
-      wert: data.wert.present ? data.wert.value : this.wert,
-      istGesperrt: data.istGesperrt.present
-          ? data.istGesperrt.value
-          : this.istGesperrt,
+      level: data.level.present ? data.level.value : this.level,
+      key: data.key.present
+          ? data.key.value
+          : this.key,
+      value: data.value.present ? data.value.value : this.value,
+      isLocked: data.isLocked.present
+          ? data.isLocked.value
+          : this.isLocked,
     );
   }
 
   @override
   String toString() {
-    return (StringBuffer('KonfigurationEintraegeData(')
+    return (StringBuffer('ConfigEntriesData(')
           ..write('id: $id, ')
-          ..write('ebene: $ebene, ')
-          ..write('schluessel: $schluessel, ')
-          ..write('wert: $wert, ')
-          ..write('istGesperrt: $istGesperrt')
+          ..write('level: $level, ')
+          ..write('key: $key, ')
+          ..write('value: $value, ')
+          ..write('isLocked: $isLocked')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, ebene, schluessel, wert, istGesperrt);
+  int get hashCode => Object.hash(id, level, key, value, isLocked);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is KonfigurationEintraegeData &&
+      (other is ConfigEntriesData &&
           other.id == this.id &&
-          other.ebene == this.ebene &&
-          other.schluessel == this.schluessel &&
-          other.wert == this.wert &&
-          other.istGesperrt == this.istGesperrt);
+          other.level == this.level &&
+          other.key == this.key &&
+          other.value == this.value &&
+          other.isLocked == this.isLocked);
 }
 
-class KonfigurationEintraegeCompanion
-    extends UpdateCompanion<KonfigurationEintraegeData> {
+class ConfigEntriesCompanion
+    extends UpdateCompanion<ConfigEntriesData> {
   final Value<int> id;
-  final Value<String> ebene;
-  final Value<String> schluessel;
-  final Value<String> wert;
-  final Value<bool> istGesperrt;
-  const KonfigurationEintraegeCompanion({
+  final Value<String> level;
+  final Value<String> key;
+  final Value<String> value;
+  final Value<bool> isLocked;
+  const ConfigEntriesCompanion({
     this.id = const Value.absent(),
-    this.ebene = const Value.absent(),
-    this.schluessel = const Value.absent(),
-    this.wert = const Value.absent(),
-    this.istGesperrt = const Value.absent(),
+    this.level = const Value.absent(),
+    this.key = const Value.absent(),
+    this.value = const Value.absent(),
+    this.isLocked = const Value.absent(),
   });
-  KonfigurationEintraegeCompanion.insert({
+  ConfigEntriesCompanion.insert({
     this.id = const Value.absent(),
-    required String ebene,
-    required String schluessel,
-    required String wert,
-    this.istGesperrt = const Value.absent(),
-  }) : ebene = Value(ebene),
-       schluessel = Value(schluessel),
-       wert = Value(wert);
-  static Insertable<KonfigurationEintraegeData> custom({
+    required String level,
+    required String key,
+    required String value,
+    this.isLocked = const Value.absent(),
+  }) : level = Value(level),
+       key = Value(key),
+       value = Value(value);
+  static Insertable<ConfigEntriesData> custom({
     Expression<int>? id,
-    Expression<String>? ebene,
-    Expression<String>? schluessel,
-    Expression<String>? wert,
-    Expression<bool>? istGesperrt,
+    Expression<String>? level,
+    Expression<String>? key,
+    Expression<String>? value,
+    Expression<bool>? isLocked,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
-      if (ebene != null) 'ebene': ebene,
-      if (schluessel != null) 'schluessel': schluessel,
-      if (wert != null) 'wert': wert,
-      if (istGesperrt != null) 'ist_gesperrt': istGesperrt,
+      if (level != null) 'level': level,
+      if (key != null) 'key': key,
+      if (value != null) 'value': value,
+      if (isLocked != null) 'ist_gesperrt': isLocked,
     });
   }
 
-  KonfigurationEintraegeCompanion copyWith({
+  ConfigEntriesCompanion copyWith({
     Value<int>? id,
-    Value<String>? ebene,
-    Value<String>? schluessel,
-    Value<String>? wert,
-    Value<bool>? istGesperrt,
+    Value<String>? level,
+    Value<String>? key,
+    Value<String>? value,
+    Value<bool>? isLocked,
   }) {
-    return KonfigurationEintraegeCompanion(
+    return ConfigEntriesCompanion(
       id: id ?? this.id,
-      ebene: ebene ?? this.ebene,
-      schluessel: schluessel ?? this.schluessel,
-      wert: wert ?? this.wert,
-      istGesperrt: istGesperrt ?? this.istGesperrt,
+      level: level ?? this.level,
+      key: key ?? this.key,
+      value: value ?? this.value,
+      isLocked: isLocked ?? this.isLocked,
     );
   }
 
@@ -1725,29 +1725,29 @@ class KonfigurationEintraegeCompanion
     if (id.present) {
       map['id'] = Variable<int>(id.value);
     }
-    if (ebene.present) {
-      map['ebene'] = Variable<String>(ebene.value);
+    if (level.present) {
+      map['level'] = Variable<String>(level.value);
     }
-    if (schluessel.present) {
-      map['schluessel'] = Variable<String>(schluessel.value);
+    if (key.present) {
+      map['key'] = Variable<String>(key.value);
     }
-    if (wert.present) {
-      map['wert'] = Variable<String>(wert.value);
+    if (value.present) {
+      map['value'] = Variable<String>(value.value);
     }
-    if (istGesperrt.present) {
-      map['ist_gesperrt'] = Variable<bool>(istGesperrt.value);
+    if (isLocked.present) {
+      map['ist_gesperrt'] = Variable<bool>(isLocked.value);
     }
     return map;
   }
 
   @override
   String toString() {
-    return (StringBuffer('KonfigurationEintraegeCompanion(')
+    return (StringBuffer('ConfigEntriesCompanion(')
           ..write('id: $id, ')
-          ..write('ebene: $ebene, ')
-          ..write('schluessel: $schluessel, ')
-          ..write('wert: $wert, ')
-          ..write('istGesperrt: $istGesperrt')
+          ..write('level: $level, ')
+          ..write('key: $key, ')
+          ..write('value: $value, ')
+          ..write('isLocked: $isLocked')
           ..write(')'))
         .toString();
   }
@@ -1756,71 +1756,71 @@ class KonfigurationEintraegeCompanion
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
-  late final $NotenTable noten = $NotenTable(this);
-  late final $StimmenTable stimmen = $StimmenTable(this);
-  late final $AnnotationenTable annotationen = $AnnotationenTable(this);
-  late final $KonfigurationEintraegeTable konfigurationEintraege =
-      $KonfigurationEintraegeTable(this);
+  late final $SheetMusicsTable SheetMusics = $SheetMusicsTable(this);
+  late final $VoicesTable voices = $VoicesTable(this);
+  late final $AnnotationsTable Annotations = $AnnotationsTable(this);
+  late final $ConfigEntriesTable ConfigEntries =
+      $ConfigEntriesTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
   @override
   List<DatabaseSchemaEntity> get allSchemaEntities => [
-    noten,
-    stimmen,
-    annotationen,
-    konfigurationEintraege,
+    SheetMusics,
+    voices,
+    Annotations,
+    ConfigEntries,
   ];
 }
 
-typedef $$NotenTableCreateCompanionBuilder =
-    NotenCompanion Function({
+typedef $$SheetMusicsTableCreateCompanionBuilder =
+    SheetMusicsCompanion Function({
       Value<int> id,
-      required String titel,
-      Value<String?> komponist,
+      required String title,
+      Value<String?> composer,
       Value<String?> genre,
-      Value<String?> lokalerPfad,
-      Value<bool> istOfflineVerfuegbar,
-      Value<DateTime> erstelltAm,
-      Value<DateTime> aktualisiertAm,
+      Value<String?> localPath,
+      Value<bool> isOfflineAvailable,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
     });
-typedef $$NotenTableUpdateCompanionBuilder =
-    NotenCompanion Function({
+typedef $$SheetMusicsTableUpdateCompanionBuilder =
+    SheetMusicsCompanion Function({
       Value<int> id,
-      Value<String> titel,
-      Value<String?> komponist,
+      Value<String> title,
+      Value<String?> composer,
       Value<String?> genre,
-      Value<String?> lokalerPfad,
-      Value<bool> istOfflineVerfuegbar,
-      Value<DateTime> erstelltAm,
-      Value<DateTime> aktualisiertAm,
+      Value<String?> localPath,
+      Value<bool> isOfflineAvailable,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
     });
 
-final class $$NotenTableReferences
-    extends BaseReferences<_$AppDatabase, $NotenTable, NotenData> {
-  $$NotenTableReferences(super.$_db, super.$_table, super.$_typedResult);
+final class $$SheetMusicsTableReferences
+    extends BaseReferences<_$AppDatabase, $SheetMusicsTable, SheetMusicsData> {
+  $$SheetMusicsTableReferences(super.$_db, super.$_table, super.$_typedResult);
 
-  static MultiTypedResultKey<$StimmenTable, List<StimmenData>>
-  _stimmenRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
-    db.stimmen,
-    aliasName: $_aliasNameGenerator(db.noten.id, db.stimmen.notenId),
+  static MultiTypedResultKey<$VoicesTable, List<VoicesData>>
+  _VoicesRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.voices,
+    aliasName: $_aliasNameGenerator(db.SheetMusics.id, db.voices.sheetId),
   );
 
-  $$StimmenTableProcessedTableManager get stimmenRefs {
-    final manager = $$StimmenTableTableManager(
+  $$VoicesTableProcessedTableManager get VoicesRefs {
+    final manager = $$VoicesTableTableManager(
       $_db,
-      $_db.stimmen,
-    ).filter((f) => f.notenId.id.sqlEquals($_itemColumn<int>('id')!));
+      $_db.voices,
+    ).filter((f) => f.sheetId.id.sqlEquals($_itemColumn<int>('id')!));
 
-    final cache = $_typedResult.readTableOrNull(_stimmenRefsTable($_db));
+    final cache = $_typedResult.readTableOrNull(_VoicesRefsTable($_db));
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
 }
 
-class $$NotenTableFilterComposer extends Composer<_$AppDatabase, $NotenTable> {
-  $$NotenTableFilterComposer({
+class $$SheetMusicsTableFilterComposer extends Composer<_$AppDatabase, $SheetMusicsTable> {
+  $$SheetMusicsTableFilterComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -1832,13 +1832,13 @@ class $$NotenTableFilterComposer extends Composer<_$AppDatabase, $NotenTable> {
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<String> get titel => $composableBuilder(
-    column: $table.titel,
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<String> get komponist => $composableBuilder(
-    column: $table.komponist,
+  ColumnFilters<String> get composer => $composableBuilder(
+    column: $table.composer,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -1847,42 +1847,42 @@ class $$NotenTableFilterComposer extends Composer<_$AppDatabase, $NotenTable> {
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<String> get lokalerPfad => $composableBuilder(
-    column: $table.lokalerPfad,
+  ColumnFilters<String> get localPath => $composableBuilder(
+    column: $table.localPath,
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<bool> get istOfflineVerfuegbar => $composableBuilder(
-    column: $table.istOfflineVerfuegbar,
+  ColumnFilters<bool> get isOfflineAvailable => $composableBuilder(
+    column: $table.isOfflineAvailable,
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<DateTime> get erstelltAm => $composableBuilder(
-    column: $table.erstelltAm,
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<DateTime> get aktualisiertAm => $composableBuilder(
-    column: $table.aktualisiertAm,
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
     builder: (column) => ColumnFilters(column),
   );
 
-  Expression<bool> stimmenRefs(
-    Expression<bool> Function($$StimmenTableFilterComposer f) f,
+  Expression<bool> VoicesRefs(
+    Expression<bool> Function($$VoicesTableFilterComposer f) f,
   ) {
-    final $$StimmenTableFilterComposer composer = $composerBuilder(
+    final $$VoicesTableFilterComposer composer = $composerBuilder(
       composer: this,
       getCurrentColumn: (t) => t.id,
-      referencedTable: $db.stimmen,
-      getReferencedColumn: (t) => t.notenId,
+      referencedTable: $db.voices,
+      getReferencedColumn: (t) => t.sheetId,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$StimmenTableFilterComposer(
+          }) => $$VoicesTableFilterComposer(
             $db: $db,
-            $table: $db.stimmen,
+            $table: $db.voices,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -1893,9 +1893,9 @@ class $$NotenTableFilterComposer extends Composer<_$AppDatabase, $NotenTable> {
   }
 }
 
-class $$NotenTableOrderingComposer
-    extends Composer<_$AppDatabase, $NotenTable> {
-  $$NotenTableOrderingComposer({
+class $$SheetMusicsTableOrderingComposer
+    extends Composer<_$AppDatabase, $SheetMusicsTable> {
+  $$SheetMusicsTableOrderingComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -1907,13 +1907,13 @@ class $$NotenTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get titel => $composableBuilder(
-    column: $table.titel,
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get komponist => $composableBuilder(
-    column: $table.komponist,
+  ColumnOrderings<String> get composer => $composableBuilder(
+    column: $table.composer,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -1922,30 +1922,30 @@ class $$NotenTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get lokalerPfad => $composableBuilder(
-    column: $table.lokalerPfad,
+  ColumnOrderings<String> get localPath => $composableBuilder(
+    column: $table.localPath,
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<bool> get istOfflineVerfuegbar => $composableBuilder(
-    column: $table.istOfflineVerfuegbar,
+  ColumnOrderings<bool> get isOfflineAvailable => $composableBuilder(
+    column: $table.isOfflineAvailable,
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<DateTime> get erstelltAm => $composableBuilder(
-    column: $table.erstelltAm,
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<DateTime> get aktualisiertAm => $composableBuilder(
-    column: $table.aktualisiertAm,
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
     builder: (column) => ColumnOrderings(column),
   );
 }
 
-class $$NotenTableAnnotationComposer
-    extends Composer<_$AppDatabase, $NotenTable> {
-  $$NotenTableAnnotationComposer({
+class $$SheetMusicsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $SheetMusicsTable> {
+  $$SheetMusicsTableAnnotationComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -1955,51 +1955,51 @@ class $$NotenTableAnnotationComposer
   GeneratedColumn<int> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
 
-  GeneratedColumn<String> get titel =>
-      $composableBuilder(column: $table.titel, builder: (column) => column);
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
 
-  GeneratedColumn<String> get komponist =>
-      $composableBuilder(column: $table.komponist, builder: (column) => column);
+  GeneratedColumn<String> get composer =>
+      $composableBuilder(column: $table.composer, builder: (column) => column);
 
   GeneratedColumn<String> get genre =>
       $composableBuilder(column: $table.genre, builder: (column) => column);
 
-  GeneratedColumn<String> get lokalerPfad => $composableBuilder(
-    column: $table.lokalerPfad,
+  GeneratedColumn<String> get localPath => $composableBuilder(
+    column: $table.localPath,
     builder: (column) => column,
   );
 
-  GeneratedColumn<bool> get istOfflineVerfuegbar => $composableBuilder(
-    column: $table.istOfflineVerfuegbar,
+  GeneratedColumn<bool> get isOfflineAvailable => $composableBuilder(
+    column: $table.isOfflineAvailable,
     builder: (column) => column,
   );
 
-  GeneratedColumn<DateTime> get erstelltAm => $composableBuilder(
-    column: $table.erstelltAm,
+  GeneratedColumn<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
     builder: (column) => column,
   );
 
-  GeneratedColumn<DateTime> get aktualisiertAm => $composableBuilder(
-    column: $table.aktualisiertAm,
+  GeneratedColumn<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
     builder: (column) => column,
   );
 
-  Expression<T> stimmenRefs<T extends Object>(
-    Expression<T> Function($$StimmenTableAnnotationComposer a) f,
+  Expression<T> VoicesRefs<T extends Object>(
+    Expression<T> Function($$VoicesTableAnnotationComposer a) f,
   ) {
-    final $$StimmenTableAnnotationComposer composer = $composerBuilder(
+    final $$VoicesTableAnnotationComposer composer = $composerBuilder(
       composer: this,
       getCurrentColumn: (t) => t.id,
-      referencedTable: $db.stimmen,
-      getReferencedColumn: (t) => t.notenId,
+      referencedTable: $db.voices,
+      getReferencedColumn: (t) => t.sheetId,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$StimmenTableAnnotationComposer(
+          }) => $$VoicesTableAnnotationComposer(
             $db: $db,
-            $table: $db.stimmen,
+            $table: $db.voices,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -2010,99 +2010,99 @@ class $$NotenTableAnnotationComposer
   }
 }
 
-class $$NotenTableTableManager
+class $$SheetMusicsTableTableManager
     extends
         RootTableManager<
           _$AppDatabase,
-          $NotenTable,
-          NotenData,
-          $$NotenTableFilterComposer,
-          $$NotenTableOrderingComposer,
-          $$NotenTableAnnotationComposer,
-          $$NotenTableCreateCompanionBuilder,
-          $$NotenTableUpdateCompanionBuilder,
-          (NotenData, $$NotenTableReferences),
-          NotenData,
-          PrefetchHooks Function({bool stimmenRefs})
+          $SheetMusicsTable,
+          SheetMusicsData,
+          $$SheetMusicsTableFilterComposer,
+          $$SheetMusicsTableOrderingComposer,
+          $$SheetMusicsTableAnnotationComposer,
+          $$SheetMusicsTableCreateCompanionBuilder,
+          $$SheetMusicsTableUpdateCompanionBuilder,
+          (SheetMusicsData, $$SheetMusicsTableReferences),
+          SheetMusicsData,
+          PrefetchHooks Function({bool VoicesRefs})
         > {
-  $$NotenTableTableManager(_$AppDatabase db, $NotenTable table)
+  $$SheetMusicsTableTableManager(_$AppDatabase db, $SheetMusicsTable table)
     : super(
         TableManagerState(
           db: db,
           table: table,
           createFilteringComposer: () =>
-              $$NotenTableFilterComposer($db: db, $table: table),
+              $$SheetMusicsTableFilterComposer($db: db, $table: table),
           createOrderingComposer: () =>
-              $$NotenTableOrderingComposer($db: db, $table: table),
+              $$SheetMusicsTableOrderingComposer($db: db, $table: table),
           createComputedFieldComposer: () =>
-              $$NotenTableAnnotationComposer($db: db, $table: table),
+              $$SheetMusicsTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback:
               ({
                 Value<int> id = const Value.absent(),
-                Value<String> titel = const Value.absent(),
-                Value<String?> komponist = const Value.absent(),
+                Value<String> title = const Value.absent(),
+                Value<String?> composer = const Value.absent(),
                 Value<String?> genre = const Value.absent(),
-                Value<String?> lokalerPfad = const Value.absent(),
-                Value<bool> istOfflineVerfuegbar = const Value.absent(),
-                Value<DateTime> erstelltAm = const Value.absent(),
-                Value<DateTime> aktualisiertAm = const Value.absent(),
-              }) => NotenCompanion(
+                Value<String?> localPath = const Value.absent(),
+                Value<bool> isOfflineAvailable = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+              }) => SheetMusicsCompanion(
                 id: id,
-                titel: titel,
-                komponist: komponist,
+                title: title,
+                composer: composer,
                 genre: genre,
-                lokalerPfad: lokalerPfad,
-                istOfflineVerfuegbar: istOfflineVerfuegbar,
-                erstelltAm: erstelltAm,
-                aktualisiertAm: aktualisiertAm,
+                localPath: localPath,
+                isOfflineAvailable: isOfflineAvailable,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
               ),
           createCompanionCallback:
               ({
                 Value<int> id = const Value.absent(),
-                required String titel,
-                Value<String?> komponist = const Value.absent(),
+                required String title,
+                Value<String?> composer = const Value.absent(),
                 Value<String?> genre = const Value.absent(),
-                Value<String?> lokalerPfad = const Value.absent(),
-                Value<bool> istOfflineVerfuegbar = const Value.absent(),
-                Value<DateTime> erstelltAm = const Value.absent(),
-                Value<DateTime> aktualisiertAm = const Value.absent(),
-              }) => NotenCompanion.insert(
+                Value<String?> localPath = const Value.absent(),
+                Value<bool> isOfflineAvailable = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+              }) => SheetMusicsCompanion.insert(
                 id: id,
-                titel: titel,
-                komponist: komponist,
+                title: title,
+                composer: composer,
                 genre: genre,
-                lokalerPfad: lokalerPfad,
-                istOfflineVerfuegbar: istOfflineVerfuegbar,
-                erstelltAm: erstelltAm,
-                aktualisiertAm: aktualisiertAm,
+                localPath: localPath,
+                isOfflineAvailable: isOfflineAvailable,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
               ),
           withReferenceMapper: (p0) => p0
               .map(
                 (e) =>
-                    (e.readTable(table), $$NotenTableReferences(db, table, e)),
+                    (e.readTable(table), $$SheetMusicsTableReferences(db, table, e)),
               )
               .toList(),
-          prefetchHooksCallback: ({stimmenRefs = false}) {
+          prefetchHooksCallback: ({VoicesRefs = false}) {
             return PrefetchHooks(
               db: db,
-              explicitlyWatchedTables: [if (stimmenRefs) db.stimmen],
+              explicitlyWatchedTables: [if (VoicesRefs) db.voices],
               addJoins: null,
               getPrefetchedDataCallback: (items) async {
                 return [
-                  if (stimmenRefs)
+                  if (VoicesRefs)
                     await $_getPrefetchedData<
-                      NotenData,
-                      $NotenTable,
-                      StimmenData
+                      SheetMusicsData,
+                      $SheetMusicsTable,
+                      VoicesData
                     >(
                       currentTable: table,
-                      referencedTable: $$NotenTableReferences._stimmenRefsTable(
+                      referencedTable: $$SheetMusicsTableReferences._VoicesRefsTable(
                         db,
                       ),
                       managerFromTypedResult: (p0) =>
-                          $$NotenTableReferences(db, table, p0).stimmenRefs,
+                          $$SheetMusicsTableReferences(db, table, p0).VoicesRefs,
                       referencedItemsForCurrentItem: (item, referencedItems) =>
-                          referencedItems.where((e) => e.notenId == item.id),
+                          referencedItems.where((e) => e.sheetId == item.id),
                       typedResults: items,
                     ),
                 ];
@@ -2113,81 +2113,81 @@ class $$NotenTableTableManager
       );
 }
 
-typedef $$NotenTableProcessedTableManager =
+typedef $$SheetMusicsTableProcessedTableManager =
     ProcessedTableManager<
       _$AppDatabase,
-      $NotenTable,
-      NotenData,
-      $$NotenTableFilterComposer,
-      $$NotenTableOrderingComposer,
-      $$NotenTableAnnotationComposer,
-      $$NotenTableCreateCompanionBuilder,
-      $$NotenTableUpdateCompanionBuilder,
-      (NotenData, $$NotenTableReferences),
-      NotenData,
-      PrefetchHooks Function({bool stimmenRefs})
+      $SheetMusicsTable,
+      SheetMusicsData,
+      $$SheetMusicsTableFilterComposer,
+      $$SheetMusicsTableOrderingComposer,
+      $$SheetMusicsTableAnnotationComposer,
+      $$SheetMusicsTableCreateCompanionBuilder,
+      $$SheetMusicsTableUpdateCompanionBuilder,
+      (SheetMusicsData, $$SheetMusicsTableReferences),
+      SheetMusicsData,
+      PrefetchHooks Function({bool VoicesRefs})
     >;
-typedef $$StimmenTableCreateCompanionBuilder =
-    StimmenCompanion Function({
+typedef $$VoicesTableCreateCompanionBuilder =
+    VoicesCompanion Function({
       Value<int> id,
-      required int notenId,
+      required int sheetId,
       required String name,
       Value<String?> instrument,
-      Value<int> seitenAnzahl,
+      Value<int> pageCount,
     });
-typedef $$StimmenTableUpdateCompanionBuilder =
-    StimmenCompanion Function({
+typedef $$VoicesTableUpdateCompanionBuilder =
+    VoicesCompanion Function({
       Value<int> id,
-      Value<int> notenId,
+      Value<int> sheetId,
       Value<String> name,
       Value<String?> instrument,
-      Value<int> seitenAnzahl,
+      Value<int> pageCount,
     });
 
-final class $$StimmenTableReferences
-    extends BaseReferences<_$AppDatabase, $StimmenTable, StimmenData> {
-  $$StimmenTableReferences(super.$_db, super.$_table, super.$_typedResult);
+final class $$VoicesTableReferences
+    extends BaseReferences<_$AppDatabase, $VoicesTable, VoicesData> {
+  $$VoicesTableReferences(super.$_db, super.$_table, super.$_typedResult);
 
-  static $NotenTable _notenIdTable(_$AppDatabase db) => db.noten.createAlias(
-    $_aliasNameGenerator(db.stimmen.notenId, db.noten.id),
+  static $SheetMusicsTable _sheetIdTable(_$AppDatabase db) => db.SheetMusics.createAlias(
+    $_aliasNameGenerator(db.voices.sheetId, db.SheetMusics.id),
   );
 
-  $$NotenTableProcessedTableManager get notenId {
-    final $_column = $_itemColumn<int>('noten_id')!;
+  $$SheetMusicsTableProcessedTableManager get sheetId {
+    final $_column = $_itemColumn<int>('SheetMusics_id')!;
 
-    final manager = $$NotenTableTableManager(
+    final manager = $$SheetMusicsTableTableManager(
       $_db,
-      $_db.noten,
+      $_db.SheetMusics,
     ).filter((f) => f.id.sqlEquals($_column));
-    final item = $_typedResult.readTableOrNull(_notenIdTable($_db));
+    final item = $_typedResult.readTableOrNull(_sheetIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: [item]),
     );
   }
 
-  static MultiTypedResultKey<$AnnotationenTable, List<AnnotationenData>>
-  _annotationenRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
-    db.annotationen,
-    aliasName: $_aliasNameGenerator(db.stimmen.id, db.annotationen.stimmeId),
+  static MultiTypedResultKey<$AnnotationsTable, List<AnnotationsData>>
+  _AnnotationsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.Annotations,
+    aliasName: $_aliasNameGenerator(db.voices.id, db.Annotations.voiceId),
   );
 
-  $$AnnotationenTableProcessedTableManager get annotationenRefs {
-    final manager = $$AnnotationenTableTableManager(
+  $$AnnotationsTableProcessedTableManager get AnnotationsRefs {
+    final manager = $$AnnotationsTableTableManager(
       $_db,
-      $_db.annotationen,
-    ).filter((f) => f.stimmeId.id.sqlEquals($_itemColumn<int>('id')!));
+      $_db.Annotations,
+    ).filter((f) => f.voiceId.id.sqlEquals($_itemColumn<int>('id')!));
 
-    final cache = $_typedResult.readTableOrNull(_annotationenRefsTable($_db));
+    final cache = $_typedResult.readTableOrNull(_AnnotationsRefsTable($_db));
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
 }
 
-class $$StimmenTableFilterComposer
-    extends Composer<_$AppDatabase, $StimmenTable> {
-  $$StimmenTableFilterComposer({
+class $$VoicesTableFilterComposer
+    extends Composer<_$AppDatabase, $VoicesTable> {
+  $$VoicesTableFilterComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -2209,25 +2209,25 @@ class $$StimmenTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<int> get seitenAnzahl => $composableBuilder(
-    column: $table.seitenAnzahl,
+  ColumnFilters<int> get pageCount => $composableBuilder(
+    column: $table.pageCount,
     builder: (column) => ColumnFilters(column),
   );
 
-  $$NotenTableFilterComposer get notenId {
-    final $$NotenTableFilterComposer composer = $composerBuilder(
+  $$SheetMusicsTableFilterComposer get sheetId {
+    final $$SheetMusicsTableFilterComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.notenId,
-      referencedTable: $db.noten,
+      getCurrentColumn: (t) => t.sheetId,
+      referencedTable: $db.SheetMusics,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$NotenTableFilterComposer(
+          }) => $$SheetMusicsTableFilterComposer(
             $db: $db,
-            $table: $db.noten,
+            $table: $db.SheetMusics,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -2237,22 +2237,22 @@ class $$StimmenTableFilterComposer
     return composer;
   }
 
-  Expression<bool> annotationenRefs(
-    Expression<bool> Function($$AnnotationenTableFilterComposer f) f,
+  Expression<bool> AnnotationsRefs(
+    Expression<bool> Function($$AnnotationsTableFilterComposer f) f,
   ) {
-    final $$AnnotationenTableFilterComposer composer = $composerBuilder(
+    final $$AnnotationsTableFilterComposer composer = $composerBuilder(
       composer: this,
       getCurrentColumn: (t) => t.id,
-      referencedTable: $db.annotationen,
-      getReferencedColumn: (t) => t.stimmeId,
+      referencedTable: $db.Annotations,
+      getReferencedColumn: (t) => t.voiceId,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$AnnotationenTableFilterComposer(
+          }) => $$AnnotationsTableFilterComposer(
             $db: $db,
-            $table: $db.annotationen,
+            $table: $db.Annotations,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -2263,9 +2263,9 @@ class $$StimmenTableFilterComposer
   }
 }
 
-class $$StimmenTableOrderingComposer
-    extends Composer<_$AppDatabase, $StimmenTable> {
-  $$StimmenTableOrderingComposer({
+class $$VoicesTableOrderingComposer
+    extends Composer<_$AppDatabase, $VoicesTable> {
+  $$VoicesTableOrderingComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -2287,25 +2287,25 @@ class $$StimmenTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<int> get seitenAnzahl => $composableBuilder(
-    column: $table.seitenAnzahl,
+  ColumnOrderings<int> get pageCount => $composableBuilder(
+    column: $table.pageCount,
     builder: (column) => ColumnOrderings(column),
   );
 
-  $$NotenTableOrderingComposer get notenId {
-    final $$NotenTableOrderingComposer composer = $composerBuilder(
+  $$SheetMusicsTableOrderingComposer get sheetId {
+    final $$SheetMusicsTableOrderingComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.notenId,
-      referencedTable: $db.noten,
+      getCurrentColumn: (t) => t.sheetId,
+      referencedTable: $db.SheetMusics,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$NotenTableOrderingComposer(
+          }) => $$SheetMusicsTableOrderingComposer(
             $db: $db,
-            $table: $db.noten,
+            $table: $db.SheetMusics,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -2316,9 +2316,9 @@ class $$StimmenTableOrderingComposer
   }
 }
 
-class $$StimmenTableAnnotationComposer
-    extends Composer<_$AppDatabase, $StimmenTable> {
-  $$StimmenTableAnnotationComposer({
+class $$VoicesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $VoicesTable> {
+  $$VoicesTableAnnotationComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -2336,25 +2336,25 @@ class $$StimmenTableAnnotationComposer
     builder: (column) => column,
   );
 
-  GeneratedColumn<int> get seitenAnzahl => $composableBuilder(
-    column: $table.seitenAnzahl,
+  GeneratedColumn<int> get pageCount => $composableBuilder(
+    column: $table.pageCount,
     builder: (column) => column,
   );
 
-  $$NotenTableAnnotationComposer get notenId {
-    final $$NotenTableAnnotationComposer composer = $composerBuilder(
+  $$SheetMusicsTableAnnotationComposer get sheetId {
+    final $$SheetMusicsTableAnnotationComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.notenId,
-      referencedTable: $db.noten,
+      getCurrentColumn: (t) => t.sheetId,
+      referencedTable: $db.SheetMusics,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$NotenTableAnnotationComposer(
+          }) => $$SheetMusicsTableAnnotationComposer(
             $db: $db,
-            $table: $db.noten,
+            $table: $db.SheetMusics,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -2364,22 +2364,22 @@ class $$StimmenTableAnnotationComposer
     return composer;
   }
 
-  Expression<T> annotationenRefs<T extends Object>(
-    Expression<T> Function($$AnnotationenTableAnnotationComposer a) f,
+  Expression<T> AnnotationsRefs<T extends Object>(
+    Expression<T> Function($$AnnotationsTableAnnotationComposer a) f,
   ) {
-    final $$AnnotationenTableAnnotationComposer composer = $composerBuilder(
+    final $$AnnotationsTableAnnotationComposer composer = $composerBuilder(
       composer: this,
       getCurrentColumn: (t) => t.id,
-      referencedTable: $db.annotationen,
-      getReferencedColumn: (t) => t.stimmeId,
+      referencedTable: $db.Annotations,
+      getReferencedColumn: (t) => t.voiceId,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$AnnotationenTableAnnotationComposer(
+          }) => $$AnnotationsTableAnnotationComposer(
             $db: $db,
-            $table: $db.annotationen,
+            $table: $db.Annotations,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -2390,72 +2390,72 @@ class $$StimmenTableAnnotationComposer
   }
 }
 
-class $$StimmenTableTableManager
+class $$VoicesTableTableManager
     extends
         RootTableManager<
           _$AppDatabase,
-          $StimmenTable,
-          StimmenData,
-          $$StimmenTableFilterComposer,
-          $$StimmenTableOrderingComposer,
-          $$StimmenTableAnnotationComposer,
-          $$StimmenTableCreateCompanionBuilder,
-          $$StimmenTableUpdateCompanionBuilder,
-          (StimmenData, $$StimmenTableReferences),
-          StimmenData,
-          PrefetchHooks Function({bool notenId, bool annotationenRefs})
+          $VoicesTable,
+          VoicesData,
+          $$VoicesTableFilterComposer,
+          $$VoicesTableOrderingComposer,
+          $$VoicesTableAnnotationComposer,
+          $$VoicesTableCreateCompanionBuilder,
+          $$VoicesTableUpdateCompanionBuilder,
+          (VoicesData, $$VoicesTableReferences),
+          VoicesData,
+          PrefetchHooks Function({bool sheetId, bool AnnotationsRefs})
         > {
-  $$StimmenTableTableManager(_$AppDatabase db, $StimmenTable table)
+  $$VoicesTableTableManager(_$AppDatabase db, $VoicesTable table)
     : super(
         TableManagerState(
           db: db,
           table: table,
           createFilteringComposer: () =>
-              $$StimmenTableFilterComposer($db: db, $table: table),
+              $$VoicesTableFilterComposer($db: db, $table: table),
           createOrderingComposer: () =>
-              $$StimmenTableOrderingComposer($db: db, $table: table),
+              $$VoicesTableOrderingComposer($db: db, $table: table),
           createComputedFieldComposer: () =>
-              $$StimmenTableAnnotationComposer($db: db, $table: table),
+              $$VoicesTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback:
               ({
                 Value<int> id = const Value.absent(),
-                Value<int> notenId = const Value.absent(),
+                Value<int> sheetId = const Value.absent(),
                 Value<String> name = const Value.absent(),
                 Value<String?> instrument = const Value.absent(),
-                Value<int> seitenAnzahl = const Value.absent(),
-              }) => StimmenCompanion(
+                Value<int> pageCount = const Value.absent(),
+              }) => VoicesCompanion(
                 id: id,
-                notenId: notenId,
+                sheetId: sheetId,
                 name: name,
                 instrument: instrument,
-                seitenAnzahl: seitenAnzahl,
+                pageCount: pageCount,
               ),
           createCompanionCallback:
               ({
                 Value<int> id = const Value.absent(),
-                required int notenId,
+                required int sheetId,
                 required String name,
                 Value<String?> instrument = const Value.absent(),
-                Value<int> seitenAnzahl = const Value.absent(),
-              }) => StimmenCompanion.insert(
+                Value<int> pageCount = const Value.absent(),
+              }) => VoicesCompanion.insert(
                 id: id,
-                notenId: notenId,
+                sheetId: sheetId,
                 name: name,
                 instrument: instrument,
-                seitenAnzahl: seitenAnzahl,
+                pageCount: pageCount,
               ),
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
                   e.readTable(table),
-                  $$StimmenTableReferences(db, table, e),
+                  $$VoicesTableReferences(db, table, e),
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({notenId = false, annotationenRefs = false}) {
+          prefetchHooksCallback: ({sheetId = false, AnnotationsRefs = false}) {
             return PrefetchHooks(
               db: db,
-              explicitlyWatchedTables: [if (annotationenRefs) db.annotationen],
+              explicitlyWatchedTables: [if (AnnotationsRefs) db.Annotations],
               addJoins:
                   <
                     T extends TableManagerState<
@@ -2472,15 +2472,15 @@ class $$StimmenTableTableManager
                       dynamic
                     >
                   >(state) {
-                    if (notenId) {
+                    if (sheetId) {
                       state =
                           state.withJoin(
                                 currentTable: table,
-                                currentColumn: table.notenId,
-                                referencedTable: $$StimmenTableReferences
-                                    ._notenIdTable(db),
-                                referencedColumn: $$StimmenTableReferences
-                                    ._notenIdTable(db)
+                                currentColumn: table.sheetId,
+                                referencedTable: $$VoicesTableReferences
+                                    ._sheetIdTable(db),
+                                referencedColumn: $$VoicesTableReferences
+                                    ._sheetIdTable(db)
                                     .id,
                               )
                               as T;
@@ -2490,22 +2490,22 @@ class $$StimmenTableTableManager
                   },
               getPrefetchedDataCallback: (items) async {
                 return [
-                  if (annotationenRefs)
+                  if (AnnotationsRefs)
                     await $_getPrefetchedData<
-                      StimmenData,
-                      $StimmenTable,
-                      AnnotationenData
+                      VoicesData,
+                      $VoicesTable,
+                      AnnotationsData
                     >(
                       currentTable: table,
-                      referencedTable: $$StimmenTableReferences
-                          ._annotationenRefsTable(db),
-                      managerFromTypedResult: (p0) => $$StimmenTableReferences(
+                      referencedTable: $$VoicesTableReferences
+                          ._AnnotationsRefsTable(db),
+                      managerFromTypedResult: (p0) => $$VoicesTableReferences(
                         db,
                         table,
                         p0,
-                      ).annotationenRefs,
+                      ).AnnotationsRefs,
                       referencedItemsForCurrentItem: (item, referencedItems) =>
-                          referencedItems.where((e) => e.stimmeId == item.id),
+                          referencedItems.where((e) => e.voiceId == item.id),
                       typedResults: items,
                     ),
                 ];
@@ -2516,61 +2516,61 @@ class $$StimmenTableTableManager
       );
 }
 
-typedef $$StimmenTableProcessedTableManager =
+typedef $$VoicesTableProcessedTableManager =
     ProcessedTableManager<
       _$AppDatabase,
-      $StimmenTable,
-      StimmenData,
-      $$StimmenTableFilterComposer,
-      $$StimmenTableOrderingComposer,
-      $$StimmenTableAnnotationComposer,
-      $$StimmenTableCreateCompanionBuilder,
-      $$StimmenTableUpdateCompanionBuilder,
-      (StimmenData, $$StimmenTableReferences),
-      StimmenData,
-      PrefetchHooks Function({bool notenId, bool annotationenRefs})
+      $VoicesTable,
+      VoicesData,
+      $$VoicesTableFilterComposer,
+      $$VoicesTableOrderingComposer,
+      $$VoicesTableAnnotationComposer,
+      $$VoicesTableCreateCompanionBuilder,
+      $$VoicesTableUpdateCompanionBuilder,
+      (VoicesData, $$VoicesTableReferences),
+      VoicesData,
+      PrefetchHooks Function({bool sheetId, bool AnnotationsRefs})
     >;
-typedef $$AnnotationenTableCreateCompanionBuilder =
-    AnnotationenCompanion Function({
+typedef $$AnnotationsTableCreateCompanionBuilder =
+    AnnotationsCompanion Function({
       Value<int> id,
-      required int stimmeId,
-      required String ebene,
-      required double xRelativ,
-      required double yRelativ,
-      required double seite,
-      required String svgDaten,
-      Value<DateTime> erstelltAm,
+      required int voiceId,
+      required String level,
+      required double xRelative,
+      required double yRelative,
+      required double page,
+      required String svgData,
+      Value<DateTime> createdAt,
     });
-typedef $$AnnotationenTableUpdateCompanionBuilder =
-    AnnotationenCompanion Function({
+typedef $$AnnotationsTableUpdateCompanionBuilder =
+    AnnotationsCompanion Function({
       Value<int> id,
-      Value<int> stimmeId,
-      Value<String> ebene,
-      Value<double> xRelativ,
-      Value<double> yRelativ,
-      Value<double> seite,
-      Value<String> svgDaten,
-      Value<DateTime> erstelltAm,
+      Value<int> voiceId,
+      Value<String> level,
+      Value<double> xRelative,
+      Value<double> yRelative,
+      Value<double> page,
+      Value<String> svgData,
+      Value<DateTime> createdAt,
     });
 
-final class $$AnnotationenTableReferences
+final class $$AnnotationsTableReferences
     extends
-        BaseReferences<_$AppDatabase, $AnnotationenTable, AnnotationenData> {
-  $$AnnotationenTableReferences(super.$_db, super.$_table, super.$_typedResult);
+        BaseReferences<_$AppDatabase, $AnnotationsTable, AnnotationsData> {
+  $$AnnotationsTableReferences(super.$_db, super.$_table, super.$_typedResult);
 
-  static $StimmenTable _stimmeIdTable(_$AppDatabase db) =>
-      db.stimmen.createAlias(
-        $_aliasNameGenerator(db.annotationen.stimmeId, db.stimmen.id),
+  static $VoicesTable _voiceIdTable(_$AppDatabase db) =>
+      db.voices.createAlias(
+        $_aliasNameGenerator(db.Annotations.voiceId, db.voices.id),
       );
 
-  $$StimmenTableProcessedTableManager get stimmeId {
-    final $_column = $_itemColumn<int>('stimme_id')!;
+  $$VoicesTableProcessedTableManager get voiceId {
+    final $_column = $_itemColumn<int>('voice_id')!;
 
-    final manager = $$StimmenTableTableManager(
+    final manager = $$VoicesTableTableManager(
       $_db,
-      $_db.stimmen,
+      $_db.voices,
     ).filter((f) => f.id.sqlEquals($_column));
-    final item = $_typedResult.readTableOrNull(_stimmeIdTable($_db));
+    final item = $_typedResult.readTableOrNull(_voiceIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: [item]),
@@ -2578,9 +2578,9 @@ final class $$AnnotationenTableReferences
   }
 }
 
-class $$AnnotationenTableFilterComposer
-    extends Composer<_$AppDatabase, $AnnotationenTable> {
-  $$AnnotationenTableFilterComposer({
+class $$AnnotationsTableFilterComposer
+    extends Composer<_$AppDatabase, $AnnotationsTable> {
+  $$AnnotationsTableFilterComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -2592,50 +2592,50 @@ class $$AnnotationenTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<String> get ebene => $composableBuilder(
-    column: $table.ebene,
+  ColumnFilters<String> get level => $composableBuilder(
+    column: $table.level,
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<double> get xRelativ => $composableBuilder(
-    column: $table.xRelativ,
+  ColumnFilters<double> get xRelative => $composableBuilder(
+    column: $table.xRelative,
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<double> get yRelativ => $composableBuilder(
-    column: $table.yRelativ,
+  ColumnFilters<double> get yRelative => $composableBuilder(
+    column: $table.yRelative,
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<double> get seite => $composableBuilder(
-    column: $table.seite,
+  ColumnFilters<double> get page => $composableBuilder(
+    column: $table.page,
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<String> get svgDaten => $composableBuilder(
-    column: $table.svgDaten,
+  ColumnFilters<String> get svgData => $composableBuilder(
+    column: $table.svgData,
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<DateTime> get erstelltAm => $composableBuilder(
-    column: $table.erstelltAm,
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
     builder: (column) => ColumnFilters(column),
   );
 
-  $$StimmenTableFilterComposer get stimmeId {
-    final $$StimmenTableFilterComposer composer = $composerBuilder(
+  $$VoicesTableFilterComposer get voiceId {
+    final $$VoicesTableFilterComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.stimmeId,
-      referencedTable: $db.stimmen,
+      getCurrentColumn: (t) => t.voiceId,
+      referencedTable: $db.voices,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$StimmenTableFilterComposer(
+          }) => $$VoicesTableFilterComposer(
             $db: $db,
-            $table: $db.stimmen,
+            $table: $db.voices,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -2646,9 +2646,9 @@ class $$AnnotationenTableFilterComposer
   }
 }
 
-class $$AnnotationenTableOrderingComposer
-    extends Composer<_$AppDatabase, $AnnotationenTable> {
-  $$AnnotationenTableOrderingComposer({
+class $$AnnotationsTableOrderingComposer
+    extends Composer<_$AppDatabase, $AnnotationsTable> {
+  $$AnnotationsTableOrderingComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -2660,50 +2660,50 @@ class $$AnnotationenTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get ebene => $composableBuilder(
-    column: $table.ebene,
+  ColumnOrderings<String> get level => $composableBuilder(
+    column: $table.level,
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<double> get xRelativ => $composableBuilder(
-    column: $table.xRelativ,
+  ColumnOrderings<double> get xRelative => $composableBuilder(
+    column: $table.xRelative,
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<double> get yRelativ => $composableBuilder(
-    column: $table.yRelativ,
+  ColumnOrderings<double> get yRelative => $composableBuilder(
+    column: $table.yRelative,
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<double> get seite => $composableBuilder(
-    column: $table.seite,
+  ColumnOrderings<double> get page => $composableBuilder(
+    column: $table.page,
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get svgDaten => $composableBuilder(
-    column: $table.svgDaten,
+  ColumnOrderings<String> get svgData => $composableBuilder(
+    column: $table.svgData,
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<DateTime> get erstelltAm => $composableBuilder(
-    column: $table.erstelltAm,
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
   );
 
-  $$StimmenTableOrderingComposer get stimmeId {
-    final $$StimmenTableOrderingComposer composer = $composerBuilder(
+  $$VoicesTableOrderingComposer get voiceId {
+    final $$VoicesTableOrderingComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.stimmeId,
-      referencedTable: $db.stimmen,
+      getCurrentColumn: (t) => t.voiceId,
+      referencedTable: $db.voices,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$StimmenTableOrderingComposer(
+          }) => $$VoicesTableOrderingComposer(
             $db: $db,
-            $table: $db.stimmen,
+            $table: $db.voices,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -2714,9 +2714,9 @@ class $$AnnotationenTableOrderingComposer
   }
 }
 
-class $$AnnotationenTableAnnotationComposer
-    extends Composer<_$AppDatabase, $AnnotationenTable> {
-  $$AnnotationenTableAnnotationComposer({
+class $$AnnotationsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AnnotationsTable> {
+  $$AnnotationsTableAnnotationComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -2726,40 +2726,40 @@ class $$AnnotationenTableAnnotationComposer
   GeneratedColumn<int> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
 
-  GeneratedColumn<String> get ebene =>
-      $composableBuilder(column: $table.ebene, builder: (column) => column);
+  GeneratedColumn<String> get level =>
+      $composableBuilder(column: $table.level, builder: (column) => column);
 
-  GeneratedColumn<double> get xRelativ =>
-      $composableBuilder(column: $table.xRelativ, builder: (column) => column);
+  GeneratedColumn<double> get xRelative =>
+      $composableBuilder(column: $table.xRelative, builder: (column) => column);
 
-  GeneratedColumn<double> get yRelativ =>
-      $composableBuilder(column: $table.yRelativ, builder: (column) => column);
+  GeneratedColumn<double> get yRelative =>
+      $composableBuilder(column: $table.yRelative, builder: (column) => column);
 
-  GeneratedColumn<double> get seite =>
-      $composableBuilder(column: $table.seite, builder: (column) => column);
+  GeneratedColumn<double> get page =>
+      $composableBuilder(column: $table.page, builder: (column) => column);
 
-  GeneratedColumn<String> get svgDaten =>
-      $composableBuilder(column: $table.svgDaten, builder: (column) => column);
+  GeneratedColumn<String> get svgData =>
+      $composableBuilder(column: $table.svgData, builder: (column) => column);
 
-  GeneratedColumn<DateTime> get erstelltAm => $composableBuilder(
-    column: $table.erstelltAm,
+  GeneratedColumn<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
     builder: (column) => column,
   );
 
-  $$StimmenTableAnnotationComposer get stimmeId {
-    final $$StimmenTableAnnotationComposer composer = $composerBuilder(
+  $$VoicesTableAnnotationComposer get voiceId {
+    final $$VoicesTableAnnotationComposer composer = $composerBuilder(
       composer: this,
-      getCurrentColumn: (t) => t.stimmeId,
-      referencedTable: $db.stimmen,
+      getCurrentColumn: (t) => t.voiceId,
+      referencedTable: $db.voices,
       getReferencedColumn: (t) => t.id,
       builder:
           (
             joinBuilder, {
             $addJoinBuilderToRootComposer,
             $removeJoinBuilderFromRootComposer,
-          }) => $$StimmenTableAnnotationComposer(
+          }) => $$VoicesTableAnnotationComposer(
             $db: $db,
-            $table: $db.stimmen,
+            $table: $db.voices,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -2770,81 +2770,81 @@ class $$AnnotationenTableAnnotationComposer
   }
 }
 
-class $$AnnotationenTableTableManager
+class $$AnnotationsTableTableManager
     extends
         RootTableManager<
           _$AppDatabase,
-          $AnnotationenTable,
-          AnnotationenData,
-          $$AnnotationenTableFilterComposer,
-          $$AnnotationenTableOrderingComposer,
-          $$AnnotationenTableAnnotationComposer,
-          $$AnnotationenTableCreateCompanionBuilder,
-          $$AnnotationenTableUpdateCompanionBuilder,
-          (AnnotationenData, $$AnnotationenTableReferences),
-          AnnotationenData,
-          PrefetchHooks Function({bool stimmeId})
+          $AnnotationsTable,
+          AnnotationsData,
+          $$AnnotationsTableFilterComposer,
+          $$AnnotationsTableOrderingComposer,
+          $$AnnotationsTableAnnotationComposer,
+          $$AnnotationsTableCreateCompanionBuilder,
+          $$AnnotationsTableUpdateCompanionBuilder,
+          (AnnotationsData, $$AnnotationsTableReferences),
+          AnnotationsData,
+          PrefetchHooks Function({bool voiceId})
         > {
-  $$AnnotationenTableTableManager(_$AppDatabase db, $AnnotationenTable table)
+  $$AnnotationsTableTableManager(_$AppDatabase db, $AnnotationsTable table)
     : super(
         TableManagerState(
           db: db,
           table: table,
           createFilteringComposer: () =>
-              $$AnnotationenTableFilterComposer($db: db, $table: table),
+              $$AnnotationsTableFilterComposer($db: db, $table: table),
           createOrderingComposer: () =>
-              $$AnnotationenTableOrderingComposer($db: db, $table: table),
+              $$AnnotationsTableOrderingComposer($db: db, $table: table),
           createComputedFieldComposer: () =>
-              $$AnnotationenTableAnnotationComposer($db: db, $table: table),
+              $$AnnotationsTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback:
               ({
                 Value<int> id = const Value.absent(),
-                Value<int> stimmeId = const Value.absent(),
-                Value<String> ebene = const Value.absent(),
-                Value<double> xRelativ = const Value.absent(),
-                Value<double> yRelativ = const Value.absent(),
-                Value<double> seite = const Value.absent(),
-                Value<String> svgDaten = const Value.absent(),
-                Value<DateTime> erstelltAm = const Value.absent(),
-              }) => AnnotationenCompanion(
+                Value<int> voiceId = const Value.absent(),
+                Value<String> level = const Value.absent(),
+                Value<double> xRelative = const Value.absent(),
+                Value<double> yRelative = const Value.absent(),
+                Value<double> page = const Value.absent(),
+                Value<String> svgData = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+              }) => AnnotationsCompanion(
                 id: id,
-                stimmeId: stimmeId,
-                ebene: ebene,
-                xRelativ: xRelativ,
-                yRelativ: yRelativ,
-                seite: seite,
-                svgDaten: svgDaten,
-                erstelltAm: erstelltAm,
+                voiceId: voiceId,
+                level: level,
+                xRelative: xRelative,
+                yRelative: yRelative,
+                page: page,
+                svgData: svgData,
+                createdAt: createdAt,
               ),
           createCompanionCallback:
               ({
                 Value<int> id = const Value.absent(),
-                required int stimmeId,
-                required String ebene,
-                required double xRelativ,
-                required double yRelativ,
-                required double seite,
-                required String svgDaten,
-                Value<DateTime> erstelltAm = const Value.absent(),
-              }) => AnnotationenCompanion.insert(
+                required int voiceId,
+                required String level,
+                required double xRelative,
+                required double yRelative,
+                required double page,
+                required String svgData,
+                Value<DateTime> createdAt = const Value.absent(),
+              }) => AnnotationsCompanion.insert(
                 id: id,
-                stimmeId: stimmeId,
-                ebene: ebene,
-                xRelativ: xRelativ,
-                yRelativ: yRelativ,
-                seite: seite,
-                svgDaten: svgDaten,
-                erstelltAm: erstelltAm,
+                voiceId: voiceId,
+                level: level,
+                xRelative: xRelative,
+                yRelative: yRelative,
+                page: page,
+                svgData: svgData,
+                createdAt: createdAt,
               ),
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
                   e.readTable(table),
-                  $$AnnotationenTableReferences(db, table, e),
+                  $$AnnotationsTableReferences(db, table, e),
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({stimmeId = false}) {
+          prefetchHooksCallback: ({voiceId = false}) {
             return PrefetchHooks(
               db: db,
               explicitlyWatchedTables: [],
@@ -2864,15 +2864,15 @@ class $$AnnotationenTableTableManager
                       dynamic
                     >
                   >(state) {
-                    if (stimmeId) {
+                    if (voiceId) {
                       state =
                           state.withJoin(
                                 currentTable: table,
-                                currentColumn: table.stimmeId,
-                                referencedTable: $$AnnotationenTableReferences
-                                    ._stimmeIdTable(db),
-                                referencedColumn: $$AnnotationenTableReferences
-                                    ._stimmeIdTable(db)
+                                currentColumn: table.voiceId,
+                                referencedTable: $$AnnotationsTableReferences
+                                    ._voiceIdTable(db),
+                                referencedColumn: $$AnnotationsTableReferences
+                                    ._voiceIdTable(db)
                                     .id,
                               )
                               as T;
@@ -2889,40 +2889,40 @@ class $$AnnotationenTableTableManager
       );
 }
 
-typedef $$AnnotationenTableProcessedTableManager =
+typedef $$AnnotationsTableProcessedTableManager =
     ProcessedTableManager<
       _$AppDatabase,
-      $AnnotationenTable,
-      AnnotationenData,
-      $$AnnotationenTableFilterComposer,
-      $$AnnotationenTableOrderingComposer,
-      $$AnnotationenTableAnnotationComposer,
-      $$AnnotationenTableCreateCompanionBuilder,
-      $$AnnotationenTableUpdateCompanionBuilder,
-      (AnnotationenData, $$AnnotationenTableReferences),
-      AnnotationenData,
-      PrefetchHooks Function({bool stimmeId})
+      $AnnotationsTable,
+      AnnotationsData,
+      $$AnnotationsTableFilterComposer,
+      $$AnnotationsTableOrderingComposer,
+      $$AnnotationsTableAnnotationComposer,
+      $$AnnotationsTableCreateCompanionBuilder,
+      $$AnnotationsTableUpdateCompanionBuilder,
+      (AnnotationsData, $$AnnotationsTableReferences),
+      AnnotationsData,
+      PrefetchHooks Function({bool voiceId})
     >;
-typedef $$KonfigurationEintraegeTableCreateCompanionBuilder =
-    KonfigurationEintraegeCompanion Function({
+typedef $$ConfigEntriesTableCreateCompanionBuilder =
+    ConfigEntriesCompanion Function({
       Value<int> id,
-      required String ebene,
-      required String schluessel,
-      required String wert,
-      Value<bool> istGesperrt,
+      required String level,
+      required String key,
+      required String value,
+      Value<bool> isLocked,
     });
-typedef $$KonfigurationEintraegeTableUpdateCompanionBuilder =
-    KonfigurationEintraegeCompanion Function({
+typedef $$ConfigEntriesTableUpdateCompanionBuilder =
+    ConfigEntriesCompanion Function({
       Value<int> id,
-      Value<String> ebene,
-      Value<String> schluessel,
-      Value<String> wert,
-      Value<bool> istGesperrt,
+      Value<String> level,
+      Value<String> key,
+      Value<String> value,
+      Value<bool> isLocked,
     });
 
-class $$KonfigurationEintraegeTableFilterComposer
-    extends Composer<_$AppDatabase, $KonfigurationEintraegeTable> {
-  $$KonfigurationEintraegeTableFilterComposer({
+class $$ConfigEntriesTableFilterComposer
+    extends Composer<_$AppDatabase, $ConfigEntriesTable> {
+  $$ConfigEntriesTableFilterComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -2934,30 +2934,30 @@ class $$KonfigurationEintraegeTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<String> get ebene => $composableBuilder(
-    column: $table.ebene,
+  ColumnFilters<String> get level => $composableBuilder(
+    column: $table.level,
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<String> get schluessel => $composableBuilder(
-    column: $table.schluessel,
+  ColumnFilters<String> get key => $composableBuilder(
+    column: $table.key,
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<String> get wert => $composableBuilder(
-    column: $table.wert,
+  ColumnFilters<String> get value => $composableBuilder(
+    column: $table.value,
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<bool> get istGesperrt => $composableBuilder(
-    column: $table.istGesperrt,
+  ColumnFilters<bool> get isLocked => $composableBuilder(
+    column: $table.isLocked,
     builder: (column) => ColumnFilters(column),
   );
 }
 
-class $$KonfigurationEintraegeTableOrderingComposer
-    extends Composer<_$AppDatabase, $KonfigurationEintraegeTable> {
-  $$KonfigurationEintraegeTableOrderingComposer({
+class $$ConfigEntriesTableOrderingComposer
+    extends Composer<_$AppDatabase, $ConfigEntriesTable> {
+  $$ConfigEntriesTableOrderingComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -2969,30 +2969,30 @@ class $$KonfigurationEintraegeTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get ebene => $composableBuilder(
-    column: $table.ebene,
+  ColumnOrderings<String> get level => $composableBuilder(
+    column: $table.level,
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get schluessel => $composableBuilder(
-    column: $table.schluessel,
+  ColumnOrderings<String> get key => $composableBuilder(
+    column: $table.key,
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<String> get wert => $composableBuilder(
-    column: $table.wert,
+  ColumnOrderings<String> get value => $composableBuilder(
+    column: $table.value,
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<bool> get istGesperrt => $composableBuilder(
-    column: $table.istGesperrt,
+  ColumnOrderings<bool> get isLocked => $composableBuilder(
+    column: $table.isLocked,
     builder: (column) => ColumnOrderings(column),
   );
 }
 
-class $$KonfigurationEintraegeTableAnnotationComposer
-    extends Composer<_$AppDatabase, $KonfigurationEintraegeTable> {
-  $$KonfigurationEintraegeTableAnnotationComposer({
+class $$ConfigEntriesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ConfigEntriesTable> {
+  $$ConfigEntriesTableAnnotationComposer({
     required super.$db,
     required super.$table,
     super.joinBuilder,
@@ -3002,94 +3002,94 @@ class $$KonfigurationEintraegeTableAnnotationComposer
   GeneratedColumn<int> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
 
-  GeneratedColumn<String> get ebene =>
-      $composableBuilder(column: $table.ebene, builder: (column) => column);
+  GeneratedColumn<String> get level =>
+      $composableBuilder(column: $table.level, builder: (column) => column);
 
-  GeneratedColumn<String> get schluessel => $composableBuilder(
-    column: $table.schluessel,
+  GeneratedColumn<String> get key => $composableBuilder(
+    column: $table.key,
     builder: (column) => column,
   );
 
-  GeneratedColumn<String> get wert =>
-      $composableBuilder(column: $table.wert, builder: (column) => column);
+  GeneratedColumn<String> get value =>
+      $composableBuilder(column: $table.value, builder: (column) => column);
 
-  GeneratedColumn<bool> get istGesperrt => $composableBuilder(
-    column: $table.istGesperrt,
+  GeneratedColumn<bool> get isLocked => $composableBuilder(
+    column: $table.isLocked,
     builder: (column) => column,
   );
 }
 
-class $$KonfigurationEintraegeTableTableManager
+class $$ConfigEntriesTableTableManager
     extends
         RootTableManager<
           _$AppDatabase,
-          $KonfigurationEintraegeTable,
-          KonfigurationEintraegeData,
-          $$KonfigurationEintraegeTableFilterComposer,
-          $$KonfigurationEintraegeTableOrderingComposer,
-          $$KonfigurationEintraegeTableAnnotationComposer,
-          $$KonfigurationEintraegeTableCreateCompanionBuilder,
-          $$KonfigurationEintraegeTableUpdateCompanionBuilder,
+          $ConfigEntriesTable,
+          ConfigEntriesData,
+          $$ConfigEntriesTableFilterComposer,
+          $$ConfigEntriesTableOrderingComposer,
+          $$ConfigEntriesTableAnnotationComposer,
+          $$ConfigEntriesTableCreateCompanionBuilder,
+          $$ConfigEntriesTableUpdateCompanionBuilder,
           (
-            KonfigurationEintraegeData,
+            ConfigEntriesData,
             BaseReferences<
               _$AppDatabase,
-              $KonfigurationEintraegeTable,
-              KonfigurationEintraegeData
+              $ConfigEntriesTable,
+              ConfigEntriesData
             >,
           ),
-          KonfigurationEintraegeData,
+          ConfigEntriesData,
           PrefetchHooks Function()
         > {
-  $$KonfigurationEintraegeTableTableManager(
+  $$ConfigEntriesTableTableManager(
     _$AppDatabase db,
-    $KonfigurationEintraegeTable table,
+    $ConfigEntriesTable table,
   ) : super(
         TableManagerState(
           db: db,
           table: table,
           createFilteringComposer: () =>
-              $$KonfigurationEintraegeTableFilterComposer(
+              $$ConfigEntriesTableFilterComposer(
                 $db: db,
                 $table: table,
               ),
           createOrderingComposer: () =>
-              $$KonfigurationEintraegeTableOrderingComposer(
+              $$ConfigEntriesTableOrderingComposer(
                 $db: db,
                 $table: table,
               ),
           createComputedFieldComposer: () =>
-              $$KonfigurationEintraegeTableAnnotationComposer(
+              $$ConfigEntriesTableAnnotationComposer(
                 $db: db,
                 $table: table,
               ),
           updateCompanionCallback:
               ({
                 Value<int> id = const Value.absent(),
-                Value<String> ebene = const Value.absent(),
-                Value<String> schluessel = const Value.absent(),
-                Value<String> wert = const Value.absent(),
-                Value<bool> istGesperrt = const Value.absent(),
-              }) => KonfigurationEintraegeCompanion(
+                Value<String> level = const Value.absent(),
+                Value<String> key = const Value.absent(),
+                Value<String> value = const Value.absent(),
+                Value<bool> isLocked = const Value.absent(),
+              }) => ConfigEntriesCompanion(
                 id: id,
-                ebene: ebene,
-                schluessel: schluessel,
-                wert: wert,
-                istGesperrt: istGesperrt,
+                level: level,
+                key: key,
+                value: value,
+                isLocked: isLocked,
               ),
           createCompanionCallback:
               ({
                 Value<int> id = const Value.absent(),
-                required String ebene,
-                required String schluessel,
-                required String wert,
-                Value<bool> istGesperrt = const Value.absent(),
-              }) => KonfigurationEintraegeCompanion.insert(
+                required String level,
+                required String key,
+                required String value,
+                Value<bool> isLocked = const Value.absent(),
+              }) => ConfigEntriesCompanion.insert(
                 id: id,
-                ebene: ebene,
-                schluessel: schluessel,
-                wert: wert,
-                istGesperrt: istGesperrt,
+                level: level,
+                key: key,
+                value: value,
+                isLocked: isLocked,
               ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
@@ -3099,40 +3099,40 @@ class $$KonfigurationEintraegeTableTableManager
       );
 }
 
-typedef $$KonfigurationEintraegeTableProcessedTableManager =
+typedef $$ConfigEntriesTableProcessedTableManager =
     ProcessedTableManager<
       _$AppDatabase,
-      $KonfigurationEintraegeTable,
-      KonfigurationEintraegeData,
-      $$KonfigurationEintraegeTableFilterComposer,
-      $$KonfigurationEintraegeTableOrderingComposer,
-      $$KonfigurationEintraegeTableAnnotationComposer,
-      $$KonfigurationEintraegeTableCreateCompanionBuilder,
-      $$KonfigurationEintraegeTableUpdateCompanionBuilder,
+      $ConfigEntriesTable,
+      ConfigEntriesData,
+      $$ConfigEntriesTableFilterComposer,
+      $$ConfigEntriesTableOrderingComposer,
+      $$ConfigEntriesTableAnnotationComposer,
+      $$ConfigEntriesTableCreateCompanionBuilder,
+      $$ConfigEntriesTableUpdateCompanionBuilder,
       (
-        KonfigurationEintraegeData,
+        ConfigEntriesData,
         BaseReferences<
           _$AppDatabase,
-          $KonfigurationEintraegeTable,
-          KonfigurationEintraegeData
+          $ConfigEntriesTable,
+          ConfigEntriesData
         >,
       ),
-      KonfigurationEintraegeData,
+      ConfigEntriesData,
       PrefetchHooks Function()
     >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
   $AppDatabaseManager(this._db);
-  $$NotenTableTableManager get noten =>
-      $$NotenTableTableManager(_db, _db.noten);
-  $$StimmenTableTableManager get stimmen =>
-      $$StimmenTableTableManager(_db, _db.stimmen);
-  $$AnnotationenTableTableManager get annotationen =>
-      $$AnnotationenTableTableManager(_db, _db.annotationen);
-  $$KonfigurationEintraegeTableTableManager get konfigurationEintraege =>
-      $$KonfigurationEintraegeTableTableManager(
+  $$SheetMusicsTableTableManager get SheetMusics =>
+      $$SheetMusicsTableTableManager(_db, _db.SheetMusics);
+  $$VoicesTableTableManager get voices =>
+      $$VoicesTableTableManager(_db, _db.voices);
+  $$AnnotationsTableTableManager get Annotations =>
+      $$AnnotationsTableTableManager(_db, _db.Annotations);
+  $$ConfigEntriesTableTableManager get ConfigEntries =>
+      $$ConfigEntriesTableTableManager(
         _db,
-        _db.konfigurationEintraege,
+        _db.ConfigEntries,
       );
 }

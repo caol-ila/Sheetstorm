@@ -7,21 +7,21 @@ import 'package:sheetstorm/features/auth/presentation/screens/email_verification
 import 'package:sheetstorm/features/auth/presentation/screens/forgot_password_screen.dart';
 import 'package:sheetstorm/features/auth/presentation/screens/login_screen.dart';
 import 'package:sheetstorm/features/auth/presentation/screens/onboarding_screen.dart';
-import 'package:sheetstorm/features/auth/presentation/screens/register_screen.dart';
-import 'package:sheetstorm/features/config/presentation/screens/einstellungen_screen.dart';
-import 'package:sheetstorm/features/kapelle/presentation/screens/create_kapelle_screen.dart';
-import 'package:sheetstorm/features/kapelle/presentation/screens/einladen_screen.dart';
-import 'package:sheetstorm/features/kapelle/presentation/screens/join_kapelle_screen.dart';
-import 'package:sheetstorm/features/kapelle/presentation/screens/kapelle_detail_screen.dart';
-import 'package:sheetstorm/features/kapelle/presentation/screens/kapelle_screen.dart';
-import 'package:sheetstorm/features/kapelle/presentation/screens/mitglieder_screen.dart';
-import 'package:sheetstorm/features/kapelle/presentation/screens/register_screen.dart';
-import 'package:sheetstorm/features/noten/presentation/screens/bibliothek_screen.dart';
-import 'package:sheetstorm/features/noten/presentation/screens/import_screen.dart';
-import 'package:sheetstorm/features/noten/presentation/screens/import_summary_screen.dart';
-import 'package:sheetstorm/features/noten/presentation/screens/labeling_screen.dart';
-import 'package:sheetstorm/features/noten/presentation/screens/metadata_editor_screen.dart';
-import 'package:sheetstorm/features/spielmodus/presentation/screens/spielmodus_screen.dart';
+import 'package:sheetstorm/features/auth/presentation/screens/sections_screen.dart';
+import 'package:sheetstorm/features/config/presentation/screens/settings_screen.dart';
+import 'package:sheetstorm/features/band/presentation/screens/create_band_screen.dart';
+import 'package:sheetstorm/features/band/presentation/screens/invite_screen.dart';
+import 'package:sheetstorm/features/band/presentation/screens/join_band_screen.dart';
+import 'package:sheetstorm/features/band/presentation/screens/band_detail_screen.dart';
+import 'package:sheetstorm/features/band/presentation/screens/band_screen.dart';
+import 'package:sheetstorm/features/band/presentation/screens/members_screen.dart';
+import 'package:sheetstorm/features/band/presentation/screens/sections_screen.dart';
+import 'package:sheetstorm/features/sheet_music/presentation/screens/library_screen.dart';
+import 'package:sheetstorm/features/sheet_music/presentation/screens/import_screen.dart';
+import 'package:sheetstorm/features/sheet_music/presentation/screens/import_summary_screen.dart';
+import 'package:sheetstorm/features/sheet_music/presentation/screens/labeling_screen.dart';
+import 'package:sheetstorm/features/sheet_music/presentation/screens/metadata_editor_screen.dart';
+import 'package:sheetstorm/features/performance_mode/presentation/screens/performance_mode_screen.dart';
 import 'package:sheetstorm/shared/widgets/app_shell.dart';
 
 part 'app_router.g.dart';
@@ -31,36 +31,36 @@ abstract final class AppRoutes {
   static const String root = '/';
   static const String loading = '/loading';
   static const String login = '/login';
-  static const String register = '/register';
+  static const String sections = '/sections';
   static const String forgotPassword = '/forgot-password';
   static const String emailVerify = '/email-verify';
   static const String emailVerifyToken = '/email-verify/:token';
   static const String onboarding = '/onboarding';
   static const String aushilfe = '/aushilfe/:token';
   static const String shell = '/app';
-  static const String bibliothek = '/app/bibliothek';
+  static const String library = '/app/library';
   static const String setlists = '/app/setlists';
-  static const String kalender = '/app/kalender';
-  static const String profil = '/app/profil';
-  static const String spielmodus = '/app/spielmodus/:notenId';
-  static const String kapelle = '/app/kapelle';
-  static const String kapelleNeu = '/app/kapelle/neu';
-  static const String kapelleBeitreten = '/app/kapelle/beitreten';
-  static String kapelleDetail({required String id}) => '/app/kapelle/$id';
-  static String kapelleMitglieder({required String kapelleId}) =>
-      '/app/kapelle/$kapelleId/mitglieder';
-  static String kapelleEinladen({required String kapelleId}) =>
-      '/app/kapelle/$kapelleId/einladen';
-  static String kapelleRegister({required String kapelleId}) =>
-      '/app/kapelle/$kapelleId/register';
+  static const String calendar = '/app/calendar';
+  static const String profile = '/app/profile';
+  static const String performanceMode = '/app/performance-mode/:sheetId';
+  static const String band = '/app/band';
+  static const String bandNew = '/app/band/new';
+  static const String bandJoin = '/app/band/join';
+  static String bandDetail({required String id}) => '/app/band/$id';
+  static String bandMembers({required String bandId}) =>
+      '/app/band/$bandId/members';
+  static String bandInvite({required String bandId}) =>
+      '/app/band/$bandId/invite';
+  static String bandSections({required String bandId}) =>
+      '/app/band/$bandId/sections';
 
   // ── Import routes ──────────────────────────────────────────────────────────
   static const String importStart = '/app/import';
   static const String _importLabeling = '/app/import/:uploadId/labeling';
   static const String _importMetadata =
-      '/app/import/:uploadId/metadata/:stueckIndex';
+      '/app/import/:uploadId/metadata/:pieceIndex';
   static const String _importSummary = '/app/import/:uploadId/summary';
-  static const String einstellungen = '/app/einstellungen';
+  static const String settings = '/app/settings';
 
   // Deep-Links: sheetstorm://bibliothek/[id]
   static String bibliothekDetail(String id) => '/app/bibliothek/$id';
@@ -68,8 +68,8 @@ abstract final class AppRoutes {
   static String emailVerifyWithToken(String token) => '/email-verify/$token';
   static String importLabeling(String uploadId) =>
       '/app/import/$uploadId/labeling';
-  static String importMetadata(String uploadId, String stueckIndex) =>
-      '/app/import/$uploadId/metadata/$stueckIndex';
+  static String importMetadata(String uploadId, String pieceIndex) =>
+      '/app/import/$uploadId/metadata/$pieceIndex';
   static String importSummary(String uploadId) =>
       '/app/import/$uploadId/summary';
 }
@@ -78,7 +78,7 @@ abstract final class AppRoutes {
 const _publicRoutes = {
   AppRoutes.loading,
   AppRoutes.login,
-  AppRoutes.register,
+  AppRoutes.sections,
   AppRoutes.forgotPassword,
   AppRoutes.emailVerify,
 };
@@ -110,7 +110,7 @@ GoRouter appRouter(Ref ref) {
         builder: (context, state) => const LoginScreen(),
       ),
       GoRoute(
-        path: AppRoutes.register,
+        path: AppRoutes.sections,
         builder: (context, state) => const RegisterScreen(),
       ),
       GoRoute(
@@ -154,11 +154,11 @@ GoRouter appRouter(Ref ref) {
         ),
       ),
       GoRoute(
-        path: '/app/import/:uploadId/metadata/:stueckIndex',
+        path: '/app/import/:uploadId/metadata/:pieceIndex',
         builder: (context, state) => MetadataEditorScreen(
           uploadId: state.pathParameters['uploadId']!,
-          stueckIndex:
-              int.tryParse(state.pathParameters['stueckIndex'] ?? '0') ?? 0,
+          pieceIndex:
+              int.tryParse(state.pathParameters['pieceIndex'] ?? '0') ?? 0,
         ),
       ),
       GoRoute(
@@ -177,13 +177,13 @@ GoRouter appRouter(Ref ref) {
           StatefulShellBranch(
             routes: [
               GoRoute(
-                path: AppRoutes.bibliothek,
-                builder: (context, state) => const BibliothekScreen(),
+                path: AppRoutes.library,
+                builder: (context, state) => const LibraryScreen(),
                 routes: [
                   GoRoute(
-                    path: ':notenId/spielmodus',
-                    builder: (context, state) => SpielmodusScreen(
-                      notenId: state.pathParameters['notenId']!,
+                    path: ':sheetId/performance-mode',
+                    builder: (context, state) => PerformanceModeScreen(
+                      sheetId: state.pathParameters['sheetId']!,
                     ),
                   ),
                 ],
@@ -202,7 +202,7 @@ GoRouter appRouter(Ref ref) {
           StatefulShellBranch(
             routes: [
               GoRoute(
-                path: AppRoutes.kalender,
+                path: AppRoutes.calendar,
                 builder: (context, state) =>
                     const _PlaceholderScreen(title: 'Kalender'),
               ),
@@ -211,44 +211,44 @@ GoRouter appRouter(Ref ref) {
           StatefulShellBranch(
             routes: [
               GoRoute(
-                path: AppRoutes.profil,
+                path: AppRoutes.profile,
                 builder: (context, state) =>
                     const _PlaceholderScreen(title: 'Profil'),
               ),
               GoRoute(
-                path: AppRoutes.kapelle,
-                builder: (context, state) => const KapelleScreen(),
+                path: AppRoutes.band,
+                builder: (context, state) => const BandScreen(),
                 routes: [
                   GoRoute(
-                    path: 'neu',
-                    builder: (context, state) => const CreateKapelleScreen(),
+                    path: 'new',
+                    builder: (context, state) => const CreateBandScreen(),
                   ),
                   GoRoute(
-                    path: 'beitreten',
-                    builder: (context, state) => const JoinKapelleScreen(),
+                    path: 'join',
+                    builder: (context, state) => const JoinBandScreen(),
                   ),
                   GoRoute(
-                    path: ':kapelleId',
-                    builder: (context, state) => KapelleDetailScreen(
-                      kapelleId: state.pathParameters['kapelleId']!,
+                    path: ':bandId',
+                    builder: (context, state) => BandDetailScreen(
+                      bandId: state.pathParameters['bandId']!,
                     ),
                     routes: [
                       GoRoute(
-                        path: 'mitglieder',
-                        builder: (context, state) => MitgliederScreen(
-                          kapelleId: state.pathParameters['kapelleId']!,
+                        path: 'members',
+                        builder: (context, state) => MembersScreen(
+                          bandId: state.pathParameters['bandId']!,
                         ),
                       ),
                       GoRoute(
-                        path: 'einladen',
-                        builder: (context, state) => EinladenScreen(
-                          kapelleId: state.pathParameters['kapelleId']!,
+                        path: 'invite',
+                        builder: (context, state) => InviteScreen(
+                          bandId: state.pathParameters['bandId']!,
                         ),
                       ),
                       GoRoute(
-                        path: 'register',
-                        builder: (context, state) => KapelleRegisterScreen(
-                          kapelleId: state.pathParameters['kapelleId']!,
+                        path: 'sections',
+                        builder: (context, state) => BandSectionScreen(
+                          bandId: state.pathParameters['bandId']!,
                         ),
                       ),
                     ],
@@ -256,8 +256,8 @@ GoRouter appRouter(Ref ref) {
                 ],
               ),
               GoRoute(
-                path: AppRoutes.einstellungen,
-                builder: (context, state) => const EinstellungenScreen(),
+                path: AppRoutes.settings,
+                builder: (context, state) => const SettingsScreen(),
               ),
             ],
           ),
@@ -298,7 +298,7 @@ String? _redirect(Ref ref, GoRouterState state) {
       return AppRoutes.onboarding;
     }
     // Redirect authenticated users away from auth/verify screens
-    if (isPublic || isEmailVerifyDeepLink) return AppRoutes.bibliothek;
+    if (isPublic || isEmailVerifyDeepLink) return AppRoutes.library;
     return null;
   }
 
