@@ -3,12 +3,34 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sheetstorm/core/theme/app_colors.dart';
 import 'package:sheetstorm/core/theme/app_tokens.dart';
+import 'package:sheetstorm/features/spielmodus/application/spielmodus_notifier.dart';
+import 'package:sheetstorm/features/spielmodus/application/spielmodus_settings_notifier.dart';
+import 'package:sheetstorm/features/spielmodus/data/models/spielmodus_models.dart';
+import 'package:sheetstorm/features/spielmodus/presentation/widgets/context_settings_sheet.dart';
+import 'package:sheetstorm/features/spielmodus/presentation/widgets/half_page_turn_view.dart';
+import 'package:sheetstorm/features/spielmodus/presentation/widgets/night_mode_filter.dart';
+import 'package:sheetstorm/features/spielmodus/presentation/widgets/page_gesture_detector.dart';
+import 'package:sheetstorm/features/spielmodus/presentation/widgets/setlist_navigation_sheet.dart';
+import 'package:sheetstorm/features/spielmodus/presentation/widgets/sheet_music_page_view.dart';
+import 'package:sheetstorm/features/spielmodus/presentation/widgets/spielmodus_overlay.dart';
+import 'package:sheetstorm/features/spielmodus/presentation/widgets/stimme_bottom_sheet.dart';
+import 'package:sheetstorm/features/spielmodus/presentation/widgets/two_page_view.dart';
+import 'package:sheetstorm/features/spielmodus/presentation/widgets/ui_lock_overlay.dart';
 
 /// Performance-Modus Screen — Focus-First (ux-design.md § 1.1)
-/// - Navigation vollständig ausgeblendet
-/// - Asymmetrische Tap-Zonen: 40% zurück / 60% weiter (ux-design.md)
-/// - Touch-Targets ≥ 64px im Spielmodus (ux-design.md § 1.2)
-/// - Bildschirm-Timeout deaktiviert
+///
+/// Core features:
+/// - Fullscreen distraction-free sheet music display (AC-01..AC-05)
+/// - Asymmetric tap zones: 40% back / 60% forward (AC-06..AC-12)
+/// - Half-page-turn with configurable split (AC-13..AC-20)
+/// - Two-page mode for tablet landscape (Spec §5.2)
+/// - Night/Sepia mode with brightness control (AC-30..AC-36)
+/// - Overlay with stimme, settings, lock (AC-52..AC-56)
+/// - UI Lock mode (AC-05)
+/// - Keyboard/mouse support for desktop (AC-09, AC-10)
+/// - Setlist navigation (UX §9)
+/// - Auto-scroll for continuous play
+/// - Zoom memory per page (AC-50)
 class SpielmodusScreen extends ConsumerStatefulWidget {
   const SpielmodusScreen({super.key, required this.notenId});
   final String notenId;
@@ -17,172 +39,429 @@ class SpielmodusScreen extends ConsumerStatefulWidget {
   ConsumerState<SpielmodusScreen> createState() => _SpielmodusScreenState();
 }
 
-class _SpielmodusScreenState extends ConsumerState<SpielmodusScreen> {
-  bool _showControls = false;
+class _SpielmodusScreenState extends ConsumerState<SpielmodusScreen>
+    with WidgetsBindingObserver {
+  final _focusNode = FocusNode();
 
   @override
   void initState() {
     super.initState();
-    // Vollbild und Wakelock aktivieren
+    WidgetsBinding.instance.addObserver(this);
+    // Fullscreen + Wake Lock (AC-01, AC-03)
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    // Request focus for keyboard events (AC-09)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _focusNode.requestFocus();
+    });
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _focusNode.dispose();
+    // Restore system UI
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     super.dispose();
   }
 
-  void _toggleControls() {
-    setState(() => _showControls = !_showControls);
+  /// Handle orientation changes (AC-57..AC-60)
+  @override
+  void didChangeMetrics() {
+    super.didChangeMetrics();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _updateViewMode();
+    });
+  }
+
+  void _updateViewMode() {
+    final size = MediaQuery.sizeOf(context);
+    final settings = ref.read(spielmodusSettingsNotifierProvider);
+    ref.read(spielmodusNotifierProvider(widget.notenId).notifier)
+        .updateViewModeForOrientation(
+      isLandscape: size.width > size.height,
+      screenWidth: size.width,
+      halfPageTurnEnabled: settings.halfPageTurn,
+    );
+  }
+
+  /// Keyboard navigation (AC-09, AC-10)
+  KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+
+    final notifier =
+        ref.read(spielmodusNotifierProvider(widget.notenId).notifier);
+
+    return switch (event.logicalKey) {
+      LogicalKeyboardKey.arrowRight ||
+      LogicalKeyboardKey.space ||
+      LogicalKeyboardKey.pageDown =>
+        () {
+          notifier.nextPage();
+          return KeyEventResult.handled;
+        }(),
+      LogicalKeyboardKey.arrowLeft ||
+      LogicalKeyboardKey.pageUp =>
+        () {
+          notifier.previousPage();
+          return KeyEventResult.handled;
+        }(),
+      LogicalKeyboardKey.escape =>
+        () {
+          Navigator.of(context).pop();
+          return KeyEventResult.handled;
+        }(),
+      LogicalKeyboardKey.keyF =>
+        () {
+          notifier.toggleOverlay();
+          return KeyEventResult.handled;
+        }(),
+      _ => KeyEventResult.ignored,
+    };
   }
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.sizeOf(context).width;
+    final spielState = ref.watch(spielmodusNotifierProvider(widget.notenId));
+    final settings = ref.watch(spielmodusSettingsNotifierProvider);
+    final notifier =
+        ref.read(spielmodusNotifierProvider(widget.notenId).notifier);
+    final settingsNotifier =
+        ref.read(spielmodusSettingsNotifierProvider.notifier);
+
+    // Determine background color based on Farbmodus
+    final bgColor = switch (settings.farbmodus) {
+      Farbmodus.standard => AppColors.background,
+      Farbmodus.nacht => AppColors.darkBackground,
+      Farbmodus.sepia => const Color(0xFFF5E6D0),
+    };
+
+    // Update view mode on first build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && spielState.viewMode == ViewMode.singlePage) {
+        _updateViewMode();
+      }
+    });
+
+    if (spielState.isLoading) {
+      return Scaffold(
+        backgroundColor: bgColor,
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (spielState.errorMessage != null) {
+      return Scaffold(
+        backgroundColor: bgColor,
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 48, color: AppColors.error),
+              const SizedBox(height: AppSpacing.md),
+              Text(
+                spielState.errorMessage!,
+                style: TextStyle(
+                  color: settings.farbmodus == Farbmodus.nacht
+                      ? Colors.white
+                      : AppColors.textPrimary,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Zurück'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
-      backgroundColor: AppColors.darkBackground,
-      body: Stack(
-        children: [
-          // PDF-Viewer placeholder
-          const Center(
-            child: Text(
-              '🎵',
-              style: TextStyle(fontSize: 64),
-            ),
-          ),
-
-          // Asymmetrische Tap-Zonen (40% zurück / 60% weiter)
-          Positioned.fill(
-            child: Row(
-              children: [
-                // Zurück-Zone: 40%
-                GestureDetector(
-                  onTap: () {
-                    // TODO: Vorherige Seite / Half-Page-Turn zurück
-                  },
-                  child: Container(
-                    width: screenWidth * 0.40,
-                    color: Colors.transparent,
-                  ),
-                ),
-                // Mitte: Controls togglen
-                GestureDetector(
-                  onTap: _toggleControls,
-                  child: Container(
-                    width: screenWidth * 0.00,
-                    color: Colors.transparent,
-                  ),
-                ),
-                // Weiter-Zone: 60%
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () {
-                      // TODO: Nächste Seite / Half-Page-Turn weiter
-                    },
-                    child: Container(
-                      color: Colors.transparent,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Eingeblendete Controls (nur wenn aktiv)
-          if (_showControls)
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: AnimatedOpacity(
-                opacity: _showControls ? 1.0 : 0.0,
-                duration: AppDurations.fast,
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.black.withOpacity(0.7),
-                        Colors.transparent,
-                      ],
-                    ),
-                  ),
-                  child: SafeArea(
-                    child: Padding(
-                      padding: const EdgeInsets.all(AppSpacing.sm),
-                      child: Row(
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.arrow_back, color: Colors.white),
-                            onPressed: () => Navigator.of(context).pop(),
-                            tooltip: 'Zurück',
-                          ),
-                          const Spacer(),
-                          // Kontextmenü max. 5 Optionen (decisions.md)
-                          IconButton(
-                            icon: const Icon(Icons.more_vert, color: Colors.white),
-                            onPressed: () => _showContextMenu(context),
-                            tooltip: 'Optionen',
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+      backgroundColor: bgColor,
+      body: Focus(
+        focusNode: _focusNode,
+        onKeyEvent: _handleKeyEvent,
+        // Mouse scroll support (AC-10)
+        child: Listener(
+          onPointerSignal: (event) {
+            if (event is PointerScrollEvent) {
+              if (event.scrollDelta.dy > 0) {
+                notifier.nextPage();
+              } else if (event.scrollDelta.dy < 0) {
+                notifier.previousPage();
+              }
+            }
+          },
+          child: Stack(
+            children: [
+              // ── Sheet Music Content ──────────────────────────────────────
+              Positioned.fill(
+                child: NightModeFilter(
+                  farbmodus: settings.farbmodus,
+                  helligkeit: settings.helligkeit,
+                  child: _buildPageContent(spielState, settings),
                 ),
               ),
-            ),
-        ],
+
+              // ── Gesture Detection Layer ──────────────────────────────────
+              Positioned.fill(
+                child: PageGestureDetector(
+                  isLocked: spielState.uiLocked,
+                  onNextPage: notifier.nextPage,
+                  onPreviousPage: notifier.previousPage,
+                  onToggleOverlay: notifier.toggleOverlay,
+                  onDoubleTap: () =>
+                      notifier.resetPageZoom(spielState.currentPage),
+                  onZoomChanged: (zoom) =>
+                      notifier.setPageZoom(spielState.currentPage, zoom),
+                ),
+              ),
+
+              // ── Overlay (top + bottom bars) ──────────────────────────────
+              SpielmodusOverlay(
+                visible: spielState.overlayVisible,
+                pageIndicator: spielState.pageIndicator,
+                nightModeIcon: settings.farbmodus.icon,
+                nightModeLabel: settings.farbmodus.label,
+                onBack: () => Navigator.of(context).pop(),
+                onSettings: () => _showSettings(context, settings, settingsNotifier),
+                onStimme: () => _showStimmeSheet(context, spielState, notifier),
+                onNightMode: settingsNotifier.cycleFarbmodus,
+                onLock: notifier.toggleUiLock,
+                onPageIndicatorTap: () =>
+                    _showSetlistNav(context, spielState, notifier),
+                onInteraction: notifier.resetOverlayTimer,
+              ),
+
+              // ── UI Lock Overlay ──────────────────────────────────────────
+              UiLockOverlay(
+                isLocked: spielState.uiLocked,
+                onUnlockTriggered: notifier.unlockUi,
+              ),
+
+              // ── Page indicator (subtle, bottom center) ───────────────────
+              if (!spielState.overlayVisible && !spielState.uiLocked)
+                Positioned(
+                  bottom: 8,
+                  left: 0,
+                  right: 0,
+                  child: _PageDots(
+                    currentPage: spielState.currentPage,
+                    totalPages: spielState.totalPages,
+                    isNightMode: settings.farbmodus == Farbmodus.nacht,
+                  ),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }
 
-  void _showContextMenu(BuildContext context) {
+  /// Builds the main page content based on current ViewMode.
+  Widget _buildPageContent(
+    SpielmodusState spielState,
+    SpielmodusEinstellungen settings,
+  ) {
+    if (spielState.pages.isEmpty) {
+      return Center(
+        child: Text(
+          'Keine Seiten verfügbar',
+          style: TextStyle(
+            color: settings.farbmodus == Farbmodus.nacht
+                ? Colors.white54
+                : AppColors.textSecondary,
+          ),
+        ),
+      );
+    }
+
+    final currentPage = spielState.pages[spielState.currentPage];
+
+    return switch (spielState.viewMode) {
+      ViewMode.halfPageTurn => _buildHalfPageView(spielState, settings, currentPage),
+      ViewMode.twoPage => _buildTwoPageView(spielState, settings, currentPage),
+      ViewMode.singlePage => _buildSinglePageView(spielState, settings, currentPage),
+    };
+  }
+
+  Widget _buildSinglePageView(
+    SpielmodusState spielState,
+    SpielmodusEinstellungen settings,
+    SheetPage currentPage,
+  ) {
+    return AnimatedSwitcher(
+      duration: AppDurations.fast,
+      switchInCurve: AppCurves.enter,
+      switchOutCurve: AppCurves.exit,
+      transitionBuilder: (child, animation) {
+        return FadeTransition(opacity: animation, child: child);
+      },
+      child: SheetMusicPageView(
+        key: ValueKey('page_${spielState.currentPage}'),
+        page: currentPage,
+        farbmodus: settings.farbmodus,
+        zoomOverride: spielState.pageZoomMemory[spielState.currentPage],
+      ),
+    );
+  }
+
+  Widget _buildHalfPageView(
+    SpielmodusState spielState,
+    SpielmodusEinstellungen settings,
+    SheetPage currentPage,
+  ) {
+    // In half-page step 0: show full current page
+    // In half-page step 1: show bottom current + top next (AC-13)
+    if (spielState.halfPageStep == 0) {
+      return SheetMusicPageView(
+        key: ValueKey('page_${spielState.currentPage}_full'),
+        page: currentPage,
+        farbmodus: settings.farbmodus,
+      );
+    }
+
+    final nextPage = spielState.currentPage + 1 < spielState.totalPages
+        ? spielState.pages[spielState.currentPage + 1]
+        : null;
+
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 200),
+      child: HalfPageTurnView(
+        key: ValueKey('half_${spielState.currentPage}_${spielState.halfPageStep}'),
+        currentPage: currentPage,
+        nextPage: nextPage,
+        farbmodus: settings.farbmodus,
+        splitRatio: settings.halfPageSplit,
+      ),
+    );
+  }
+
+  Widget _buildTwoPageView(
+    SpielmodusState spielState,
+    SpielmodusEinstellungen settings,
+    SheetPage currentPage,
+  ) {
+    final rightPage = spielState.currentPage + 1 < spielState.totalPages
+        ? spielState.pages[spielState.currentPage + 1]
+        : null;
+
+    return AnimatedSwitcher(
+      duration: AppDurations.fast,
+      child: TwoPageView(
+        key: ValueKey('two_${spielState.currentPage}'),
+        leftPage: currentPage,
+        rightPage: rightPage,
+        farbmodus: settings.farbmodus,
+      ),
+    );
+  }
+
+  // ─── Bottom Sheets ─────────────────────────────────────────────────────────
+
+  void _showSettings(
+    BuildContext context,
+    SpielmodusEinstellungen settings,
+    SpielmodusSettingsNotifier settingsNotifier,
+  ) {
+    final notifier =
+        ref.read(spielmodusNotifierProvider(widget.notenId).notifier);
+    notifier.resetOverlayTimer();
+
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: AppColors.darkSurface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppSpacing.radiusLg)),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => ContextSettingsSheet(
+        settings: settings,
+        onHalfPageTurnChanged: () {
+          settingsNotifier.toggleHalfPageTurn();
+          _updateViewMode();
+        },
+        onFarbmodusChanged: settingsNotifier.setFarbmodus,
+        onHelligkeitChanged: settingsNotifier.setHelligkeit,
+        onAnnotationLayerChanged: settingsNotifier.toggleAnnotationLayer,
+        onHalfPageSplitChanged: settingsNotifier.setHalfPageSplit,
       ),
-      builder: (context) => const _SpielmodusContextMenu(),
+    );
+  }
+
+  void _showStimmeSheet(
+    BuildContext context,
+    SpielmodusState spielState,
+    SpielmodusNotifier notifier,
+  ) {
+    notifier.resetOverlayTimer();
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => StimmeBottomSheet(
+        stimmen: spielState.stimmen,
+        currentStimmeId: spielState.currentStimmeId,
+        onStimmeSelected: notifier.changeStimme,
+      ),
+    );
+  }
+
+  void _showSetlistNav(
+    BuildContext context,
+    SpielmodusState spielState,
+    SpielmodusNotifier notifier,
+  ) {
+    if (spielState.setlist == null || spielState.setlist!.isEmpty) return;
+    notifier.resetOverlayTimer();
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => SetlistNavigationSheet(
+        setlist: spielState.setlist!,
+        currentIndex: spielState.currentSetlistIndex ?? 0,
+        onItemSelected: notifier.goToSetlistItem,
+      ),
     );
   }
 }
 
-/// Kontextmenü max. 5 Optionen (decisions.md / ux-design.md)
-class _SpielmodusContextMenu extends StatelessWidget {
-  const _SpielmodusContextMenu();
+/// Minimal page position indicator dots
+class _PageDots extends StatelessWidget {
+  const _PageDots({
+    required this.currentPage,
+    required this.totalPages,
+    required this.isNightMode,
+  });
+
+  final int currentPage;
+  final int totalPages;
+  final bool isNightMode;
 
   @override
   Widget build(BuildContext context) {
-    const items = [
-      (Icons.nights_stay_outlined, 'Nachtmodus'),
-      (Icons.flip_to_back_outlined, 'Half-Page-Turn'),
-      (Icons.text_fields, 'Schriftgröße'),
-      (Icons.layers_outlined, 'Annotations-Layer'),
-      (Icons.brightness_6_outlined, 'Helligkeit'),
-    ];
+    // Only show dots for reasonable page counts
+    if (totalPages <= 1 || totalPages > 20) return const SizedBox.shrink();
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: items
-            .map(
-              (item) => ListTile(
-                leading: Icon(item.$1, color: AppColors.darkTextPrimary),
-                title: Text(
-                  item.$2,
-                  style: const TextStyle(color: AppColors.darkTextPrimary),
-                ),
-                onTap: () => Navigator.of(context).pop(),
-                minVerticalPadding: AppSpacing.sm,
-              ),
-            )
-            .toList(),
-      ),
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List.generate(totalPages, (i) {
+        final isActive = i == currentPage;
+        final color = isNightMode ? Colors.white : Colors.black;
+        return AnimatedContainer(
+          duration: AppDurations.fast,
+          margin: const EdgeInsets.symmetric(horizontal: 2),
+          width: isActive ? 8 : 4,
+          height: 4,
+          decoration: BoxDecoration(
+            color: color.withOpacity(isActive ? 0.5 : 0.15),
+            borderRadius: AppSpacing.roundedFull,
+          ),
+        );
+      }),
     );
   }
 }
