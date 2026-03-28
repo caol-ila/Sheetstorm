@@ -24,3 +24,8 @@ appsettings.Production.json
 appsettings.*.local.json
 secrets.json
 
+
+# Flutter build artifacts
+sheetstorm_app/.dart_tool/
+sheetstorm_app/.flutter-plugins
+sheetstorm_app/.flutter-plugins-dependencies

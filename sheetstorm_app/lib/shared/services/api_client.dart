@@ -19,7 +19,7 @@ Dio apiClient(Ref ref) {
   final authInterceptor = _AuthInterceptor(
     tokenStorage: tokenStorage,
     authService: service,
-    onAuthError: () => ref.read(authNotifierProvider.notifier).onAuthError(),
+    onAuthError: () => ref.read(authProvider.notifier).onAuthError(),
   );
 
   final dio = Dio(

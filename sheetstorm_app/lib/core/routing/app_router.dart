@@ -8,7 +8,13 @@ import 'package:sheetstorm/features/auth/presentation/screens/forgot_password_sc
 import 'package:sheetstorm/features/auth/presentation/screens/login_screen.dart';
 import 'package:sheetstorm/features/auth/presentation/screens/onboarding_screen.dart';
 import 'package:sheetstorm/features/auth/presentation/screens/register_screen.dart';
+import 'package:sheetstorm/features/kapelle/presentation/screens/create_kapelle_screen.dart';
+import 'package:sheetstorm/features/kapelle/presentation/screens/einladen_screen.dart';
+import 'package:sheetstorm/features/kapelle/presentation/screens/join_kapelle_screen.dart';
+import 'package:sheetstorm/features/kapelle/presentation/screens/kapelle_detail_screen.dart';
 import 'package:sheetstorm/features/kapelle/presentation/screens/kapelle_screen.dart';
+import 'package:sheetstorm/features/kapelle/presentation/screens/mitglieder_screen.dart';
+import 'package:sheetstorm/features/kapelle/presentation/screens/register_screen.dart';
 import 'package:sheetstorm/features/noten/presentation/screens/bibliothek_screen.dart';
 import 'package:sheetstorm/features/spielmodus/presentation/screens/spielmodus_screen.dart';
 import 'package:sheetstorm/shared/widgets/app_shell.dart';
@@ -33,6 +39,15 @@ abstract final class AppRoutes {
   static const String profil = '/app/profil';
   static const String spielmodus = '/app/spielmodus/:notenId';
   static const String kapelle = '/app/kapelle';
+  static const String kapelleNeu = '/app/kapelle/neu';
+  static const String kapelleBeitreten = '/app/kapelle/beitreten';
+  static String kapelleDetail({required String id}) => '/app/kapelle/$id';
+  static String kapelleMitglieder({required String kapelleId}) =>
+      '/app/kapelle/$kapelleId/mitglieder';
+  static String kapelleEinladen({required String kapelleId}) =>
+      '/app/kapelle/$kapelleId/einladen';
+  static String kapelleRegister({required String kapelleId}) =>
+      '/app/kapelle/$kapelleId/register';
 
   // Deep-Links: sheetstorm://bibliothek/[id]
   static String bibliothekDetail(String id) => '/app/bibliothek/$id';
@@ -53,7 +68,7 @@ const _publicRoutes = {
 GoRouter appRouter(Ref ref) {
   final routerNotifier = _RouterNotifier();
 
-  ref.listen<AuthState>(authNotifierProvider, (_, next) {
+  ref.listen<AuthState>(authProvider, (_, next) {
     routerNotifier.notifyRouterListeners();
   });
   ref.onDispose(routerNotifier.dispose);
@@ -158,6 +173,42 @@ GoRouter appRouter(Ref ref) {
               GoRoute(
                 path: AppRoutes.kapelle,
                 builder: (context, state) => const KapelleScreen(),
+                routes: [
+                  GoRoute(
+                    path: 'neu',
+                    builder: (context, state) => const CreateKapelleScreen(),
+                  ),
+                  GoRoute(
+                    path: 'beitreten',
+                    builder: (context, state) => const JoinKapelleScreen(),
+                  ),
+                  GoRoute(
+                    path: ':kapelleId',
+                    builder: (context, state) => KapelleDetailScreen(
+                      kapelleId: state.pathParameters['kapelleId']!,
+                    ),
+                    routes: [
+                      GoRoute(
+                        path: 'mitglieder',
+                        builder: (context, state) => MitgliederScreen(
+                          kapelleId: state.pathParameters['kapelleId']!,
+                        ),
+                      ),
+                      GoRoute(
+                        path: 'einladen',
+                        builder: (context, state) => EinladenScreen(
+                          kapelleId: state.pathParameters['kapelleId']!,
+                        ),
+                      ),
+                      GoRoute(
+                        path: 'register',
+                        builder: (context, state) => KapelleRegisterScreen(
+                          kapelleId: state.pathParameters['kapelleId']!,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ],
           ),
@@ -173,7 +224,7 @@ GoRouter appRouter(Ref ref) {
 }
 
 String? _redirect(Ref ref, GoRouterState state) {
-  final authState = ref.read(authNotifierProvider);
+  final authState = ref.read(authProvider);
   final loc = state.matchedLocation;
 
   if (authState is AuthLoading) {
