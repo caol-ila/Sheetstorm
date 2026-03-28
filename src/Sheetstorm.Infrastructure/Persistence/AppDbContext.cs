@@ -14,6 +14,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Stueck> Stuecke => Set<Stueck>();
     public DbSet<Stimme> Stimmen => Set<Stimme>();
     public DbSet<Notenblatt> Notenblaetter => Set<Notenblatt>();
+    public DbSet<ConfigKapelle> ConfigKapelle => Set<ConfigKapelle>();
+    public DbSet<ConfigNutzer> ConfigNutzer => Set<ConfigNutzer>();
+    public DbSet<ConfigPolicy> ConfigPolicies => Set<ConfigPolicy>();
+    public DbSet<ConfigAudit> ConfigAudit => Set<ConfigAudit>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
