@@ -1,0 +1,24 @@
+{
+  "universe_usage_history": [
+    {
+      "universe": "Marvel Cinematic Universe",
+      "used_at": "2026-03-28T10:10:43Z",
+      "project": "music"
+    }
+  ],
+  "assignment_cast_snapshots": {
+    "music-2026-03-28": {
+      "assignment_id": "music-2026-03-28",
+      "universe": "Marvel Cinematic Universe",
+      "created_at": "2026-03-28T10:10:43Z",
+      "agents": [
+        { "name": "Stark", "role": "Lead / Architect" },
+        { "name": "Fury", "role": "Business Analyst" },
+        { "name": "Wanda", "role": "UX Designer" },
+        { "name": "Romanoff", "role": "Frontend / App Dev" },
+        { "name": "Banner", "role": "Backend Dev" },
+        { "name": "Parker", "role": "Tester / QA" }
+      ]
+    }
+  }
+}

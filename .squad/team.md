@@ -1,0 +1,30 @@
+# Squad Team
+
+> Notenmanagement-App für Blaskapelle
+
+## Coordinator
+
+| Name | Role | Notes |
+|------|------|-------|
+| Squad | Coordinator | Routes work, enforces handoffs and reviewer gates. |
+
+## Members
+
+| Name | Role | Charter | Status |
+|------|------|---------|--------|
+| Stark | Lead / Architect | `.squad/agents/stark/charter.md` | 🏗️ Lead |
+| Fury | Business Analyst | `.squad/agents/fury/charter.md` | 📊 Analyst |
+| Wanda | UX Designer | `.squad/agents/wanda/charter.md` | ⚛️ Design |
+| Romanoff | Frontend / App Dev | `.squad/agents/romanoff/charter.md` | 📱 Frontend |
+| Banner | Backend Dev | `.squad/agents/banner/charter.md` | 🔧 Backend |
+| Parker | Tester / QA | `.squad/agents/parker/charter.md` | 🧪 QA |
+| Scribe | Session Logger | `.squad/agents/scribe/charter.md` | 📋 Logger |
+| Ralph | Work Monitor | — | 🔄 Monitor |
+
+## Project Context
+
+- **Owner:** Thomas
+- **Project:** Notenmanagement-App für eine Blaskapelle — Verwaltung von Musiknoten, Stimmen, Besetzungen und Aufführungsmaterial für Blasorchester
+- **Stack:** TBD (wird in der Spezifikationsphase festgelegt)
+- **Phase:** Anforderungsanalyse, Marktrecherche, Spezifikation, UX Design
+- **Created:** 2026-03-28
