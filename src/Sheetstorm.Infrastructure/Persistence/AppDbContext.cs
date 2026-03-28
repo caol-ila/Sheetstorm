@@ -14,6 +14,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Stueck> Stuecke => Set<Stueck>();
     public DbSet<Stimme> Stimmen => Set<Stimme>();
     public DbSet<Notenblatt> Notenblaetter => Set<Notenblatt>();
+    public DbSet<StueckSeite> StueckSeiten => Set<StueckSeite>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

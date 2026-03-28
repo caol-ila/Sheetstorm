@@ -1,3 +1,5 @@
+using Sheetstorm.Domain.Enums;
+
 namespace Sheetstorm.Domain.Entities;
 
 /// <summary>
@@ -17,5 +19,15 @@ public class Stueck : BaseEntity
     public string? Arrangeur { get; set; }
     public int? VeroeffentlichungsJahr { get; set; }
 
+    // Import-specific fields
+    public string? Tonart { get; set; }
+    public string? Taktart { get; set; }
+    public int? Tempo { get; set; }
+    public string? Beschreibung { get; set; }
+    public string? OriginalDateiname { get; set; }
+    public string? StorageKey { get; set; }
+    public ImportStatus ImportStatus { get; set; } = ImportStatus.Completed;
+
     public ICollection<Stimme> Stimmen { get; set; } = [];
+    public ICollection<StueckSeite> Seiten { get; set; } = [];
 }
