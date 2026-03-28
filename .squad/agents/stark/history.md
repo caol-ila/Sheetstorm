@@ -303,3 +303,27 @@ Vollständiges 3-Schichten Backend-Scaffolding für Sheetstorm:
 
 **Ergebnis:** Beide Merges konfliktfrei. Dokumentations-only Changes (keine Code-Änderungen). Push auf main erfolgreich.
 
+### 2026-03-29: 8 MS1 Dev Branches in main gemergt
+
+**Anlass:** Alle MS1 Implementierungs-Branches sind fertig. Merge in main damit Tests gegen vollständige Codebasis geschrieben werden können.
+
+**Merge-Reihenfolge (Backend-first, dann Frontend):**
+1. `squad/21-import-backend` — ✅ Konfliktfrei (23 Dateien, Import-Pipeline + MinIO + EF Migrations)
+2. `squad/34-config-backend` — ⚠️ Konflikt in `AppDbContext.cs` (beide Seiten fügen DbSets hinzu → beide behalten)
+3. `squad/30-stimmenauswahl` — ⚠️ 2 Konflikte: `AppDbContext.cs` (weitere DbSets) + `DependencyInjection.cs` (weitere Service-Registrierungen) → beide Seiten behalten
+4. `squad/17-kapelle-flutter` — ✅ Konfliktfrei (37 Dateien, Kapelle CRUD + Einladungen + Mitglieder)
+5. `squad/22-import-flutter` — ⚠️ 3 Konflikte: `app_router.g.dart` (Hash, genrated code → HEAD behalten), `pubspec.yaml` (Versionen → höhere behalten, alle deps behalten), `pubspec.lock` (generated → theirs)
+6. `squad/26-spielmodus-flutter` — ✅ Konfliktfrei (17 Dateien, vollständiger Spielmodus mit Widgets)
+7. `squad/35-config-flutter` — ⚠️ Konflikt in `app_router.dart` (Imports + Route-Konstanten → beide Seiten behalten)
+8. `squad/39-annotationen-flutter` — ⚠️ Konflikt in `spielmodus_screen.dart` (Spielmodus-Branch hatte komplett überarbeitete Version, Annotationen-Branch hatte einfachere Basis + Annotation-Layer → HEAD behalten, Annotation-Imports hinzugefügt)
+
+**Konflikte gesamt:** 5 von 8 Branches hatten Konflikte (8 Dateien betroffen). Alle durch "keep both sides" Strategie gelöst.
+
+**Konflikt-Muster:** Fast alle Konflikte waren additive DbSet/Service/Import/Route-Registrierungen — parallele Feature-Branches fügen an der gleichen Stelle neue Zeilen hinzu. Kein semantischer Konflikt.
+
+**Learnings:**
+- Backend-first Merge-Reihenfolge verhindert Frontend-Compile-Fehler durch fehlende Models
+- `AppDbContext.cs` und `DependencyInjection.cs` sind Merge-Hotspots bei paralleler Backend-Entwicklung — partielle Klassen oder Extension-Methods pro Feature könnten das entschärfen
+- Generated files (`pubspec.lock`, `.g.dart`) sollten nach Merge regeneriert werden (`flutter pub get`, `build_runner`)
+- Bei stark divergierenden Branches (spielmodus vs. annotationen) ist `--ours` + manuelle Integration sicherer als Zeile-für-Zeile Marker-Auflösung
+
