@@ -198,6 +198,33 @@ docs/                         # Spezifikation, UX, Architektur
 - Das Mapping verhindert "oh wait, wir müssen auch X ändern" mitten in der Implementierung
 - Bei Design Reviews (Ceremony) ist das Mapping Pflicht-Input
 
+## "Ask Before Working" — Preflight-Check
+
+**Bevor** ein Agent IRGENDWELCHEN Code schreibt, MUSS er diese Checkliste durchlaufen:
+
+```
+PREFLIGHT-CHECK:
+✅ Verstehe ich alle Anforderungen vollständig?
+✅ Gibt es Mehrdeutigkeiten, die ich klären sollte?
+✅ Weiß ich, welche Dateien ich anfassen muss?
+✅ Habe ich das File-Structure-Mapping erstellt?
+✅ Kenne ich die relevanten Architekturentscheidungen? (.squad/decisions.md)
+```
+
+**Wenn unsicher → ERST fragen, DANN coden.**
+
+Ein Agent, der mit falschen Annahmen losarbeitet, produziert Waste. Lieber einmal zu viel fragen als eine falsche Implementierung liefern und reviewen lassen.
+
+**Anti-Patterns:**
+- ❌ "Ich nehme mal an, dass..." → Code schreiben
+- ❌ Anforderungen interpretieren statt nachfragen
+- ❌ Losarbeiten ohne File-Structure-Mapping
+
+**Stattdessen:**
+- ✅ Unklarheiten als `NEEDS_CONTEXT` eskalieren (→ Escalation-Grade)
+- ✅ File-Structure-Mapping erstellen und validieren lassen
+- ✅ Entscheidungen in `.squad/decisions.md` nachlesen
+
 ## Escalation-Grade für Agenten
 
 Jeder Agent MUSS seinen Abschlussstatus mit einem der folgenden Grade melden:
