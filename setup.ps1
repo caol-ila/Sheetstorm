@@ -62,20 +62,27 @@ if (Get-Command flutter -ErrorAction SilentlyContinue) {
     if (-not $flutterVersion) { $flutterVersion = 'unknown' }
     Write-Ok "flutter $flutterVersion"
 } else {
-    Write-Warn 'Flutter SDK not found — installing'
-    if ($HasWinget) {
-        winget install --id Google.Flutter -e --accept-source-agreements --accept-package-agreements
-        Refresh-Path
-        if (Get-Command flutter -ErrorAction SilentlyContinue) {
-            Write-Ok "flutter installed"
-        } else {
-            Write-Fail 'Flutter install succeeded but flutter not found in PATH.'
-            Write-Host '    Close and reopen your terminal, then re-run this script.'
-            exit 1
-        }
+    Write-Warn 'Flutter SDK not found — installing via git clone'
+    $FlutterInstallDir = Join-Path $env:LOCALAPPDATA 'flutter'
+    if (-not (Test-Path $FlutterInstallDir)) {
+        Write-Host '    Cloning Flutter SDK (this may take a few minutes)...'
+        git clone https://github.com/flutter/flutter.git -b stable $FlutterInstallDir
+    }
+    # Add to User PATH permanently
+    $currentUserPath = [System.Environment]::GetEnvironmentVariable('Path', 'User')
+    $flutterBin = Join-Path $FlutterInstallDir 'bin'
+    if ($currentUserPath -notlike "*$flutterBin*") {
+        [System.Environment]::SetEnvironmentVariable('Path', "$currentUserPath;$flutterBin", 'User')
+        Write-Ok 'Flutter added to User PATH'
+    }
+    Refresh-Path
+    if (Get-Command flutter -ErrorAction SilentlyContinue) {
+        # Run flutter precache to download engine artifacts
+        flutter precache 2>$null
+        Write-Ok "flutter installed at $FlutterInstallDir"
     } else {
-        Write-Fail 'Flutter SDK is missing and winget is not available.'
-        Write-Host '    Install manually from: https://docs.flutter.dev/get-started/install/windows/mobile'
+        Write-Fail 'Flutter install completed but flutter not found in PATH.'
+        Write-Host "    Add $flutterBin to your PATH manually, then re-run this script."
         exit 1
     }
 }
