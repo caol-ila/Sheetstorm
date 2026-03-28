@@ -171,9 +171,12 @@ public class GemaController(IGemaService gemaService) : ControllerBase
     public async Task<IActionResult> ExportReport(
         Guid bandId,
         Guid id,
-        [FromQuery] string format,
+        [FromQuery] string? format,
         CancellationToken ct)
     {
+        if (string.IsNullOrWhiteSpace(format))
+            return BadRequest(new ErrorResponse("INVALID_FORMAT", "Query parameter 'format' is required (csv, xml)."));
+
         var data = await gemaService.ExportReportAsync(bandId, id, format, CurrentUserId, ct);
 
         var contentType = format.ToLowerInvariant() switch

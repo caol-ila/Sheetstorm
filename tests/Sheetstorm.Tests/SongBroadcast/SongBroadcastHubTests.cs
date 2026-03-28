@@ -1,19 +1,23 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.JsonWebTokens;
 using NSubstitute;
 using Sheetstorm.Api.Hubs;
+using Sheetstorm.Domain.Entities;
 using Sheetstorm.Domain.SongBroadcast;
+using Sheetstorm.Infrastructure.Persistence;
 
 namespace Sheetstorm.Tests.SongBroadcast;
 
-public class SongBroadcastHubTests
+public class SongBroadcastHubTests : IDisposable
 {
     private readonly SongBroadcastHub _sut;
     private readonly IHubCallerClients _mockClients;
     private readonly HubCallerContext _mockContext;
     private readonly IGroupManager _mockGroups;
     private readonly IClientProxy _mockClientProxy;
+    private readonly AppDbContext _db;
     private readonly Guid _userId = Guid.NewGuid();
     private readonly Guid _bandId = Guid.NewGuid();
     private readonly string _connectionId = "test-connection-id";
@@ -25,6 +29,16 @@ public class SongBroadcastHubTests
         _mockGroups = Substitute.For<IGroupManager>();
         _mockClientProxy = Substitute.For<IClientProxy>();
 
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+        _db = new AppDbContext(options);
+
+        _db.Musicians.Add(new Musician { Id = _userId, Email = "test@test.com", Name = "Test User" });
+        _db.Bands.Add(new Band { Id = _bandId, Name = "Test Band" });
+        _db.Memberships.Add(new Membership { MusicianId = _userId, BandId = _bandId, Role = MemberRole.Conductor, IsActive = true });
+        _db.SaveChanges();
+
         var claims = new ClaimsPrincipal(new ClaimsIdentity([
             new Claim(JwtRegisteredClaimNames.Sub, _userId.ToString()),
             new Claim("name", "Test User")
@@ -34,12 +48,18 @@ public class SongBroadcastHubTests
         _mockContext.User.Returns(claims);
         _mockClients.Group(Arg.Any<string>()).Returns(_mockClientProxy);
 
-        _sut = new SongBroadcastHub
+        _sut = new SongBroadcastHub(_db)
         {
             Clients = _mockClients,
             Context = _mockContext,
             Groups = _mockGroups
         };
+    }
+
+    public void Dispose()
+    {
+        _db.Dispose();
+        GC.SuppressFinalize(this);
     }
 
     // ── StartBroadcast ────────────────────────────────────────────────────────
@@ -315,11 +335,12 @@ public class SongBroadcastHubTests
     {
         await _sut.StartBroadcast(_bandId);
 
-        var otherHub = new SongBroadcastHub
+        var otherUserId = SeedMember(_bandId);
+        var otherHub = new SongBroadcastHub(_db)
         {
             Clients = _mockClients,
             Groups = _mockGroups,
-            Context = CreateMockContext(Guid.NewGuid(), "other-connection")
+            Context = CreateMockContext(otherUserId, "other-connection")
         };
 
         await _sut.JoinBroadcast(_bandId);
@@ -336,16 +357,16 @@ public class SongBroadcastHubTests
     [Fact]
     public async Task MultipleBands_IsolatesBroadcasts()
     {
-        var band1 = Guid.NewGuid();
-        var band2 = Guid.NewGuid();
+        var band1 = SeedBandWithMembership(_userId);
+        var band2 = SeedBandWithMembership(out var otherUserId);
 
         await _sut.StartBroadcast(band1);
 
-        var otherHub = new SongBroadcastHub
+        var otherHub = new SongBroadcastHub(_db)
         {
             Clients = _mockClients,
             Groups = _mockGroups,
-            Context = CreateMockContext(Guid.NewGuid(), "other-connection")
+            Context = CreateMockContext(otherUserId, "other-connection")
         };
 
         await otherHub.StartBroadcast(band2);
@@ -362,7 +383,7 @@ public class SongBroadcastHubTests
 
         await _sut.SetCurrentSong(_bandId, pieceId, "Song 1");
 
-        var otherBandId = Guid.NewGuid();
+        var otherBandId = SeedBandWithMembership(_userId);
         var ex = await Assert.ThrowsAsync<HubException>(
             () => _sut.SetCurrentSong(otherBandId, Guid.NewGuid(), "Song 2"));
 
@@ -378,11 +399,12 @@ public class SongBroadcastHubTests
         var pieceId = Guid.NewGuid();
         await _sut.SetCurrentSong(_bandId, pieceId, "Test Song");
 
-        var otherHub = new SongBroadcastHub
+        var otherUserId = SeedMember(_bandId);
+        var otherHub = new SongBroadcastHub(_db)
         {
             Clients = _mockClients,
             Groups = _mockGroups,
-            Context = CreateMockContext(Guid.NewGuid(), "other-connection")
+            Context = CreateMockContext(otherUserId, "other-connection")
         };
 
         var state = await otherHub.JoinBroadcast(_bandId);
@@ -399,11 +421,12 @@ public class SongBroadcastHubTests
         await _sut.StartBroadcast(_bandId);
         var state1 = await _sut.JoinBroadcast(_bandId);
 
-        var otherHub = new SongBroadcastHub
+        var otherUserId = SeedMember(_bandId);
+        var otherHub = new SongBroadcastHub(_db)
         {
             Clients = _mockClients,
             Groups = _mockGroups,
-            Context = CreateMockContext(Guid.NewGuid(), "other-connection")
+            Context = CreateMockContext(otherUserId, "other-connection")
         };
         var state2 = await otherHub.JoinBroadcast(_bandId);
 
@@ -416,7 +439,7 @@ public class SongBroadcastHubTests
     [Fact]
     public async Task StartBroadcast_UnauthenticatedUser_ThrowsHubException()
     {
-        var unauthHub = new SongBroadcastHub
+        var unauthHub = new SongBroadcastHub(_db)
         {
             Clients = _mockClients,
             Groups = _mockGroups,
@@ -432,7 +455,7 @@ public class SongBroadcastHubTests
     [Fact]
     public async Task SetCurrentSong_UnauthenticatedUser_ThrowsHubException()
     {
-        var unauthHub = new SongBroadcastHub
+        var unauthHub = new SongBroadcastHub(_db)
         {
             Clients = _mockClients,
             Groups = _mockGroups,
@@ -448,7 +471,7 @@ public class SongBroadcastHubTests
     [Fact]
     public async Task JoinBroadcast_UnauthenticatedUser_ThrowsHubException()
     {
-        var unauthHub = new SongBroadcastHub
+        var unauthHub = new SongBroadcastHub(_db)
         {
             Clients = _mockClients,
             Groups = _mockGroups,
@@ -462,6 +485,35 @@ public class SongBroadcastHubTests
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private Guid SeedMember(Guid bandId, MemberRole role = MemberRole.Musician)
+    {
+        var userId = Guid.NewGuid();
+        _db.Musicians.Add(new Musician { Id = userId, Email = $"m{userId}@test.com", Name = "Test Member" });
+        _db.Memberships.Add(new Membership { MusicianId = userId, BandId = bandId, Role = role, IsActive = true });
+        _db.SaveChanges();
+        return userId;
+    }
+
+    private Guid SeedBandWithMembership(Guid userId, MemberRole role = MemberRole.Conductor)
+    {
+        var bandId = Guid.NewGuid();
+        _db.Bands.Add(new Band { Id = bandId, Name = "Test Band" });
+        _db.Memberships.Add(new Membership { MusicianId = userId, BandId = bandId, Role = role, IsActive = true });
+        _db.SaveChanges();
+        return bandId;
+    }
+
+    private Guid SeedBandWithMembership(out Guid newUserId, MemberRole role = MemberRole.Conductor)
+    {
+        newUserId = Guid.NewGuid();
+        _db.Musicians.Add(new Musician { Id = newUserId, Email = $"m{newUserId}@test.com", Name = "Other Conductor" });
+        var bandId = Guid.NewGuid();
+        _db.Bands.Add(new Band { Id = bandId, Name = "Test Band" });
+        _db.Memberships.Add(new Membership { MusicianId = newUserId, BandId = bandId, Role = role, IsActive = true });
+        _db.SaveChanges();
+        return bandId;
+    }
 
     private HubCallerContext CreateMockContext(Guid? userId, string connectionId)
     {
