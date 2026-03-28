@@ -65,6 +65,9 @@ Das Fundament von Sheetstorm. Nach MS1 kann eine Kapelle gegründet, Noten hochg
 - Auto-Rotation & Auto-Zoom
 - Auftritt-Modus mit Touch-Lock
 - Stimmenauswahl mit Fallback-Logik
+- **Zweiseitenansicht (Two-Up-Modus):** Zwei Seiten nebeneinander im Querformat (min. 10")
+- **Link Points für Wiederholungen:** Sprungmarken für D.S., D.C., Coda im Spielmodus
+- **Dark Mode / Nachtmodus / Sepia:** Drei Farbschemata für die Notenansicht (Standard, Nacht, Sepia)
 
 #### Annotationen
 - SVG-Layer: Freihand-Stift, Text, Symbole
@@ -113,6 +116,9 @@ Das Fundament von Sheetstorm. Nach MS1 kann eine Kapelle gegründet, Noten hochg
 - [ ] Kapelle erstellen und Mitglieder einladen funktioniert
 - [ ] Noten-Upload mit Labeling-Prozess funktioniert (mit und ohne AI)
 - [ ] Spielmodus: Half-Page-Turn, Fußpedal, Auto-Rotation, Touch-Lock
+- [ ] Zweiseitenansicht (Two-Up) funktioniert im Querformat auf großen Tablets
+- [ ] Link Points für Wiederholungen (D.S., D.C., Coda) im Spielmodus
+- [ ] Dark Mode / Nachtmodus / Sepia umschaltbar
 - [ ] Annotationen auf allen drei Sichtbarkeitsebenen funktionieren
 - [ ] Konfiguration auf drei Ebenen mit Policy-System
 - [ ] Persönliche Sammlung funktioniert (lokal)
@@ -137,6 +143,8 @@ Organisation des Musikbetriebs. Nach MS2 können Kapellen ihren Proben- und Konz
 - Metadaten: Name, Datum, Typ (Konzert/Probe/Marschmusik)
 - Setlist-Modus im Player: Nahtloser Übergang zwischen Stücken
 - Stücke in mehreren Setlists
+- **Platzhalter in Setlists:** Einträge ohne Stück-Referenz für noch nicht digitalisierte Stücke
+- **Konzertprogramm mit Timing:** Geschätzte Dauer pro Stück, Gesamtdauer, Start-/Endzeiten
 
 #### Konzertplanung
 - Termine erstellen: Datum, Uhrzeit, Ort, Typ, Setlist-Verknüpfung
@@ -149,6 +157,33 @@ Organisation des Musikbetriebs. Nach MS2 können Kapellen ihren Proben- und Konz
 - Monats-/Wochen-/Listenansicht
 - Filter nach Kapelle
 - Termin-Details mit verknüpfter Setlist
+- **Bidirektionale Kalender-Sync:** Automatische Synchronisation mit Google Calendar, Apple Calendar und Outlook (CalDAV, OAuth2)
+
+#### GEMA & Compliance
+- GEMA-/Verwertungsgesellschaft-Meldung: Automatische Generierung der Musikfolge aus Setlists
+- Export-Formate: GEMA-XML, CSV, PDF
+- AI-gestützte GEMA-Werknummern-Suche
+- Verwertungsgesellschaft konfigurierbar (GEMA, SUISA, AKM)
+- Erinnerung an ausstehende Meldungen
+
+#### Media Links
+- Pro Stück: YouTube-/Spotify-Referenzlinks hinterlegen
+- "Anhören"-Button auf Stück-Detail und Setlist-Einträgen
+- AI-gestützte Link-Vorschläge (optional)
+
+#### Dirigenten-Mastersteuerung (Song-Broadcast)
+- Dirigent wählt Stück → alle verbundenen Tablets zeigen automatisch die richtige Stimme
+- Echtzeit-Übertragung via SignalR (WebSocket)
+- Verbundene-Musiker-Zähler, Auto-Reconnect
+
+#### Kommunikation
+- **Nachrichten-Board / Pinnwand:** Feed mit Posts, Kommentaren, Reaktionen, Pin-Funktion
+- **Umfragen / Abstimmungen:** Umfrage-Editor mit Einzel-/Mehrfachauswahl, anonyme/öffentliche Abstimmung
+- **Register-basierte Benachrichtigungen:** Push-Notifications gezielt an Register, Gruppen oder einzelne Musiker
+
+#### Anwesenheitsstatistiken
+- Visualisierte Anwesenheit pro Musiker, Register und Zeitraum
+- Trends, Register-Analyse, Export (CSV, PDF)
 
 #### Aushilfen-Zugang
 - Temporärer Zugangslink (konfigurierbare Gültigkeitsdauer)
@@ -174,8 +209,16 @@ Organisation des Musikbetriebs. Nach MS2 können Kapellen ihren Proben- und Konz
 
 ### Definition of Done
 - [ ] Setlists erstellen und im Spielmodus nahtlos durchspielen
+- [ ] Platzhalter in Setlists und Konzertprogramm mit Timing
 - [ ] Konzertplanung mit Zu-/Absage und Ersatzmusiker-Vorschlag
-- [ ] Kalenderansicht mit Kapellen-Filter
+- [ ] Kalenderansicht mit Kapellen-Filter und bidirektionaler Sync (Google/Apple/Outlook)
+- [ ] GEMA-Meldung aus Setlist generierbar (XML, CSV, PDF)
+- [ ] Media Links (YouTube/Spotify) pro Stück hinterlegen und öffnen
+- [ ] Dirigenten-Mastersteuerung: Song-Broadcast an verbundene Geräte
+- [ ] Nachrichten-Board mit Posts, Kommentaren und Pin-Funktion
+- [ ] Umfragen erstellen und auswerten
+- [ ] Register-basierte Benachrichtigungen funktionieren
+- [ ] Anwesenheitsstatistiken mit Visualisierung
 - [ ] Aushilfen-Zugang via Link funktioniert
 - [ ] Schichtplanung (Basic) für Feste
 - [ ] Push-Benachrichtigungen für Termine
@@ -223,6 +266,14 @@ Musikalische Werkzeuge für den Probenbetrieb. Nach MS3 können Musiker ihr Inst
 - Orchester-Annotationen: Echtzeit-Sync für alle Musiker
 - Konflikt-Behandlung bei gleichzeitiger Bearbeitung
 
+#### Spielmodus-Erweiterungen
+- **Auto-Scroll / Reflow:** Automatisches Scrollen der Notenansicht mit einstellbarer Geschwindigkeit (BPM-basiert oder manuell)
+
+#### Aufgabenverwaltung / To-Do-Listen
+- Aufgaben erstellen und Mitgliedern zuweisen
+- Status-Tracking: Offen → In Bearbeitung → Erledigt
+- Erinnerungen bei Fälligkeiten, optional an Termine koppeln
+
 ### Abhängigkeiten
 - MS1 (Spielmodus, Annotationen, Config-System)
 
@@ -240,6 +291,8 @@ Musikalische Werkzeuge für den Probenbetrieb. Nach MS3 können Musiker ihr Inst
 - [ ] Automatischer Wechsel UDP ↔ WebSocket
 - [ ] Cloud-Sync für persönliche Sammlung
 - [ ] Annotationen-Sync (Stimme + Orchester) in Echtzeit
+- [ ] Auto-Scroll / Reflow im Spielmodus funktioniert
+- [ ] Aufgabenverwaltung: Erstellen, zuweisen, Status tracken
 - [ ] Alle Tests grün, Performance-Ziele gemessen und dokumentiert
 
 ---
@@ -274,6 +327,11 @@ Digitaler Musikunterricht. Lehrer können Schülern Noten freischalten und struk
 - Identisch mit normalem Spielmodus (inkl. Annotationen, Half-Page-Turn)
 - Zusätzlich: Lernpfad-Navigation (Vorheriges/Nächstes Stück im Pfad)
 
+#### Advanced AI (Annotations)
+- **AI-Annotations-Analyse (Cross-Part):** Dirigenten-Annotationen werden AI-gestützt über alle Stimmen hinweg analysiert und konsistente Markierungen vorgeschlagen
+- Erkennung von Inkonsistenzen zwischen Stimmen (z.B. fehlende Dynamik-Markierungen)
+- Vorschläge für registerübergreifende Annotationen
+
 ### Abhängigkeiten
 - MS1 (Spielmodus, Annotationen, Rollen-System)
 - **NICHT** abhängig von MS2 oder MS3 → kann parallel gestartet werden
@@ -289,6 +347,7 @@ Digitaler Musikunterricht. Lehrer können Schülern Noten freischalten und struk
 - [ ] Lernpfade erstellen und Fortschritt tracken
 - [ ] Schüler sieht nur freigeschaltete Noten
 - [ ] Spielmodus mit Lernpfad-Navigation
+- [ ] AI-Annotations-Analyse (Cross-Part): Konsistenzprüfung über Stimmen hinweg
 - [ ] Detailspezifikation von Thomas abgenommen (offener Punkt)
 - [ ] Alle Tests grün, UX-Review bestanden
 
@@ -329,6 +388,13 @@ Feinschliff, Internationalisierung und erweiterte AI-Funktionen. Sheetstorm wird
 - Accessibility-Audit (WCAG 2.1 AA)
 - Performance-Optimierung basierend auf Real-World-Daten
 - Dokumentation & Hilfe-System in der App
+- **Face-Gesten für Seitenwechsel:** Seitenwechsel per Gesichtsbewegung (Kopfnicken, Lächeln) über Frontkamera (iOS ARKit, Android ML Kit)
+
+#### Inventarverwaltung
+- Vereinseigene Instrumente und Equipment verwalten (Bezeichnung, Typ, Seriennummer, Zustand)
+- Zuweisung an Mitglieder (Leihinstrumente)
+- Wartungstermine mit Erinnerung
+- Zustandsberichte und Historie
 
 ### Abhängigkeiten
 - MS2, MS3 (Setlists, Termine, Metronom müssen stehen)
@@ -345,6 +411,8 @@ Feinschliff, Internationalisierung und erweiterte AI-Funktionen. Sheetstorm wird
 - [ ] Kalender-Integration funktioniert (iCal Export, Google/Apple/Outlook Sync)
 - [ ] Advanced AI: Batch-Upload, verbesserte Erkennung
 - [ ] Analytics-Dashboard für Admins/Dirigenten
+- [ ] Face-Gesten für Seitenwechsel funktionieren (iOS + Android)
+- [ ] Inventarverwaltung: Instrumente/Equipment verwalten und zuweisen
 - [ ] WCAG 2.1 AA Accessibility bestanden
 - [ ] Performance-Ziele in Produktion gemessen und erfüllt
 - [ ] Alle Tests grün, Regressions-Suite vollständig

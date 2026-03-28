@@ -115,6 +115,18 @@
 - Jeder Musiker kann immer zur eigenen persönlichen Sammlung hinzufügen
 - Bearbeiten/Löschen von Kapellen-Noten: Nur Upload-Berechtigte + Admin
 
+#### F-NV-08: Media Links (YouTube/Spotify)
+**Priorität:** Should (MS2)  
+**User Story:** Als Musiker möchte ich pro Stück YouTube- und Spotify-Referenzlinks hinterlegen können, damit ich Stücke vor der Probe anhören kann, ohne selbst suchen zu müssen.  
+**Akzeptanzkriterien:**
+- Pro Stück können 0..n Media-Links gespeichert werden (YouTube, Spotify, weitere URLs)
+- Typ-Erkennung: YouTube- und Spotify-Links werden automatisch erkannt und mit Icon dargestellt
+- "Anhören"-Button auf Stück-Detail und Setlist-Einträgen → öffnet Link in externer App oder eingebettete Vorschau
+- AI-gestützte Vorschläge: Optionale Suche nach passenden YouTube/Spotify-Links basierend auf Titel und Komponist
+- Jeder Musiker mit Stück-Zugriff kann Links sehen
+- Hinzufügen/Bearbeiten: Admin, Dirigent, Notenwart (konfigurierbar)
+- Deep-Link-Support: Öffnet YouTube/Spotify-App wenn installiert, sonst Browser
+
 ### 2.2 Spielmodus (Performance Mode)
 
 #### F-SM-01: Notenansicht (Play Mode)
@@ -183,6 +195,64 @@
 - Admin/Dirigent kann Link jederzeit widerrufen
 - Kein Zugriff auf Kapellen-Verwaltung oder andere Stücke
 
+#### F-SM-07: Zweiseitenansicht (Two-Up-Modus)
+**Priorität:** Should (MS1)  
+**User Story:** Als Musiker möchte ich auf meinem Tablet zwei Seiten gleichzeitig sehen können, damit ich seltener blättern muss.  
+**Akzeptanzkriterien:**
+- Im Querformat: Zwei Notenblätter nebeneinander anzeigen
+- Konfigurierbar: An/Aus in den Geräte-Einstellungen
+- Nur aktiv wenn Bildschirm groß genug (min. 10" diagonal)
+- Kompatibel mit Half-Page-Turn (dann 4 halbe Seiten sichtbar)
+- Stimmenauswahl gilt für beide Seiten gleichzeitig
+- Bei zu kleinem Bildschirm: Option automatisch ausgeblendet mit Hinweis
+
+#### F-SM-08: Link Points für Wiederholungen (D.S., D.C., Coda)
+**Priorität:** Should (MS1)  
+**User Story:** Als Musiker möchte ich Sprungmarken für Wiederholungen (D.S., D.C., Coda) auf meinen Noten setzen können, damit ich im Spielmodus automatisch zur richtigen Stelle springe.  
+**Akzeptanzkriterien:**
+- Musiker kann Sprungmarken auf dem Notenblatt platzieren (Start + Ziel)
+- Unterstützte Typen: D.S. (Dal Segno), D.C. (Da Capo), Coda, Fine, Segno
+- Im Spielmodus: Beim Erreichen einer Marke erscheint ein Sprung-Button oder automatischer Sprung (konfigurierbar)
+- Visuelle Darstellung der Marken als Overlay-Symbole
+- Marken können bearbeitet und gelöscht werden
+- Kompatibel mit Annotationen-Layer (eigene Ebene)
+- Privat pro Musiker (Sichtbarkeitsebene: Privat)
+
+#### F-SM-09: Dark Mode / Nachtmodus / Sepia
+**Priorität:** Should (MS1)  
+**User Story:** Als Musiker möchte ich zwischen verschiedenen Farbschemata für die Notenansicht wählen können, damit ich bei dunklen Auftritten oder langen Proben augenschonend lesen kann.  
+**Akzeptanzkriterien:**
+- Drei Modi: Standard (weißer Hintergrund), Nachtmodus (dunkler Hintergrund, invertierte Noten), Sepia (warmer Ton)
+- Umschaltbar über Spielmodus-Overlay (schneller Zugriff)
+- Konfigurierbar als Standard in Nutzer- und Geräte-Einstellungen
+- Invertierung der Notenbilder für Nachtmodus (schwarze Noten → weiße Noten auf dunklem Grund)
+- Helligkeit der Noten im Nachtmodus einstellbar
+- Kompatibel mit Annotationen (Farben werden angepasst)
+
+#### F-SM-10: Auto-Scroll / Reflow
+**Priorität:** Could (MS3)  
+**User Story:** Als Musiker möchte ich, dass meine Noten automatisch in einstellbarer Geschwindigkeit scrollen, damit ich bei linearen Stücken nicht manuell blättern muss.  
+**Akzeptanzkriterien:**
+- Automatisches vertikales Scrollen der Notenansicht
+- Geschwindigkeit stufenlos einstellbar (BPM-basiert oder manuell)
+- Start/Stop über Tap oder Fußpedal
+- Pause-Funktion mit Fortsetzen an gleicher Stelle
+- Scroll-Position manuell korrigierbar (Touch/Swipe unterbricht Auto-Scroll temporär)
+- Konfigurierbar: Default-Geschwindigkeit pro Stück speicherbar
+- Hinweis: Für Stücke mit Wiederholungen weniger geeignet — Link Points bevorzugen
+
+#### F-SM-11: Face-Gesten für Seitenwechsel
+**Priorität:** Could (MS5)  
+**User Story:** Als Musiker möchte ich per Gesichtsbewegung (z.B. Kopfnicken) durch die Noten blättern können, wenn weder Hände noch Fußpedal verfügbar sind.  
+**Akzeptanzkriterien:**
+- Seitenwechsel durch konfigurierbare Gesten (Kopfnicken, Lächeln, Augenbrauen heben)
+- Erkennung über Frontkamera (Computer Vision)
+- Konfigurierbar: Gesten-Typ, Empfindlichkeit, An/Aus
+- Feedback bei erkannter Geste (kurze visuelle Bestätigung)
+- Datenschutz: Kein Kamerabild wird gespeichert oder übertragen
+- Plattform-Support: iOS (ARKit), Android (ML Kit)
+- Hinweis: Für Blasmusiker eingeschränkt nutzbar (Mund am Instrument) — Fußpedal bevorzugen
+
 ### 2.3 Setlist-Verwaltung
 
 #### F-SL-01: Setlist erstellen & verwalten
@@ -195,6 +265,29 @@
 - Stücke können in mehreren Setlists vorkommen
 - Setlist-Ansicht im Spielmodus: Nahtloser Übergang zwischen Stücken
 - Berechtigungen: Dirigent, Admin, Notenwart können Setlists erstellen
+
+#### F-SL-02: Platzhalter in Setlists
+**Priorität:** Could (MS2)  
+**User Story:** Als Dirigent möchte ich Platzhalter-Einträge in eine Setlist einfügen können für Stücke, die noch nicht digitalisiert sind, damit ich das Konzertprogramm frühzeitig planen kann.  
+**Akzeptanzkriterien:**
+- Setlist-Eintrag ohne Stück-Referenz erlauben (nur Name + optionale Notizen)
+- Visuell als Platzhalter erkennbar (z.B. gestrichelter Rahmen, Icon)
+- Platzhalter kann nachträglich mit einem existierenden Stück verknüpft werden
+- Position bleibt bei Verknüpfung erhalten
+- Platzhalter werden im Spielmodus übersprungen (mit Hinweis)
+- Metadaten: Name, geschätzte Dauer, Notizen
+
+#### F-SL-03: Konzertprogramm mit exaktem Timing
+**Priorität:** Could (MS2)  
+**User Story:** Als Dirigent möchte ich für jedes Stück im Konzertprogramm eine geschätzte Dauer hinterlegen, damit ich die Gesamtdauer und Start-/Endzeiten auf einen Blick sehe.  
+**Akzeptanzkriterien:**
+- Pro Setlist-Eintrag: Geschätzte Dauer in Minuten (optional)
+- Automatische Berechnung der Gesamtdauer
+- Anzeige der kumulierten Start-/Endzeit pro Stück (basierend auf Konzertbeginn)
+- Konzertbeginn-Zeit konfigurierbar pro Setlist
+- Pausen-Einträge möglich (z.B. "Pause — 15 Min")
+- Warnung wenn Gesamtdauer einen konfigurierbaren Rahmen überschreitet
+- Druckbare Übersicht (PDF-Export des Programms mit Zeiten)
 
 ### 2.4 Kapellenverwaltung
 
@@ -238,13 +331,119 @@
 - Zuweisung und Selbsteintragung
 - Übersicht offener/besetzter Schichten
 
-#### F-VL-03: Kalender & Termine
-**Priorität:** Should  
-**User Story:** Als Musiker möchte ich alle Kapellen-Termine im Überblick sehen.  
+#### F-VL-03: Kalender & Termine (inkl. bidirektionaler Sync)
+**Priorität:** Should (MS2)  
+**User Story:** Als Musiker möchte ich alle Kapellen-Termine im Überblick sehen und automatisch mit meinem privaten Kalender synchronisieren, damit ich keine Probe vergesse.  
 **Akzeptanzkriterien:**
 - Kalenderansicht (Monats-/Wochen-/Listenansicht)
 - Filterbar nach Kapelle (bei Multi-Kapellen)
-- Zukunft: Kalender-Export (iCal) — Could
+- Kalender-Export als iCal-Datei (Einmal-Download)
+- **Bidirektionale Kalender-Sync:** Automatische Synchronisation mit Google Calendar, Apple Calendar und Outlook
+- CalDAV-Subscription-URL für automatische Updates
+- Änderungen in Sheetstorm werden in Echtzeit im externen Kalender reflektiert
+- Sync-Status pro Nutzer sichtbar (verbunden/nicht verbunden)
+- OAuth2-basierte Autorisierung für Google/Outlook, native Integration für Apple Calendar
+- Konfigurierbar: Welche Kapellen-Termine synchronisiert werden (alle/nur zugesagte)
+
+#### F-VL-04: GEMA-/Verwertungsgesellschaft-Meldung
+**Priorität:** Must (MS2)  
+**User Story:** Als Vereinsvorstand möchte ich Konzertberichte (Musikfolge) für die GEMA/SUISA/AKM direkt aus der Setlist generieren können, damit ich die gesetzliche Meldepflicht einfach und fehlerfrei erfülle.  
+**Akzeptanzkriterien:**
+- Automatische Generierung der Musikfolge (Konzertbericht) aus einer Setlist
+- Export-Formate: GEMA-XML, CSV, PDF
+- Felder pro Stück: Titel, Komponist, Arrangeur, Verlag, Werknummer, Dauer
+- AI-gestützte Suche nach GEMA-Werknummern (optional, basierend auf Titel/Komponist)
+- Verwertungsgesellschaft konfigurierbar pro Kapelle (GEMA, SUISA, AKM)
+- Erinnerung an ausstehende Meldungen nach Konzerten (Push-Benachrichtigung)
+- Historie: Alle generierten Meldungen werden archiviert
+- Berechtigungen: Admin, Dirigent, Vorstand
+
+#### F-VL-05: Dirigenten-Mastersteuerung (Song-Broadcast)
+**Priorität:** Should (MS2)  
+**User Story:** Als Dirigent möchte ich zentral ein Stück aus der Setlist auswählen und automatisch auf allen verbundenen Geräten anzeigen lassen, damit bei Programmwechseln niemand suchen muss.  
+**Akzeptanzkriterien:**
+- Dirigenten-Modus: Setlist aktivieren → alle verbundenen Geräte synchronisieren
+- Dirigent tippt Stück an → alle Tablets wechseln automatisch zur richtigen Stimme
+- Echtzeit-Übertragung via SignalR (WebSocket)
+- Verbundene-Musiker-Zähler für den Dirigenten sichtbar
+- Auto-Reconnect bei Verbindungsabbruch
+- Musiker kann lokale Steuerung temporär übernehmen (Opt-out)
+- Kompatibel mit Setlist-Modus und Spielmodus
+- Nur Dirigent/Admin kann Broadcast starten
+
+#### F-VL-06: Anwesenheitsstatistiken
+**Priorität:** Should (MS2)  
+**User Story:** Als Dirigent möchte ich Statistiken über die Anwesenheit bei Proben und Auftritten sehen, damit ich Trends erkennen und die Probenbeteiligung verbessern kann.  
+**Akzeptanzkriterien:**
+- Visualisierung der Anwesenheit pro Musiker, Register und Zeitraum
+- Filterbar nach Zeitraum (Monat, Quartal, Jahr, benutzerdefiniert)
+- Darstellung als Diagramm (Balken/Linie) und Tabelle
+- Trends: Teilnahme-Entwicklung über Zeit
+- Register-Analyse: Welches Register ist chronisch unterbesetzt?
+- Export der Statistiken (CSV, PDF)
+- Berechtigungen: Admin, Dirigent, Vorstand sehen alle; Musiker sieht eigene Statistik
+- Basiert auf Zu-/Absage-Daten (F-VL-01)
+
+#### F-VL-07: Register-basierte Benachrichtigungen
+**Priorität:** Should (MS2)  
+**User Story:** Als Dirigent möchte ich Benachrichtigungen gezielt an bestimmte Register oder Gruppen senden können, damit nicht immer die gesamte Kapelle benachrichtigt wird.  
+**Akzeptanzkriterien:**
+- Empfänger-Auswahl: Gesamte Kapelle, einzelne Register, benutzerdefinierte Gruppen, einzelne Musiker
+- Register werden automatisch aus den Instrumentenprofilen gebildet
+- Benutzerdefinierte Gruppen erstellbar (z.B. "Vorstand", "Jugendorchester")
+- Benachrichtigungs-Typ: Push-Notification + In-App-Nachricht
+- Musiker kann eigene Benachrichtigungs-Präferenzen konfigurieren (welche Gruppen)
+- Berechtigungen: Admin, Dirigent, Registerführer (für eigenes Register)
+
+#### F-VL-08: Nachrichten-Board / Pinnwand
+**Priorität:** Should (MS2)  
+**User Story:** Als Vorstand möchte ich Ankündigungen und Neuigkeiten auf einem zentralen Board veröffentlichen, damit wichtige Informationen nicht in Chat-Nachrichten untergehen.  
+**Akzeptanzkriterien:**
+- Social-Media-ähnlicher Feed mit Posts (Text, Bilder, Links)
+- Kommentar-Funktion unter Posts
+- Reaktionen (Emoji-Reaktionen oder Daumen hoch)
+- Pin-Funktion: Wichtige Posts oben fixieren
+- Empfänger-Auswahl pro Post: Gesamte Kapelle oder bestimmte Register/Gruppen
+- Push-Benachrichtigung bei neuen Posts (konfigurierbar)
+- Berechtigungen: Admin, Dirigent, Vorstand können Posts erstellen; alle können kommentieren
+- Chronologische Sortierung mit gepinnten Posts oben
+
+#### F-VL-09: Umfragen / Abstimmungen
+**Priorität:** Should (MS2)  
+**User Story:** Als Dirigent möchte ich Umfragen innerhalb der Kapelle erstellen können, damit Entscheidungen (z.B. Repertoire-Auswahl, Terminwahl) demokratisch getroffen werden.  
+**Akzeptanzkriterien:**
+- Umfrage erstellen mit Frage + 2..n Antwortmöglichkeiten
+- Optionen: Einfachauswahl oder Mehrfachauswahl
+- Anonyme oder öffentliche Abstimmung (konfigurierbar pro Umfrage)
+- Ablaufdatum für Umfragen (optional)
+- Live-Auswertung: Ergebnisse als Balkendiagramm sichtbar
+- Benachrichtigung bei neuer Umfrage (Push + In-App)
+- Berechtigungen: Admin, Dirigent, Vorstand können Umfragen erstellen
+- Abgeschlossene Umfragen bleiben als Archiv sichtbar
+
+#### F-VL-10: Aufgabenverwaltung / To-Do-Listen
+**Priorität:** Could (MS3)  
+**User Story:** Als Vereinsvorstand möchte ich Aufgaben erstellen und Mitgliedern zuweisen können, damit die Organisation von Vereinsaktivitäten (z.B. Festaufbau) koordiniert abläuft.  
+**Akzeptanzkriterien:**
+- Aufgabe erstellen: Titel, Beschreibung, Fälligkeitsdatum, Priorität
+- Zuweisung an ein oder mehrere Mitglieder
+- Status-Tracking: Offen → In Bearbeitung → Erledigt
+- Aufgabenliste pro Kapelle mit Filter (meine/alle, offen/erledigt)
+- Erinnerungen bei anstehenden Fälligkeiten (Push-Benachrichtigung)
+- Optional: Aufgaben an Termine koppeln (z.B. "Vor dem Konzert: Bühne aufbauen")
+- Berechtigungen: Admin, Dirigent, Vorstand können Aufgaben erstellen und zuweisen
+
+#### F-VL-11: Inventarverwaltung (Instrumente, Equipment)
+**Priorität:** Could (MS5)  
+**User Story:** Als Vereinsvorstand möchte ich vereinseigene Instrumente und Equipment verwalten können, damit ich den Überblick über Leihinstrumente und Wartungstermine behalte.  
+**Akzeptanzkriterien:**
+- Inventar-Katalog: Instrument/Equipment mit Bezeichnung, Typ, Seriennummer, Kaufdatum, Zustand
+- Zuweisung an Mitglieder (Leihinstrumente)
+- Zustandsberichte: Gut / Wartung nötig / In Reparatur / Ausgemustert
+- Wartungstermine mit Erinnerung
+- Übersicht: Wer hat welches Leihinstrument
+- Historie: Alle Zuweisungen und Zustandsänderungen dokumentiert
+- Berechtigungen: Admin, Vorstand können Inventar verwalten; Musiker sieht zugewiesene Instrumente
 
 ### 2.6 Musikwerkzeuge
 
