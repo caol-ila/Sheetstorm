@@ -21,6 +21,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Sheetstorm.Api\Sheetstorm.Api.csproj" />
     <ProjectReference Include="..\..\src\Sheetstorm.Infrastructure\Sheetstorm.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\Sheetstorm.Domain\Sheetstorm.Domain.csproj" />
   </ItemGroup>
