@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:dio/dio.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:sheetstorm/features/sheet_music/data/models/import_models.dart';
@@ -20,7 +18,7 @@ class ImportService {
   /// Uploads one or more files as a multipart batch.
   /// Returns the server-assigned upload_id.
   Future<String> uploadFiles({
-    required List<File> files,
+    required List<PickedFileData> files,
     required ImportTarget ziel,
     String? bandId,
     void Function(double progress)? onProgress,
@@ -28,10 +26,9 @@ class ImportService {
     final formData = FormData();
 
     for (final file in files) {
-      final filename = file.path.split(Platform.pathSeparator).last;
       formData.files.add(MapEntry(
         'files[]',
-        await MultipartFile.fromFile(file.path, filename: filename),
+        MultipartFile.fromBytes(file.bytes, filename: file.name),
       ));
     }
 
