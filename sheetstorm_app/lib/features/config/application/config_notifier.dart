@@ -18,7 +18,7 @@ class ConfigState {
   final ConfigUndoAction? pendingUndo;
   final bool isLoading;
   final String? error;
-  final String? activeKapelleId;
+  final String? activeBandId;
 
   const ConfigState({
     this.resolved = const {},
@@ -26,7 +26,7 @@ class ConfigState {
     this.pendingUndo,
     this.isLoading = false,
     this.error,
-    this.activeKapelleId,
+    this.activeBandId,
   });
 
   ConfigState copyWith({
@@ -37,7 +37,7 @@ class ConfigState {
     bool? isLoading,
     String? error,
     bool? clearError,
-    String? activeKapelleId,
+    String? activeBandId,
   }) =>
       ConfigState(
         resolved: resolved ?? this.resolved,
@@ -45,21 +45,21 @@ class ConfigState {
         pendingUndo: clearUndo == true ? null : (pendingUndo ?? this.pendingUndo),
         isLoading: isLoading ?? this.isLoading,
         error: clearError == true ? null : (error ?? this.error),
-        activeKapelleId: activeKapelleId ?? this.activeKapelleId,
+        activeBandId: activeBandId ?? this.activeBandId,
       );
 
   /// Get a resolved value, falling back to system default.
   T getValue<T>(String key) {
     final entry = resolved[key];
-    if (entry != null) return entry.wert as T;
+    if (entry != null) return entry.value as T;
     return ConfigKeys.getDefault(key) as T;
   }
 
   /// Check if a key is locked by policy.
-  bool isLocked(String key) => resolved[key]?.istGesperrt ?? false;
+  bool isLocked(String key) => resolved[key]?.isLocked ?? false;
 
   /// Get the level a value comes from.
-  ConfigEbene? getHerkunft(String key) => resolved[key]?.herkunft;
+  ConfigLevel? getHerkunft(String key) => resolved[key]?.source;
 }
 
 @Riverpod(keepAlive: true)
@@ -81,42 +81,42 @@ class ConfigNotifier extends _$ConfigNotifier {
   ConfigRepository get _repo => ref.read(configRepositoryProvider);
 
   /// Initialize config for a given Kapelle context.
-  Future<void> initialize({String? kapelleId}) async {
+  Future<void> initialize({String? bandId}) async {
     state = state.copyWith(isLoading: true, clearError: true);
 
     try {
       // Load all config levels
-      if (kapelleId != null) {
+      if (bandId != null) {
         await Future.wait([
-          _repo.loadKapelleConfig(kapelleId),
-          _repo.loadPolicies(kapelleId),
+          _repo.loadBandConfig(bandId),
+          _repo.loadPolicies(bandId),
         ]);
       }
-      await _repo.loadNutzerConfig();
+      await _repo.loadUserConfig();
 
       // Resolve all known keys
       final resolved = <String, ResolvedConfigValue>{};
       for (final keyDef in ConfigKeys.allKeys) {
-        resolved[keyDef.schluessel] = await _repo.resolveConfig(
-          keyDef.schluessel,
-          kapelleId: kapelleId,
+        resolved[keyDef.key] = await _repo.resolveConfig(
+          keyDef.key,
+          bandId: bandId,
         );
       }
 
       // Load policies
-      final policies = kapelleId != null
-          ? await _repo.getPolicies(kapelleId)
+      final policies = bandId != null
+          ? await _repo.getPolicies(bandId)
           : <String, ConfigPolicy>{};
 
       state = ConfigState(
         resolved: resolved,
         policies: policies,
-        activeKapelleId: kapelleId,
+        activeBandId: bandId,
       );
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
-        error: 'Konfiguration konnte nicht geladen werden',
+        error: 'Failed to load configuration',
       );
     }
   }
@@ -125,42 +125,42 @@ class ConfigNotifier extends _$ConfigNotifier {
   Future<void> updateConfig(
     String key,
     dynamic newValue, {
-    ConfigEbene? ebene,
+    ConfigLevel? level,
   }) async {
     final keyDef = ConfigKeys.lookup(key);
-    final targetEbene = ebene ?? keyDef?.ebene ?? ConfigEbene.nutzer;
+    final targetEbene = level ?? keyDef?.level ?? ConfigLevel.user;
     final oldResolved = state.resolved[key];
-    final oldValue = oldResolved?.wert;
+    final oldValue = oldResolved?.value;
 
     // Cancel any pending undo
     _undoTimer?.cancel();
 
     // Store undo action
     final undoAction = ConfigUndoAction(
-      schluessel: key,
-      ebene: targetEbene,
-      alterWert: oldValue,
-      neuerWert: newValue,
-      zeitstempel: DateTime.now(),
+      key: key,
+      level: targetEbene,
+      oldValue: oldValue,
+      newValue: newValue,
+      timestamp: DateTime.now(),
     );
 
     // Write to appropriate level
     switch (targetEbene) {
-      case ConfigEbene.kapelle:
-        if (state.activeKapelleId != null) {
-          await _repo.setKapelleConfig(
-              state.activeKapelleId!, key, newValue);
+      case ConfigLevel.band:
+        if (state.activeBandId != null) {
+          await _repo.setBandConfig(
+              state.activeBandId!, key, newValue);
         }
-      case ConfigEbene.nutzer:
-        await _repo.setNutzerConfig(key, newValue);
-      case ConfigEbene.geraet:
-        await _repo.setGeraetConfig(key, newValue);
+      case ConfigLevel.user:
+        await _repo.setUserConfig(key, newValue);
+      case ConfigLevel.device:
+        await _repo.setDeviceConfig(key, newValue);
     }
 
     // Re-resolve this key
     final newResolved = await _repo.resolveConfig(
       key,
-      kapelleId: state.activeKapelleId,
+      bandId: state.activeBandId,
     );
 
     final updatedMap = Map<String, ResolvedConfigValue>.from(state.resolved);
@@ -173,7 +173,7 @@ class ConfigNotifier extends _$ConfigNotifier {
 
     // Auto-dismiss undo after 5 seconds
     _undoTimer = Timer(const Duration(seconds: 5), () {
-      if (state.pendingUndo?.schluessel == key) {
+      if (state.pendingUndo?.key == key) {
         state = state.copyWith(clearUndo: true);
       }
     });
@@ -187,44 +187,44 @@ class ConfigNotifier extends _$ConfigNotifier {
     _undoTimer?.cancel();
 
     // Restore old value
-    switch (undoAction.ebene) {
-      case ConfigEbene.kapelle:
-        if (state.activeKapelleId != null) {
-          if (undoAction.alterWert != null) {
-            await _repo.setKapelleConfig(
-              state.activeKapelleId!,
-              undoAction.schluessel,
-              undoAction.alterWert,
+    switch (undoAction.level) {
+      case ConfigLevel.band:
+        if (state.activeBandId != null) {
+          if (undoAction.oldValue != null) {
+            await _repo.setBandConfig(
+              state.activeBandId!,
+              undoAction.key,
+              undoAction.oldValue,
             );
           } else {
-            await _repo.resetKapelleConfig(
-                state.activeKapelleId!, undoAction.schluessel);
+            await _repo.resetBandConfig(
+                state.activeBandId!, undoAction.key);
           }
         }
-      case ConfigEbene.nutzer:
-        if (undoAction.alterWert != null) {
-          await _repo.setNutzerConfig(
-              undoAction.schluessel, undoAction.alterWert);
+      case ConfigLevel.user:
+        if (undoAction.oldValue != null) {
+          await _repo.setUserConfig(
+              undoAction.key, undoAction.oldValue);
         } else {
-          await _repo.resetNutzerConfig(undoAction.schluessel);
+          await _repo.resetUserConfig(undoAction.key);
         }
-      case ConfigEbene.geraet:
-        if (undoAction.alterWert != null) {
-          await _repo.setGeraetConfig(
-              undoAction.schluessel, undoAction.alterWert);
+      case ConfigLevel.device:
+        if (undoAction.oldValue != null) {
+          await _repo.setDeviceConfig(
+              undoAction.key, undoAction.oldValue);
         } else {
-          await _repo.resetGeraetConfig(undoAction.schluessel);
+          await _repo.resetDeviceConfig(undoAction.key);
         }
     }
 
     // Re-resolve
     final newResolved = await _repo.resolveConfig(
-      undoAction.schluessel,
-      kapelleId: state.activeKapelleId,
+      undoAction.key,
+      bandId: state.activeBandId,
     );
 
     final updatedMap = Map<String, ResolvedConfigValue>.from(state.resolved);
-    updatedMap[undoAction.schluessel] = newResolved;
+    updatedMap[undoAction.key] = newResolved;
 
     state = state.copyWith(
       resolved: updatedMap,
@@ -242,32 +242,32 @@ class ConfigNotifier extends _$ConfigNotifier {
   Future<void> overrideAtLevel(
     String key,
     dynamic value,
-    ConfigEbene ebene,
+    ConfigLevel level,
   ) async {
-    await updateConfig(key, value, ebene: ebene);
+    await updateConfig(key, value, level: level);
   }
 
   /// Reset an override: remove the value at the specified level.
-  Future<void> resetToParent(String key, ConfigEbene ebene) async {
+  Future<void> resetToParent(String key, ConfigLevel level) async {
     _undoTimer?.cancel();
 
     final oldResolved = state.resolved[key];
 
-    switch (ebene) {
-      case ConfigEbene.nutzer:
-        await _repo.resetNutzerConfig(key);
-      case ConfigEbene.geraet:
-        await _repo.resetGeraetConfig(key);
-      case ConfigEbene.kapelle:
-        if (state.activeKapelleId != null) {
-          await _repo.resetKapelleConfig(state.activeKapelleId!, key);
+    switch (level) {
+      case ConfigLevel.user:
+        await _repo.resetUserConfig(key);
+      case ConfigLevel.device:
+        await _repo.resetDeviceConfig(key);
+      case ConfigLevel.band:
+        if (state.activeBandId != null) {
+          await _repo.resetBandConfig(state.activeBandId!, key);
         }
     }
 
     // Re-resolve
     final newResolved = await _repo.resolveConfig(
       key,
-      kapelleId: state.activeKapelleId,
+      bandId: state.activeBandId,
     );
 
     final updatedMap = Map<String, ResolvedConfigValue>.from(state.resolved);
@@ -276,16 +276,16 @@ class ConfigNotifier extends _$ConfigNotifier {
     state = state.copyWith(
       resolved: updatedMap,
       pendingUndo: ConfigUndoAction(
-        schluessel: key,
-        ebene: ebene,
-        alterWert: oldResolved?.wert,
-        neuerWert: null,
-        zeitstempel: DateTime.now(),
+        key: key,
+        level: level,
+        oldValue: oldResolved?.value,
+        newValue: null,
+        timestamp: DateTime.now(),
       ),
     );
 
     _undoTimer = Timer(const Duration(seconds: 5), () {
-      if (state.pendingUndo?.schluessel == key) {
+      if (state.pendingUndo?.key == key) {
         state = state.copyWith(clearUndo: true);
       }
     });
@@ -293,19 +293,19 @@ class ConfigNotifier extends _$ConfigNotifier {
 
   /// Toggle a policy on/off (admin only).
   Future<void> togglePolicy(String policyKey, dynamic value) async {
-    if (state.activeKapelleId == null) return;
-    await _repo.setPolicy(state.activeKapelleId!, policyKey, value);
+    if (state.activeBandId == null) return;
+    await _repo.setPolicy(state.activeBandId!, policyKey, value);
 
     // Reload policies and re-resolve all affected keys
-    await _repo.loadPolicies(state.activeKapelleId!);
-    final policies = await _repo.getPolicies(state.activeKapelleId!);
+    await _repo.loadPolicies(state.activeBandId!);
+    final policies = await _repo.getPolicies(state.activeBandId!);
 
     // Re-resolve all keys that might be affected
     final resolved = <String, ResolvedConfigValue>{};
     for (final keyDef in ConfigKeys.allKeys) {
-      resolved[keyDef.schluessel] = await _repo.resolveConfig(
-        keyDef.schluessel,
-        kapelleId: state.activeKapelleId,
+      resolved[keyDef.key] = await _repo.resolveConfig(
+        keyDef.key,
+        bandId: state.activeBandId,
       );
     }
 
@@ -316,14 +316,14 @@ class ConfigNotifier extends _$ConfigNotifier {
   }
 
   /// Switch Kapelle context (for multi-Kapelle users).
-  Future<void> switchKapelle(String kapelleId) async {
-    await initialize(kapelleId: kapelleId);
+  Future<void> switchBand(String bandId) async {
+    await initialize(bandId: bandId);
   }
 
   /// Trigger delta-sync with server.
   Future<void> sync() async {
     try {
-      await _repo.syncNutzerConfig();
+      await _repo.syncUserConfig();
     } catch (_) {
       // Silent failure, will retry
     }

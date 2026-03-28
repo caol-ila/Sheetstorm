@@ -8,47 +8,47 @@ part 'app_database.g.dart';
 
 // ─── Tabellen ─────────────────────────────────────────────────────────────────
 
-class Noten extends Table {
+class SheetMusics extends Table {
   IntColumn get id => integer().autoIncrement()();
-  TextColumn get titel => text().withLength(min: 1, max: 255)();
-  TextColumn get komponist => text().nullable()();
+  TextColumn get title => text().withLength(min: 1, max: 255)();
+  TextColumn get composer => text().nullable()();
   TextColumn get genre => text().nullable()();
-  TextColumn get lokalerPfad => text().nullable()();
-  BoolColumn get istOfflineVerfuegbar => boolean().withDefault(const Constant(false))();
-  DateTimeColumn get erstelltAm => dateTime().withDefault(currentDateAndTime)();
-  DateTimeColumn get aktualisiertAm => dateTime().withDefault(currentDateAndTime)();
+  TextColumn get localPath => text().nullable()();
+  BoolColumn get isOfflineAvailable => boolean().withDefault(const Constant(false))();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
 }
 
-class Stimmen extends Table {
+class Voices extends Table {
   IntColumn get id => integer().autoIncrement()();
-  IntColumn get notenId => integer().references(Noten, #id)();
+  IntColumn get sheetId => integer().references(SheetMusics, #id)();
   TextColumn get name => text().withLength(min: 1, max: 100)();
   TextColumn get instrument => text().nullable()();
-  IntColumn get seitenAnzahl => integer().withDefault(const Constant(0))();
+  IntColumn get pageCount => integer().withDefault(const Constant(0))();
 }
 
-class Annotationen extends Table {
+class Annotations extends Table {
   IntColumn get id => integer().autoIncrement()();
-  IntColumn get stimmeId => integer().references(Stimmen, #id)();
-  TextColumn get ebene => text()(); // 'privat' | 'stimme' | 'orchester'
-  RealColumn get xRelativ => real()();
-  RealColumn get yRelativ => real()();
-  RealColumn get seite => real()();
-  TextColumn get svgDaten => text()();
-  DateTimeColumn get erstelltAm => dateTime().withDefault(currentDateAndTime)();
+  IntColumn get voiceId => integer().references(Voices, #id)();
+  TextColumn get level => text()(); // 'private' | 'voice' | 'orchestra'
+  RealColumn get xRelative => real()();
+  RealColumn get yRelative => real()();
+  RealColumn get page => real()();
+  TextColumn get svgData => text()();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 }
 
-class KonfigurationEintraege extends Table {
+class ConfigEntries extends Table {
   IntColumn get id => integer().autoIncrement()();
-  TextColumn get ebene => text()(); // 'kapelle' | 'nutzer' | 'gerat'
-  TextColumn get schluessel => text()();
-  TextColumn get wert => text()();
-  BoolColumn get istGesperrt => boolean().withDefault(const Constant(false))();
+  TextColumn get level => text()(); // 'band' | 'user' | 'device'
+  TextColumn get key => text()();
+  TextColumn get value => text()();
+  BoolColumn get isLocked => boolean().withDefault(const Constant(false))();
 }
 
 // ─── Datenbank ────────────────────────────────────────────────────────────────
 
-@DriftDatabase(tables: [Noten, Stimmen, Annotationen, KonfigurationEintraege])
+@DriftDatabase(tables: [SheetMusics, Voices, Annotations, ConfigEntries])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 

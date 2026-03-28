@@ -9,9 +9,9 @@ abstract final class AppConstants {
   static const String deepLinkScheme = 'sheetstorm';
 
   // Konfigurationsebenen (decisions.md: Kapelle → Nutzer → Gerät)
-  static const String configLevelKapelle = 'kapelle';
-  static const String configLevelNutzer = 'nutzer';
-  static const String configLevelGerat = 'gerat';
+  static const String configLevelBand = 'band';
+  static const String configLevelUser = 'user';
+  static const String configLevelDevice = 'device';
 
   // Pagination
   static const int defaultPageSize = 20;
@@ -32,7 +32,7 @@ abstract final class AppConstants {
   // Kontextmenü max. 5 Optionen (decisions.md)
   static const int contextMenuMaxItems = 5;
 
-  // Annotationen (annotationen-spec.md)
+  // annotations (annotations-spec.md)
   static const int annotationLongPressMs = 600;
   static const int annotationAutoExitMinutes = 3;
   static const int annotationMaxTextLength = 200;

@@ -33,16 +33,16 @@ class ConfigLocalStorage {
 
   static const _geraetPrefix = 'config.geraet.';
 
-  Future<dynamic> getGeraetConfig(String key) async {
+  Future<dynamic> getDeviceConfig(String key) async {
     final prefs = await _getPrefs;
     final raw = prefs.getString('$_geraetPrefix$key');
     if (raw == null) return null;
     return jsonDecode(raw);
   }
 
-  Future<void> setGeraetConfig(String key, dynamic wert) async {
+  Future<void> setDeviceConfig(String key, dynamic value) async {
     final prefs = await _getPrefs;
-    await prefs.setString('$_geraetPrefix$key', jsonEncode(wert));
+    await prefs.setString('$_geraetPrefix$key', jsonEncode(value));
   }
 
   Future<void> removeGeraetConfig(String key) async {
@@ -71,51 +71,51 @@ class ConfigLocalStorage {
 
   Future<void> cacheConfig(
     String key,
-    ConfigEbene ebene,
-    dynamic wert, {
-    String? referenzId,
+    ConfigLevel level,
+    dynamic value, {
+    String? referenceId,
     int version = 1,
   }) async {
     final prefs = await _getPrefs;
-    final cacheKey = _buildCacheKey(key, ebene, referenzId);
+    final cacheKey = _buildCacheKey(key, level, referenceId);
     final entry = {
-      'wert': wert,
-      'ebene': ebene.name,
+      'value': value,
+      'level': level.name,
       'version': version,
-      'aktualisiert_am': DateTime.now().millisecondsSinceEpoch,
+      'updated_at': DateTime.now().millisecondsSinceEpoch,
     };
     await prefs.setString(cacheKey, jsonEncode(entry));
   }
 
   Future<ConfigEntry?> getCachedConfig(
     String key,
-    ConfigEbene ebene, {
-    String? referenzId,
+    ConfigLevel level, {
+    String? referenceId,
   }) async {
     final prefs = await _getPrefs;
-    final cacheKey = _buildCacheKey(key, ebene, referenzId);
+    final cacheKey = _buildCacheKey(key, level, referenceId);
     final raw = prefs.getString(cacheKey);
     if (raw == null) return null;
 
     final data = jsonDecode(raw) as Map<String, dynamic>;
     return ConfigEntry(
-      schluessel: key,
-      ebene: ebene,
-      wert: data['wert'],
+      key: key,
+      level: level,
+      value: data['value'],
       version: data['version'] as int? ?? 1,
-      aktualisiertAm: DateTime.fromMillisecondsSinceEpoch(
-        data['aktualisiert_am'] as int,
+      updatedAt: DateTime.fromMillisecondsSinceEpoch(
+        data['updated_at'] as int,
       ),
-      referenzId: referenzId,
+      referenceId: referenceId,
     );
   }
 
   Future<Map<String, dynamic>> getAllCachedConfig(
-    ConfigEbene ebene, {
-    String? referenzId,
+    ConfigLevel level, {
+    String? referenceId,
   }) async {
     final prefs = await _getPrefs;
-    final prefix = '$_cachePrefix${ebene.name}.${referenzId ?? 'local'}.';
+    final prefix = '$_cachePrefix${level.name}.${referenceId ?? 'local'}.';
     final result = <String, dynamic>{};
     for (final key in prefs.getKeys()) {
       if (key.startsWith(prefix)) {
@@ -123,16 +123,16 @@ class ConfigLocalStorage {
         final raw = prefs.getString(key);
         if (raw != null) {
           final data = jsonDecode(raw) as Map<String, dynamic>;
-          result[configKey] = data['wert'];
+          result[configKey] = data['value'];
         }
       }
     }
     return result;
   }
 
-  Future<void> clearCache(ConfigEbene ebene, {String? referenzId}) async {
+  Future<void> clearCache(ConfigLevel level, {String? referenceId}) async {
     final prefs = await _getPrefs;
-    final prefix = '$_cachePrefix${ebene.name}.${referenzId ?? 'local'}.';
+    final prefix = '$_cachePrefix${level.name}.${referenceId ?? 'local'}.';
     for (final key in prefs.getKeys().toList()) {
       if (key.startsWith(prefix)) {
         await prefs.remove(key);
@@ -140,8 +140,8 @@ class ConfigLocalStorage {
     }
   }
 
-  String _buildCacheKey(String key, ConfigEbene ebene, String? referenzId) =>
-      '$_cachePrefix${ebene.name}.${referenzId ?? 'local'}.$key';
+  String _buildCacheKey(String key, ConfigLevel level, String? referenceId) =>
+      '$_cachePrefix${level.name}.${referenceId ?? 'local'}.$key';
 
   // ─── Pending Sync Queue ───────────────────────────────────────────────────
 
@@ -156,8 +156,8 @@ class ConfigLocalStorage {
     return list.map((e) {
       final data = e as Map<String, dynamic>;
       return PendingSyncEntry(
-        schluessel: data['schluessel'] as String,
-        wert: data['wert'],
+        key: data['key'] as String,
+        value: data['value'],
         version: data['version'] as int,
         timestamp: DateTime.parse(data['timestamp'] as String),
       );
@@ -167,7 +167,7 @@ class ConfigLocalStorage {
   Future<void> addPendingSyncEntry(PendingSyncEntry entry) async {
     final entries = await getPendingSyncEntries();
     // Replace existing entry for same key
-    entries.removeWhere((e) => e.schluessel == entry.schluessel);
+    entries.removeWhere((e) => e.key == entry.key);
     entries.add(entry);
     await _savePendingEntries(entries);
   }
@@ -190,7 +190,7 @@ class ConfigLocalStorage {
   static const _policyPrefix = 'config.policy.';
 
   Future<void> cachePolicies(
-    String kapelleId,
+    String bandId,
     Map<String, ConfigPolicy> policies,
   ) async {
     final prefs = await _getPrefs;
@@ -198,22 +198,22 @@ class ConfigLocalStorage {
       (key, policy) => MapEntry(key, policy.toJson()),
     );
     await prefs.setString(
-      '$_policyPrefix$kapelleId',
+      '$_policyPrefix$bandId',
       jsonEncode(data),
     );
   }
 
   Future<Map<String, ConfigPolicy>> getCachedPolicies(
-      String kapelleId) async {
+      String bandId) async {
     final prefs = await _getPrefs;
-    final raw = prefs.getString('$_policyPrefix$kapelleId');
+    final raw = prefs.getString('$_policyPrefix$bandId');
     if (raw == null) return {};
 
     final data = jsonDecode(raw) as Map<String, dynamic>;
     return data.map((key, value) => MapEntry(
           key,
           ConfigPolicy.fromJson({
-            'schluessel': key,
+            'key': key,
             ...value as Map<String, dynamic>,
           }),
         ));

@@ -192,7 +192,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       style: theme.textTheme.bodyMedium,
                     ),
                     TextButton(
-                      onPressed: () => context.push(AppRoutes.register),
+                      onPressed: () => context.push(AppRoutes.sections),
                       style: TextButton.styleFrom(
                         minimumSize: const Size(0, AppSpacing.touchTargetMin),
                       ),

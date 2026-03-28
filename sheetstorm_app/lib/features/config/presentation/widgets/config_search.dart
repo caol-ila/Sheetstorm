@@ -68,9 +68,9 @@ class ConfigSearchDelegate extends SearchDelegate<String?> {
     final lowerQuery = query.toLowerCase();
     final results = ConfigKeys.allKeys.where((key) {
       return key.label.toLowerCase().contains(lowerQuery) ||
-          key.schluessel.toLowerCase().contains(lowerQuery) ||
-          key.kategorie.toLowerCase().contains(lowerQuery) ||
-          (key.beschreibung?.toLowerCase().contains(lowerQuery) ?? false);
+          key.key.toLowerCase().contains(lowerQuery) ||
+          key.category.toLowerCase().contains(lowerQuery) ||
+          (key.description?.toLowerCase().contains(lowerQuery) ?? false);
     }).toList();
 
     if (results.isEmpty) {
@@ -99,28 +99,28 @@ class ConfigSearchDelegate extends SearchDelegate<String?> {
       itemCount: results.length,
       itemBuilder: (context, index) {
         final keyDef = results[index];
-        final color = ConfigLevelBadge.colorFor(keyDef.ebene);
+        final color = ConfigLevelBadge.colorFor(keyDef.level);
 
         return ListTile(
           leading: Icon(
-            ConfigLevelBadge.iconFor(keyDef.ebene),
+            ConfigLevelBadge.iconFor(keyDef.level),
             color: color,
           ),
           title: Text(keyDef.label),
           subtitle: Text(
-            '${keyDef.ebene.label} → ${keyDef.kategorie}',
+            '${keyDef.level.label} → ${keyDef.category}',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
           ),
-          trailing: ConfigLevelBadge(ebene: keyDef.ebene, compact: true),
+          trailing: ConfigLevelBadge(level: keyDef.level, compact: true),
           contentPadding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.md,
             vertical: AppSpacing.xs,
           ),
           minVerticalPadding: AppSpacing.sm,
           onTap: () {
-            close(context, keyDef.schluessel);
+            close(context, keyDef.key);
           },
         );
       },

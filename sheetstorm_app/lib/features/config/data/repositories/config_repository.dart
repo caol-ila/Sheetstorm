@@ -35,66 +35,66 @@ class ConfigRepository {
   /// with Policy blocking.
   Future<ResolvedConfigValue> resolveConfig(
     String key, {
-    String? kapelleId,
+    String? bandId,
   }) async {
     final systemDefault = ConfigKeys.getDefault(key);
 
     // Get values from each level
-    final geraetWert = await _local.getGeraetConfig(key);
+    final deviceValue = await _local.getDeviceConfig(key);
 
-    dynamic nutzerWert;
-    final nutzerCache = await _local.getCachedConfig(
+    dynamic userValue;
+    final userCache = await _local.getCachedConfig(
       key,
-      ConfigEbene.nutzer,
+      ConfigLevel.user,
     );
-    nutzerWert = nutzerCache?.wert;
+    userValue = userCache?.value;
 
-    dynamic kapelleWert;
-    if (kapelleId != null) {
-      final kapelleCache = await _local.getCachedConfig(
+    dynamic bandValue;
+    if (bandId != null) {
+      final bandCache = await _local.getCachedConfig(
         key,
-        ConfigEbene.kapelle,
-        referenzId: kapelleId,
+        ConfigLevel.band,
+        referenceId: bandId,
       );
-      kapelleWert = kapelleCache?.wert;
+      bandValue = bandCache?.value;
     }
 
     // Check policies
-    bool istGesperrt = false;
-    if (kapelleId != null) {
-      final policies = await _local.getCachedPolicies(kapelleId);
-      istGesperrt = _isPolicyLocked(key, policies);
+    bool isLocked = false;
+    if (bandId != null) {
+      final policies = await _local.getCachedPolicies(bandId);
+      isLocked = _isPolicyLocked(key, policies);
     }
 
-    // Resolve: if locked, use kapelle value; otherwise follow override chain
-    dynamic effectiveWert;
-    ConfigEbene herkunft;
+    // Resolve: if locked, use band value; otherwise follow override chain
+    dynamic effectiveValue;
+    ConfigLevel source;
 
-    if (istGesperrt) {
-      effectiveWert = kapelleWert ?? systemDefault;
-      herkunft = kapelleWert != null ? ConfigEbene.kapelle : ConfigEbene.kapelle;
-    } else if (geraetWert != null) {
-      effectiveWert = geraetWert;
-      herkunft = ConfigEbene.geraet;
-    } else if (nutzerWert != null) {
-      effectiveWert = nutzerWert;
-      herkunft = ConfigEbene.nutzer;
-    } else if (kapelleWert != null) {
-      effectiveWert = kapelleWert;
-      herkunft = ConfigEbene.kapelle;
+    if (isLocked) {
+      effectiveValue = bandValue ?? systemDefault;
+      source = bandValue != null ? ConfigLevel.band : ConfigLevel.band;
+    } else if (deviceValue != null) {
+      effectiveValue = deviceValue;
+      source = ConfigLevel.device;
+    } else if (userValue != null) {
+      effectiveValue = userValue;
+      source = ConfigLevel.user;
+    } else if (bandValue != null) {
+      effectiveValue = bandValue;
+      source = ConfigLevel.band;
     } else {
-      effectiveWert = systemDefault;
-      herkunft = ConfigEbene.kapelle;
+      effectiveValue = systemDefault;
+      source = ConfigLevel.band;
     }
 
     return ResolvedConfigValue(
-      schluessel: key,
-      wert: effectiveWert,
-      herkunft: herkunft,
-      istGesperrt: istGesperrt,
-      kapelleDefault: kapelleWert,
-      nutzerWert: nutzerWert,
-      geraetWert: geraetWert,
+      key: key,
+      value: effectiveValue,
+      source: source,
+      isLocked: isLocked,
+      bandDefault: bandValue,
+      userValue: userValue,
+      deviceValue: deviceValue,
       systemDefault: systemDefault,
     );
   }
@@ -103,11 +103,11 @@ class ConfigRepository {
   bool _isPolicyLocked(String key, Map<String, ConfigPolicy> policies) {
     // Map config keys to their controlling policies
     const policyMap = {
-      'nutzer.sprache': 'policy.force_locale',
-      'nutzer.theme': 'policy.force_dark_mode',
+      'user.language': 'policy.force_locale',
+      'user.theme': 'policy.force_dark_mode',
       'nutzer.ai.api_key': 'policy.allow_user_ai_keys',
       'nutzer.ai.provider': 'policy.allow_user_ai_keys',
-      'geraet.tuner.kammerton': 'policy.force_kammerton',
+      'device.tuner.tuning_pitch': 'policy.force_tuning_pitch',
     };
 
     final policyKey = policyMap[key];
@@ -118,18 +118,18 @@ class ConfigRepository {
 
     // force_locale, force_kammerton: enforced = true means locked
     if (policyKey == 'policy.force_locale' ||
-        policyKey == 'policy.force_kammerton') {
-      return policy.wert == true;
+        policyKey == 'policy.force_tuning_pitch') {
+      return policy.value == true;
     }
 
     // force_dark_mode: non-null means enforced
     if (policyKey == 'policy.force_dark_mode') {
-      return policy.wert != null;
+      return policy.value != null;
     }
 
     // allow_user_ai_keys: false means locked
     if (policyKey == 'policy.allow_user_ai_keys') {
-      return policy.wert == false;
+      return policy.value == false;
     }
 
     return false;
@@ -138,15 +138,15 @@ class ConfigRepository {
   // ─── Load All ─────────────────────────────────────────────────────────────
 
   /// Load all config from server and cache locally.
-  Future<void> loadKapelleConfig(String kapelleId) async {
+  Future<void> loadBandConfig(String bandId) async {
     try {
-      final data = await _api.getKapelleConfig(kapelleId);
+      final data = await _api.getBandConfig(bandId);
       for (final entry in data.entries) {
         await _local.cacheConfig(
           entry.key,
-          ConfigEbene.kapelle,
+          ConfigLevel.band,
           entry.value,
-          referenzId: kapelleId,
+          referenceId: bandId,
         );
       }
     } catch (_) {
@@ -154,16 +154,16 @@ class ConfigRepository {
     }
   }
 
-  Future<void> loadNutzerConfig() async {
+  Future<void> loadUserConfig() async {
     try {
       final data = await _api.getNutzerConfig();
       for (final entry in data.entries) {
-        final value = entry.value is Map ? entry.value['wert'] : entry.value;
+        final value = entry.value is Map ? entry.value['value'] : entry.value;
         final version =
             entry.value is Map ? (entry.value['version'] as int? ?? 1) : 1;
         await _local.cacheConfig(
           entry.key,
-          ConfigEbene.nutzer,
+          ConfigLevel.user,
           value,
           version: version,
         );
@@ -173,10 +173,10 @@ class ConfigRepository {
     }
   }
 
-  Future<void> loadPolicies(String kapelleId) async {
+  Future<void> loadPolicies(String bandId) async {
     try {
-      final policies = await _api.getKapellePolicies(kapelleId);
-      await _local.cachePolicies(kapelleId, policies);
+      final policies = await _api.getBandPolicies(bandId);
+      await _local.cachePolicies(bandId, policies);
     } catch (_) {
       // Offline: use cached policies
     }
@@ -185,51 +185,51 @@ class ConfigRepository {
   // ─── Write Operations ─────────────────────────────────────────────────────
 
   /// Set a Kapelle config value (admin only).
-  Future<void> setKapelleConfig(
-    String kapelleId,
+  Future<void> setBandConfig(
+    String bandId,
     String key,
-    dynamic wert,
+    dynamic value,
   ) async {
     await _local.cacheConfig(
       key,
-      ConfigEbene.kapelle,
-      wert,
-      referenzId: kapelleId,
+      ConfigLevel.band,
+      value,
+      referenceId: bandId,
     );
     try {
-      await _api.putKapelleConfig(kapelleId, key, wert);
+      await _api.putBandConfig(bandId, key, value);
     } catch (_) {
       // Will sync later
     }
   }
 
   /// Reset a Kapelle config value to system default.
-  Future<void> resetKapelleConfig(String kapelleId, String key) async {
-    await _local.clearCache(ConfigEbene.kapelle, referenzId: kapelleId);
+  Future<void> resetBandConfig(String bandId, String key) async {
+    await _local.clearCache(ConfigLevel.band, referenceId: bandId);
     try {
-      await _api.deleteKapelleConfig(kapelleId, key);
+      await _api.deleteBandConfig(bandId, key);
     } catch (_) {
       // Will sync later
     }
   }
 
   /// Set a Nutzer config value.
-  Future<void> setNutzerConfig(String key, dynamic wert) async {
-    final existing = await _local.getCachedConfig(key, ConfigEbene.nutzer);
+  Future<void> setUserConfig(String key, dynamic value) async {
+    final existing = await _local.getCachedConfig(key, ConfigLevel.user);
     final newVersion = (existing?.version ?? 0) + 1;
 
-    await _local.cacheConfig(key, ConfigEbene.nutzer, wert, version: newVersion);
+    await _local.cacheConfig(key, ConfigLevel.user, value, version: newVersion);
 
     // Queue for sync
     await _local.addPendingSyncEntry(PendingSyncEntry(
-      schluessel: key,
-      wert: wert,
+      key: key,
+      value: value,
       version: newVersion,
       timestamp: DateTime.now(),
     ));
 
     try {
-      await _api.putNutzerConfig(key, wert);
+      await _api.putNutzerConfig(key, value);
       // Clear from pending queue on success
     } catch (_) {
       // Will sync later via delta-sync
@@ -237,10 +237,10 @@ class ConfigRepository {
   }
 
   /// Reset a Nutzer config value (fall back to Kapelle/Default).
-  Future<void> resetNutzerConfig(String key) async {
-    final prefs = await _local.getCachedConfig(key, ConfigEbene.nutzer);
+  Future<void> resetUserConfig(String key) async {
+    final prefs = await _local.getCachedConfig(key, ConfigLevel.user);
     if (prefs != null) {
-      await _local.cacheConfig(key, ConfigEbene.nutzer, null);
+      await _local.cacheConfig(key, ConfigLevel.user, null);
     }
     try {
       await _api.deleteNutzerConfig(key);
@@ -250,32 +250,32 @@ class ConfigRepository {
   }
 
   /// Set a Gerät config value (local only, never synced).
-  Future<void> setGeraetConfig(String key, dynamic wert) async {
-    await _local.setGeraetConfig(key, wert);
+  Future<void> setDeviceConfig(String key, dynamic value) async {
+    await _local.setDeviceConfig(key, value);
   }
 
   /// Reset a Gerät config value.
-  Future<void> resetGeraetConfig(String key) async {
+  Future<void> resetDeviceConfig(String key) async {
     await _local.removeGeraetConfig(key);
   }
 
   /// Set a policy value (admin only).
   Future<void> setPolicy(
-    String kapelleId,
+    String bandId,
     String key,
-    dynamic wert,
+    dynamic value,
   ) async {
-    final policies = await _local.getCachedPolicies(kapelleId);
+    final policies = await _local.getCachedPolicies(bandId);
     policies[key] = ConfigPolicy(
-      schluessel: key,
-      wert: wert,
-      enforced: wert is bool ? wert : wert != null,
-      aktualisiertAm: DateTime.now(),
+      key: key,
+      value: value,
+      enforced: value is bool ? value : value != null,
+      updatedAt: DateTime.now(),
     );
-    await _local.cachePolicies(kapelleId, policies);
+    await _local.cachePolicies(bandId, policies);
 
     try {
-      await _api.putPolicy(kapelleId, key, wert);
+      await _api.putPolicy(bandId, key, value);
     } catch (_) {
       // Will sync later
     }
@@ -284,12 +284,12 @@ class ConfigRepository {
   // ─── Sync ─────────────────────────────────────────────────────────────────
 
   /// Delta-sync: push pending changes, pull server changes.
-  Future<void> syncNutzerConfig() async {
+  Future<void> syncUserConfig() async {
     final pending = await _local.getPendingSyncEntries();
     if (pending.isEmpty) return;
 
     try {
-      final result = await _api.syncNutzerConfig(pending);
+      final result = await _api.syncUserConfig(pending);
       await _local.clearPendingSyncEntries();
 
       // Apply server changes that won conflicts
@@ -297,9 +297,9 @@ class ConfigRepository {
       for (final change in serverChanges) {
         final data = change as Map<String, dynamic>;
         await _local.cacheConfig(
-          data['schluessel'] as String,
-          ConfigEbene.nutzer,
-          data['wert'],
+          data['key'] as String,
+          ConfigLevel.user,
+          data['value'],
           version: data['version'] as int? ?? 1,
         );
       }
@@ -310,7 +310,7 @@ class ConfigRepository {
 
   // ─── Policies Getter ──────────────────────────────────────────────────────
 
-  Future<Map<String, ConfigPolicy>> getPolicies(String kapelleId) async {
-    return _local.getCachedPolicies(kapelleId);
+  Future<Map<String, ConfigPolicy>> getPolicies(String bandId) async {
+    return _local.getCachedPolicies(bandId);
   }
 }

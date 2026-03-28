@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sheetstorm/core/routing/app_router.dart';
@@ -30,7 +30,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   // Collected data
   String? _displayName;
   String? _instrument;
-  String? _kapelleName;
+  String? _bandName;
   String? _defaultVoice;
   ThemeMode _themeMode = ThemeMode.system;
 
@@ -77,7 +77,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       // Non-blocking: onboarding data saved locally, API best-effort
     }
     await ref.read(authProvider.notifier).markOnboardingCompleted();
-    if (mounted) context.go(AppRoutes.bibliothek);
+    if (mounted) context.go(AppRoutes.library);
   }
 
   @override
@@ -109,9 +109,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                     onNext: _nextPage,
                     onSkip: _skipPage,
                   ),
-                  _PageKapelle(
-                    kapelleName: _kapelleName,
-                    onKapelleChanged: (v) => _kapelleName = v,
+                  _PageBand(
+                    bandName: _bandName,
+                    onBandChanged: (v) => _bandName = v,
                     defaultVoice: _defaultVoice,
                     onVoiceChanged: (v) => _defaultVoice = v,
                     onNext: _nextPage,
@@ -246,7 +246,7 @@ class _PageNameConfirmState extends State<_PageNameConfirm> {
 
 // ─── Page 2: Instrument ───────────────────────────────────────────────────────
 
-const _blaskapelleInstrumente = [
+const _windBandInstruments = [
   'Flöte', 'Oboe', 'Fagott',
   'Klarinette (B)', 'Klarinette (Es)',
   'Altsaxophon', 'Tenorsaxophon', 'Baritonsaxophon', 'Sopransaxophon',
@@ -285,7 +285,7 @@ class _PageInstrument extends StatelessWidget {
         spacing: AppSpacing.sm,
         runSpacing: AppSpacing.sm,
         alignment: WrapAlignment.center,
-        children: _blaskapelleInstrumente.map((i) {
+        children: _windBandInstruments.map((i) {
           return FilterChip(
             label: Text(i),
             selected: selected == i,
@@ -299,17 +299,17 @@ class _PageInstrument extends StatelessWidget {
 
 // ─── Page 3: Kapelle & Standardstimme ────────────────────────────────────────
 
-class _PageKapelle extends StatelessWidget {
-  const _PageKapelle({
-    required this.kapelleName,
-    required this.onKapelleChanged,
+class _PageBand extends StatelessWidget {
+  const _PageBand({
+    required this.bandName,
+    required this.onBandChanged,
     required this.defaultVoice,
     required this.onVoiceChanged,
     required this.onNext,
     required this.onSkip,
   });
-  final String? kapelleName;
-  final ValueChanged<String> onKapelleChanged;
+  final String? bandName;
+  final ValueChanged<String> onBandChanged;
   final String? defaultVoice;
   final ValueChanged<String> onVoiceChanged;
   final VoidCallback onNext;
@@ -332,7 +332,7 @@ class _PageKapelle extends StatelessWidget {
               prefixIcon: Icon(Icons.search, size: 20),
               hintText: 'z.B. Musikverein Musterhausen',
             ),
-            onChanged: onKapelleChanged,
+            onChanged: onBandChanged,
           ),
           const SizedBox(height: AppSpacing.md),
           TextFormField(

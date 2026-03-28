@@ -13,20 +13,20 @@ abstract final class ConfigDefaults {
     ConfigLocalStorage storage,
   ) async {
     // Check if defaults have already been applied
-    final existing = await storage.getGeraetConfig('_defaults_applied');
+    final existing = await storage.getDeviceConfig('_defaults_applied');
     if (existing == true) return;
 
     final deviceClass = _detectDeviceClass();
     final defaults = _defaultsFor(deviceClass);
 
     for (final entry in defaults.entries) {
-      final existingValue = await storage.getGeraetConfig(entry.key);
+      final existingValue = await storage.getDeviceConfig(entry.key);
       if (existingValue == null) {
-        await storage.setGeraetConfig(entry.key, entry.value);
+        await storage.setDeviceConfig(entry.key, entry.value);
       }
     }
 
-    await storage.setGeraetConfig('_defaults_applied', true);
+    await storage.setDeviceConfig('_defaults_applied', true);
   }
 
   static _DeviceClass _detectDeviceClass() {
@@ -56,31 +56,31 @@ abstract final class ConfigDefaults {
     switch (deviceClass) {
       case _DeviceClass.phone:
         return {
-          'geraet.touch.zonen': 0.35,
-          'geraet.display.schriftgroesse': 'mittel',
-          'geraet.display.helligkeit': 1.0,
-          'geraet.touch.empfindlichkeit': 'mittel',
+          'device.touch.zones': 0.35,
+          'device.display.font_size': 'mittel',
+          'device.display.brightness': 1.0,
+          'device.touch.sensitivity': 'mittel',
         };
       case _DeviceClass.tablet:
         return {
-          'geraet.touch.zonen': 0.40,
-          'geraet.display.schriftgroesse': 'gross',
-          'geraet.display.helligkeit': 1.0,
-          'geraet.touch.empfindlichkeit': 'mittel',
+          'device.touch.zones': 0.40,
+          'device.display.font_size': 'gross',
+          'device.display.brightness': 1.0,
+          'device.touch.sensitivity': 'mittel',
         };
       case _DeviceClass.desktopTablet:
         return {
-          'geraet.touch.zonen': 0.45,
-          'geraet.display.schriftgroesse': 'sehr_gross',
-          'geraet.display.helligkeit': 1.0,
-          'geraet.touch.empfindlichkeit': 'gering',
+          'device.touch.zones': 0.45,
+          'device.display.font_size': 'sehr_gross',
+          'device.display.brightness': 1.0,
+          'device.touch.sensitivity': 'gering',
         };
       case _DeviceClass.desktop:
         return {
-          'geraet.touch.zonen': 0.45,
-          'geraet.display.schriftgroesse': 'mittel',
-          'geraet.display.helligkeit': 1.0,
-          'geraet.touch.empfindlichkeit': 'gering',
+          'device.touch.zones': 0.45,
+          'device.display.font_size': 'mittel',
+          'device.display.brightness': 1.0,
+          'device.touch.sensitivity': 'gering',
         };
     }
   }

@@ -4,29 +4,29 @@
 /// Override: Gerät > Nutzer > Kapelle > System-Default
 
 /// The three configuration levels in Sheetstorm.
-enum ConfigEbene {
-  kapelle,
-  nutzer,
-  geraet;
+enum ConfigLevel {
+  band,
+  user,
+  device;
 
   String get label {
     switch (this) {
-      case ConfigEbene.kapelle:
+      case ConfigLevel.band:
         return 'Kapelle';
-      case ConfigEbene.nutzer:
+      case ConfigLevel.user:
         return 'Persönlich';
-      case ConfigEbene.geraet:
+      case ConfigLevel.device:
         return 'Gerät';
     }
   }
 
-  String get beschreibung {
+  String get description {
     switch (this) {
-      case ConfigEbene.kapelle:
+      case ConfigLevel.band:
         return 'Kapelle-Einstellung';
-      case ConfigEbene.nutzer:
+      case ConfigLevel.user:
         return 'Deine Einstellung';
-      case ConfigEbene.geraet:
+      case ConfigLevel.device:
         return 'Geräte-spezifisch';
     }
   }
@@ -34,137 +34,137 @@ enum ConfigEbene {
 
 /// A raw configuration entry from any level.
 class ConfigEntry {
-  final String schluessel;
-  final ConfigEbene ebene;
-  final dynamic wert;
+  final String key;
+  final ConfigLevel level;
+  final dynamic value;
   final int version;
-  final DateTime aktualisiertAm;
-  final String? referenzId;
+  final DateTime updatedAt;
+  final String? referenceId;
 
   const ConfigEntry({
-    required this.schluessel,
-    required this.ebene,
-    required this.wert,
+    required this.key,
+    required this.level,
+    required this.value,
     this.version = 1,
-    required this.aktualisiertAm,
-    this.referenzId,
+    required this.updatedAt,
+    this.referenceId,
   });
 
   factory ConfigEntry.fromJson(Map<String, dynamic> json) => ConfigEntry(
-        schluessel: json['schluessel'] as String,
-        ebene: ConfigEbene.values.byName(json['ebene'] as String),
-        wert: json['wert'],
+        key: json['key'] as String,
+        level: ConfigLevel.values.byName(json['level'] as String),
+        value: json['value'],
         version: json['version'] as int? ?? 1,
-        aktualisiertAm: json['aktualisiert_am'] != null
-            ? DateTime.parse(json['aktualisiert_am'] as String)
+        updatedAt: json['updated_at'] != null
+            ? DateTime.parse(json['updated_at'] as String)
             : DateTime.now(),
-        referenzId: json['referenz_id'] as String?,
+        referenceId: json['reference_id'] as String?,
       );
 
   Map<String, dynamic> toJson() => {
-        'schluessel': schluessel,
-        'ebene': ebene.name,
-        'wert': wert,
+        'key': key,
+        'level': level.name,
+        'value': value,
         'version': version,
-        'aktualisiert_am': aktualisiertAm.toIso8601String(),
-        'referenz_id': referenzId,
+        'updated_at': updatedAt.toIso8601String(),
+        'reference_id': referenceId,
       };
 
   ConfigEntry copyWith({
-    String? schluessel,
-    ConfigEbene? ebene,
-    dynamic wert,
+    String? key,
+    ConfigLevel? level,
+    dynamic value,
     int? version,
-    DateTime? aktualisiertAm,
-    String? referenzId,
+    DateTime? updatedAt,
+    String? referenceId,
   }) =>
       ConfigEntry(
-        schluessel: schluessel ?? this.schluessel,
-        ebene: ebene ?? this.ebene,
-        wert: wert ?? this.wert,
+        key: key ?? this.key,
+        level: level ?? this.level,
+        value: value ?? this.value,
         version: version ?? this.version,
-        aktualisiertAm: aktualisiertAm ?? this.aktualisiertAm,
-        referenzId: referenzId ?? this.referenzId,
+        updatedAt: updatedAt ?? this.updatedAt,
+        referenceId: referenceId ?? this.referenceId,
       );
 }
 
 /// A policy that can lock a setting at the Kapelle level.
 class ConfigPolicy {
-  final String schluessel;
-  final dynamic wert;
+  final String key;
+  final dynamic value;
   final bool enforced;
-  final DateTime aktualisiertAm;
+  final DateTime updatedAt;
 
   const ConfigPolicy({
-    required this.schluessel,
-    required this.wert,
+    required this.key,
+    required this.value,
     this.enforced = false,
-    required this.aktualisiertAm,
+    required this.updatedAt,
   });
 
   factory ConfigPolicy.fromJson(Map<String, dynamic> json) => ConfigPolicy(
-        schluessel: json['schluessel'] as String,
-        wert: json['wert'],
+        key: json['key'] as String,
+        value: json['value'],
         enforced: json['enforced'] as bool? ?? false,
-        aktualisiertAm: json['aktualisiert_am'] != null
-            ? DateTime.parse(json['aktualisiert_am'] as String)
+        updatedAt: json['updated_at'] != null
+            ? DateTime.parse(json['updated_at'] as String)
             : DateTime.now(),
       );
 
   Map<String, dynamic> toJson() => {
-        'schluessel': schluessel,
-        'wert': wert,
+        'key': key,
+        'value': value,
         'enforced': enforced,
-        'aktualisiert_am': aktualisiertAm.toIso8601String(),
+        'updated_at': updatedAt.toIso8601String(),
       };
 }
 
 /// A fully resolved configuration value with provenance information.
 class ResolvedConfigValue {
-  final String schluessel;
-  final dynamic wert;
-  final ConfigEbene herkunft;
-  final bool istGesperrt;
-  final dynamic kapelleDefault;
-  final dynamic nutzerWert;
-  final dynamic geraetWert;
+  final String key;
+  final dynamic value;
+  final ConfigLevel source;
+  final bool isLocked;
+  final dynamic bandDefault;
+  final dynamic userValue;
+  final dynamic deviceValue;
   final dynamic systemDefault;
 
   const ResolvedConfigValue({
-    required this.schluessel,
-    required this.wert,
-    required this.herkunft,
-    this.istGesperrt = false,
-    this.kapelleDefault,
-    this.nutzerWert,
-    this.geraetWert,
+    required this.key,
+    required this.value,
+    required this.source,
+    this.isLocked = false,
+    this.bandDefault,
+    this.userValue,
+    this.deviceValue,
     this.systemDefault,
   });
 
   /// Whether this value is inherited from a higher level (not set at the current view level).
-  bool isInherited(ConfigEbene viewLevel) => herkunft != viewLevel;
+  bool isInherited(ConfigLevel viewLevel) => source != viewLevel;
 
   /// Whether the user can override this value.
-  bool get canOverride => !istGesperrt;
+  bool get canOverride => !isLocked;
 
   ResolvedConfigValue copyWith({
-    String? schluessel,
-    dynamic wert,
-    ConfigEbene? herkunft,
-    bool? istGesperrt,
-    dynamic kapelleDefault,
-    dynamic nutzerWert,
-    dynamic geraetWert,
+    String? key,
+    dynamic value,
+    ConfigLevel? source,
+    bool? isLocked,
+    dynamic bandDefault,
+    dynamic userValue,
+    dynamic deviceValue,
     dynamic systemDefault,
   }) =>
       ResolvedConfigValue(
-        schluessel: schluessel ?? this.schluessel,
-        wert: wert ?? this.wert,
-        herkunft: herkunft ?? this.herkunft,
-        istGesperrt: istGesperrt ?? this.istGesperrt,
-        kapelleDefault: kapelleDefault ?? this.kapelleDefault,
-        nutzerWert: nutzerWert ?? this.nutzerWert,
-        geraetWert: geraetWert ?? this.geraetWert,
+        key: key ?? this.key,
+        value: value ?? this.value,
+        source: source ?? this.source,
+        isLocked: isLocked ?? this.isLocked,
+        bandDefault: bandDefault ?? this.bandDefault,
+        userValue: userValue ?? this.userValue,
+        deviceValue: deviceValue ?? this.deviceValue,
         systemDefault: systemDefault ?? this.systemDefault,
       );
 }
@@ -172,24 +172,24 @@ class ResolvedConfigValue {
 /// Pending sync entry for offline changes.
 class PendingSyncEntry {
   final int? id;
-  final String schluessel;
-  final dynamic wert;
+  final String key;
+  final dynamic value;
   final int version;
   final DateTime timestamp;
   final bool synced;
 
   const PendingSyncEntry({
     this.id,
-    required this.schluessel,
-    required this.wert,
+    required this.key,
+    required this.value,
     required this.version,
     required this.timestamp,
     this.synced = false,
   });
 
   Map<String, dynamic> toJson() => {
-        'schluessel': schluessel,
-        'wert': wert,
+        'key': key,
+        'value': value,
         'version': version,
         'timestamp': timestamp.toIso8601String(),
       };
@@ -197,17 +197,17 @@ class PendingSyncEntry {
 
 /// Undo action for the auto-save toast.
 class ConfigUndoAction {
-  final String schluessel;
-  final ConfigEbene ebene;
-  final dynamic alterWert;
-  final dynamic neuerWert;
-  final DateTime zeitstempel;
+  final String key;
+  final ConfigLevel level;
+  final dynamic oldValue;
+  final dynamic newValue;
+  final DateTime timestamp;
 
   const ConfigUndoAction({
-    required this.schluessel,
-    required this.ebene,
-    required this.alterWert,
-    required this.neuerWert,
-    required this.zeitstempel,
+    required this.key,
+    required this.level,
+    required this.oldValue,
+    required this.newValue,
+    required this.timestamp,
   });
 }
