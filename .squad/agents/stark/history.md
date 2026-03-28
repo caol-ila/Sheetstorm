@@ -327,3 +327,5 @@ Vollständiges 3-Schichten Backend-Scaffolding für Sheetstorm:
 - Generated files (`pubspec.lock`, `.g.dart`) sollten nach Merge regeneriert werden (`flutter pub get`, `build_runner`)
 - Bei stark divergierenden Branches (spielmodus vs. annotationen) ist `--ours` + manuelle Integration sicherer als Zeile-für-Zeile Marker-Auflösung
 
+
+MS1 complete — all test branches merged.
