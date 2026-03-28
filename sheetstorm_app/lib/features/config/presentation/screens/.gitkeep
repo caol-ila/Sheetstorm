@@ -1,3 +1,0 @@
-// Feature: Konfiguration (3-Ebenen-System)
-// Ebenen: Kapelle (Blau) → Nutzer (Grün) → Gerät (Orange)
-// Override: Gerät > Nutzer > Kapelle > Default — decisions.md

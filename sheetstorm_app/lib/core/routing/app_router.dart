@@ -8,6 +8,7 @@ import 'package:sheetstorm/features/auth/presentation/screens/forgot_password_sc
 import 'package:sheetstorm/features/auth/presentation/screens/login_screen.dart';
 import 'package:sheetstorm/features/auth/presentation/screens/onboarding_screen.dart';
 import 'package:sheetstorm/features/auth/presentation/screens/register_screen.dart';
+import 'package:sheetstorm/features/config/presentation/screens/einstellungen_screen.dart';
 import 'package:sheetstorm/features/kapelle/presentation/screens/kapelle_screen.dart';
 import 'package:sheetstorm/features/noten/presentation/screens/bibliothek_screen.dart';
 import 'package:sheetstorm/features/spielmodus/presentation/screens/spielmodus_screen.dart';
@@ -33,6 +34,7 @@ abstract final class AppRoutes {
   static const String profil = '/app/profil';
   static const String spielmodus = '/app/spielmodus/:notenId';
   static const String kapelle = '/app/kapelle';
+  static const String einstellungen = '/app/einstellungen';
 
   // Deep-Links: sheetstorm://bibliothek/[id]
   static String bibliothekDetail(String id) => '/app/bibliothek/$id';
@@ -158,6 +160,10 @@ GoRouter appRouter(Ref ref) {
               GoRoute(
                 path: AppRoutes.kapelle,
                 builder: (context, state) => const KapelleScreen(),
+              ),
+              GoRoute(
+                path: AppRoutes.einstellungen,
+                builder: (context, state) => const EinstellungenScreen(),
               ),
             ],
           ),
