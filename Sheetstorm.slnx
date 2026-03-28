@@ -4,4 +4,7 @@
     <Project Path="src/Sheetstorm.Domain/Sheetstorm.Domain.csproj" />
     <Project Path="src/Sheetstorm.Infrastructure/Sheetstorm.Infrastructure.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Sheetstorm.Tests/Sheetstorm.Tests.csproj" />
+  </Folder>
 </Solution>

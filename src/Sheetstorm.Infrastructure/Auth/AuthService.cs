@@ -40,7 +40,7 @@ public class AuthService(AppDbContext db, IConfiguration configuration, IEmailSe
             Instrument = request.Instrument?.Trim(),
             OnboardingCompleted = false,
             EmailVerified = false,
-            EmailVerificationToken = verificationToken,
+            EmailVerificationToken = HashToken(verificationToken),
             EmailVerificationTokenExpiresAt = DateTime.UtcNow.AddHours(24)
         };
 
@@ -62,6 +62,9 @@ public class AuthService(AppDbContext db, IConfiguration configuration, IEmailSe
 
         if (musiker is null || !BCrypt.Net.BCrypt.Verify(request.Password, musiker.PasswordHash))
             throw new AuthException("INVALID_CREDENTIALS", "E-Mail oder Passwort ist falsch.", 401);
+
+        if (!musiker.EmailVerified)
+            throw new AuthException("EMAIL_NOT_VERIFIED", "Bitte bestätige zuerst deine E-Mail-Adresse.", 403);
 
         var (accessToken, refreshToken) = await CreateTokenPairAsync(musiker);
         return BuildAuthResponse(musiker, accessToken, refreshToken);
@@ -109,8 +112,10 @@ public class AuthService(AppDbContext db, IConfiguration configuration, IEmailSe
 
     public async Task<MessageResponse> VerifyEmailAsync(VerifyEmailRequest request)
     {
+        var tokenHash = HashToken(request.Token);
+
         var musiker = await db.Musiker
-            .FirstOrDefaultAsync(m => m.EmailVerificationToken == request.Token);
+            .FirstOrDefaultAsync(m => m.EmailVerificationToken == tokenHash);
 
         if (musiker is null ||
             musiker.EmailVerificationTokenExpiresAt is null ||
