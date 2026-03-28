@@ -1,0 +1,63 @@
+name: sheetstorm
+description: Sheetstorm — Notenmanagement für Blaskapellen
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.11.0
+  flutter: '>=3.41.5'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State Management
+  flutter_riverpod: ^3.3.1
+  riverpod_annotation: ^4.0.2
+
+  # Routing
+  go_router: ^17.1.0
+
+  # HTTP
+  dio: ^5.9.2
+
+  # Local DB (SQLite via Drift)
+  drift: ^2.32.1
+  sqlite3_flutter_libs: ^0.5.27
+  path_provider: ^2.1.5
+  path: ^1.9.0
+
+  # PDF Rendering
+  pdfrx: ^2.2.24
+
+  # UI
+  flutter_svg: ^1.1.6
+  cached_network_image: ^3.4.1
+
+  # BLE (Fußpedal)
+  flutter_blue_plus: ^1.34.5
+
+  # Utilities
+  intl: ^0.20.2
+  equatable: ^2.0.7
+  freezed_annotation: ^2.4.4
+  json_annotation: ^4.9.0
+  shared_preferences: ^2.3.5
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+  # Code Generation
+  build_runner: ^2.4.15
+  riverpod_generator: ^4.0.0
+  drift_dev: ^2.32.1
+  freezed: ^2.5.7
+  json_serializable: ^6.9.5
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+    - assets/fonts/
