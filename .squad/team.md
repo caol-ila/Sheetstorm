@@ -15,8 +15,10 @@
 | Stark | Lead / Architect | `.squad/agents/stark/charter.md` | 🏗️ Lead |
 | Fury | Business Analyst | `.squad/agents/fury/charter.md` | 📊 Analyst |
 | Wanda | UX Designer | `.squad/agents/wanda/charter.md` | ⚛️ Design |
-| Romanoff | Frontend / App Dev | `.squad/agents/romanoff/charter.md` | 📱 Frontend |
-| Banner | Backend Dev | `.squad/agents/banner/charter.md` | 🔧 Backend |
+| Romanoff | Frontend / App Dev (Senior) | `.squad/agents/romanoff/charter.md` | 📱 Frontend |
+| Vision | Principal Frontend Engineer | `.squad/agents/vision/charter.md` | 📱 Principal Frontend |
+| Banner | Backend Dev (Senior) | `.squad/agents/banner/charter.md` | 🔧 Backend |
+| Strange | Principal Backend Engineer | `.squad/agents/strange/charter.md` | 🔧 Principal Backend |
 | Parker | Tester / QA | `.squad/agents/parker/charter.md` | 🧪 QA |
 | Hill | Product Manager | `.squad/agents/hill/charter.md` | 📋 Product |
 | Scribe | Session Logger | `.squad/agents/scribe/charter.md` | 📋 Logger |

@@ -11,7 +11,8 @@ How to decide who handles what.
 | Markt- & Konkurrenzanalyse | Fury | Marktrecherche, Wettbewerber, Zielgruppen, User Stories, Business Case |
 | UX & Design | Wanda | Wireframes, User Flows, Mockups, Interaktionsdesign, Accessibility |
 | Frontend / App | Romanoff | UI-Komponenten, App-Code, Client-Logik, responsive Layouts |
-| Backend / API | Banner | APIs, Datenbank, Authentifizierung, Server-Logik, Datenspeicherung |
+| Backend / API | Banner, Strange | CRUD/Standard → Banner (Senior, Sonnet 4.6), Komplex/Security/Echtzeit → Strange (Principal, Opus 4.6) |
+| Frontend / App | Romanoff, Vision | Standard UI → Romanoff (Senior, Sonnet 4.6), Canvas/Rendering/Performance → Vision (Principal, Opus 4.6) |
 | Code review | Stark | Review PRs, check quality, suggest improvements |
 | Testing | Parker | Write tests, find edge cases, verify fixes, Anforderungsvalidierung |
 | Scope & priorities | Stark | What to build next, trade-offs, decisions |
