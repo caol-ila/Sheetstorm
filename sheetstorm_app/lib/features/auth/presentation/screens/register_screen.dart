@@ -55,7 +55,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
   Future<void> _register() async {
     setState(() => _isLoading = true);
-    final response = await ref.read(authNotifierProvider.notifier).register(
+    final response = await ref.read(authProvider.notifier).register(
           _emailController.text.trim(),
           _passwordController.text,
           _nameController.text.trim(),
@@ -66,7 +66,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       // Router redirect handles navigation based on AuthState:
       // AuthEmailPendingVerification → /email-verify
       // AuthAuthenticated (dev mode) → /onboarding
-      final authState = ref.read(authNotifierProvider);
+      final authState = ref.read(authProvider);
       if (authState is AuthEmailPendingVerification) {
         context.go(AppRoutes.emailVerify);
       } else {
@@ -79,7 +79,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    ref.listen<AuthState>(authNotifierProvider, (_, next) {
+    ref.listen<AuthState>(authProvider, (_, next) {
       if (next is AuthError) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

@@ -37,7 +37,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   @override
   void initState() {
     super.initState();
-    final authState = ref.read(authNotifierProvider);
+    final authState = ref.read(authProvider);
     if (authState is AuthAuthenticated) {
       _displayName = authState.user.displayName;
     }
@@ -76,7 +76,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     } catch (_) {
       // Non-blocking: onboarding data saved locally, API best-effort
     }
-    await ref.read(authNotifierProvider.notifier).markOnboardingCompleted();
+    await ref.read(authProvider.notifier).markOnboardingCompleted();
     if (mounted) context.go(AppRoutes.bibliothek);
   }
 
