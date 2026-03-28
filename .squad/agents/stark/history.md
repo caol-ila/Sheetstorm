@@ -280,3 +280,11 @@ Vollständiges 3-Schichten Backend-Scaffolding für Sheetstorm:
 
 **Fix-Branches Status:** Alle 3 Fix-Branches existieren auf Remote, haben aber noch keine PRs. Benötigen 3-Model Re-Review vor Merge.
 
+### 2026-03-29: Feature-Specs #33 und #38 in main gemergt
+
+**Branches:**
+- `squad/33-config-spec` → Konfigurationssystem Feature-Spezifikation (`docs/feature-specs/konfigurationssystem-spec.md`, 786 Zeilen)
+- `squad/38-annotationen-spec` → Annotationen Feature-Spezifikation (`docs/feature-specs/annotationen-spec.md`, 895 Zeilen)
+
+**Ergebnis:** Beide Merges konfliktfrei. Dokumentations-only Changes (keine Code-Änderungen). Push auf main erfolgreich.
+
