@@ -241,25 +241,25 @@ void main() {
     test('toggle(privat) schaltet nur Privat um', () {
       const vis = LayerVisibility();
       final toggled = vis.toggle(AnnotationLevel.private);
-      expect(toggled.privat, isFalse);
-      expect(toggled.stimme, isTrue);
-      expect(toggled.orchester, isTrue);
+      expect(toggled.isPrivate, isFalse);
+      expect(toggled.isVoice, isTrue);
+      expect(toggled.isOrchestra, isTrue);
     });
 
     test('toggle(stimme) schaltet nur Stimme um', () {
       const vis = LayerVisibility();
       final toggled = vis.toggle(AnnotationLevel.voice);
-      expect(toggled.privat, isTrue);
-      expect(toggled.stimme, isFalse);
-      expect(toggled.orchester, isTrue);
+      expect(toggled.isPrivate, isTrue);
+      expect(toggled.isVoice, isFalse);
+      expect(toggled.isOrchestra, isTrue);
     });
 
     test('toggle(orchester) schaltet nur Orchester um', () {
       const vis = LayerVisibility();
       final toggled = vis.toggle(AnnotationLevel.orchestra);
-      expect(toggled.privat, isTrue);
-      expect(toggled.stimme, isTrue);
-      expect(toggled.orchester, isFalse);
+      expect(toggled.isPrivate, isTrue);
+      expect(toggled.isVoice, isTrue);
+      expect(toggled.isOrchestra, isFalse);
     });
 
     test('Doppeltes toggle = Ausgangszustand', () {
@@ -271,15 +271,15 @@ void main() {
     });
 
     test('isVisible respektiert false-Werte', () {
-      const vis = LayerVisibility(privat: false, stimme: true, orchester: false);
+      const vis = LayerVisibility(isPrivate: false, isVoice: true, isOrchestra: false);
       expect(vis.isVisible(AnnotationLevel.private), isFalse);
       expect(vis.isVisible(AnnotationLevel.voice), isTrue);
       expect(vis.isVisible(AnnotationLevel.orchestra), isFalse);
     });
 
     test('Gleichheit per value equality', () {
-      const a = LayerVisibility(privat: true, stimme: false, orchester: true);
-      const b = LayerVisibility(privat: true, stimme: false, orchester: true);
+      const a = LayerVisibility(isPrivate: true, isVoice: false, isOrchestra: true);
+      const b = LayerVisibility(isPrivate: true, isVoice: false, isOrchestra: true);
       expect(a, equals(b));
     });
   });

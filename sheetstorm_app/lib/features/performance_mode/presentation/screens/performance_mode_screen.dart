@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -79,8 +80,8 @@ class _PerformanceModeScreenState extends ConsumerState<PerformanceModeScreen>
 
   void _updateViewMode() {
     final size = MediaQuery.sizeOf(context);
-    final settings = ref.read(performanceModeSettingsNotifierProvider);
-    ref.read(performanceModeNotifierProvider(widget.sheetId).notifier)
+    final settings = ref.read(performanceModeSettingsProvider);
+    ref.read(performanceModeProvider(widget.sheetId).notifier)
         .updateViewModeForOrientation(
       isLandscape: size.width > size.height,
       screenWidth: size.width,
@@ -93,7 +94,7 @@ class _PerformanceModeScreenState extends ConsumerState<PerformanceModeScreen>
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
 
     final notifier =
-        ref.read(performanceModeNotifierProvider(widget.sheetId).notifier);
+        ref.read(performanceModeProvider(widget.sheetId).notifier);
 
     return switch (event.logicalKey) {
       LogicalKeyboardKey.arrowRight ||
@@ -125,12 +126,12 @@ class _PerformanceModeScreenState extends ConsumerState<PerformanceModeScreen>
 
   @override
   Widget build(BuildContext context) {
-    final spielState = ref.watch(performanceModeNotifierProvider(widget.sheetId));
-    final settings = ref.watch(performanceModeSettingsNotifierProvider);
+    final spielState = ref.watch(performanceModeProvider(widget.sheetId));
+    final settings = ref.watch(performanceModeSettingsProvider);
     final notifier =
-        ref.read(performanceModeNotifierProvider(widget.sheetId).notifier);
+        ref.read(performanceModeProvider(widget.sheetId).notifier);
     final settingsNotifier =
-        ref.read(performanceModeSettingsNotifierProvider.notifier);
+        ref.read(performanceModeSettingsProvider.notifier);
 
     // Determine background color based on ColorMode
     final bgColor = switch (settings.colorMode) {
@@ -371,7 +372,7 @@ class _PerformanceModeScreenState extends ConsumerState<PerformanceModeScreen>
     PerformanceModeSettingsNotifier settingsNotifier,
   ) {
     final notifier =
-        ref.read(performanceModeNotifierProvider(widget.sheetId).notifier);
+        ref.read(performanceModeProvider(widget.sheetId).notifier);
     notifier.resetOverlayTimer();
 
     showModalBottomSheet<void>(

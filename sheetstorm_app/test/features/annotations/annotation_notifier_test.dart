@@ -237,26 +237,26 @@ void main() {
     test('Privat ausblenden', () {
       final (c, n) = _setup(null);
       n.toggleLayerVisibility(AnnotationLevel.private);
-      expect(_state(c).layerVisibility.privat, isFalse);
+      expect(_state(c).layerVisibility.isPrivate, isFalse);
     });
 
     test('Stimme ausblenden', () {
       final (c, n) = _setup(null);
       n.toggleLayerVisibility(AnnotationLevel.voice);
-      expect(_state(c).layerVisibility.stimme, isFalse);
+      expect(_state(c).layerVisibility.isVoice, isFalse);
     });
 
     test('Orchester ausblenden', () {
       final (c, n) = _setup(null);
       n.toggleLayerVisibility(AnnotationLevel.orchestra);
-      expect(_state(c).layerVisibility.orchester, isFalse);
+      expect(_state(c).layerVisibility.isOrchestra, isFalse);
     });
 
     test('Doppeltes Toggle → wieder sichtbar', () {
       final (c, n) = _setup(null);
       n.toggleLayerVisibility(AnnotationLevel.private);
       n.toggleLayerVisibility(AnnotationLevel.private);
-      expect(_state(c).layerVisibility.privat, isTrue);
+      expect(_state(c).layerVisibility.isPrivate, isTrue);
     });
 
     test('Ausgeblendete Ebene erscheint nicht in visibleAnnotations', () {
@@ -274,11 +274,11 @@ void main() {
     test('setLayerVisibility setzt alle Ebenen gleichzeitig', () {
       final (c, n) = _setup(null);
       n.setLayerVisibility(
-        const LayerVisibility(privat: false, stimme: false, orchester: false),
+        const LayerVisibility(isPrivate: false, isVoice: false, isOrchestra: false),
       );
-      expect(_state(c).layerVisibility.privat, isFalse);
-      expect(_state(c).layerVisibility.stimme, isFalse);
-      expect(_state(c).layerVisibility.orchester, isFalse);
+      expect(_state(c).layerVisibility.isPrivate, isFalse);
+      expect(_state(c).layerVisibility.isVoice, isFalse);
+      expect(_state(c).layerVisibility.isOrchestra, isFalse);
     });
   });
 

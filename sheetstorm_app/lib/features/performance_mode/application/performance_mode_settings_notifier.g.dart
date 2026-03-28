@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of 'spielmodus_settings_notifier.dart';
+part of 'performance_mode_settings_notifier.dart';
 
 // **************************************************************************
 // RiverpodGenerator
@@ -11,19 +11,23 @@ part of 'spielmodus_settings_notifier.dart';
 /// Provider for persistent Spielmodus settings (Spec §4, Datenmodell §7.3).
 
 @ProviderFor(PerformanceModeSettingsNotifier)
-final spielmodusSettingsProvider = PerformanceModeSettingsNotifierProvider._();
+final performanceModeSettingsProvider =
+    PerformanceModeSettingsNotifierProvider._();
 
 /// Provider for persistent Spielmodus settings (Spec §4, Datenmodell §7.3).
 final class PerformanceModeSettingsNotifierProvider
     extends
-        $NotifierProvider<PerformanceModeSettingsNotifier, PerformanceModeSettings> {
+        $NotifierProvider<
+          PerformanceModeSettingsNotifier,
+          PerformanceModeSettings
+        > {
   /// Provider for persistent Spielmodus settings (Spec §4, Datenmodell §7.3).
   PerformanceModeSettingsNotifierProvider._()
     : super(
         from: null,
         argument: null,
         retry: null,
-        name: r'spielmodusSettingsProvider',
+        name: r'performanceModeSettingsProvider',
         isAutoDispose: true,
         dependencies: null,
         $allTransitiveDependencies: null,
@@ -46,7 +50,7 @@ final class PerformanceModeSettingsNotifierProvider
 }
 
 String _$performanceModeSettingsNotifierHash() =>
-    r'94e8ab6f488dd63827ca04978210014a915a9d92';
+    r'7f423cd4f6d6003825136a6e203a7762d3a8c2ef';
 
 /// Provider for persistent Spielmodus settings (Spec §4, Datenmodell §7.3).
 

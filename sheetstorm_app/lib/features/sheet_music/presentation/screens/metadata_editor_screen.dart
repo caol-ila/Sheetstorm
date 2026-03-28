@@ -428,7 +428,7 @@ class _MetadataField extends StatelessWidget {
             labelText: label,
             hintText: hasVorschlag && fieldIsEmpty ? suggestion!.value : null,
             hintStyle: TextStyle(
-              color: _confidenceColor(suggestion?.stufe).withOpacity(0.7),
+              color: _confidenceColor(suggestion?.level).withOpacity(0.7),
               fontStyle: FontStyle.italic,
             ),
             suffixIcon: confirmed
@@ -448,8 +448,8 @@ class _MetadataField extends StatelessWidget {
     );
   }
 
-  Color _confidenceColor(ConfidenceLevel? stufe) {
-    return switch (stufe) {
+  Color _confidenceColor(ConfidenceLevel? level) {
+    return switch (level) {
       ConfidenceLevel.high => AppColors.success,
       ConfidenceLevel.medium => AppColors.warning,
       ConfidenceLevel.low => AppColors.error,
@@ -467,13 +467,13 @@ class _AiChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final confidenceColor = switch (suggestion.stufe) {
+    final confidenceColor = switch (suggestion.level) {
       ConfidenceLevel.high => AppColors.success,
       ConfidenceLevel.medium => AppColors.warning,
       ConfidenceLevel.low => AppColors.error,
       _ => AppColors.textSecondary,
     };
-    final confidenceLabel = switch (suggestion.stufe) {
+    final confidenceLabel = switch (suggestion.level) {
       ConfidenceLevel.high => 'KI-Vorschlag (sicher)',
       ConfidenceLevel.medium => 'KI-Vorschlag (wahrscheinlich)',
       ConfidenceLevel.low => 'KI-Vorschlag (unsicher)',

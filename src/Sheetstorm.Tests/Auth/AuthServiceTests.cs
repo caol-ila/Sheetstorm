@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Hosting;
 using Moq;
 using Sheetstorm.Domain.Auth;
 using Sheetstorm.Infrastructure.Auth;
@@ -22,7 +23,8 @@ public class AuthServiceTests : IDisposable
     {
         _db = TestDbContextFactory.Create();
         var emailService = new Mock<IEmailService>().Object;
-        _sut = new AuthService(_db, TestJwtConfig.Create(), emailService);
+        var environment = new Mock<IHostEnvironment>();
+        _sut = new AuthService(_db, TestJwtConfig.Create(), emailService, environment.Object);
     }
 
     // ─── Register ────────────────────────────────────────────────────────────

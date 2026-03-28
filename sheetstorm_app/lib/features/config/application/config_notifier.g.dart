@@ -1,29 +1,62 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-// ignore_for_file: type=lint
-// coverage:ignore-file
-
 part of 'config_notifier.dart';
 
 // **************************************************************************
 // RiverpodGenerator
 // **************************************************************************
 
-String _$configNotifierHash() => r'placeholder_hash_run_build_runner';
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: type=lint, type=warning
 
-/// See also [ConfigNotifier].
 @ProviderFor(ConfigNotifier)
-final configNotifierProvider =
-    NotifierProvider<ConfigNotifier, ConfigState>.internal(
-  ConfigNotifier.new,
-  name: r'configNotifierProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$configNotifierHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
+final configProvider = ConfigNotifierProvider._();
 
-typedef _$ConfigNotifier = Notifier<ConfigState>;
-// ignore_for_file: type=lint
-// ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package
+final class ConfigNotifierProvider
+    extends $NotifierProvider<ConfigNotifier, ConfigState> {
+  ConfigNotifierProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'configProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$configNotifierHash();
+
+  @$internal
+  @override
+  ConfigNotifier create() => ConfigNotifier();
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(ConfigState value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<ConfigState>(value),
+    );
+  }
+}
+
+String _$configNotifierHash() => r'20c743a051d9848dde45723bb38ac3324014127f';
+
+abstract class _$ConfigNotifier extends $Notifier<ConfigState> {
+  ConfigState build();
+  @$mustCallSuper
+  @override
+  void runBuild() {
+    final ref = this.ref as $Ref<ConfigState, ConfigState>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<ConfigState, ConfigState>,
+              ConfigState,
+              Object?,
+              Object?
+            >;
+    element.handleCreate(ref, build);
+  }
+}

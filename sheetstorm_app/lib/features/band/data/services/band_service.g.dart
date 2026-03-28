@@ -48,4 +48,4 @@ final class BandServiceProvider
   }
 }
 
-String _$bandServiceHash() => r'a955ef789ebb433cdb20f608fc2fc0307ece4744';
+String _$bandServiceHash() => r'5ac0cf24f219d80ab58d91faf90ade991e17baf9';

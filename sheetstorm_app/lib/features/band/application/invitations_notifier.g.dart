@@ -51,7 +51,7 @@ final class InvitationsNotifierProvider
 }
 
 String _$invitationsNotifierHash() =>
-    r'adda51e79a4670e614c06a3cb9b07e7b286f3016';
+    r'f6ae9c4f4f9f8bcf5c80f519d44b07b408a29650';
 
 final class InvitationsNotifierFamily extends $Family
     with
@@ -86,7 +86,8 @@ abstract class _$InvitationsNotifier extends $AsyncNotifier<List<Invitation>> {
   @$mustCallSuper
   @override
   void runBuild() {
-    final ref = this.ref as $Ref<AsyncValue<List<Invitation>>, List<Invitation>>;
+    final ref =
+        this.ref as $Ref<AsyncValue<List<Invitation>>, List<Invitation>>;
     final element =
         ref.element
             as $ClassProviderElement<

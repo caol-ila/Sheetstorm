@@ -41,7 +41,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
 
     // Initialize config on first load
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(configNotifierProvider.notifier).initialize();
+      ref.read(configProvider.notifier).initialize();
     });
   }
 
@@ -53,10 +53,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
 
   @override
   Widget build(BuildContext context) {
-    final configState = ref.watch(configNotifierProvider);
+    final configState = ref.watch(configProvider);
 
     // Listen for undo actions
-    ref.listen<ConfigState>(configNotifierProvider, (prev, next) {
+    ref.listen<ConfigState>(configProvider, (prev, next) {
       if (next.pendingUndo != null && prev?.pendingUndo != next.pendingUndo) {
         _showUndoToast(next.pendingUndo!);
       }
@@ -142,7 +142,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
       context,
       message: '$keyLabel geändert',
       onUndo: () {
-        ref.read(configNotifierProvider.notifier).undo();
+        ref.read(configProvider.notifier).undo();
       },
     );
   }
@@ -169,7 +169,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
           const SizedBox(height: AppSpacing.md),
           ElevatedButton(
             onPressed: () {
-              ref.read(configNotifierProvider.notifier).initialize();
+              ref.read(configProvider.notifier).initialize();
             },
             child: const Text('Erneut versuchen'),
           ),

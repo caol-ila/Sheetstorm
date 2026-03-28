@@ -189,7 +189,7 @@ class ImportService {
 
       suggestions = MetadataSuggestions(
         title: parseField('title'),
-        stimme: parseField('stimme'),
+        voice: parseField('stimme'),
         musicalKey: parseField('musical_key'),
         timeSignature: parseField('time_signature'),
         composer: parseField('composer'),

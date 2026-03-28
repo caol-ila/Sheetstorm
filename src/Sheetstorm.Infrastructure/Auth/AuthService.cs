@@ -5,6 +5,7 @@ using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.Extensions.Hosting;
 using Sheetstorm.Domain.Auth;
 using Sheetstorm.Domain.Entities;
 using Sheetstorm.Infrastructure.Email;
@@ -12,7 +13,7 @@ using Sheetstorm.Infrastructure.Persistence;
 
 namespace Sheetstorm.Infrastructure.Auth;
 
-public class AuthService(AppDbContext db, IConfiguration configuration, IEmailService emailService) : IAuthService
+public class AuthService(AppDbContext db, IConfiguration configuration, IEmailService emailService, IHostEnvironment environment) : IAuthService
 {
     private const int AccessTokenExpirySeconds = 900; // 15 minutes
     private const int RefreshTokenExpiryDays = 30;
@@ -267,8 +268,13 @@ public class AuthService(AppDbContext db, IConfiguration configuration, IEmailSe
             .Replace('+', '-').Replace('/', '_').TrimEnd('=');
     }
 
-    private static void ValidatePasswordStrength(string password)
+    private void ValidatePasswordStrength(string password)
     {
+        // Im Development-Modus wird die Passwort-Policy gelockert,
+        // damit einfache Test-Passwörter wie "demo" funktionieren.
+        if (environment.IsDevelopment())
+            return;
+
         if (password.Length < 8)
             throw new AuthException("PASSWORD_TOO_WEAK", "Das Passwort muss mindestens 8 Zeichen lang sein.", 422);
 

@@ -14,17 +14,17 @@ Future<(ProviderContainer, PerformanceModeNotifier)> _makeNotifier(
   addTearDown(container.dispose);
 
   // Listen to keep the autoDispose provider alive
-  final sub = container.listen(spielmodusProvider(sheetId), (_, __) {});
+  final sub = container.listen(performanceModeProvider(sheetId), (_, __) {});
   addTearDown(sub.close);
 
-  final notifier = container.read(spielmodusProvider(sheetId).notifier);
+  final notifier = container.read(performanceModeProvider(sheetId).notifier);
   // Wait for _loadSheetMusic (100 ms delay in implementation)
   await Future<void>.delayed(const Duration(milliseconds: 200));
   return (container, notifier);
 }
 
 PerformanceModeState _state(ProviderContainer c, String id) =>
-    c.read(spielmodusProvider(id));
+    c.read(performanceModeProvider(id));
 
 void main() {
   setUpAll(() {
@@ -34,9 +34,9 @@ void main() {
     test('starts in loading state', () {
       final container = ProviderContainer();
       addTearDown(container.dispose);
-      final sub = container.listen(spielmodusProvider('test'), (_, __) {});
+      final sub = container.listen(performanceModeProvider('test'), (_, __) {});
       addTearDown(sub.close);
-      final state = container.read(spielmodusProvider('test'));
+      final state = container.read(performanceModeProvider('test'));
       expect(state.isLoading, isTrue);
     });
 

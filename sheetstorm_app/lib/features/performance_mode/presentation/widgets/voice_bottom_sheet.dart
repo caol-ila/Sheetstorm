@@ -101,7 +101,7 @@ class VoiceBottomSheet extends StatelessWidget {
     );
   }
 
-  Widget _buildStimmeItem(BuildContext context, Stimme stimme) {
+  Widget _buildStimmeItem(BuildContext context, Voice stimme) {
     final isSelected = stimme.id == currentVoiceId;
 
     return ListTile(

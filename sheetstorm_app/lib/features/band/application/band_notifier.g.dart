@@ -42,7 +42,7 @@ final class ActiveBandNotifierProvider
 }
 
 String _$activeBandNotifierHash() =>
-    r'ff787470da5a4064c7106566556523b6e7e91dea';
+    r'2f99f90a536a3b354f23d72d7eb08e8895b88691';
 
 abstract class _$ActiveBandNotifier extends $Notifier<String?> {
   String? build();
@@ -86,8 +86,7 @@ final class BandListNotifierProvider
   BandListNotifier create() => BandListNotifier();
 }
 
-String _$bandListNotifierHash() =>
-    r'71c0dd616746833e7754121531af2385528f10cd';
+String _$bandListNotifierHash() => r'1e1bf7f09af4908dc85b5da9894026ad7ce6b6a9';
 
 abstract class _$BandListNotifier extends $AsyncNotifier<List<Band>> {
   FutureOr<List<Band>> build();

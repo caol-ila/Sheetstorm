@@ -102,13 +102,13 @@ class AuthNotifier extends _$AuthNotifier {
       state = _resolveAuthenticatedState(response.user);
     } on DioException catch (e) {
       state = AuthError(_messageFromDioError(e));
-    } catch (_) {
-      state = const AuthError('Ein unbekannter Fehler ist aufgetreten.');
+    } catch (e) {
+      state = AuthError('Ein unbekannter Fehler ist aufgetreten: $e');
     }
   }
 
   /// Returns the [AuthResponse] so callers can navigate after registration.
-  Future<AuthResponse?> sections(
+  Future<AuthResponse?> register(
     String email,
     String password,
     String displayName,
@@ -117,7 +117,7 @@ class AuthNotifier extends _$AuthNotifier {
     try {
       final service = ref.read(authServiceProvider);
       final storage = ref.read(tokenStorageProvider);
-      final response = await service.sections(email, password, displayName);
+      final response = await service.register(email, password, displayName);
       await storage.saveTokens(response.tokens);
       await storage.saveUser(response.user);
       state = _resolveAuthenticatedState(response.user);

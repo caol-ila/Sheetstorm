@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:sheetstorm/core/config/app_config.dart';
 import 'package:sheetstorm/features/auth/data/models/auth_models.dart';
 
 part 'auth_service.g.dart';
@@ -10,14 +11,12 @@ AuthService authService(Ref ref) => AuthService();
 /// Pure HTTP layer for auth endpoints. Uses its own Dio instance
 /// (no auth interceptor) to avoid circular dependencies.
 class AuthService {
-  static const _baseUrl = 'https://api.sheetstorm.app/v1';
-
   final Dio _dio;
 
   AuthService()
       : _dio = Dio(
           BaseOptions(
-            baseUrl: _baseUrl,
+            baseUrl: AppConfig.apiBaseUrl,
             connectTimeout: const Duration(seconds: 10),
             receiveTimeout: const Duration(seconds: 30),
             headers: {
@@ -35,13 +34,13 @@ class AuthService {
     return AuthResponse.fromJson(res.data!);
   }
 
-  Future<AuthResponse> sections(
+  Future<AuthResponse> register(
     String email,
     String password,
     String displayName,
   ) async {
     final res = await _dio.post<Map<String, dynamic>>(
-      '/api/auth/sections',
+      '/api/auth/register',
       data: {
         'email': email,
         'password': password,
@@ -54,7 +53,7 @@ class AuthService {
   Future<AuthTokens> refreshToken(String refreshToken) async {
     final res = await _dio.post<Map<String, dynamic>>(
       '/api/auth/refresh',
-      data: {'refresh_token': refreshToken},
+      data: {'refreshToken': refreshToken},
     );
     return AuthTokens.fromJson(res.data!);
   }

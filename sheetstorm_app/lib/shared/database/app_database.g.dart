@@ -3,7 +3,8 @@
 part of 'app_database.dart';
 
 // ignore_for_file: type=lint
-class $SheetMusicsTable extends SheetMusics with TableInfo<$SheetMusicsTable, SheetMusicsData> {
+class $SheetMusicsTable extends SheetMusics
+    with TableInfo<$SheetMusicsTable, SheetMusic> {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
@@ -21,7 +22,7 @@ class $SheetMusicsTable extends SheetMusics with TableInfo<$SheetMusicsTable, Sh
       'PRIMARY KEY AUTOINCREMENT',
     ),
   );
-  static const VerificationMeta _titelMeta = const VerificationMeta('title');
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
   @override
   late final GeneratedColumn<String> title = GeneratedColumn<String>(
     'title',
@@ -59,7 +60,7 @@ class $SheetMusicsTable extends SheetMusics with TableInfo<$SheetMusicsTable, Sh
   );
   @override
   late final GeneratedColumn<String> localPath = GeneratedColumn<String>(
-    'lokaler_pfad',
+    'local_path',
     aliasedName,
     true,
     type: DriftSqlType.string,
@@ -69,13 +70,13 @@ class $SheetMusicsTable extends SheetMusics with TableInfo<$SheetMusicsTable, Sh
       const VerificationMeta('isOfflineAvailable');
   @override
   late final GeneratedColumn<bool> isOfflineAvailable = GeneratedColumn<bool>(
-    'ist_offline_verfuegbar',
+    'is_offline_available',
     aliasedName,
     false,
     type: DriftSqlType.bool,
     requiredDuringInsert: false,
     defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'CHECK ("ist_offline_verfuegbar" IN (0, 1))',
+      'CHECK ("is_offline_available" IN (0, 1))',
     ),
     defaultValue: const Constant(false),
   );
@@ -95,15 +96,14 @@ class $SheetMusicsTable extends SheetMusics with TableInfo<$SheetMusicsTable, Sh
     'updatedAt',
   );
   @override
-  late final GeneratedColumn<DateTime> updatedAt =
-      GeneratedColumn<DateTime>(
-        'updated_at',
-        aliasedName,
-        false,
-        type: DriftSqlType.dateTime,
-        requiredDuringInsert: false,
-        defaultValue: currentDateAndTime,
-      );
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -119,10 +119,10 @@ class $SheetMusicsTable extends SheetMusics with TableInfo<$SheetMusicsTable, Sh
   String get aliasedName => _alias ?? actualTableName;
   @override
   String get actualTableName => $name;
-  static const String $name = 'SheetMusics';
+  static const String $name = 'sheet_musics';
   @override
   VerificationContext validateIntegrity(
-    Insertable<SheetMusicsData> instance, {
+    Insertable<SheetMusic> instance, {
     bool isInserting = false,
   }) {
     final context = VerificationContext();
@@ -132,11 +132,11 @@ class $SheetMusicsTable extends SheetMusics with TableInfo<$SheetMusicsTable, Sh
     }
     if (data.containsKey('title')) {
       context.handle(
-        _titelMeta,
-        title.isAcceptableOrUnknown(data['title']!, _titelMeta),
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
       );
     } else if (isInserting) {
-      context.missing(_titelMeta);
+      context.missing(_titleMeta);
     }
     if (data.containsKey('composer')) {
       context.handle(
@@ -150,20 +150,17 @@ class $SheetMusicsTable extends SheetMusics with TableInfo<$SheetMusicsTable, Sh
         genre.isAcceptableOrUnknown(data['genre']!, _genreMeta),
       );
     }
-    if (data.containsKey('lokaler_pfad')) {
+    if (data.containsKey('local_path')) {
       context.handle(
         _localPathMeta,
-        localPath.isAcceptableOrUnknown(
-          data['lokaler_pfad']!,
-          _localPathMeta,
-        ),
+        localPath.isAcceptableOrUnknown(data['local_path']!, _localPathMeta),
       );
     }
-    if (data.containsKey('ist_offline_verfuegbar')) {
+    if (data.containsKey('is_offline_available')) {
       context.handle(
         _isOfflineAvailableMeta,
         isOfflineAvailable.isAcceptableOrUnknown(
-          data['ist_offline_verfuegbar']!,
+          data['is_offline_available']!,
           _isOfflineAvailableMeta,
         ),
       );
@@ -177,10 +174,7 @@ class $SheetMusicsTable extends SheetMusics with TableInfo<$SheetMusicsTable, Sh
     if (data.containsKey('updated_at')) {
       context.handle(
         _updatedAtMeta,
-        updatedAt.isAcceptableOrUnknown(
-          data['updated_at']!,
-          _updatedAtMeta,
-        ),
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
       );
     }
     return context;
@@ -189,9 +183,9 @@ class $SheetMusicsTable extends SheetMusics with TableInfo<$SheetMusicsTable, Sh
   @override
   Set<GeneratedColumn> get $primaryKey => {id};
   @override
-  SheetMusicsData map(Map<String, dynamic> data, {String? tablePrefix}) {
+  SheetMusic map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return SheetMusicsData(
+    return SheetMusic(
       id: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}id'],
@@ -210,19 +204,19 @@ class $SheetMusicsTable extends SheetMusics with TableInfo<$SheetMusicsTable, Sh
       ),
       localPath: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}lokaler_pfad'],
+        data['${effectivePrefix}local_path'],
       ),
       isOfflineAvailable: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
-        data['${effectivePrefix}ist_offline_verfuegbar'],
+        data['${effectivePrefix}is_offline_available'],
       )!,
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
-        data['${effectivePrefix}erstellt_am'],
+        data['${effectivePrefix}created_at'],
       )!,
       updatedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
-        data['${effectivePrefix}aktualisiert_am'],
+        data['${effectivePrefix}updated_at'],
       )!,
     );
   }
@@ -233,7 +227,7 @@ class $SheetMusicsTable extends SheetMusics with TableInfo<$SheetMusicsTable, Sh
   }
 }
 
-class SheetMusicsData extends DataClass implements Insertable<SheetMusicsData> {
+class SheetMusic extends DataClass implements Insertable<SheetMusic> {
   final int id;
   final String title;
   final String? composer;
@@ -242,7 +236,7 @@ class SheetMusicsData extends DataClass implements Insertable<SheetMusicsData> {
   final bool isOfflineAvailable;
   final DateTime createdAt;
   final DateTime updatedAt;
-  const SheetMusicsData({
+  const SheetMusic({
     required this.id,
     required this.title,
     this.composer,
@@ -264,9 +258,9 @@ class SheetMusicsData extends DataClass implements Insertable<SheetMusicsData> {
       map['genre'] = Variable<String>(genre);
     }
     if (!nullToAbsent || localPath != null) {
-      map['lokaler_pfad'] = Variable<String>(localPath);
+      map['local_path'] = Variable<String>(localPath);
     }
-    map['ist_offline_verfuegbar'] = Variable<bool>(isOfflineAvailable);
+    map['is_offline_available'] = Variable<bool>(isOfflineAvailable);
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     return map;
@@ -291,20 +285,18 @@ class SheetMusicsData extends DataClass implements Insertable<SheetMusicsData> {
     );
   }
 
-  factory SheetMusicsData.fromJson(
+  factory SheetMusic.fromJson(
     Map<String, dynamic> json, {
     ValueSerializer? serializer,
   }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
-    return SheetMusicsData(
+    return SheetMusic(
       id: serializer.fromJson<int>(json['id']),
       title: serializer.fromJson<String>(json['title']),
       composer: serializer.fromJson<String?>(json['composer']),
       genre: serializer.fromJson<String?>(json['genre']),
       localPath: serializer.fromJson<String?>(json['localPath']),
-      isOfflineAvailable: serializer.fromJson<bool>(
-        json['isOfflineAvailable'],
-      ),
+      isOfflineAvailable: serializer.fromJson<bool>(json['isOfflineAvailable']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
@@ -324,7 +316,7 @@ class SheetMusicsData extends DataClass implements Insertable<SheetMusicsData> {
     };
   }
 
-  SheetMusicsData copyWith({
+  SheetMusic copyWith({
     int? id,
     String? title,
     Value<String?> composer = const Value.absent(),
@@ -333,7 +325,7 @@ class SheetMusicsData extends DataClass implements Insertable<SheetMusicsData> {
     bool? isOfflineAvailable,
     DateTime? createdAt,
     DateTime? updatedAt,
-  }) => SheetMusicsData(
+  }) => SheetMusic(
     id: id ?? this.id,
     title: title ?? this.title,
     composer: composer.present ? composer.value : this.composer,
@@ -343,30 +335,24 @@ class SheetMusicsData extends DataClass implements Insertable<SheetMusicsData> {
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
   );
-  SheetMusicsData copyWithCompanion(SheetMusicsCompanion data) {
-    return SheetMusicsData(
+  SheetMusic copyWithCompanion(SheetMusicsCompanion data) {
+    return SheetMusic(
       id: data.id.present ? data.id.value : this.id,
       title: data.title.present ? data.title.value : this.title,
       composer: data.composer.present ? data.composer.value : this.composer,
       genre: data.genre.present ? data.genre.value : this.genre,
-      localPath: data.localPath.present
-          ? data.localPath.value
-          : this.localPath,
+      localPath: data.localPath.present ? data.localPath.value : this.localPath,
       isOfflineAvailable: data.isOfflineAvailable.present
           ? data.isOfflineAvailable.value
           : this.isOfflineAvailable,
-      createdAt: data.createdAt.present
-          ? data.createdAt.value
-          : this.createdAt,
-      updatedAt: data.updatedAt.present
-          ? data.updatedAt.value
-          : this.updatedAt,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
   }
 
   @override
   String toString() {
-    return (StringBuffer('SheetMusicsData(')
+    return (StringBuffer('SheetMusic(')
           ..write('id: $id, ')
           ..write('title: $title, ')
           ..write('composer: $composer, ')
@@ -393,7 +379,7 @@ class SheetMusicsData extends DataClass implements Insertable<SheetMusicsData> {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is SheetMusicsData &&
+      (other is SheetMusic &&
           other.id == this.id &&
           other.title == this.title &&
           other.composer == this.composer &&
@@ -404,7 +390,7 @@ class SheetMusicsData extends DataClass implements Insertable<SheetMusicsData> {
           other.updatedAt == this.updatedAt);
 }
 
-class SheetMusicsCompanion extends UpdateCompanion<SheetMusicsData> {
+class SheetMusicsCompanion extends UpdateCompanion<SheetMusic> {
   final Value<int> id;
   final Value<String> title;
   final Value<String?> composer;
@@ -433,7 +419,7 @@ class SheetMusicsCompanion extends UpdateCompanion<SheetMusicsData> {
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
   }) : title = Value(title);
-  static Insertable<SheetMusicsData> custom({
+  static Insertable<SheetMusic> custom({
     Expression<int>? id,
     Expression<String>? title,
     Expression<String>? composer,
@@ -448,9 +434,9 @@ class SheetMusicsCompanion extends UpdateCompanion<SheetMusicsData> {
       if (title != null) 'title': title,
       if (composer != null) 'composer': composer,
       if (genre != null) 'genre': genre,
-      if (localPath != null) 'lokaler_pfad': localPath,
+      if (localPath != null) 'local_path': localPath,
       if (isOfflineAvailable != null)
-        'ist_offline_verfuegbar': isOfflineAvailable,
+        'is_offline_available': isOfflineAvailable,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
     });
@@ -494,12 +480,10 @@ class SheetMusicsCompanion extends UpdateCompanion<SheetMusicsData> {
       map['genre'] = Variable<String>(genre.value);
     }
     if (localPath.present) {
-      map['lokaler_pfad'] = Variable<String>(localPath.value);
+      map['local_path'] = Variable<String>(localPath.value);
     }
     if (isOfflineAvailable.present) {
-      map['ist_offline_verfuegbar'] = Variable<bool>(
-        isOfflineAvailable.value,
-      );
+      map['is_offline_available'] = Variable<bool>(isOfflineAvailable.value);
     }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
@@ -526,7 +510,7 @@ class SheetMusicsCompanion extends UpdateCompanion<SheetMusicsData> {
   }
 }
 
-class $VoicesTable extends Voices with TableInfo<$VoicesTable, VoicesData> {
+class $VoicesTable extends Voices with TableInfo<$VoicesTable, Voice> {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
@@ -549,13 +533,13 @@ class $VoicesTable extends Voices with TableInfo<$VoicesTable, VoicesData> {
   );
   @override
   late final GeneratedColumn<int> sheetId = GeneratedColumn<int>(
-    'SheetMusics_id',
+    'sheet_id',
     aliasedName,
     false,
     type: DriftSqlType.int,
     requiredDuringInsert: true,
     defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'REFERENCES SheetMusics (id)',
+      'REFERENCES sheet_musics (id)',
     ),
   );
   static const VerificationMeta _nameMeta = const VerificationMeta('name');
@@ -587,7 +571,7 @@ class $VoicesTable extends Voices with TableInfo<$VoicesTable, VoicesData> {
   );
   @override
   late final GeneratedColumn<int> pageCount = GeneratedColumn<int>(
-    'seiten_anzahl',
+    'page_count',
     aliasedName,
     false,
     type: DriftSqlType.int,
@@ -609,7 +593,7 @@ class $VoicesTable extends Voices with TableInfo<$VoicesTable, VoicesData> {
   static const String $name = 'voices';
   @override
   VerificationContext validateIntegrity(
-    Insertable<VoicesData> instance, {
+    Insertable<Voice> instance, {
     bool isInserting = false,
   }) {
     final context = VerificationContext();
@@ -617,10 +601,10 @@ class $VoicesTable extends Voices with TableInfo<$VoicesTable, VoicesData> {
     if (data.containsKey('id')) {
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
     }
-    if (data.containsKey('SheetMusics_id')) {
+    if (data.containsKey('sheet_id')) {
       context.handle(
         _sheetIdMeta,
-        sheetId.isAcceptableOrUnknown(data['SheetMusics_id']!, _sheetIdMeta),
+        sheetId.isAcceptableOrUnknown(data['sheet_id']!, _sheetIdMeta),
       );
     } else if (isInserting) {
       context.missing(_sheetIdMeta);
@@ -639,13 +623,10 @@ class $VoicesTable extends Voices with TableInfo<$VoicesTable, VoicesData> {
         instrument.isAcceptableOrUnknown(data['instrument']!, _instrumentMeta),
       );
     }
-    if (data.containsKey('seiten_anzahl')) {
+    if (data.containsKey('page_count')) {
       context.handle(
         _pageCountMeta,
-        pageCount.isAcceptableOrUnknown(
-          data['seiten_anzahl']!,
-          _pageCountMeta,
-        ),
+        pageCount.isAcceptableOrUnknown(data['page_count']!, _pageCountMeta),
       );
     }
     return context;
@@ -654,16 +635,16 @@ class $VoicesTable extends Voices with TableInfo<$VoicesTable, VoicesData> {
   @override
   Set<GeneratedColumn> get $primaryKey => {id};
   @override
-  VoicesData map(Map<String, dynamic> data, {String? tablePrefix}) {
+  Voice map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return VoicesData(
+    return Voice(
       id: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}id'],
       )!,
       sheetId: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
-        data['${effectivePrefix}SheetMusics_id'],
+        data['${effectivePrefix}sheet_id'],
       )!,
       name: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
@@ -675,7 +656,7 @@ class $VoicesTable extends Voices with TableInfo<$VoicesTable, VoicesData> {
       ),
       pageCount: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
-        data['${effectivePrefix}seiten_anzahl'],
+        data['${effectivePrefix}page_count'],
       )!,
     );
   }
@@ -686,13 +667,13 @@ class $VoicesTable extends Voices with TableInfo<$VoicesTable, VoicesData> {
   }
 }
 
-class VoicesData extends DataClass implements Insertable<VoicesData> {
+class Voice extends DataClass implements Insertable<Voice> {
   final int id;
   final int sheetId;
   final String name;
   final String? instrument;
   final int pageCount;
-  const VoicesData({
+  const Voice({
     required this.id,
     required this.sheetId,
     required this.name,
@@ -703,12 +684,12 @@ class VoicesData extends DataClass implements Insertable<VoicesData> {
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['id'] = Variable<int>(id);
-    map['SheetMusics_id'] = Variable<int>(sheetId);
+    map['sheet_id'] = Variable<int>(sheetId);
     map['name'] = Variable<String>(name);
     if (!nullToAbsent || instrument != null) {
       map['instrument'] = Variable<String>(instrument);
     }
-    map['seiten_anzahl'] = Variable<int>(pageCount);
+    map['page_count'] = Variable<int>(pageCount);
     return map;
   }
 
@@ -724,12 +705,12 @@ class VoicesData extends DataClass implements Insertable<VoicesData> {
     );
   }
 
-  factory VoicesData.fromJson(
+  factory Voice.fromJson(
     Map<String, dynamic> json, {
     ValueSerializer? serializer,
   }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
-    return VoicesData(
+    return Voice(
       id: serializer.fromJson<int>(json['id']),
       sheetId: serializer.fromJson<int>(json['sheetId']),
       name: serializer.fromJson<String>(json['name']),
@@ -749,36 +730,34 @@ class VoicesData extends DataClass implements Insertable<VoicesData> {
     };
   }
 
-  VoicesData copyWith({
+  Voice copyWith({
     int? id,
     int? sheetId,
     String? name,
     Value<String?> instrument = const Value.absent(),
     int? pageCount,
-  }) => VoicesData(
+  }) => Voice(
     id: id ?? this.id,
     sheetId: sheetId ?? this.sheetId,
     name: name ?? this.name,
     instrument: instrument.present ? instrument.value : this.instrument,
     pageCount: pageCount ?? this.pageCount,
   );
-  VoicesData copyWithCompanion(VoicesCompanion data) {
-    return VoicesData(
+  Voice copyWithCompanion(VoicesCompanion data) {
+    return Voice(
       id: data.id.present ? data.id.value : this.id,
       sheetId: data.sheetId.present ? data.sheetId.value : this.sheetId,
       name: data.name.present ? data.name.value : this.name,
       instrument: data.instrument.present
           ? data.instrument.value
           : this.instrument,
-      pageCount: data.pageCount.present
-          ? data.pageCount.value
-          : this.pageCount,
+      pageCount: data.pageCount.present ? data.pageCount.value : this.pageCount,
     );
   }
 
   @override
   String toString() {
-    return (StringBuffer('VoicesData(')
+    return (StringBuffer('Voice(')
           ..write('id: $id, ')
           ..write('sheetId: $sheetId, ')
           ..write('name: $name, ')
@@ -793,7 +772,7 @@ class VoicesData extends DataClass implements Insertable<VoicesData> {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is VoicesData &&
+      (other is Voice &&
           other.id == this.id &&
           other.sheetId == this.sheetId &&
           other.name == this.name &&
@@ -801,7 +780,7 @@ class VoicesData extends DataClass implements Insertable<VoicesData> {
           other.pageCount == this.pageCount);
 }
 
-class VoicesCompanion extends UpdateCompanion<VoicesData> {
+class VoicesCompanion extends UpdateCompanion<Voice> {
   final Value<int> id;
   final Value<int> sheetId;
   final Value<String> name;
@@ -822,7 +801,7 @@ class VoicesCompanion extends UpdateCompanion<VoicesData> {
     this.pageCount = const Value.absent(),
   }) : sheetId = Value(sheetId),
        name = Value(name);
-  static Insertable<VoicesData> custom({
+  static Insertable<Voice> custom({
     Expression<int>? id,
     Expression<int>? sheetId,
     Expression<String>? name,
@@ -831,10 +810,10 @@ class VoicesCompanion extends UpdateCompanion<VoicesData> {
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
-      if (sheetId != null) 'SheetMusics_id': sheetId,
+      if (sheetId != null) 'sheet_id': sheetId,
       if (name != null) 'name': name,
       if (instrument != null) 'instrument': instrument,
-      if (pageCount != null) 'seiten_anzahl': pageCount,
+      if (pageCount != null) 'page_count': pageCount,
     });
   }
 
@@ -861,7 +840,7 @@ class VoicesCompanion extends UpdateCompanion<VoicesData> {
       map['id'] = Variable<int>(id.value);
     }
     if (sheetId.present) {
-      map['SheetMusics_id'] = Variable<int>(sheetId.value);
+      map['sheet_id'] = Variable<int>(sheetId.value);
     }
     if (name.present) {
       map['name'] = Variable<String>(name.value);
@@ -870,7 +849,7 @@ class VoicesCompanion extends UpdateCompanion<VoicesData> {
       map['instrument'] = Variable<String>(instrument.value);
     }
     if (pageCount.present) {
-      map['seiten_anzahl'] = Variable<int>(pageCount.value);
+      map['page_count'] = Variable<int>(pageCount.value);
     }
     return map;
   }
@@ -889,7 +868,7 @@ class VoicesCompanion extends UpdateCompanion<VoicesData> {
 }
 
 class $AnnotationsTable extends Annotations
-    with TableInfo<$AnnotationsTable, AnnotationsData> {
+    with TableInfo<$AnnotationsTable, Annotation> {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
@@ -921,7 +900,7 @@ class $AnnotationsTable extends Annotations
       'REFERENCES voices (id)',
     ),
   );
-  static const VerificationMeta _ebeneMeta = const VerificationMeta('level');
+  static const VerificationMeta _levelMeta = const VerificationMeta('level');
   @override
   late final GeneratedColumn<String> level = GeneratedColumn<String>(
     'level',
@@ -935,7 +914,7 @@ class $AnnotationsTable extends Annotations
   );
   @override
   late final GeneratedColumn<double> xRelative = GeneratedColumn<double>(
-    'x_relativ',
+    'x_relative',
     aliasedName,
     false,
     type: DriftSqlType.double,
@@ -946,13 +925,13 @@ class $AnnotationsTable extends Annotations
   );
   @override
   late final GeneratedColumn<double> yRelative = GeneratedColumn<double>(
-    'y_relativ',
+    'y_relative',
     aliasedName,
     false,
     type: DriftSqlType.double,
     requiredDuringInsert: true,
   );
-  static const VerificationMeta _seiteMeta = const VerificationMeta('page');
+  static const VerificationMeta _pageMeta = const VerificationMeta('page');
   @override
   late final GeneratedColumn<double> page = GeneratedColumn<double>(
     'page',
@@ -966,7 +945,7 @@ class $AnnotationsTable extends Annotations
   );
   @override
   late final GeneratedColumn<String> svgData = GeneratedColumn<String>(
-    'svg_daten',
+    'svg_data',
     aliasedName,
     false,
     type: DriftSqlType.string,
@@ -999,10 +978,10 @@ class $AnnotationsTable extends Annotations
   String get aliasedName => _alias ?? actualTableName;
   @override
   String get actualTableName => $name;
-  static const String $name = 'Annotations';
+  static const String $name = 'annotations';
   @override
   VerificationContext validateIntegrity(
-    Insertable<AnnotationsData> instance, {
+    Insertable<Annotation> instance, {
     bool isInserting = false,
   }) {
     final context = VerificationContext();
@@ -1020,40 +999,40 @@ class $AnnotationsTable extends Annotations
     }
     if (data.containsKey('level')) {
       context.handle(
-        _ebeneMeta,
-        level.isAcceptableOrUnknown(data['level']!, _ebeneMeta),
+        _levelMeta,
+        level.isAcceptableOrUnknown(data['level']!, _levelMeta),
       );
     } else if (isInserting) {
-      context.missing(_ebeneMeta);
+      context.missing(_levelMeta);
     }
-    if (data.containsKey('x_relativ')) {
+    if (data.containsKey('x_relative')) {
       context.handle(
         _xRelativeMeta,
-        xRelative.isAcceptableOrUnknown(data['x_relativ']!, _xRelativeMeta),
+        xRelative.isAcceptableOrUnknown(data['x_relative']!, _xRelativeMeta),
       );
     } else if (isInserting) {
       context.missing(_xRelativeMeta);
     }
-    if (data.containsKey('y_relativ')) {
+    if (data.containsKey('y_relative')) {
       context.handle(
         _yRelativeMeta,
-        yRelative.isAcceptableOrUnknown(data['y_relativ']!, _yRelativeMeta),
+        yRelative.isAcceptableOrUnknown(data['y_relative']!, _yRelativeMeta),
       );
     } else if (isInserting) {
       context.missing(_yRelativeMeta);
     }
     if (data.containsKey('page')) {
       context.handle(
-        _seiteMeta,
-        page.isAcceptableOrUnknown(data['page']!, _seiteMeta),
+        _pageMeta,
+        page.isAcceptableOrUnknown(data['page']!, _pageMeta),
       );
     } else if (isInserting) {
-      context.missing(_seiteMeta);
+      context.missing(_pageMeta);
     }
-    if (data.containsKey('svg_daten')) {
+    if (data.containsKey('svg_data')) {
       context.handle(
         _svgDataMeta,
-        svgData.isAcceptableOrUnknown(data['svg_daten']!, _svgDataMeta),
+        svgData.isAcceptableOrUnknown(data['svg_data']!, _svgDataMeta),
       );
     } else if (isInserting) {
       context.missing(_svgDataMeta);
@@ -1070,16 +1049,16 @@ class $AnnotationsTable extends Annotations
   @override
   Set<GeneratedColumn> get $primaryKey => {id};
   @override
-  AnnotationsData map(Map<String, dynamic> data, {String? tablePrefix}) {
+  Annotation map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return AnnotationsData(
+    return Annotation(
       id: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}id'],
       )!,
       voiceId: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
-        data['${effectivePrefix}stimme_id'],
+        data['${effectivePrefix}voice_id'],
       )!,
       level: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
@@ -1087,11 +1066,11 @@ class $AnnotationsTable extends Annotations
       )!,
       xRelative: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
-        data['${effectivePrefix}x_relativ'],
+        data['${effectivePrefix}x_relative'],
       )!,
       yRelative: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
-        data['${effectivePrefix}y_relativ'],
+        data['${effectivePrefix}y_relative'],
       )!,
       page: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
@@ -1099,11 +1078,11 @@ class $AnnotationsTable extends Annotations
       )!,
       svgData: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
-        data['${effectivePrefix}svg_daten'],
+        data['${effectivePrefix}svg_data'],
       )!,
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
-        data['${effectivePrefix}erstellt_am'],
+        data['${effectivePrefix}created_at'],
       )!,
     );
   }
@@ -1114,8 +1093,7 @@ class $AnnotationsTable extends Annotations
   }
 }
 
-class AnnotationsData extends DataClass
-    implements Insertable<AnnotationsData> {
+class Annotation extends DataClass implements Insertable<Annotation> {
   final int id;
   final int voiceId;
   final String level;
@@ -1124,7 +1102,7 @@ class AnnotationsData extends DataClass
   final double page;
   final String svgData;
   final DateTime createdAt;
-  const AnnotationsData({
+  const Annotation({
     required this.id,
     required this.voiceId,
     required this.level,
@@ -1140,10 +1118,10 @@ class AnnotationsData extends DataClass
     map['id'] = Variable<int>(id);
     map['voice_id'] = Variable<int>(voiceId);
     map['level'] = Variable<String>(level);
-    map['x_relativ'] = Variable<double>(xRelative);
-    map['y_relativ'] = Variable<double>(yRelative);
+    map['x_relative'] = Variable<double>(xRelative);
+    map['y_relative'] = Variable<double>(yRelative);
     map['page'] = Variable<double>(page);
-    map['svg_daten'] = Variable<String>(svgData);
+    map['svg_data'] = Variable<String>(svgData);
     map['created_at'] = Variable<DateTime>(createdAt);
     return map;
   }
@@ -1161,12 +1139,12 @@ class AnnotationsData extends DataClass
     );
   }
 
-  factory AnnotationsData.fromJson(
+  factory Annotation.fromJson(
     Map<String, dynamic> json, {
     ValueSerializer? serializer,
   }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
-    return AnnotationsData(
+    return Annotation(
       id: serializer.fromJson<int>(json['id']),
       voiceId: serializer.fromJson<int>(json['voiceId']),
       level: serializer.fromJson<String>(json['level']),
@@ -1192,7 +1170,7 @@ class AnnotationsData extends DataClass
     };
   }
 
-  AnnotationsData copyWith({
+  Annotation copyWith({
     int? id,
     int? voiceId,
     String? level,
@@ -1201,7 +1179,7 @@ class AnnotationsData extends DataClass
     double? page,
     String? svgData,
     DateTime? createdAt,
-  }) => AnnotationsData(
+  }) => Annotation(
     id: id ?? this.id,
     voiceId: voiceId ?? this.voiceId,
     level: level ?? this.level,
@@ -1211,8 +1189,8 @@ class AnnotationsData extends DataClass
     svgData: svgData ?? this.svgData,
     createdAt: createdAt ?? this.createdAt,
   );
-  AnnotationsData copyWithCompanion(AnnotationsCompanion data) {
-    return AnnotationsData(
+  Annotation copyWithCompanion(AnnotationsCompanion data) {
+    return Annotation(
       id: data.id.present ? data.id.value : this.id,
       voiceId: data.voiceId.present ? data.voiceId.value : this.voiceId,
       level: data.level.present ? data.level.value : this.level,
@@ -1220,15 +1198,13 @@ class AnnotationsData extends DataClass
       yRelative: data.yRelative.present ? data.yRelative.value : this.yRelative,
       page: data.page.present ? data.page.value : this.page,
       svgData: data.svgData.present ? data.svgData.value : this.svgData,
-      createdAt: data.createdAt.present
-          ? data.createdAt.value
-          : this.createdAt,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
     );
   }
 
   @override
   String toString() {
-    return (StringBuffer('AnnotationsData(')
+    return (StringBuffer('Annotation(')
           ..write('id: $id, ')
           ..write('voiceId: $voiceId, ')
           ..write('level: $level, ')
@@ -1255,7 +1231,7 @@ class AnnotationsData extends DataClass
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is AnnotationsData &&
+      (other is Annotation &&
           other.id == this.id &&
           other.voiceId == this.voiceId &&
           other.level == this.level &&
@@ -1266,7 +1242,7 @@ class AnnotationsData extends DataClass
           other.createdAt == this.createdAt);
 }
 
-class AnnotationsCompanion extends UpdateCompanion<AnnotationsData> {
+class AnnotationsCompanion extends UpdateCompanion<Annotation> {
   final Value<int> id;
   final Value<int> voiceId;
   final Value<String> level;
@@ -1300,7 +1276,7 @@ class AnnotationsCompanion extends UpdateCompanion<AnnotationsData> {
        yRelative = Value(yRelative),
        page = Value(page),
        svgData = Value(svgData);
-  static Insertable<AnnotationsData> custom({
+  static Insertable<Annotation> custom({
     Expression<int>? id,
     Expression<int>? voiceId,
     Expression<String>? level,
@@ -1314,10 +1290,10 @@ class AnnotationsCompanion extends UpdateCompanion<AnnotationsData> {
       if (id != null) 'id': id,
       if (voiceId != null) 'voice_id': voiceId,
       if (level != null) 'level': level,
-      if (xRelative != null) 'x_relativ': xRelative,
-      if (yRelative != null) 'y_relativ': yRelative,
+      if (xRelative != null) 'x_relative': xRelative,
+      if (yRelative != null) 'y_relative': yRelative,
       if (page != null) 'page': page,
-      if (svgData != null) 'svg_daten': svgData,
+      if (svgData != null) 'svg_data': svgData,
       if (createdAt != null) 'created_at': createdAt,
     });
   }
@@ -1357,16 +1333,16 @@ class AnnotationsCompanion extends UpdateCompanion<AnnotationsData> {
       map['level'] = Variable<String>(level.value);
     }
     if (xRelative.present) {
-      map['x_relativ'] = Variable<double>(xRelative.value);
+      map['x_relative'] = Variable<double>(xRelative.value);
     }
     if (yRelative.present) {
-      map['y_relativ'] = Variable<double>(yRelative.value);
+      map['y_relative'] = Variable<double>(yRelative.value);
     }
     if (page.present) {
       map['page'] = Variable<double>(page.value);
     }
     if (svgData.present) {
-      map['svg_daten'] = Variable<String>(svgData.value);
+      map['svg_data'] = Variable<String>(svgData.value);
     }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
@@ -1391,7 +1367,7 @@ class AnnotationsCompanion extends UpdateCompanion<AnnotationsData> {
 }
 
 class $ConfigEntriesTable extends ConfigEntries
-    with TableInfo<$ConfigEntriesTable, ConfigEntriesData> {
+    with TableInfo<$ConfigEntriesTable, ConfigEntry> {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
@@ -1409,7 +1385,7 @@ class $ConfigEntriesTable extends ConfigEntries
       'PRIMARY KEY AUTOINCREMENT',
     ),
   );
-  static const VerificationMeta _ebeneMeta = const VerificationMeta('level');
+  static const VerificationMeta _levelMeta = const VerificationMeta('level');
   @override
   late final GeneratedColumn<String> level = GeneratedColumn<String>(
     'level',
@@ -1418,9 +1394,7 @@ class $ConfigEntriesTable extends ConfigEntries
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
-  static const VerificationMeta _keyMeta = const VerificationMeta(
-    'key',
-  );
+  static const VerificationMeta _keyMeta = const VerificationMeta('key');
   @override
   late final GeneratedColumn<String> key = GeneratedColumn<String>(
     'key',
@@ -1429,7 +1403,7 @@ class $ConfigEntriesTable extends ConfigEntries
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
-  static const VerificationMeta _wertMeta = const VerificationMeta('value');
+  static const VerificationMeta _valueMeta = const VerificationMeta('value');
   @override
   late final GeneratedColumn<String> value = GeneratedColumn<String>(
     'value',
@@ -1443,32 +1417,26 @@ class $ConfigEntriesTable extends ConfigEntries
   );
   @override
   late final GeneratedColumn<bool> isLocked = GeneratedColumn<bool>(
-    'ist_gesperrt',
+    'is_locked',
     aliasedName,
     false,
     type: DriftSqlType.bool,
     requiredDuringInsert: false,
     defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'CHECK ("ist_gesperrt" IN (0, 1))',
+      'CHECK ("is_locked" IN (0, 1))',
     ),
     defaultValue: const Constant(false),
   );
   @override
-  List<GeneratedColumn> get $columns => [
-    id,
-    level,
-    key,
-    value,
-    isLocked,
-  ];
+  List<GeneratedColumn> get $columns => [id, level, key, value, isLocked];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
   String get actualTableName => $name;
-  static const String $name = 'konfiguration_eintraege';
+  static const String $name = 'config_entries';
   @override
   VerificationContext validateIntegrity(
-    Insertable<ConfigEntriesData> instance, {
+    Insertable<ConfigEntry> instance, {
     bool isInserting = false,
   }) {
     final context = VerificationContext();
@@ -1478,11 +1446,11 @@ class $ConfigEntriesTable extends ConfigEntries
     }
     if (data.containsKey('level')) {
       context.handle(
-        _ebeneMeta,
-        level.isAcceptableOrUnknown(data['level']!, _ebeneMeta),
+        _levelMeta,
+        level.isAcceptableOrUnknown(data['level']!, _levelMeta),
       );
     } else if (isInserting) {
-      context.missing(_ebeneMeta);
+      context.missing(_levelMeta);
     }
     if (data.containsKey('key')) {
       context.handle(
@@ -1494,19 +1462,16 @@ class $ConfigEntriesTable extends ConfigEntries
     }
     if (data.containsKey('value')) {
       context.handle(
-        _wertMeta,
-        value.isAcceptableOrUnknown(data['value']!, _wertMeta),
+        _valueMeta,
+        value.isAcceptableOrUnknown(data['value']!, _valueMeta),
       );
     } else if (isInserting) {
-      context.missing(_wertMeta);
+      context.missing(_valueMeta);
     }
-    if (data.containsKey('ist_gesperrt')) {
+    if (data.containsKey('is_locked')) {
       context.handle(
         _isLockedMeta,
-        isLocked.isAcceptableOrUnknown(
-          data['ist_gesperrt']!,
-          _isLockedMeta,
-        ),
+        isLocked.isAcceptableOrUnknown(data['is_locked']!, _isLockedMeta),
       );
     }
     return context;
@@ -1515,12 +1480,9 @@ class $ConfigEntriesTable extends ConfigEntries
   @override
   Set<GeneratedColumn> get $primaryKey => {id};
   @override
-  ConfigEntriesData map(
-    Map<String, dynamic> data, {
-    String? tablePrefix,
-  }) {
+  ConfigEntry map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return ConfigEntriesData(
+    return ConfigEntry(
       id: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}id'],
@@ -1539,7 +1501,7 @@ class $ConfigEntriesTable extends ConfigEntries
       )!,
       isLocked: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
-        data['${effectivePrefix}ist_gesperrt'],
+        data['${effectivePrefix}is_locked'],
       )!,
     );
   }
@@ -1550,14 +1512,13 @@ class $ConfigEntriesTable extends ConfigEntries
   }
 }
 
-class ConfigEntriesData extends DataClass
-    implements Insertable<ConfigEntriesData> {
+class ConfigEntry extends DataClass implements Insertable<ConfigEntry> {
   final int id;
   final String level;
   final String key;
   final String value;
   final bool isLocked;
-  const ConfigEntriesData({
+  const ConfigEntry({
     required this.id,
     required this.level,
     required this.key,
@@ -1571,7 +1532,7 @@ class ConfigEntriesData extends DataClass
     map['level'] = Variable<String>(level);
     map['key'] = Variable<String>(key);
     map['value'] = Variable<String>(value);
-    map['ist_gesperrt'] = Variable<bool>(isLocked);
+    map['is_locked'] = Variable<bool>(isLocked);
     return map;
   }
 
@@ -1585,12 +1546,12 @@ class ConfigEntriesData extends DataClass
     );
   }
 
-  factory ConfigEntriesData.fromJson(
+  factory ConfigEntry.fromJson(
     Map<String, dynamic> json, {
     ValueSerializer? serializer,
   }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
-    return ConfigEntriesData(
+    return ConfigEntry(
       id: serializer.fromJson<int>(json['id']),
       level: serializer.fromJson<String>(json['level']),
       key: serializer.fromJson<String>(json['key']),
@@ -1610,38 +1571,32 @@ class ConfigEntriesData extends DataClass
     };
   }
 
-  ConfigEntriesData copyWith({
+  ConfigEntry copyWith({
     int? id,
     String? level,
     String? key,
     String? value,
     bool? isLocked,
-  }) => ConfigEntriesData(
+  }) => ConfigEntry(
     id: id ?? this.id,
     level: level ?? this.level,
     key: key ?? this.key,
     value: value ?? this.value,
     isLocked: isLocked ?? this.isLocked,
   );
-  ConfigEntriesData copyWithCompanion(
-    ConfigEntriesCompanion data,
-  ) {
-    return ConfigEntriesData(
+  ConfigEntry copyWithCompanion(ConfigEntriesCompanion data) {
+    return ConfigEntry(
       id: data.id.present ? data.id.value : this.id,
       level: data.level.present ? data.level.value : this.level,
-      key: data.key.present
-          ? data.key.value
-          : this.key,
+      key: data.key.present ? data.key.value : this.key,
       value: data.value.present ? data.value.value : this.value,
-      isLocked: data.isLocked.present
-          ? data.isLocked.value
-          : this.isLocked,
+      isLocked: data.isLocked.present ? data.isLocked.value : this.isLocked,
     );
   }
 
   @override
   String toString() {
-    return (StringBuffer('ConfigEntriesData(')
+    return (StringBuffer('ConfigEntry(')
           ..write('id: $id, ')
           ..write('level: $level, ')
           ..write('key: $key, ')
@@ -1656,7 +1611,7 @@ class ConfigEntriesData extends DataClass
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is ConfigEntriesData &&
+      (other is ConfigEntry &&
           other.id == this.id &&
           other.level == this.level &&
           other.key == this.key &&
@@ -1664,8 +1619,7 @@ class ConfigEntriesData extends DataClass
           other.isLocked == this.isLocked);
 }
 
-class ConfigEntriesCompanion
-    extends UpdateCompanion<ConfigEntriesData> {
+class ConfigEntriesCompanion extends UpdateCompanion<ConfigEntry> {
   final Value<int> id;
   final Value<String> level;
   final Value<String> key;
@@ -1687,7 +1641,7 @@ class ConfigEntriesCompanion
   }) : level = Value(level),
        key = Value(key),
        value = Value(value);
-  static Insertable<ConfigEntriesData> custom({
+  static Insertable<ConfigEntry> custom({
     Expression<int>? id,
     Expression<String>? level,
     Expression<String>? key,
@@ -1699,7 +1653,7 @@ class ConfigEntriesCompanion
       if (level != null) 'level': level,
       if (key != null) 'key': key,
       if (value != null) 'value': value,
-      if (isLocked != null) 'ist_gesperrt': isLocked,
+      if (isLocked != null) 'is_locked': isLocked,
     });
   }
 
@@ -1735,7 +1689,7 @@ class ConfigEntriesCompanion
       map['value'] = Variable<String>(value.value);
     }
     if (isLocked.present) {
-      map['ist_gesperrt'] = Variable<bool>(isLocked.value);
+      map['is_locked'] = Variable<bool>(isLocked.value);
     }
     return map;
   }
@@ -1756,20 +1710,19 @@ class ConfigEntriesCompanion
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
-  late final $SheetMusicsTable SheetMusics = $SheetMusicsTable(this);
+  late final $SheetMusicsTable sheetMusics = $SheetMusicsTable(this);
   late final $VoicesTable voices = $VoicesTable(this);
-  late final $AnnotationsTable Annotations = $AnnotationsTable(this);
-  late final $ConfigEntriesTable ConfigEntries =
-      $ConfigEntriesTable(this);
+  late final $AnnotationsTable annotations = $AnnotationsTable(this);
+  late final $ConfigEntriesTable configEntries = $ConfigEntriesTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
   @override
   List<DatabaseSchemaEntity> get allSchemaEntities => [
-    SheetMusics,
+    sheetMusics,
     voices,
-    Annotations,
-    ConfigEntries,
+    annotations,
+    configEntries,
   ];
 }
 
@@ -1797,29 +1750,31 @@ typedef $$SheetMusicsTableUpdateCompanionBuilder =
     });
 
 final class $$SheetMusicsTableReferences
-    extends BaseReferences<_$AppDatabase, $SheetMusicsTable, SheetMusicsData> {
+    extends BaseReferences<_$AppDatabase, $SheetMusicsTable, SheetMusic> {
   $$SheetMusicsTableReferences(super.$_db, super.$_table, super.$_typedResult);
 
-  static MultiTypedResultKey<$VoicesTable, List<VoicesData>>
-  _VoicesRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+  static MultiTypedResultKey<$VoicesTable, List<Voice>> _voicesRefsTable(
+    _$AppDatabase db,
+  ) => MultiTypedResultKey.fromTable(
     db.voices,
-    aliasName: $_aliasNameGenerator(db.SheetMusics.id, db.voices.sheetId),
+    aliasName: $_aliasNameGenerator(db.sheetMusics.id, db.voices.sheetId),
   );
 
-  $$VoicesTableProcessedTableManager get VoicesRefs {
+  $$VoicesTableProcessedTableManager get voicesRefs {
     final manager = $$VoicesTableTableManager(
       $_db,
       $_db.voices,
     ).filter((f) => f.sheetId.id.sqlEquals($_itemColumn<int>('id')!));
 
-    final cache = $_typedResult.readTableOrNull(_VoicesRefsTable($_db));
+    final cache = $_typedResult.readTableOrNull(_voicesRefsTable($_db));
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
 }
 
-class $$SheetMusicsTableFilterComposer extends Composer<_$AppDatabase, $SheetMusicsTable> {
+class $$SheetMusicsTableFilterComposer
+    extends Composer<_$AppDatabase, $SheetMusicsTable> {
   $$SheetMusicsTableFilterComposer({
     required super.$db,
     required super.$table,
@@ -1867,7 +1822,7 @@ class $$SheetMusicsTableFilterComposer extends Composer<_$AppDatabase, $SheetMus
     builder: (column) => ColumnFilters(column),
   );
 
-  Expression<bool> VoicesRefs(
+  Expression<bool> voicesRefs(
     Expression<bool> Function($$VoicesTableFilterComposer f) f,
   ) {
     final $$VoicesTableFilterComposer composer = $composerBuilder(
@@ -1964,27 +1919,21 @@ class $$SheetMusicsTableAnnotationComposer
   GeneratedColumn<String> get genre =>
       $composableBuilder(column: $table.genre, builder: (column) => column);
 
-  GeneratedColumn<String> get localPath => $composableBuilder(
-    column: $table.localPath,
-    builder: (column) => column,
-  );
+  GeneratedColumn<String> get localPath =>
+      $composableBuilder(column: $table.localPath, builder: (column) => column);
 
   GeneratedColumn<bool> get isOfflineAvailable => $composableBuilder(
     column: $table.isOfflineAvailable,
     builder: (column) => column,
   );
 
-  GeneratedColumn<DateTime> get createdAt => $composableBuilder(
-    column: $table.createdAt,
-    builder: (column) => column,
-  );
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
 
-  GeneratedColumn<DateTime> get updatedAt => $composableBuilder(
-    column: $table.updatedAt,
-    builder: (column) => column,
-  );
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
 
-  Expression<T> VoicesRefs<T extends Object>(
+  Expression<T> voicesRefs<T extends Object>(
     Expression<T> Function($$VoicesTableAnnotationComposer a) f,
   ) {
     final $$VoicesTableAnnotationComposer composer = $composerBuilder(
@@ -2015,15 +1964,15 @@ class $$SheetMusicsTableTableManager
         RootTableManager<
           _$AppDatabase,
           $SheetMusicsTable,
-          SheetMusicsData,
+          SheetMusic,
           $$SheetMusicsTableFilterComposer,
           $$SheetMusicsTableOrderingComposer,
           $$SheetMusicsTableAnnotationComposer,
           $$SheetMusicsTableCreateCompanionBuilder,
           $$SheetMusicsTableUpdateCompanionBuilder,
-          (SheetMusicsData, $$SheetMusicsTableReferences),
-          SheetMusicsData,
-          PrefetchHooks Function({bool VoicesRefs})
+          (SheetMusic, $$SheetMusicsTableReferences),
+          SheetMusic,
+          PrefetchHooks Function({bool voicesRefs})
         > {
   $$SheetMusicsTableTableManager(_$AppDatabase db, $SheetMusicsTable table)
     : super(
@@ -2078,29 +2027,34 @@ class $$SheetMusicsTableTableManager
               ),
           withReferenceMapper: (p0) => p0
               .map(
-                (e) =>
-                    (e.readTable(table), $$SheetMusicsTableReferences(db, table, e)),
+                (e) => (
+                  e.readTable(table),
+                  $$SheetMusicsTableReferences(db, table, e),
+                ),
               )
               .toList(),
-          prefetchHooksCallback: ({VoicesRefs = false}) {
+          prefetchHooksCallback: ({voicesRefs = false}) {
             return PrefetchHooks(
               db: db,
-              explicitlyWatchedTables: [if (VoicesRefs) db.voices],
+              explicitlyWatchedTables: [if (voicesRefs) db.voices],
               addJoins: null,
               getPrefetchedDataCallback: (items) async {
                 return [
-                  if (VoicesRefs)
+                  if (voicesRefs)
                     await $_getPrefetchedData<
-                      SheetMusicsData,
+                      SheetMusic,
                       $SheetMusicsTable,
-                      VoicesData
+                      Voice
                     >(
                       currentTable: table,
-                      referencedTable: $$SheetMusicsTableReferences._VoicesRefsTable(
-                        db,
-                      ),
+                      referencedTable: $$SheetMusicsTableReferences
+                          ._voicesRefsTable(db),
                       managerFromTypedResult: (p0) =>
-                          $$SheetMusicsTableReferences(db, table, p0).VoicesRefs,
+                          $$SheetMusicsTableReferences(
+                            db,
+                            table,
+                            p0,
+                          ).voicesRefs,
                       referencedItemsForCurrentItem: (item, referencedItems) =>
                           referencedItems.where((e) => e.sheetId == item.id),
                       typedResults: items,
@@ -2117,15 +2071,15 @@ typedef $$SheetMusicsTableProcessedTableManager =
     ProcessedTableManager<
       _$AppDatabase,
       $SheetMusicsTable,
-      SheetMusicsData,
+      SheetMusic,
       $$SheetMusicsTableFilterComposer,
       $$SheetMusicsTableOrderingComposer,
       $$SheetMusicsTableAnnotationComposer,
       $$SheetMusicsTableCreateCompanionBuilder,
       $$SheetMusicsTableUpdateCompanionBuilder,
-      (SheetMusicsData, $$SheetMusicsTableReferences),
-      SheetMusicsData,
-      PrefetchHooks Function({bool VoicesRefs})
+      (SheetMusic, $$SheetMusicsTableReferences),
+      SheetMusic,
+      PrefetchHooks Function({bool voicesRefs})
     >;
 typedef $$VoicesTableCreateCompanionBuilder =
     VoicesCompanion Function({
@@ -2145,19 +2099,18 @@ typedef $$VoicesTableUpdateCompanionBuilder =
     });
 
 final class $$VoicesTableReferences
-    extends BaseReferences<_$AppDatabase, $VoicesTable, VoicesData> {
+    extends BaseReferences<_$AppDatabase, $VoicesTable, Voice> {
   $$VoicesTableReferences(super.$_db, super.$_table, super.$_typedResult);
 
-  static $SheetMusicsTable _sheetIdTable(_$AppDatabase db) => db.SheetMusics.createAlias(
-    $_aliasNameGenerator(db.voices.sheetId, db.SheetMusics.id),
-  );
+  static $SheetMusicsTable _sheetIdTable(_$AppDatabase db) => db.sheetMusics
+      .createAlias($_aliasNameGenerator(db.voices.sheetId, db.sheetMusics.id));
 
   $$SheetMusicsTableProcessedTableManager get sheetId {
-    final $_column = $_itemColumn<int>('SheetMusics_id')!;
+    final $_column = $_itemColumn<int>('sheet_id')!;
 
     final manager = $$SheetMusicsTableTableManager(
       $_db,
-      $_db.SheetMusics,
+      $_db.sheetMusics,
     ).filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_sheetIdTable($_db));
     if (item == null) return manager;
@@ -2166,19 +2119,19 @@ final class $$VoicesTableReferences
     );
   }
 
-  static MultiTypedResultKey<$AnnotationsTable, List<AnnotationsData>>
-  _AnnotationsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
-    db.Annotations,
-    aliasName: $_aliasNameGenerator(db.voices.id, db.Annotations.voiceId),
+  static MultiTypedResultKey<$AnnotationsTable, List<Annotation>>
+  _annotationsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.annotations,
+    aliasName: $_aliasNameGenerator(db.voices.id, db.annotations.voiceId),
   );
 
-  $$AnnotationsTableProcessedTableManager get AnnotationsRefs {
+  $$AnnotationsTableProcessedTableManager get annotationsRefs {
     final manager = $$AnnotationsTableTableManager(
       $_db,
-      $_db.Annotations,
+      $_db.annotations,
     ).filter((f) => f.voiceId.id.sqlEquals($_itemColumn<int>('id')!));
 
-    final cache = $_typedResult.readTableOrNull(_AnnotationsRefsTable($_db));
+    final cache = $_typedResult.readTableOrNull(_annotationsRefsTable($_db));
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -2218,7 +2171,7 @@ class $$VoicesTableFilterComposer
     final $$SheetMusicsTableFilterComposer composer = $composerBuilder(
       composer: this,
       getCurrentColumn: (t) => t.sheetId,
-      referencedTable: $db.SheetMusics,
+      referencedTable: $db.sheetMusics,
       getReferencedColumn: (t) => t.id,
       builder:
           (
@@ -2227,7 +2180,7 @@ class $$VoicesTableFilterComposer
             $removeJoinBuilderFromRootComposer,
           }) => $$SheetMusicsTableFilterComposer(
             $db: $db,
-            $table: $db.SheetMusics,
+            $table: $db.sheetMusics,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -2237,13 +2190,13 @@ class $$VoicesTableFilterComposer
     return composer;
   }
 
-  Expression<bool> AnnotationsRefs(
+  Expression<bool> annotationsRefs(
     Expression<bool> Function($$AnnotationsTableFilterComposer f) f,
   ) {
     final $$AnnotationsTableFilterComposer composer = $composerBuilder(
       composer: this,
       getCurrentColumn: (t) => t.id,
-      referencedTable: $db.Annotations,
+      referencedTable: $db.annotations,
       getReferencedColumn: (t) => t.voiceId,
       builder:
           (
@@ -2252,7 +2205,7 @@ class $$VoicesTableFilterComposer
             $removeJoinBuilderFromRootComposer,
           }) => $$AnnotationsTableFilterComposer(
             $db: $db,
-            $table: $db.Annotations,
+            $table: $db.annotations,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -2296,7 +2249,7 @@ class $$VoicesTableOrderingComposer
     final $$SheetMusicsTableOrderingComposer composer = $composerBuilder(
       composer: this,
       getCurrentColumn: (t) => t.sheetId,
-      referencedTable: $db.SheetMusics,
+      referencedTable: $db.sheetMusics,
       getReferencedColumn: (t) => t.id,
       builder:
           (
@@ -2305,7 +2258,7 @@ class $$VoicesTableOrderingComposer
             $removeJoinBuilderFromRootComposer,
           }) => $$SheetMusicsTableOrderingComposer(
             $db: $db,
-            $table: $db.SheetMusics,
+            $table: $db.sheetMusics,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -2336,16 +2289,14 @@ class $$VoicesTableAnnotationComposer
     builder: (column) => column,
   );
 
-  GeneratedColumn<int> get pageCount => $composableBuilder(
-    column: $table.pageCount,
-    builder: (column) => column,
-  );
+  GeneratedColumn<int> get pageCount =>
+      $composableBuilder(column: $table.pageCount, builder: (column) => column);
 
   $$SheetMusicsTableAnnotationComposer get sheetId {
     final $$SheetMusicsTableAnnotationComposer composer = $composerBuilder(
       composer: this,
       getCurrentColumn: (t) => t.sheetId,
-      referencedTable: $db.SheetMusics,
+      referencedTable: $db.sheetMusics,
       getReferencedColumn: (t) => t.id,
       builder:
           (
@@ -2354,7 +2305,7 @@ class $$VoicesTableAnnotationComposer
             $removeJoinBuilderFromRootComposer,
           }) => $$SheetMusicsTableAnnotationComposer(
             $db: $db,
-            $table: $db.SheetMusics,
+            $table: $db.sheetMusics,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -2364,13 +2315,13 @@ class $$VoicesTableAnnotationComposer
     return composer;
   }
 
-  Expression<T> AnnotationsRefs<T extends Object>(
+  Expression<T> annotationsRefs<T extends Object>(
     Expression<T> Function($$AnnotationsTableAnnotationComposer a) f,
   ) {
     final $$AnnotationsTableAnnotationComposer composer = $composerBuilder(
       composer: this,
       getCurrentColumn: (t) => t.id,
-      referencedTable: $db.Annotations,
+      referencedTable: $db.annotations,
       getReferencedColumn: (t) => t.voiceId,
       builder:
           (
@@ -2379,7 +2330,7 @@ class $$VoicesTableAnnotationComposer
             $removeJoinBuilderFromRootComposer,
           }) => $$AnnotationsTableAnnotationComposer(
             $db: $db,
-            $table: $db.Annotations,
+            $table: $db.annotations,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -2395,15 +2346,15 @@ class $$VoicesTableTableManager
         RootTableManager<
           _$AppDatabase,
           $VoicesTable,
-          VoicesData,
+          Voice,
           $$VoicesTableFilterComposer,
           $$VoicesTableOrderingComposer,
           $$VoicesTableAnnotationComposer,
           $$VoicesTableCreateCompanionBuilder,
           $$VoicesTableUpdateCompanionBuilder,
-          (VoicesData, $$VoicesTableReferences),
-          VoicesData,
-          PrefetchHooks Function({bool sheetId, bool AnnotationsRefs})
+          (Voice, $$VoicesTableReferences),
+          Voice,
+          PrefetchHooks Function({bool sheetId, bool annotationsRefs})
         > {
   $$VoicesTableTableManager(_$AppDatabase db, $VoicesTable table)
     : super(
@@ -2446,16 +2397,14 @@ class $$VoicesTableTableManager
               ),
           withReferenceMapper: (p0) => p0
               .map(
-                (e) => (
-                  e.readTable(table),
-                  $$VoicesTableReferences(db, table, e),
-                ),
+                (e) =>
+                    (e.readTable(table), $$VoicesTableReferences(db, table, e)),
               )
               .toList(),
-          prefetchHooksCallback: ({sheetId = false, AnnotationsRefs = false}) {
+          prefetchHooksCallback: ({sheetId = false, annotationsRefs = false}) {
             return PrefetchHooks(
               db: db,
-              explicitlyWatchedTables: [if (AnnotationsRefs) db.Annotations],
+              explicitlyWatchedTables: [if (annotationsRefs) db.annotations],
               addJoins:
                   <
                     T extends TableManagerState<
@@ -2490,20 +2439,16 @@ class $$VoicesTableTableManager
                   },
               getPrefetchedDataCallback: (items) async {
                 return [
-                  if (AnnotationsRefs)
-                    await $_getPrefetchedData<
-                      VoicesData,
-                      $VoicesTable,
-                      AnnotationsData
-                    >(
+                  if (annotationsRefs)
+                    await $_getPrefetchedData<Voice, $VoicesTable, Annotation>(
                       currentTable: table,
                       referencedTable: $$VoicesTableReferences
-                          ._AnnotationsRefsTable(db),
+                          ._annotationsRefsTable(db),
                       managerFromTypedResult: (p0) => $$VoicesTableReferences(
                         db,
                         table,
                         p0,
-                      ).AnnotationsRefs,
+                      ).annotationsRefs,
                       referencedItemsForCurrentItem: (item, referencedItems) =>
                           referencedItems.where((e) => e.voiceId == item.id),
                       typedResults: items,
@@ -2520,15 +2465,15 @@ typedef $$VoicesTableProcessedTableManager =
     ProcessedTableManager<
       _$AppDatabase,
       $VoicesTable,
-      VoicesData,
+      Voice,
       $$VoicesTableFilterComposer,
       $$VoicesTableOrderingComposer,
       $$VoicesTableAnnotationComposer,
       $$VoicesTableCreateCompanionBuilder,
       $$VoicesTableUpdateCompanionBuilder,
-      (VoicesData, $$VoicesTableReferences),
-      VoicesData,
-      PrefetchHooks Function({bool sheetId, bool AnnotationsRefs})
+      (Voice, $$VoicesTableReferences),
+      Voice,
+      PrefetchHooks Function({bool sheetId, bool annotationsRefs})
     >;
 typedef $$AnnotationsTableCreateCompanionBuilder =
     AnnotationsCompanion Function({
@@ -2554,14 +2499,12 @@ typedef $$AnnotationsTableUpdateCompanionBuilder =
     });
 
 final class $$AnnotationsTableReferences
-    extends
-        BaseReferences<_$AppDatabase, $AnnotationsTable, AnnotationsData> {
+    extends BaseReferences<_$AppDatabase, $AnnotationsTable, Annotation> {
   $$AnnotationsTableReferences(super.$_db, super.$_table, super.$_typedResult);
 
-  static $VoicesTable _voiceIdTable(_$AppDatabase db) =>
-      db.voices.createAlias(
-        $_aliasNameGenerator(db.Annotations.voiceId, db.voices.id),
-      );
+  static $VoicesTable _voiceIdTable(_$AppDatabase db) => db.voices.createAlias(
+    $_aliasNameGenerator(db.annotations.voiceId, db.voices.id),
+  );
 
   $$VoicesTableProcessedTableManager get voiceId {
     final $_column = $_itemColumn<int>('voice_id')!;
@@ -2741,10 +2684,8 @@ class $$AnnotationsTableAnnotationComposer
   GeneratedColumn<String> get svgData =>
       $composableBuilder(column: $table.svgData, builder: (column) => column);
 
-  GeneratedColumn<DateTime> get createdAt => $composableBuilder(
-    column: $table.createdAt,
-    builder: (column) => column,
-  );
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
 
   $$VoicesTableAnnotationComposer get voiceId {
     final $$VoicesTableAnnotationComposer composer = $composerBuilder(
@@ -2775,14 +2716,14 @@ class $$AnnotationsTableTableManager
         RootTableManager<
           _$AppDatabase,
           $AnnotationsTable,
-          AnnotationsData,
+          Annotation,
           $$AnnotationsTableFilterComposer,
           $$AnnotationsTableOrderingComposer,
           $$AnnotationsTableAnnotationComposer,
           $$AnnotationsTableCreateCompanionBuilder,
           $$AnnotationsTableUpdateCompanionBuilder,
-          (AnnotationsData, $$AnnotationsTableReferences),
-          AnnotationsData,
+          (Annotation, $$AnnotationsTableReferences),
+          Annotation,
           PrefetchHooks Function({bool voiceId})
         > {
   $$AnnotationsTableTableManager(_$AppDatabase db, $AnnotationsTable table)
@@ -2893,14 +2834,14 @@ typedef $$AnnotationsTableProcessedTableManager =
     ProcessedTableManager<
       _$AppDatabase,
       $AnnotationsTable,
-      AnnotationsData,
+      Annotation,
       $$AnnotationsTableFilterComposer,
       $$AnnotationsTableOrderingComposer,
       $$AnnotationsTableAnnotationComposer,
       $$AnnotationsTableCreateCompanionBuilder,
       $$AnnotationsTableUpdateCompanionBuilder,
-      (AnnotationsData, $$AnnotationsTableReferences),
-      AnnotationsData,
+      (Annotation, $$AnnotationsTableReferences),
+      Annotation,
       PrefetchHooks Function({bool voiceId})
     >;
 typedef $$ConfigEntriesTableCreateCompanionBuilder =
@@ -3005,18 +2946,14 @@ class $$ConfigEntriesTableAnnotationComposer
   GeneratedColumn<String> get level =>
       $composableBuilder(column: $table.level, builder: (column) => column);
 
-  GeneratedColumn<String> get key => $composableBuilder(
-    column: $table.key,
-    builder: (column) => column,
-  );
+  GeneratedColumn<String> get key =>
+      $composableBuilder(column: $table.key, builder: (column) => column);
 
   GeneratedColumn<String> get value =>
       $composableBuilder(column: $table.value, builder: (column) => column);
 
-  GeneratedColumn<bool> get isLocked => $composableBuilder(
-    column: $table.isLocked,
-    builder: (column) => column,
-  );
+  GeneratedColumn<bool> get isLocked =>
+      $composableBuilder(column: $table.isLocked, builder: (column) => column);
 }
 
 class $$ConfigEntriesTableTableManager
@@ -3024,45 +2961,30 @@ class $$ConfigEntriesTableTableManager
         RootTableManager<
           _$AppDatabase,
           $ConfigEntriesTable,
-          ConfigEntriesData,
+          ConfigEntry,
           $$ConfigEntriesTableFilterComposer,
           $$ConfigEntriesTableOrderingComposer,
           $$ConfigEntriesTableAnnotationComposer,
           $$ConfigEntriesTableCreateCompanionBuilder,
           $$ConfigEntriesTableUpdateCompanionBuilder,
           (
-            ConfigEntriesData,
-            BaseReferences<
-              _$AppDatabase,
-              $ConfigEntriesTable,
-              ConfigEntriesData
-            >,
+            ConfigEntry,
+            BaseReferences<_$AppDatabase, $ConfigEntriesTable, ConfigEntry>,
           ),
-          ConfigEntriesData,
+          ConfigEntry,
           PrefetchHooks Function()
         > {
-  $$ConfigEntriesTableTableManager(
-    _$AppDatabase db,
-    $ConfigEntriesTable table,
-  ) : super(
+  $$ConfigEntriesTableTableManager(_$AppDatabase db, $ConfigEntriesTable table)
+    : super(
         TableManagerState(
           db: db,
           table: table,
           createFilteringComposer: () =>
-              $$ConfigEntriesTableFilterComposer(
-                $db: db,
-                $table: table,
-              ),
+              $$ConfigEntriesTableFilterComposer($db: db, $table: table),
           createOrderingComposer: () =>
-              $$ConfigEntriesTableOrderingComposer(
-                $db: db,
-                $table: table,
-              ),
+              $$ConfigEntriesTableOrderingComposer($db: db, $table: table),
           createComputedFieldComposer: () =>
-              $$ConfigEntriesTableAnnotationComposer(
-                $db: db,
-                $table: table,
-              ),
+              $$ConfigEntriesTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback:
               ({
                 Value<int> id = const Value.absent(),
@@ -3103,36 +3025,29 @@ typedef $$ConfigEntriesTableProcessedTableManager =
     ProcessedTableManager<
       _$AppDatabase,
       $ConfigEntriesTable,
-      ConfigEntriesData,
+      ConfigEntry,
       $$ConfigEntriesTableFilterComposer,
       $$ConfigEntriesTableOrderingComposer,
       $$ConfigEntriesTableAnnotationComposer,
       $$ConfigEntriesTableCreateCompanionBuilder,
       $$ConfigEntriesTableUpdateCompanionBuilder,
       (
-        ConfigEntriesData,
-        BaseReferences<
-          _$AppDatabase,
-          $ConfigEntriesTable,
-          ConfigEntriesData
-        >,
+        ConfigEntry,
+        BaseReferences<_$AppDatabase, $ConfigEntriesTable, ConfigEntry>,
       ),
-      ConfigEntriesData,
+      ConfigEntry,
       PrefetchHooks Function()
     >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
   $AppDatabaseManager(this._db);
-  $$SheetMusicsTableTableManager get SheetMusics =>
-      $$SheetMusicsTableTableManager(_db, _db.SheetMusics);
+  $$SheetMusicsTableTableManager get sheetMusics =>
+      $$SheetMusicsTableTableManager(_db, _db.sheetMusics);
   $$VoicesTableTableManager get voices =>
       $$VoicesTableTableManager(_db, _db.voices);
-  $$AnnotationsTableTableManager get Annotations =>
-      $$AnnotationsTableTableManager(_db, _db.Annotations);
-  $$ConfigEntriesTableTableManager get ConfigEntries =>
-      $$ConfigEntriesTableTableManager(
-        _db,
-        _db.ConfigEntries,
-      );
+  $$AnnotationsTableTableManager get annotations =>
+      $$AnnotationsTableTableManager(_db, _db.annotations);
+  $$ConfigEntriesTableTableManager get configEntries =>
+      $$ConfigEntriesTableTableManager(_db, _db.configEntries);
 }

@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using Sheetstorm.Infrastructure;
 using Sheetstorm.Infrastructure.Persistence;
+using Sheetstorm.Infrastructure.Seeding;
 using Sheetstorm.Api.Middleware;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -82,6 +83,9 @@ builder.Services.AddSignalR();
 // EF Core + PostgreSQL (registered in Infrastructure)
 builder.Services.AddInfrastructure(builder.Configuration);
 
+// Demo-Seeder (nur im Development-Modus aktiv)
+builder.Services.AddScoped<DemoDataSeeder>();
+
 // CORS – tight in production, permissive in dev
 builder.Services.AddCors(options =>
 {
@@ -95,6 +99,13 @@ if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
     app.UseCors("DevPolicy");
+
+    // Demo-User für lokale Entwicklung seeden
+    using (var scope = app.Services.CreateScope())
+    {
+        var seeder = scope.ServiceProvider.GetRequiredService<DemoDataSeeder>();
+        await seeder.SeedAsync();
+    }
 }
 
 app.UseHttpsRedirection();

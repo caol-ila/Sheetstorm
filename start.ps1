@@ -26,39 +26,67 @@ $RepoRoot = $PSScriptRoot
 $ApiProject = Join-Path $RepoRoot 'src' 'Sheetstorm.Api'
 $FlutterApp = Join-Path $RepoRoot 'sheetstorm_app'
 
-$BackendUrl = 'https://localhost:5001'
+$BackendUrl = 'http://localhost:5273'
 $HealthUrl  = "$BackendUrl/health"
 $SwaggerUrl = "$BackendUrl/openapi/v1.json"
+
+# Always work from repo root, regardless of where the script is called from
+Set-Location $RepoRoot
 
 function Write-Step  { param([string]$msg) Write-Host "`n==> $msg" -ForegroundColor Cyan }
 function Write-Ok    { param([string]$msg) Write-Host "    OK: $msg" -ForegroundColor Green }
 function Write-Warn  { param([string]$msg) Write-Host "    WARN: $msg" -ForegroundColor Yellow }
 function Write-Fail  { param([string]$msg) Write-Host "    FAIL: $msg" -ForegroundColor Red }
 
+function Stop-ExistingBackend {
+    # Kill any running Sheetstorm.Api processes to prevent DLL locks
+    $existing = Get-Process -Name 'Sheetstorm.Api' -ErrorAction SilentlyContinue
+    if ($existing) {
+        Write-Step 'Stopping existing backend process(es)'
+        foreach ($proc in $existing) {
+            Write-Host "    Stopping PID $($proc.Id)..."
+            Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+        }
+        Start-Sleep -Milliseconds 500
+        Write-Ok 'Old backend process(es) stopped'
+    }
+}
+
 $backendJob = $null
 
 function Start-Backend {
+    # Always kill old backend first to prevent DLL locks
+    Stop-ExistingBackend
+
     Write-Step 'Starting ASP.NET Core backend'
     Write-Host "    Project: $ApiProject"
+
+    # Build once up front so dotnet run --no-build just starts the app
+    Write-Host '    Building...'
+    dotnet build $ApiProject --verbosity quiet
+    if ($LASTEXITCODE -ne 0) {
+        Write-Fail 'Build failed — check compiler errors above.'
+        return
+    }
 
     $script:backendJob = Start-Job -ScriptBlock {
         param($proj)
         Set-Location $proj
-        dotnet run
+        dotnet run --no-build
     } -ArgumentList $ApiProject
 
     Write-Ok "Backend starting (Job ID: $($script:backendJob.Id))"
 
     # Wait for backend to become healthy
     Write-Host '    Waiting for backend to be ready...' -NoNewline
-    $maxAttempts = 30
+    $maxAttempts = 15
     $ready = $false
 
     for ($i = 1; $i -le $maxAttempts; $i++) {
-        Start-Sleep -Seconds 2
+        Start-Sleep -Seconds 1
         Write-Host '.' -NoNewline
         try {
-            $response = Invoke-WebRequest -Uri $HealthUrl -UseBasicParsing -TimeoutSec 3 -SkipCertificateCheck -ErrorAction SilentlyContinue
+            $response = Invoke-WebRequest -Uri $HealthUrl -UseBasicParsing -TimeoutSec 2 -ErrorAction SilentlyContinue
             if ($response.StatusCode -eq 200) {
                 $ready = $true
                 break
@@ -72,7 +100,7 @@ function Start-Backend {
     if ($ready) {
         Write-Ok "Backend is healthy at $BackendUrl"
     } else {
-        Write-Warn "Backend did not respond to health check within 60s"
+        Write-Warn "Backend did not respond to health check within 15s"
         Write-Host '    It may still be starting. Check logs with: Receive-Job -Id' $script:backendJob.Id
         Write-Host '    Make sure PostgreSQL is running and connection string is correct.'
     }

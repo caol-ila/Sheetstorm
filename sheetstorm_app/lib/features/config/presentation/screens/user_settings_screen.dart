@@ -17,7 +17,7 @@ class UserSettingsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final configState = ref.watch(configNotifierProvider);
+    final configState = ref.watch(configProvider);
     final grouped = ConfigKeys.groupedByCategory(ConfigLevel.user);
     final theme = Theme.of(context);
 
@@ -110,7 +110,7 @@ class UserSettingsScreen extends ConsumerWidget {
           resolved: resolved,
           viewLevel: ConfigLevel.user,
           onChanged: (value) {
-            ref.read(configNotifierProvider.notifier).updateConfig(
+            ref.read(configProvider.notifier).updateConfig(
                   keyDef.key,
                   value,
                   level: ConfigLevel.user,
@@ -120,7 +120,7 @@ class UserSettingsScreen extends ConsumerWidget {
                   !resolved.isLocked
               ? () {
                   // Copy the current value to the Nutzer level
-                  ref.read(configNotifierProvider.notifier).overrideAtLevel(
+                  ref.read(configProvider.notifier).overrideAtLevel(
                         keyDef.key,
                         resolved.value,
                         ConfigLevel.user,
@@ -130,7 +130,7 @@ class UserSettingsScreen extends ConsumerWidget {
           onReset: resolved.source == ConfigLevel.user
               ? () {
                   ref
-                      .read(configNotifierProvider.notifier)
+                      .read(configProvider.notifier)
                       .resetToParent(keyDef.key, ConfigLevel.user);
                 }
               : null,
