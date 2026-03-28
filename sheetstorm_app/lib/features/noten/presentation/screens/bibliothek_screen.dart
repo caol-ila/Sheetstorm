@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:sheetstorm/core/routing/app_router.dart';
 import 'package:sheetstorm/core/theme/app_tokens.dart';
 
 class BibliothekScreen extends ConsumerWidget {
@@ -20,10 +21,15 @@ class BibliothekScreen extends ConsumerWidget {
           ),
           IconButton(
             icon: const Icon(Icons.add),
-            onPressed: () {},
+            onPressed: () => context.push(AppRoutes.importStart),
             tooltip: 'Noten importieren',
           ),
         ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => context.push(AppRoutes.importStart),
+        tooltip: 'Noten importieren',
+        child: const Icon(Icons.add),
       ),
       body: Center(
         child: Column(
@@ -46,9 +52,9 @@ class BibliothekScreen extends ConsumerWidget {
             ),
             const SizedBox(height: AppSpacing.lg),
             ElevatedButton.icon(
-              onPressed: () {},
+              onPressed: () => context.push(AppRoutes.importStart),
               icon: const Icon(Icons.upload_file),
-              label: const Text('PDF importieren'),
+              label: const Text('Erste Noten importieren'),
             ),
           ],
         ),
@@ -56,3 +62,4 @@ class BibliothekScreen extends ConsumerWidget {
     );
   }
 }
+

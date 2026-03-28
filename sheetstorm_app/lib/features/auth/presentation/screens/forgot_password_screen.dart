@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -39,7 +39,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
     setState(() => _isLoading = true);
     try {
       await ref
-          .read(authNotifierProvider.notifier)
+          .read(authProvider.notifier)
           .forgotPassword(_emailController.text.trim());
       if (!mounted) return;
       setState(() {

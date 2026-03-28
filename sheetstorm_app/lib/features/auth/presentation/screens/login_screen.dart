@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sheetstorm/core/routing/app_router.dart';
@@ -31,7 +31,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
-    await ref.read(authNotifierProvider.notifier).login(
+    await ref.read(authProvider.notifier).login(
           _emailController.text.trim(),
           _passwordController.text,
         );
@@ -42,7 +42,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    ref.listen<AuthState>(authNotifierProvider, (_, next) {
+    ref.listen<AuthState>(authProvider, (_, next) {
       if (next is AuthError) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

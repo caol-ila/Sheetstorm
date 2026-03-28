@@ -1,28 +1,50 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-// ignore_for_file: type=lint
-// coverage:ignore-file
-
 part of 'api_client.dart';
 
 // **************************************************************************
 // RiverpodGenerator
 // **************************************************************************
 
-String _$apiClientHash() => r'placeholder_hash_run_build_runner';
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: type=lint, type=warning
 
-/// See also [apiClient].
 @ProviderFor(apiClient)
-final apiClientProvider = AutoDisposeProvider<Dio>.internal(
-  apiClient,
-  name: r'apiClientProvider',
-  debugGetCreateSourceHash:
-      const bool.fromEnvironment('dart.vm.product') ? null : _$apiClientHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
+final apiClientProvider = ApiClientProvider._();
 
-@Deprecated('Will be removed in 3.0. Use Ref instead')
-typedef ApiClientRef = AutoDisposeProviderRef<Dio>;
-// ignore_for_file: type=lint
-// ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package
+final class ApiClientProvider extends $FunctionalProvider<Dio, Dio, Dio>
+    with $Provider<Dio> {
+  ApiClientProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'apiClientProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$apiClientHash();
+
+  @$internal
+  @override
+  $ProviderElement<Dio> $createElement($ProviderPointer pointer) =>
+      $ProviderElement(pointer);
+
+  @override
+  Dio create(Ref ref) {
+    return apiClient(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(Dio value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<Dio>(value),
+    );
+  }
+}
+
+String _$apiClientHash() => r'f4e20d1232b1e63fab26051d2cebfc2575a6df76';

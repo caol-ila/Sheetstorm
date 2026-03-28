@@ -22,7 +22,7 @@ dependencies:
   dio: ^5.9.2
 
   # Local DB (SQLite via Drift)
-  drift: ^2.32.1
+  drift: ^2.22.0
   sqlite3_flutter_libs: ^0.5.27
   path_provider: ^2.1.5
   path: ^1.9.0
@@ -40,12 +40,15 @@ dependencies:
   # Secure Token Storage
   flutter_secure_storage: ^10.0.0
 
+  # File/Camera Import
+  image_picker: ^1.1.2
+  file_picker: ^8.3.0
+
   # Utilities
   intl: ^0.20.2
   equatable: ^2.0.7
-  freezed_annotation: ^2.4.4
-  json_annotation: ^4.9.0
-  shared_preferences: ^2.3.5
+  uuid: ^4.5.1
+  freezed_annotation: ^3.1.0
 
 dev_dependencies:
   flutter_test:
@@ -55,9 +58,7 @@ dev_dependencies:
   # Code Generation
   build_runner: ^2.4.15
   riverpod_generator: ^4.0.0
-  drift_dev: ^2.32.1
-  freezed: ^2.5.7
-  json_serializable: ^6.9.5
+  drift_dev: ^2.22.0
 
 flutter:
   uses-material-design: true

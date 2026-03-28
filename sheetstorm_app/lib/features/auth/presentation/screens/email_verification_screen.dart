@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sheetstorm/core/routing/app_router.dart';
@@ -31,7 +31,7 @@ class _EmailVerificationScreenState
       // Deep-link: auto-verify as soon as the widget is mounted
       WidgetsBinding.instance.addPostFrameCallback((_) {
         ref
-            .read(authNotifierProvider.notifier)
+            .read(authProvider.notifier)
             .verifyEmail(widget.verificationToken!);
       });
     }
@@ -41,7 +41,7 @@ class _EmailVerificationScreenState
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    ref.listen<AuthState>(authNotifierProvider, (_, next) {
+    ref.listen<AuthState>(authProvider, (_, next) {
       if (next is AuthAuthenticated) {
         // Verification succeeded — proceed to onboarding or app
         if (next.user.onboardingCompleted) {
@@ -59,7 +59,7 @@ class _EmailVerificationScreenState
       }
     });
 
-    final authState = ref.watch(authNotifierProvider);
+    final authState = ref.watch(authProvider);
     final email = authState is AuthEmailPendingVerification
         ? authState.email
         : null;
