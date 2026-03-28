@@ -33,8 +33,13 @@ abstract final class AppColors {
   /// Gerät-Einstellung (orange)
   static const Color configGerat = Color(0xFFD97706);
 
-  // ─── Annotation Layer Colors ─────────────────────────────────────────────────
-  static const Color annotationPrivate = Color(0xFF16A34A);
-  static const Color annotationStimme = Color(0xFF1A56DB);
-  static const Color annotationOrchester = Color(0xFFD97706);
+  // ─── Annotation Layer Colors (UX-Spec: Farbe = Reichweite) ──────────────────
+  /// Privat — Blau (#3B82F6) — nur für mich
+  static const Color annotationPrivate = Color(0xFF3B82F6);
+
+  /// Stimme — Grün (#22C55E) — alle mit gleicher Stimme
+  static const Color annotationStimme = Color(0xFF22C55E);
+
+  /// Orchester — Orange (#F97316) — alle Kapellenmitglieder
+  static const Color annotationOrchester = Color(0xFFF97316);
 }

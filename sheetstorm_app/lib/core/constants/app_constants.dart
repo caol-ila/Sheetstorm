@@ -31,4 +31,13 @@ abstract final class AppConstants {
 
   // Kontextmenü max. 5 Optionen (decisions.md)
   static const int contextMenuMaxItems = 5;
+
+  // Annotationen (annotationen-spec.md)
+  static const int annotationLongPressMs = 600;
+  static const int annotationAutoExitMinutes = 3;
+  static const int annotationMaxTextLength = 200;
+  static const double annotationHighlighterOpacity = 0.4;
+  static const double annotationMinStampScale = 0.5;
+  static const double annotationMaxStampScale = 2.0;
+  static const double annotationPalmRadiusThreshold = 30.0;
 }
