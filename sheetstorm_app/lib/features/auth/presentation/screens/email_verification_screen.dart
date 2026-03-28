@@ -24,9 +24,6 @@ class EmailVerificationScreen extends ConsumerStatefulWidget {
 
 class _EmailVerificationScreenState
     extends ConsumerState<EmailVerificationScreen> {
-  bool _isResending = false;
-  bool _resentSuccess = false;
-
   @override
   void initState() {
     super.initState();
@@ -36,26 +33,6 @@ class _EmailVerificationScreenState
         ref
             .read(authNotifierProvider.notifier)
             .verifyEmail(widget.verificationToken!);
-      });
-    }
-  }
-
-  Future<void> _resend() async {
-    final authState = ref.read(authNotifierProvider);
-    final email =
-        authState is AuthEmailPendingVerification ? authState.email : null;
-    if (email == null) return;
-    setState(() {
-      _isResending = true;
-      _resentSuccess = false;
-    });
-    await ref
-        .read(authNotifierProvider.notifier)
-        .resendVerificationEmail(email);
-    if (mounted) {
-      setState(() {
-        _isResending = false;
-        _resentSuccess = true;
       });
     }
   }
@@ -151,31 +128,8 @@ class _EmailVerificationScreenState
                     textAlign: TextAlign.center,
                   ),
                 const SizedBox(height: AppSpacing.xl),
-                if (_resentSuccess)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                    child: Text(
-                      '✓ E-Mail erneut gesendet.',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.primary,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                OutlinedButton(
-                  onPressed: _isResending ? null : _resend,
-                  style: OutlinedButton.styleFrom(
-                    minimumSize:
-                        const Size.fromHeight(AppSpacing.touchTargetMin),
-                  ),
-                  child: _isResending
-                      ? const SizedBox.square(
-                          dimension: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('E-Mail erneut senden'),
-                ),
-                const SizedBox(height: AppSpacing.md),
+                // TODO(follow-up): Add resend button once backend exposes
+                // a POST /api/auth/resend-verification endpoint.
                 TextButton(
                   onPressed: () => context.go(AppRoutes.login),
                   style: TextButton.styleFrom(

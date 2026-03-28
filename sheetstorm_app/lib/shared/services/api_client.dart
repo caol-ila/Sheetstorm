@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -44,19 +46,27 @@ Dio apiClient(Ref ref) {
 }
 
 /// Injects Bearer token and handles automatic refresh on 401.
+///
+/// Uses a [Completer]-based mutex so that concurrent 401 responses trigger
+/// only a single refresh request. Subsequent callers wait for the in-flight
+/// refresh and then retry with the new access token. This prevents reuse
+/// detection with family-based refresh token rotation.
 class _AuthInterceptor extends Interceptor {
   _AuthInterceptor({
     required TokenStorage tokenStorage,
     required AuthService authService,
-    required VoidCallback onAuthError,
+    required Future<void> Function() onAuthError,
   })  : _tokenStorage = tokenStorage,
         _authService = authService,
         _onAuthError = onAuthError;
 
   final TokenStorage _tokenStorage;
   final AuthService _authService;
-  final VoidCallback _onAuthError;
+  final Future<void> Function() _onAuthError;
   Dio? _dio;
+
+  /// Guards concurrent refresh attempts — only one refresh in flight at a time.
+  Completer<void>? _refreshCompleter;
 
   void setDio(Dio dio) => _dio = dio;
 
@@ -80,11 +90,34 @@ class _AuthInterceptor extends Interceptor {
     // Only attempt refresh for 401 on non-auth endpoints (avoid infinite loop)
     if (err.response?.statusCode == 401 &&
         !err.requestOptions.path.contains('/auth/')) {
+      // Another request is already refreshing — wait for it, then retry.
+      if (_refreshCompleter != null) {
+        try {
+          await _refreshCompleter!.future;
+          final token = await _tokenStorage.getAccessToken();
+          if (token != null && _dio != null) {
+            final opts = err.requestOptions
+              ..headers['Authorization'] = 'Bearer $token';
+            final response = await _dio!.fetch<dynamic>(opts);
+            handler.resolve(response);
+            return;
+          }
+        } catch (_) {
+          // Refresh failed — fall through to handler.next
+        }
+        handler.next(err);
+        return;
+      }
+
+      // First caller — perform the refresh.
+      _refreshCompleter = Completer<void>();
       final refreshToken = await _tokenStorage.getRefreshToken();
       if (refreshToken != null && _dio != null) {
         try {
           final tokens = await _authService.refreshToken(refreshToken);
           await _tokenStorage.saveTokens(tokens);
+          _refreshCompleter!.complete();
+          _refreshCompleter = null;
 
           // Retry original request with new access token
           final opts = err.requestOptions
@@ -92,13 +125,17 @@ class _AuthInterceptor extends Interceptor {
           final response = await _dio!.fetch<dynamic>(opts);
           handler.resolve(response);
           return;
-        } catch (_) {
+        } catch (e) {
           // Refresh failed — force re-login
           await _tokenStorage.clear();
-          _onAuthError();
+          _refreshCompleter!.completeError(e);
+          _refreshCompleter = null;
+          await _onAuthError();
         }
       } else {
-        _onAuthError();
+        _refreshCompleter!.completeError(StateError('No refresh token'));
+        _refreshCompleter = null;
+        await _onAuthError();
       }
     }
     handler.next(err);

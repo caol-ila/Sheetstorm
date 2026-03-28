@@ -153,15 +153,6 @@ class AuthNotifier extends _$AuthNotifier {
     }
   }
 
-  /// Re-sends the verification email. Best-effort — errors are swallowed.
-  Future<void> resendVerificationEmail(String email) async {
-    try {
-      await ref.read(authServiceProvider).resendVerificationEmail(email);
-    } catch (_) {
-      // Non-blocking: UI handles feedback separately
-    }
-  }
-
   Future<void> forgotPassword(String email) async {
     final service = ref.read(authServiceProvider);
     await service.forgotPassword(email);
@@ -174,19 +165,18 @@ class AuthNotifier extends _$AuthNotifier {
   }
 
   /// Called by the API interceptor when a 401 cannot be recovered.
-  void onAuthError() {
-    ref.read(tokenStorageProvider).clear();
+  Future<void> onAuthError() async {
+    await ref.read(tokenStorageProvider).clear();
     state = const AuthUnauthenticated();
   }
 
   /// Update local user record after onboarding completes.
-  void markOnboardingCompleted() {
+  Future<void> markOnboardingCompleted() async {
     final current = state;
     if (current is AuthAuthenticated) {
-      state = AuthAuthenticated(current.user.copyWith(onboardingCompleted: true));
-      ref.read(tokenStorageProvider).saveUser(
-            current.user.copyWith(onboardingCompleted: true),
-          );
+      final updated = current.user.copyWith(onboardingCompleted: true);
+      await ref.read(tokenStorageProvider).saveUser(updated);
+      state = AuthAuthenticated(updated);
     }
   }
 

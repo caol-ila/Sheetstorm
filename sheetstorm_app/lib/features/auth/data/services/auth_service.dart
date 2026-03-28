@@ -29,7 +29,7 @@ class AuthService {
 
   Future<AuthResponse> login(String email, String password) async {
     final res = await _dio.post<Map<String, dynamic>>(
-      '/auth/login',
+      '/api/auth/login',
       data: {'email': email, 'password': password},
     );
     return AuthResponse.fromJson(res.data!);
@@ -41,7 +41,7 @@ class AuthService {
     String displayName,
   ) async {
     final res = await _dio.post<Map<String, dynamic>>(
-      '/auth/register',
+      '/api/auth/register',
       data: {
         'email': email,
         'password': password,
@@ -53,7 +53,7 @@ class AuthService {
 
   Future<AuthTokens> refreshToken(String refreshToken) async {
     final res = await _dio.post<Map<String, dynamic>>(
-      '/auth/refresh',
+      '/api/auth/refresh',
       data: {'refresh_token': refreshToken},
     );
     return AuthTokens.fromJson(res.data!);
@@ -61,44 +61,30 @@ class AuthService {
 
   Future<void> forgotPassword(String email) async {
     await _dio.post<void>(
-      '/auth/forgot-password',
+      '/api/auth/forgot-password',
       data: {'email': email},
     );
   }
 
   Future<void> validateGuestToken(String token) async {
     await _dio.post<void>(
-      '/auth/guest-token/validate',
+      '/api/auth/guest-token/validate',
       data: {'token': token},
     );
   }
 
+  /// Verifies a user's email. Token is sent in the JSON body per backend contract.
   Future<void> verifyEmail(String token) async {
-    await _dio.post<void>('/auth/email-verify/$token');
-  }
-
-  Future<void> resendVerificationEmail(String email) async {
     await _dio.post<void>(
-      '/auth/email-verify/resend',
-      data: {'email': email},
+      '/api/auth/verify-email',
+      data: {'token': token},
     );
   }
 
-  Future<void> completeOnboarding({
-    String? instrument,
-    String? kapelleId,
-    String? defaultVoice,
-    String? theme,
-  }) async {
-    await _dio.patch<void>(
-      '/users/me/onboarding',
-      data: {
-        if (instrument != null) 'instrument': instrument,
-        if (kapelleId != null) 'kapelleId': kapelleId,
-        if (defaultVoice != null) 'defaultVoice': defaultVoice,
-        if (theme != null) 'theme': theme,
-        'onboardingCompleted': true,
-      },
+  Future<void> resetPassword(String token, String newPassword) async {
+    await _dio.post<void>(
+      '/api/auth/reset-password',
+      data: {'token': token, 'newPassword': newPassword},
     );
   }
 }

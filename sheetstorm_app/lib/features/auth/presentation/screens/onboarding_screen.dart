@@ -5,8 +5,7 @@ import 'package:sheetstorm/core/routing/app_router.dart';
 import 'package:sheetstorm/core/theme/app_colors.dart';
 import 'package:sheetstorm/core/theme/app_tokens.dart';
 import 'package:sheetstorm/features/auth/application/auth_notifier.dart';
-import 'package:sheetstorm/features/auth/data/services/auth_service.dart';
-import 'package:sheetstorm/features/auth/data/services/token_storage.dart';
+import 'package:sheetstorm/shared/services/api_client.dart';
 
 /// 5-step onboarding wizard shown once after first registration.
 /// All steps skippable. Prefills data from registration where possible.
@@ -65,14 +64,19 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   Future<void> _finish() async {
     try {
-      await ref.read(authServiceProvider).completeOnboarding(
-            instrument: _instrument,
-            theme: _themeMode.name,
-          );
+      // Uses the interceptor-equipped Dio so the Bearer token is attached.
+      await ref.read(apiClientProvider).patch<void>(
+        '/api/users/me/onboarding',
+        data: {
+          if (_instrument != null) 'instrument': _instrument,
+          if (_themeMode.name != 'system') 'theme': _themeMode.name,
+          'onboardingCompleted': true,
+        },
+      );
     } catch (_) {
       // Non-blocking: onboarding data saved locally, API best-effort
     }
-    ref.read(authNotifierProvider.notifier).markOnboardingCompleted();
+    await ref.read(authNotifierProvider.notifier).markOnboardingCompleted();
     if (mounted) context.go(AppRoutes.bibliothek);
   }
 
