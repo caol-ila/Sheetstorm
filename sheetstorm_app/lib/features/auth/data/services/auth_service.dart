@@ -73,6 +73,17 @@ class AuthService {
     );
   }
 
+  Future<void> verifyEmail(String token) async {
+    await _dio.post<void>('/auth/email-verify/$token');
+  }
+
+  Future<void> resendVerificationEmail(String email) async {
+    await _dio.post<void>(
+      '/auth/email-verify/resend',
+      data: {'email': email},
+    );
+  }
+
   Future<void> completeOnboarding({
     String? instrument,
     String? kapelleId,

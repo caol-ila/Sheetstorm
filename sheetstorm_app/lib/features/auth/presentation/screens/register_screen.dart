@@ -63,7 +63,15 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     if (!mounted) return;
     setState(() => _isLoading = false);
     if (response != null) {
-      context.go(AppRoutes.onboarding);
+      // Router redirect handles navigation based on AuthState:
+      // AuthEmailPendingVerification → /email-verify
+      // AuthAuthenticated (dev mode) → /onboarding
+      final authState = ref.read(authNotifierProvider);
+      if (authState is AuthEmailPendingVerification) {
+        context.go(AppRoutes.emailVerify);
+      } else {
+        context.go(AppRoutes.onboarding);
+      }
     }
   }
 

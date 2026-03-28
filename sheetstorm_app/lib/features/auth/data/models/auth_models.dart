@@ -4,6 +4,7 @@ class User {
   final String id;
   final String email;
   final String displayName;
+  final bool emailVerified;
   final bool onboardingCompleted;
   final List<String> instruments;
 
@@ -11,6 +12,7 @@ class User {
     required this.id,
     required this.email,
     required this.displayName,
+    this.emailVerified = false,
     this.onboardingCompleted = false,
     this.instruments = const [],
   });
@@ -19,6 +21,7 @@ class User {
         id: json['id'] as String,
         email: json['email'] as String,
         displayName: json['displayName'] as String,
+        emailVerified: json['emailVerified'] as bool? ?? false,
         onboardingCompleted: json['onboardingCompleted'] as bool? ?? false,
         instruments: (json['instruments'] as List<dynamic>?)
                 ?.map((e) => e as String)
@@ -30,6 +33,7 @@ class User {
         'id': id,
         'email': email,
         'displayName': displayName,
+        'emailVerified': emailVerified,
         'onboardingCompleted': onboardingCompleted,
         'instruments': instruments,
       };
@@ -38,6 +42,7 @@ class User {
     String? id,
     String? email,
     String? displayName,
+    bool? emailVerified,
     bool? onboardingCompleted,
     List<String>? instruments,
   }) =>
@@ -45,6 +50,7 @@ class User {
         id: id ?? this.id,
         email: email ?? this.email,
         displayName: displayName ?? this.displayName,
+        emailVerified: emailVerified ?? this.emailVerified,
         onboardingCompleted: onboardingCompleted ?? this.onboardingCompleted,
         instruments: instruments ?? this.instruments,
       );

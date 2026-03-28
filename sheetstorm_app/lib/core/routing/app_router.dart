@@ -1,7 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:sheetstorm/features/auth/application/auth_notifier.dart';
+import 'package:sheetstorm/features/auth/presentation/screens/email_verification_screen.dart';
 import 'package:sheetstorm/features/auth/presentation/screens/forgot_password_screen.dart';
 import 'package:sheetstorm/features/auth/presentation/screens/login_screen.dart';
 import 'package:sheetstorm/features/auth/presentation/screens/onboarding_screen.dart';
@@ -20,6 +22,8 @@ abstract final class AppRoutes {
   static const String login = '/login';
   static const String register = '/register';
   static const String forgotPassword = '/forgot-password';
+  static const String emailVerify = '/email-verify';
+  static const String emailVerifyToken = '/email-verify/:token';
   static const String onboarding = '/onboarding';
   static const String aushilfe = '/aushilfe/:token';
   static const String shell = '/app';
@@ -33,6 +37,7 @@ abstract final class AppRoutes {
   // Deep-Links: sheetstorm://bibliothek/[id]
   static String bibliothekDetail(String id) => '/app/bibliothek/$id';
   static String aushilfeToken(String token) => '/aushilfe/$token';
+  static String emailVerifyWithToken(String token) => '/email-verify/$token';
 }
 
 /// Routes that do not require authentication.
@@ -41,6 +46,7 @@ const _publicRoutes = {
   AppRoutes.login,
   AppRoutes.register,
   AppRoutes.forgotPassword,
+  AppRoutes.emailVerify,
 };
 
 @riverpod
@@ -54,7 +60,7 @@ GoRouter appRouter(Ref ref) {
 
   return GoRouter(
     initialLocation: AppRoutes.loading,
-    debugLogDiagnostics: true,
+    debugLogDiagnostics: kDebugMode,
     refreshListenable: routerNotifier,
     redirect: (context, state) => _redirect(ref, state),
     routes: [
@@ -80,6 +86,18 @@ GoRouter appRouter(Ref ref) {
       GoRoute(
         path: AppRoutes.onboarding,
         builder: (context, state) => const OnboardingScreen(),
+      ),
+
+      // ── E-Mail-Bestätigung ───────────────────────────────────────────────
+      GoRoute(
+        path: AppRoutes.emailVerify,
+        builder: (context, state) => const EmailVerificationScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.emailVerifyToken,
+        builder: (context, state) => EmailVerificationScreen(
+          verificationToken: state.pathParameters['token'],
+        ),
       ),
 
       // ── Aushilfen Deep-Link (no account required) ────────────────────────
@@ -165,6 +183,13 @@ String? _redirect(Ref ref, GoRouterState state) {
 
   final isPublic = _publicRoutes.contains(loc);
   final isAushilfe = loc.startsWith('/aushilfe/');
+  final isEmailVerifyDeepLink = loc.startsWith('/email-verify/');
+
+  if (authState is AuthEmailPendingVerification) {
+    // Allow email-verify routes and deep-links; block everything else
+    if (loc == AppRoutes.emailVerify || isEmailVerifyDeepLink) return null;
+    return AppRoutes.emailVerify;
+  }
 
   if (authState is AuthAuthenticated) {
     final user = authState.user;
@@ -172,13 +197,13 @@ String? _redirect(Ref ref, GoRouterState state) {
     if (!user.onboardingCompleted && loc != AppRoutes.onboarding) {
       return AppRoutes.onboarding;
     }
-    // Authenticated users on auth screens → app
-    if (isPublic) return AppRoutes.bibliothek;
+    // Redirect authenticated users away from auth/verify screens
+    if (isPublic || isEmailVerifyDeepLink) return AppRoutes.bibliothek;
     return null;
   }
 
   // Unauthenticated
-  if (isPublic || isAushilfe) return null;
+  if (isPublic || isAushilfe || isEmailVerifyDeepLink) return null;
   return AppRoutes.login;
 }
 
