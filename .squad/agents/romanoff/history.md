@@ -57,6 +57,83 @@ flutter pub run build_runner build --delete-conflicting-outputs
 
 ---
 
+## 2026-03-28 — PR #88 Fix (Auth Backend): SHA-256, EmailVerified, IEmailService, IStorageService
+
+**Branch:** `squad/88-auth-fix` (based on `squad/11-auth-backend`)
+**Worktree:** `C:\Source\Sheetstorm-88-fix`
+**Assigned by:** Thomas (via Ralph) — Banner locked out per Reviewer Rejection Protocol
+
+### Was wurde geändert
+
+**1. SHA-256 Hashing für Refresh Tokens (Security Fix)**
+- `AuthService.CreateRefreshTokenAsync`: speichert `SHA256(tokenValue)` in der DB
+- `AuthService.RefreshAsync`: hasht das eingehende Token vor dem DB-Lookup
+- Neuer privater Helper `HashToken(string)` — `SHA256.HashData` → Hex-String
+- Roher Token geht nur zum Client, nie in die DB → verhindert Token-Diebstahl via DB-Dump
+
+**2. E-Mail-Bestätigung (EmailVerified)**
+- `Musiker` Entität: neue Felder `EmailVerified`, `EmailVerificationToken`, `EmailVerificationTokenExpiresAt`
+- Bei `RegisterAsync`: `EmailVerified = false`, Verification-Token generieren (24h Ablauf), `IEmailService.SendEmailVerificationAsync` aufrufen
+- `UserDto` exposes `EmailVerified`
+
+**3. IEmailService + DevEmailService**
+- `Infrastructure/Email/IEmailService.cs`: `SendEmailVerificationAsync`, `SendPasswordResetAsync`
+- `Infrastructure/Email/DevEmailService.cs`: Stub — loggt E-Mails auf Konsole (dev-only)
+- `DependencyInjection.cs`: `IEmailService → DevEmailService` registriert
+
+**4. POST /api/auth/verify-email**
+- `VerifyEmailRequest(Token)` in `AuthModels.cs`
+- `IAuthService.VerifyEmailAsync` + Implementierung in `AuthService`
+- `AuthController`: neuer Endpoint, idempotent (bereits verifiziert = 200 OK)
+
+**5. IStorageService (S3-kompatibel)**
+- `Infrastructure/Storage/IStorageService.cs`: `UploadAsync`, `DownloadAsync`, `DeleteAsync`, `GetPresignedUrlAsync`
+- Noch kein konkreter S3-Provider — bewusst als Interface-only, Implementierung in eigenem Issue
+
+### Build-Ergebnis
+`dotnet build` → **0 Warnungen, 0 Fehler**
+
+---
+
+## 2026-03-28 — PR #95 Fix (Kapelle Backend): Stimmen-Override Endpoints
+
+**Branch:** `squad/95-kapelle-fix` (based on `squad/16-kapelle-backend`)
+**Worktree:** `C:\Source\Sheetstorm-95-fix`
+**Assigned by:** Thomas (via Ralph) — Banner locked out per Reviewer Rejection Protocol
+
+### Was wurde geändert
+
+**1. KapelleStimmenMapping Entität**
+- `Domain/Entities/KapelleStimmenMapping.cs`: `KapelleId`, `Instrument` (bis 100 Zeichen), `Stimme` (bis 100 Zeichen)
+- EF-Config: `KapelleStimmenMappingConfiguration` — Unique-Index auf `(KapelleId, Instrument)`, Cascade-Delete
+- `AppDbContext`: `KapelleStimmenMappings` DbSet
+- `Kapelle` Entität: `StimmenMappings` Navigation Collection
+
+**2. Nutzer-Override auf Mitgliedschaft**
+- `Mitgliedschaft.StimmenOverride` (nullable string, max 100): persönliche Stimme für dieses Mitglied
+- Priorität: `StimmenOverride > Kapelle-Default-Mapping > Globaler Default`
+
+**3. DTOs (KapelleModels.cs)**
+- `StimmenMappingEintrag(Instrument, Stimme)`
+- `StimmenMappingResponse(IReadOnlyList<StimmenMappingEintrag>)`
+- `StimmenMappingSetzenRequest(IReadOnlyList<StimmenMappingEintrag>)`
+- `NutzerStimmenRequest(StimmenOverride?)` — null = Override entfernen
+
+**4. Service-Layer**
+- `IKapelleService`: 3 neue Methoden
+- `KapelleService.GetStimmenMappingAsync` — alle Einträge für die Kapelle (Mitglied-Guard)
+- `KapelleService.SetStimmenMappingAsync` — atomares Replace aller Einträge (Admin-Guard)
+- `KapelleService.SetNutzerStimmenAsync` — Admin kann alle setzen, Mitglied nur eigene
+
+**5. Neue Endpoints**
+- `GET  /api/kapellen/{id}/stimmen-mapping` (jedes Mitglied)
+- `PUT  /api/kapellen/{id}/stimmen-mapping` (Admin — ersetzt komplette Mapping-Liste)
+- `PUT  /api/kapellen/{id}/mitglieder/{userId}/stimmen` (Admin oder selbst)
+
+### Build-Ergebnis
+`dotnet build` → **0 Warnungen, 0 Fehler**
+
+
 ## 2026-03-28 — Issue #12: Flutter Auth UI & Token Management
 
 **Branch:** `squad/12-auth-flutter`  
