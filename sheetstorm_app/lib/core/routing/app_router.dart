@@ -8,6 +8,7 @@ import 'package:sheetstorm/features/auth/presentation/screens/forgot_password_sc
 import 'package:sheetstorm/features/auth/presentation/screens/login_screen.dart';
 import 'package:sheetstorm/features/auth/presentation/screens/onboarding_screen.dart';
 import 'package:sheetstorm/features/auth/presentation/screens/register_screen.dart';
+import 'package:sheetstorm/features/config/presentation/screens/einstellungen_screen.dart';
 import 'package:sheetstorm/features/kapelle/presentation/screens/create_kapelle_screen.dart';
 import 'package:sheetstorm/features/kapelle/presentation/screens/einladen_screen.dart';
 import 'package:sheetstorm/features/kapelle/presentation/screens/join_kapelle_screen.dart';
@@ -59,6 +60,7 @@ abstract final class AppRoutes {
   static const String _importMetadata =
       '/app/import/:uploadId/metadata/:stueckIndex';
   static const String _importSummary = '/app/import/:uploadId/summary';
+  static const String einstellungen = '/app/einstellungen';
 
   // Deep-Links: sheetstorm://bibliothek/[id]
   static String bibliothekDetail(String id) => '/app/bibliothek/$id';
@@ -252,6 +254,10 @@ GoRouter appRouter(Ref ref) {
                     ],
                   ),
                 ],
+              ),
+              GoRoute(
+                path: AppRoutes.einstellungen,
+                builder: (context, state) => const EinstellungenScreen(),
               ),
             ],
           ),
