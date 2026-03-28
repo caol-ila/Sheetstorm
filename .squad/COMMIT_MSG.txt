@@ -1,0 +1,16 @@
+chore(squad): log PR merge batch (12 PRs merged)
+
+Merged 12 approved PRs into main with zero conflicts:
+- PRs: #83, #84, #85, #86, #87, #89, #90, #91, #92, #94, #96, #97
+- Status: All pushed to origin/main
+- Rejected PRs: #88, #93, #95 (awaiting fixes)
+
+Added orchestration log and session log.
+Merged inbox decisions into decisions.md:
+- Bluetooth as primary metronome technology
+- Git Worktrees mandate for all code changes
+- Architecture decisions (S3, tokens, voice scope, email)
+- Automated review process (3 models, no manual review by Thomas)
+- Explicit review workflow specification
+
+Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>

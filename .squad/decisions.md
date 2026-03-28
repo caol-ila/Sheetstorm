@@ -209,6 +209,45 @@ Marschpat, Notabl, Newzik, forScore, MobileSheets, Konzertmeister, BAND, Glissan
 
 ---
 
+### 2026-03-28T12:44Z: Echtzeit-Metronom — Bluetooth als primäre Technologie
+**By:** Thomas (via Copilot)  
+**Decision:** Bluetooth (BLE Broadcast) ist die primäre Technologie für den Echtzeit-Klick/Metronom. Gründe: einfachste Umsetzung, kein extra WLAN nötig, kein Koppeln, gute Latenz, ausreichende Reichweite. Andere Optionen (WebSocket, WebRTC, etc.) sind spätere Fallback-Optionen.
+
+### 2026-03-28T12:55Z: Worktrees für alle Codeänderungen — PFLICHT
+**By:** Thomas (via Copilot)  
+**Decision:** Jede Codeänderung wird auf einem eigenen Branch mit Git Worktrees umgesetzt. Keine Codeänderungen direkt auf main. PFLICHT-Regel zur Konfliktvermeidung bei paralleler Agent-Arbeit. Gilt ab sofort, keine Ausnahmen.
+
+### 2026-03-28T14:36Z: Architektur-Entscheidungen von Thomas
+**By:** Thomas (via Copilot)  
+
+1. **Storage-Backend:** S3-kompatibel — MinIO lokal für Entwicklung, S3 in Produktion.
+2. **Refresh-Token-Hashing:** Gehashte Tokens in der DB von Anfang an (sicherer, kein Migrationrisiko).
+3. **Stimme-Scope:** Stimmen werden von den Noten vorgegeben (global aus den Dokumenten). Nutzer geben an was sie spielen können/wollen. Fallback-Mapping ist pro Kapelle konfigurierbar, Nutzer kann es individuell anpassen. Der erste Vorschlag (Default) ist global der gleiche.
+4. **E-Mail-Bestätigung:** Pflicht bei Registrierung. Für Testing braucht es einen Mechanismus für voraktivierte User (z.B. Seed-Daten oder Admin-Endpoint).
+
+### 2026-03-28T14:36Z: Automatisierte Reviews — Thomas reviewt nicht
+**By:** Thomas (via Copilot)  
+**Decision:** Thomas möchte PRs NICHT selbst reviewen. Der gesamte Review-Prozess ist automatisiert: 3 Reviews mit 3 verschiedenen Modellen (Sonnet 4.6, Opus 4.6, GPT 5.4), dann entscheidet der Lead (Stark). Reviews als Kommentare im PR. Tests werden lokal ausgeführt, nicht in CI (keine Kapazität dafür).
+
+### 2026-03-28T14:36Z: Tests lokal, nicht in CI
+**By:** Thomas (via Copilot)  
+**Decision:** Tests sollen lokal ausgeführt werden, nicht in GitHub Actions CI. Thomas hat nicht genug CI-Kapazität.
+
+### 2026-03-28T14:42Z: Review-Prozess — eindeutige Spezifikation
+**By:** Thomas (via Copilot)  
+**Decision:** Der Review-Prozess ist eindeutig spezifiziert:
+1. ZUERST: 3 unabhängige Reviews mit 3 verschiedenen Modellen (Sonnet 4.6, Opus 4.6, GPT 5.4) — als PR-Kommentare
+2. DANACH: Stark (Lead) schaut sich die 3 Reviews an und entscheidet:
+   - Was wird direkt übernommen (Agent fixt es auf dem Branch)
+   - Was wird ein Follow-up Issue (später)
+   - Was wird nicht gemacht (begründet abgelehnt)
+3. Stark entscheidet ob gemerged wird (Approve/Reject)
+4. Thomas reviewt NICHT — der gesamte Prozess ist automatisiert
+
+Reihenfolge ist PFLICHT: Reviews ERST, dann Lead-Entscheidung, dann Merge.
+
+---
+
 ## Governance
 
 - All meaningful changes require team consensus
