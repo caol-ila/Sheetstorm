@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using NSubstitute;
 using Sheetstorm.Domain.Auth;
 using Sheetstorm.Domain.Entities;
@@ -39,7 +40,7 @@ public class AuthServiceTests : IDisposable
             .AddInMemoryCollection(configData)
             .Build();
 
-        _sut = new AuthService(_db, _configuration, _emailService);
+        _sut = new AuthService(_db, _configuration, _emailService, Substitute.For<IHostEnvironment>());
     }
 
     public void Dispose()
