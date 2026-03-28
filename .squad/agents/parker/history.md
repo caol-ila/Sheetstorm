@@ -67,3 +67,41 @@
 - **Align(heightFactor:) + Column + Spacer**: Gibt unbegrenzte Höhe → Column mit Spacer crasht. Fix: `Spacer` → `SizedBox` oder `mainAxisSize: MainAxisSize.min`.
 - **Test-Surface-Size**: `tester.binding.setSurfaceSize(Size(400, 800))` + `addTearDown(() async => tester.binding.setSurfaceSize(null))` für reproduzierbare Widget-Positionen.
 
+
+---
+
+## Team Update: Kapellenverwaltung & Auth-Onboarding Spec-Update (2026-03-28T22:10Z)
+
+**From:** Hill (Product Manager)  
+**Action:** QA scope expanded — 13 new edge cases + approval workflow testing.
+
+**Test Scenarios Added:**
+
+**Approval Flow (Core):**
+1. Join via invitation → request created with status "pending"
+2. Admin approves → user receives email, joins Kapelle
+3. Admin rejects → user receives email with rejection reason
+4. User with rejected request + new invitation → can request again
+5. Email invitation (admin provides email) → user still requires approval
+
+**"Meine Musik" Protection:**
+6. User cannot leave "Meine Musik" (error handling)
+7. User cannot invite others to "Meine Musik" (disabled UI / 403 error)
+8. User cannot delete "Meine Musik" (disabled UI / 403 error)
+9. "Meine Musik" always remains even if all other Kapellen left
+
+**Entry Point Logic:**
+10. Only "Meine Musik" → direct to library (no selector)
+11. 1 Kapelle + "Meine Musik" → direct to last active Kapelle
+12. 2+ Kapellen → show Kapellen-Auswahl selector
+13. Post-onboarding first visit → Kapellen-Auswahl (not library)
+
+**Scope Impact:**
+- Test cases: 8 → 13 (+5 edge cases)
+- Platforms: Web + Flutter (both approve/reject flows)
+
+**Related Specs:**
+- docs/feature-specs/kapellenverwaltung-spec.md § 7.9–7.13 (edge cases)
+- docs/feature-specs/auth-onboarding-spec.md (entry point scenarios)
+
+**Next Step:** Test plan document for detailed step-by-step scenarios

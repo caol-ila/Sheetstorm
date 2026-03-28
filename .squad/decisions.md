@@ -36,6 +36,43 @@
 ### 2026-03-28T11:26Z: Immer neueste Modellversionen
 **Decision:** Immer die neueste verfügbare Version jedes AI-Modells verwenden. Keine veralteten Versionen.
 
+### 2026-03-28T22:57Z: User Directive — "Meine Musik" & Kapellenverwaltung
+**By:** Thomas (via Copilot)  
+**Decision:** Jeder Nutzer erhält eine persönliche Bibliothek ("Meine Musik"), die wie eine Kapelle funktioniert — der Nutzer ist Admin. Bei einer Band/Kapelle gibt es einen oder mehrere Admins und andere Rollen. Nach dem Onboarding ist der Einstiegspunkt die Kapellen-/Band-Auswahl. Beitritt zu einer Kapelle/Band erfordert Einladungslink/Code UND Genehmigung durch Admin, Dirigent oder Registerführer.
+
+### 2026-03-28T22:10Z: „Meine Musik", Kapellen-Auswahl als Einstieg, Genehmigungs-Flow
+**By:** Hill (Product Manager)  
+**Date:** 2026-03-28
+
+**Entscheidungen:**
+
+1. **„Meine Musik" — Persönliche Bibliothek als Kapelle**
+   - Jeder Nutzer erhält bei der Registrierung automatisch eine „Meine Musik"-Kapelle (`ist_persoenlich = TRUE`)
+   - Nutzer ist alleiniger Admin, kann nicht löschen/verlassen/einladen
+   - Nutzt dieselbe Kapellen-Infrastruktur (kein separates System)
+   - Erscheint als erster Eintrag im Kapellen-Wechsel-Selector
+
+2. **Kapellen-/Band-Auswahl als Einstiegsscreen**
+   - Nach Login UND nach Onboarding: Einstiegspunkt ist die Kapellen-/Band-Auswahl (nicht die Bibliothek)
+   - Ausnahme: Nur eine Kapelle + „Meine Musik" → direkt zur zuletzt aktiven Kapelle
+   - Ausnahme: Nur „Meine Musik" → direkt in „Meine Musik"
+
+3. **Beitrittsflow mit Genehmigung (kein Auto-Join)**
+   - Einladungslink/E-Mail → Beitrittsanfrage wird erstellt → Genehmigung durch Admin, Dirigent ODER Registerführer
+   - Status-Flow: ausstehend → genehmigt | abgelehnt
+   - Abgelehnte Nutzer können über neuen Einladungslink erneut anfragen
+   - E-Mail-Einladung: Admin gibt E-Mail ein, Nutzer muss trotzdem genehmigt werden
+
+**Betroffene Specs:**
+- `docs/feature-specs/kapellenverwaltung-spec.md` — US-00, US-02 (Rewrite), US-06, §4.4, §5.1, §5.4, §6, §7.9–7.13, DoD
+- `docs/feature-specs/auth-onboarding-spec.md` — US-02, US-04, AC-05, AC-06, Grenzfälle
+
+**Betroffene Teams:**
+- **Stark** — Datenmodell-Änderungen: `ist_persoenlich` auf kapellen, neue `beitrittsanfragen`-Tabelle, `einladung_status` geändert
+- **Wanda** — UX-Flows: Kapellen-Auswahl als Einstieg, Genehmigungs-UI, „Meine Musik"-Darstellung
+- **Romanoff/Banner** — Implementierungs-Scope hat sich vergrößert (7 statt 5 User Stories, 15 statt 10 ACs)
+- **Parker** — Neue Testszenarien: Genehmigungs-Flow, „Meine Musik"-Schutz, 13 statt 8 Edge Cases
+
 ---
 
 ### Spezifikation & Meilensteinplanung
@@ -260,6 +297,49 @@ Reihenfolge ist PFLICHT: Reviews ERST, dann Lead-Entscheidung, dann Merge.
 **FIX NOW (must resolve before merge):**
 1. **LoginAsync must enforce EmailVerified** — Add check in `LoginAsync`: if `!user.EmailVerified`, return error (not a token). Thomas explicitly decided "E-Mail-Bestätigung: Pflicht bei Registrierung." All 3 reviewers flagged this. Unauthenticated users must not receive JWTs.
 2. **Hash email verification tokens** — Store verification tokens hashed (SHA-256), same as refresh tokens. Thomas decided "Gehashte Tokens in der DB von Anfang an." Lookup via hash comparison, not plaintext column query.
+
+---
+
+### 2026-03-29T21:31Z: MS2 UX-Specs — 9 Features Defined
+**By:** Wanda (UX Designer)  
+**Date:** 2026-03-29
+
+**Status:** Ready for Review
+
+Parallel creation of 9 comprehensive MS2 feature UX specifications:
+
+#### Features Documented
+1. **Setlist Management** (`docs/ux-specs/setlist.md`) — Song collections, ordering, metadata, versioning
+2. **Concert Planning** (`docs/ux-specs/konzertplanung.md`) — Event scheduling, musician assignment, performance timeline
+3. **Team Communication** (`docs/ux-specs/kommunikation.md`) — Messaging, notifications, collaboration patterns
+4. **GEMA Compliance** (`docs/ux-specs/gema-compliance.md`) — Rights management reporting with AI confidence scoring
+5. **Media Links** (`docs/ux-specs/media-links.md`) — YouTube/Spotify deep-links, oEmbed metadata, AI suggestions
+6. **Song Broadcasting** (`docs/ux-specs/song-broadcast.md`) — Real-time sync with SignalR, transparentstatus indicators
+7. **Attendance Tracking** (`docs/ux-specs/anwesenheit.md`) — Musician presence, role-based views, notifications
+8. **Relief/Temporary Members** (`docs/ux-specs/aushilfen.md`) — Substitute workflows, availability, training status
+9. **Shift Scheduling** (`docs/ux-specs/schichtplanung.md`) — Rehearsal/performance assignments, conflict detection
+
+#### Key UX Patterns
+- **Accessibility:** 44×64px touch targets, ARIA labels, screen reader support, keyboard navigation
+- **Responsive:** Phone/Tablet/Desktop layouts with grid systems
+- **Permissions:** Admin/Dirigent full control, Notenwart CRUD, Registerführer limited, Musiker read-only
+- **Real-time:** SignalR integration for Broadcast, status transparency
+- **AI Integration:** GEMA work-number search, media-link suggestions (Azure OpenAI)
+
+#### Critical Decisions
+- **GEMA:** Draft-first, export-locked model preserves historical consistency
+- **Media Links:** Minimal UI, deep-link-first, oEmbed fallback for missing metadata
+- **Broadcast:** Transparent latency monitoring (>1000ms warning, >30s reconnect dialog)
+
+#### Backend Dependencies
+- SignalR Hub for real-time Broadcasting
+- oEmbed service for media metadata
+- Azure OpenAI for GEMA + media-link AI features
+
+#### Next Steps
+- Stark (Lead) review & approval
+- Implementation sprint assignment (Romanoff frontend, Banner backend)
+- API design for Broadcast (Stark)
 3. **Fix broken existing tests** — GPT flagged old constructor signatures and raw token lookups that break after the changes. Existing tests must compile and pass.
 4. **Remove unrelated IStorageService.cs** — Scope creep. This file has nothing to do with auth. Remove it from this branch; it belongs in a storage feature branch.
 
@@ -322,6 +402,34 @@ Reihenfolge ist PFLICHT: Reviews ERST, dann Lead-Entscheidung, dann Merge.
 **Note to Strange:** You have two branches. Do 88-auth-fix first since 93-auth-flutter-fix (Vision) depends on the backend endpoints being correct. Then 95-kapelle-fix.
 
 **Note to Vision:** Wait for Strange to confirm 88-auth-fix endpoint contracts before fixing 93-auth-flutter-fix, so you align to the final API shape.
+
+---
+
+### 2026-03-28T18:00Z: Setlist-Verwaltung — Platzhalter als First-Class-Citizen
+**By:** Hill (Product Manager)  
+**Context:** Feature-Spec Setlist-Verwaltung (MS2)
+
+**Decision:** Setlist-Einträge haben drei Typen: Stück (Referenz auf piece_id), Platzhalter (ohne Stück-Referenz, mit Titel/Komponist/Notizen), und Pause (für Timing-Kalkulation). Platzhalter sind First-Class-Citizens im Datenmodell — Kapellen können vollständige Programme planen, bevor alle Noten digitalisiert sind. Im Spielmodus werden Platzhalter automatisch übersprungen mit Toast. GEMA-Export enthält Platzhalter. Keine automatische Ersetzung — explizite Umwandlung ist sicherer.
+
+### 2026-03-29T00:00Z: Dev-Mode Password-Policy Lockerung
+**By:** Banner (Backend Developer)
+
+**Decision:** Passwort-Policy wird im Development-Modus deaktiviert via `IHostEnvironment.IsDevelopment()`. Im Dev-Modus: beliebig einfache Passwörter über API. In Produktion: Policy bleibt aktiv (8+ Zeichen, Großbuchstabe, Zahl/Sonderzeichen). Demo-Account: `demo@test.local` / `demo` (E-Mail verifiziert, automatisch erstellt).
+
+### 2026-03-29T01:00Z: Backend Startup Performance — Port Fix
+**By:** Banner (Backend Developer)
+
+**Decision:** `start.ps1` Health-Check hatte Port-Mismatch (erwartete 5001, launchSettings.json nutzt 5273). Fix: Port auf 5273 korrigiert, Build/Run getrennt (`dotnet build` vorab, dann `dotnet run --no-build`), Health-Check von 30×2s auf 15×1s gestrafft. Falls Ports in `launchSettings.json` ändern → `start.ps1` synchron anpassen.
+
+### 2026-03-29T02:00Z: Loading-Screen-Hang — Router Redirect Fix
+**By:** Romanoff (Senior Frontend)
+
+**Decision:** `/loading` wurde aus `_publicRoutes` entfernt (war nur während `AuthLoading` gültig). `_redirect` behandelt `/loading` nach Auth-Auflösung: Redirect zu `/login` (unauthenticated) oder `/app/library` (authenticated). API Base URL (`AppConfig.apiBaseUrl`) zentralisiert — Debug: `http://localhost:5273`, Release: `https://api.sheetstorm.app/v1`. Konvention: `/loading`-Route darf NIE in `_publicRoutes` stehen.
+
+### 2026-03-29T03:00Z: JSON-Key-Konvention Backend ↔ Flutter
+**By:** Romanoff (Senior Frontend)
+
+**Decision:** camelCase ist die Konvention für alle JSON-Keys in der API (ASP.NET Core Default). Backend: keine Änderung nötig. Frontend: Alle neuen `fromJson`-Factories müssen camelCase-Keys verwenden. Generell: Error Handler sollten Exceptions nicht verschlucken — mindestens im Debug-Mode loggen.
 
 ---
 

@@ -172,3 +172,77 @@ Epic-Issues (#3, #4, #5) verlinken alle Child-Issues.
 - `vorausgewaehlt`-Feld im API-Response transparent dokumentiert welchen Schritt der Fallback genommen hat
 - Normalisierung behandelt mindestens: 2. = II = zweite = 2; Klar. = Klarinette
 - Tie-Breaking deterministisch (alphabetisch) — kein Random, keine Abfrage
+
+### 2026-03-28: Feature-Spec Setlist-Verwaltung (MS2) erstellt
+
+**Aufgabe:** Vollständige Feature-Spezifikation für Setlist-Verwaltung (MS2) auf Basis von `docs/meilensteine.md` MS2-Deliverables. UX-Spec von Wanda noch ausstehend.
+
+**Ergebnis:** `docs/feature-specs/setlist-spec.md` erstellt:
+
+1. **Feature-Überblick** — Kernwert klar: Konzertprogramme digital durchspielbar machen. Scope MS2 abgegrenzt (GEMA-Export, Dirigenten-Sync, Templates Out of Scope).
+2. **8 INVEST-konforme User Stories:**
+   - US-01: Setlist erstellen (Name, Typ: Konzert/Probe/Marschmusik, Datum, Startzeit)
+   - US-02: Stücke zur Setlist hinzufügen (Picker, mehrfach verwendbar, mehrere Setlists)
+   - US-03: Platzhalter-Einträge (ohne Stück-Referenz, für noch nicht digitalisierte Stücke)
+   - US-04: Drag & Drop Umsortierung (Touch + Desktop, Auto-Save, Undo-Toast)
+   - US-05: Konzertprogramm mit Timing (geschätzte Dauer, Start-/Endzeiten berechnet, Gesamtdauer, Pauseneinträge)
+   - US-06: Setlist-Modus im Player (nahtloser Übergang, Preloading < 200ms, Vor/Zurück)
+   - US-07: Setlist bearbeiten/duplizieren/löschen (CRUD-Operationen, Audit-Log)
+   - US-08: Setlist-Übersicht (Filter, Suche, Sortierung, Cursor-Pagination)
+3. **15 testbare Akzeptanzkriterien** (AC-01 bis AC-15)
+4. **API-Contract (12 Endpunkte):** GET/POST/PATCH/DELETE Setlists, Einträge hinzufügen/bearbeiten/löschen, Positionen batch-update, Duplizieren, Platzhalter-in-Stück-umwandeln, Spielmodus-Metadaten mit Preload-URLs
+5. **Datenmodell (3 Tabellen):** setlists (name, typ enum, datum, startzeit, beschreibung), setlist_entries (position, typ enum: stueck/platzhalter/pause, piece_id nullable, platzhalter_felder, pause_felder, geschaetzte_dauer), setlist_audits (JSONB details)
+6. **Berechtigungsmatrix:** 5 Rollen × alle Aktionen; Notenwart darf nur Metadaten fremder Setlists ändern, nicht Einträge
+7. **10 Edge Cases:** Stück während Erstellung gelöscht (ON DELETE SET NULL, wie Platzhalter behandeln), leere Setlist spielen, nur Platzhalter, Timing mit fehlenden Dauer-Angaben, Drag & Drop Netzwerkfehler, Concurrent Editing (Last-Write-Wins + Reload-Hinweis), 100+ Einträge (Virtualisierung), Platzhalter-Umwandlung bei gelöschtem Stück, Stimme nicht verfügbar (Fallback-Logik), Timing über Mitternacht
+8. **Abhängigkeiten:** MS1 (Kapellenverwaltung, Notenbank, Spielmodus, Stimmenauswahl), MS2 parallel (Konzertplanung, GEMA, Dirigenten-Mastersteuerung)
+9. **Definition of Done:** Funktional (17 Checkboxen), Testing (Unit/Integration/Widget/E2E/Performance), Dokumentation (Swagger, DB-Migrationen, UX-Spec), NFRs (Responsive, Touch + Keyboard, Dark Mode, i18n, Offline-Cache, WCAG 2.1 AA), Deployment
+
+**Wichtigste Entscheidungen in der Spec:**
+- Platzhalter als First-Class-Citizen: Titel + Komponist + Notizen, visuell unterscheidbar, im Spielmodus übersprungen
+- Timing-Kalkulation: Startzeit + Dauer → berechnete Start-/Endzeiten pro Eintrag, stoppt bei fehlender Dauer mit "?"
+- Pauseneinträge: Spezialtyp für Timing (kein Stück/Platzhalter), nur für Konzertprogramm-Planung
+- Setlist-Modus: Preloading nächster 3-5 Seiten, Übergang < 200ms (NFR), Platzhalter automatisch übersprungen mit Toast
+- Stücke mehrfach verwendbar: Ein Piece kann in mehreren Setlists und mehrfach in derselben Setlist sein (z.B. Zugabe)
+- ON DELETE SET NULL für piece_id: Wenn Stück gelöscht wird, bleibt Eintrag als "Stück nicht verfügbar" (kein CASCADE)
+- Berechtigungen: Notenwart darf fremde Setlists nur Metadaten ändern (nicht Einträge) — Dirigenten planen Programme
+- API-Muster: Cursor-Pagination, JWT Bearer Auth, /api/v1/kapellen/{id}/setlists, Batch-Update für Positionen
+
+### 2026-03-28: Spec-Update — „Meine Musik", Kapellen-Auswahl, Genehmigungs-Flow
+
+**Aufgabe:** Drei grundlegende Änderungen an den bestehenden Feature-Specs kapellenverwaltung-spec.md und auth-onboarding-spec.md auf Anweisung von Thomas.
+
+**Ergebnis:**
+
+1. **„Meine Musik" (Persönliche Bibliothek):**
+   - Neue US-00 in Kapellenverwaltung-Spec eingefügt
+   - Datenmodell: `ist_persoenlich` Boolean auf kapellen-Tabelle, Unique Index pro Nutzer
+   - Berechtigungsmatrix: Alle Manipulationsversuche (Löschen, Verlassen, Einladen, Rollen ändern) → 403
+   - Edge Case 7.9 deckt alle Schutzszenarien ab
+
+2. **Kapellen-/Band-Auswahl als Einstiegsscreen:**
+   - Auth-Spec: US-02 (Login) und US-04 (Onboarding) aktualisiert — nach Login/Onboarding → Kapellen-Auswahl statt Bibliothek
+   - Auth-Spec: AC-05 erweitert um „Meine Musik"-Erstellung bei Registrierung
+   - Kapelle-Spec: US-04 AC-7 und AC-11 aktualisiert für neuen Einstiegsscreen
+   - Ausnahme-Logik: Nur eine Kapelle + „Meine Musik" → direkt zur letzten aktiven Kapelle
+
+3. **Genehmigungs-Flow (kein Auto-Join):**
+   - US-02 komplett überarbeitet: Einladungslink/E-Mail → Beitrittsanfrage → Genehmigung
+   - Neue US-06: Beitrittsanfrage genehmigen/ablehnen (Admin, Dirigent, Registerführer)
+   - §4.4 API komplett überarbeitet: 7 Endpunkte inkl. POST beitrittsanfrage, GET/PUT beitrittsanfragen
+   - §5.4 Datenmodell erweitert: neue `beitrittsanfragen`-Tabelle, `einladung_status` geändert ('angenommen' → 'verwendet')
+   - Berechtigungsmatrix: 3 neue Zeilen für Beitrittsanfragen (Admin ✅, Dirigent ✅, Registerführer ✅)
+   - 5 neue Edge Cases (7.9–7.13)
+
+**Quantitative Änderungen:** 5→7 User Stories, 10→15 ACs, 8→13 Edge Cases, DoD aktualisiert
+
+**Wichtigste Entscheidungen:**
+- „Meine Musik" nutzt `ist_persoenlich`-Flag, kein separates System — Architektur-Konsistenz
+- `einladung_status` verliert 'angenommen', gewinnt 'verwendet' — Einladungen sind nicht mehr das Endstück
+- Beitrittsanfragen haben eigene Tabelle mit Partial Unique Index (`WHERE status = 'ausstehend'`)
+- Registerführer darf Beitrittsanfragen genehmigen — Rollen-Konsistenz mit bestehender Verantwortung
+- Abgelehnte Nutzer können erneut anfragen, aber nur über neuen Link — kein Spam-Vektor
+
+**Betroffene Dateien:**
+- `docs/feature-specs/kapellenverwaltung-spec.md`
+- `docs/feature-specs/auth-onboarding-spec.md`
+- Decision: `.squad/decisions/inbox/hill-meine-musik-genehmigungs-flow.md`

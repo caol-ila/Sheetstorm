@@ -10,6 +10,73 @@
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
+## 2026-04-15 — 3 Flutter Feature Modules: Anwesenheit, Aushilfen, Schichtplanung
+
+**Implemented:**
+- **Attendance Statistics** (`features/attendance/`) — Anwesenheitsstatistiken mit Dashboard, Trends, Register-Breakdown
+- **Substitute Access** (`features/substitute/`) — Aushilfen-Zugänge mit QR-Code-Sharing, temporäre Token
+- **Shift Planning** (`features/shifts/`) — Schichtplanung mit Self-Signup und Admin-Zuweisung
+
+**Architecture:**
+- Alle 3 Features folgen Clean Architecture Pattern: `data/models/`, `data/services/`, `application/`, `presentation/screens/`, `presentation/widgets/`, `routes.dart`
+- State Management: Riverpod 3.x Codegen mit `@riverpod`/`@Riverpod`, `part 'filename.g.dart';`
+- API Services: Thin REST-Wrapper über `apiClientProvider`, alle Methoden mit optionalen Query-Parametern
+- Models: Immutable Dart-Klassen mit manueller JSON-Serialisierung (kein freezed), copyWith-Methoden
+- Theme: AppTokens, AppColors aus `core/theme/` — Material 3, responsive Design
+
+**Attendance Feature:**
+- **Models:** `AttendanceStats`, `MemberAttendance`, `RegisterAttendance`, `AttendanceTrend`, `TrendDataPoint`, `ExportData`
+- **Service:** GET stats, GET register breakdown, GET trends, POST export, GET export status
+- **State:** `AttendanceNotifier` mit `AttendanceDashboardState` (keepAlive), Date-Range-Filter, Event-Type-Filter
+- **Screens:** `AttendanceDashboardScreen` — 3 Tabs (Musiker / Register / Trends), Date-Range-Picker, Export-Button
+- **Widgets:** `AttendanceChart` (Custom Painter Line Chart), `AttendanceStatCard`, `RegisterBreakdown`, `ExportButton`
+- **Farb-Logik:** >80% grün, 60-80% gelb, <60% rot — mit Icons (check_circle, warning, cancel)
+
+**Substitute Feature:**
+- **Models:** `SubstituteAccess`, `SubstituteLink`, `SubstituteStatus` Enum (active/expired/revoked)
+- **Service:** POST create link, GET list, GET detail, DELETE revoke, PATCH extend expiry
+- **State:** `SubstituteListNotifier` (keepAlive), `activeSubstitutes` Provider (filtered)
+- **Screens:** `SubstituteManagementScreen` (List mit Filter), `SubstituteLinkScreen` (QR-Code + Link-Anzeige)
+- **Widgets:** `AccessLinkCard`, `QRCodeGenerator` (Placeholder für qr_flutter), `SubstituteStatusBadge`
+- **QR-Code:** Client-seitige Generierung (Platzhalter implementiert, echte QR-Generierung via qr_flutter-Package)
+
+**Shift Planning Feature:**
+- **Models:** `ShiftPlan`, `Shift`, `ShiftAssignment`, `ShiftStatus` Enum (open/filled/requested)
+- **Service:** CRUD für ShiftPlans und Shifts, POST self-assign, POST assign member, DELETE remove assignment
+- **State:** `ShiftPlanListNotifier` (keepAlive), `ShiftPlanNotifier` (Family per planId), `myShifts` + `openShifts` Providers
+- **Screens:** `ShiftPlanScreen` (Plan-Übersicht mit Schicht-Liste), `ShiftDetailScreen` (Schicht-Details mit Assignments)
+- **Widgets:** `ShiftSlot`, `ShiftAssignmentCard`, `OpenShiftsBadge`
+- **Self-Signup:** Musiker kann sich selbst eintragen, Admin kann Musiker zuweisen, Unterscheidung via `isSelfAssigned`
+
+**Routes:**
+- Jedes Feature hat `routes.dart` mit GoRoute-Definitionen (NICHT in app_router.dart integriert — wird separat registriert)
+- Route-Parameter über Query-Params (z.B. `?bandId=...`) oder `state.extra` für Objekte
+
+**Code-Generation-Stubs:**
+- Alle `.g.dart` Dateien als Stubs erstellt — müssen mit `flutter pub run build_runner build --delete-conflicting-outputs` generiert werden
+- 6 Riverpod-Provider-Stubs: attendance_service, attendance_notifier, substitute_service, substitute_notifier, shift_service, shift_notifier
+
+**German Strings:**
+- Alle Texte hardcoded in Deutsch (keine i18n in MS2) — "Anwesenheit", "Aushilfe", "Schicht", "Ich bin dabei", etc.
+
+**Responsive:**
+- Alle Screens mit RefreshIndicator (Pull-to-Refresh)
+- Cards, ListTiles, Tables — funktioniert auf Phone/Tablet/Desktop
+- Touch-Targets: AppSpacing.touchTargetMin (44px)
+
+**Conventions:**
+- Imports alphabetisch (flutter, flutter_riverpod, sheetstorm/core, sheetstorm/features, sheetstorm/shared)
+- `const` Constructors wo möglich
+- Null-Safety: nullable Felder mit `?`, required Felder ohne `?`
+- Provider-Namen: `{featureName}ServiceProvider`, `{featureName}NotifierProvider`
+
+**Noch offen (später):**
+- build_runner muss nach Flutter-Installation ausgeführt werden
+- QR-Code-Generierung: qr_flutter-Package hinzufügen
+- Chart-Library: fl_chart oder syncfusion_flutter_charts (aktuell Custom Painter als Placeholder)
+- Share-Funktionalität: share_plus-Package für Aushilfen-Links
+- Routes müssen in app_router.dart integriert werden (separat, DO NOT modify app_router.dart Warnung beachtet)
+
 ## 2026-03-29 — GEMA & Media Links Feature Modules
 
 **Task:** Implement 2 feature modules — GEMA Compliance + Media Links  
@@ -357,6 +424,101 @@ json['access_token'] as String  // → null!
 - In-Memory-State VOR Disk-Persistierung setzen, damit Navigation sofort funktioniert
 - PATCH/PUT-Calls auf nicht-existierende Backend-Endpoints sind keine harmlosen No-Ops — der Auth-Interceptor liest Tokens aus SecureStorage, was auf Web crashen kann
 
+## 2026-03-28 — Communication Module Implementation (Posts + Polls)
+
+**Branch:** TBD  
+**Feature:** Complete Flutter module for Kommunikation feature (MS2)
+
+### Was wurde gebaut
+
+Vollständiges `features/communication/` Modul gemäß `docs/feature-specs/kommunikation-spec.md` und `docs/ux-specs/kommunikation.md`:
+
+**Daten-Schicht (`data/models/`):**
+- `post_models.dart` — Post, Comment, Reaction, ReactionType enum, Author, Attachment
+- `poll_models.dart` — Poll, PollOption, PollStatus enum, Author (shared)
+- Immutable Dart classes, manuelle JSON serialisierung (fromJson/toJson/copyWith)
+- Reactive Maps für Reactions (ReactionType → Reaction mit hasReacted flag)
+
+**Service-Schicht (`data/services/`):**
+- `post_service.dart` — REST-Wrapper für Posts (CRUD, pin/unpin, reactions, comments)
+- `poll_service.dart` — REST-Wrapper für Polls (CRUD, vote, close)
+- Beide nutzen `apiClientProvider` (injected Dio mit Auth-Interceptor)
+- Pagination-Support via cursor (limit default 20)
+
+**State-Schicht (`application/`):**
+- `post_notifier.dart` — PostListNotifier (mit pinnedOnly filter), PostDetailNotifier, PostCommentsNotifier
+- `poll_notifier.dart` — PollListNotifier, PollDetailNotifier
+- Alle mit Riverpod 3.x codegen (@riverpod), AsyncNotifier pattern
+- Optimistic UI-Updates (reactions/comments sofort anzeigen, bei Fehler rollback)
+
+**Presentation (`presentation/`):**
+- Screens:
+  - `board_screen.dart` — Main feed mit Tabs (Alle/Pinned/Umfragen), Pull-to-Refresh, FAB
+  - `post_detail_screen.dart` — Full post + comment thread + input bar
+  - `poll_detail_screen.dart` — Poll question, selectable options, vote button, results
+  - `create_poll_screen.dart` — Form mit dynamischer Option-Liste, settings (deadline, anonym, multi-select)
+- Widgets:
+  - `post_card.dart` — Preview-Card mit author header, snippet, attachments, reactions
+  - `poll_card.dart` — Umfrage-Card mit live results
+  - `reaction_bar.dart` — 5 Emoji-Buttons (👍👏❤️😊🎺) mit toggle-logic
+  - `pin_badge.dart` — Gelbes "Gepinnt" Badge
+  - `poll_status_badge.dart` — Aktiv (grün) / Beendet (grau)
+  - `poll_option_tile.dart` — Selectable option mit progress bar, vote count
+  - `vote_results.dart` — Horizontal bars mit percentages
+  - `comment_thread.dart` — List of comments (1-Ebene, kein nesting)
+
+**Routing (`routes.dart`):**
+- Named routes: `CommunicationRoutes.board`, `.postDetail()`, `.pollDetail()`, `.createPoll()`
+- GoRoute definitions für alle screens (nested unter `/app/board`)
+- DO NOT modify app_router.dart — routes werden via shell branch injected (siehe Kommentar)
+
+**Dependencies hinzugefügt:**
+- `timeago: ^3.7.0` — Relative time formatting ("vor 5 Minuten")
+
+### Design Patterns & Konventionen
+
+**Riverpod 3.x Codegen:**
+- Alle Notifier mit `@riverpod` (lowercase), `part 'filename.g.dart';`
+- Services mit `@Riverpod(keepAlive: true)`
+- Family-Provider für ID-basierte Lookups (postDetailNotifierProvider(bandId, postId))
+
+**Material 3 + Design Tokens:**
+- `AppColors` — primary, success, warning, error, textSecondary
+- `AppSpacing` — xs/sm/md/lg/xl, touchTargetMin (44px), roundedMd
+- `AppTypography` — fontSizeXs/Sm/Base/Lg, weightNormal/Medium/Bold
+- Card-basiertes Layout mit shadows, rounded corners, consistent padding
+
+**Responsive:**
+- Board-Screen funktioniert auf Phone (single column) + Tablet (TODO: 2-column gepinnte Posts)
+- Touch-Targets ≥ 44px (Chips, Buttons, IconButtons)
+
+**Null-Safety:**
+- Alle optionalen Felder mit `?`, default values in constructors
+- `copyWith` für immutable updates
+
+**German Strings:**
+- Hardcoded in UI (keine i18n in MS2)
+- UX-Sprache: "Gepinnt", "Umfrage", "Abstimmen", "Teilnehmer"
+
+### Noch offen (spätere Issues)
+
+- **Navigation-Integration:** routes.dart muss in app_router.dart injected werden (neue shell branch oder unter Profile-Tab)
+- **Create Post Screen:** Fehlt noch (UI + Image/PDF upload flow)
+- **Search:** Board-Screen hat Search-Icon, aber keine Implementierung
+- **Register-Filter:** Dropdown im Board für "An Register: Trompeten" fehlt
+- **Backend-Integration:** Alle API-Calls sind stubs — Backend muss Communication-Endpoints implementieren
+- **Pagination:** Cursor-basiert vorbereitet, aber infinite scroll UI fehlt
+- **Push-Benachrichtigungen:** FCM/APNs integration (separates Issue)
+- **Nested Comments (MS3):** `parentId` in Comment-Model vorbereitet, aber UI zeigt keine Verschachtelung
+
+### Technische Entscheidungen
+
+1. **Shared Author Model:** Author-Klasse wird in beiden post_models.dart + poll_models.dart dupliziert — bewusst, um Zyklische-Dependency zu vermeiden (kein shared/models/ in MS2)
+2. **Reaction-Map statt List:** `Map<ReactionType, Reaction>` für O(1) Lookup beim Toggle — einfacher als Liste filtern
+3. **timeago Package:** Statt manuellem DateTime-Formatting — standard pattern, German locale support
+4. **No build_runner yet:** `.g.dart` Stubs erstellt — echte Generierung nach Flutter-Installation via `flutter pub run build_runner build`
+5. **Board = Central Feed:** Polls sind integriert im Board-Screen (Tab), kein separater poll_list_screen nötig
+
 ## 2026-03-29 — FlutterSecureStorage Web-Crash Fix (OperationError)
 
 **Commit:** `517f363`
@@ -479,3 +641,33 @@ JSON-Felder: `kapelle_id`, `titel`, `typ`, `datum`, `start_uhrzeit`, `end_uhrzei
 - **AsyncValue.guard:** Cleaner als try-catch für Riverpod State-Updates
 - **CalendarMonthView Grid:** `startWeekday - 1` für korrekte Platzierung des 1. Tages im Monat
 - **RsvpStatus & EventType Farben:** Konsistente Farbzuordnung in allen Widgets (success/error/warning/primary)
+
+---
+
+## Team Update: Kapellenverwaltung & Auth-Onboarding Spec-Update (2026-03-28T22:10Z)
+
+**From:** Hill (Product Manager)  
+**Action:** Frontend scope expanded — 3 new screens + UX flows.
+
+**New Screens Required:**
+- Kapellen-Auswahl (entry point after onboarding) — selector with "Meine Musik" first
+- Join-Request Flow — show approval status, rejection reason if denied
+- Request List Screen (admin/conductor only) — pending requests with approve/reject UI
+
+**UX Flows:**
+- **Entry Point:** Post-login/post-onboarding → Kapellen-Auswahl (unless only 1 Kapelle)
+- **Join Flow:** Show invitation → request sent → status pending/approved/rejected
+- **Approval UI:** Show request, approve/reject buttons, optional rejection reason field
+
+**Affected Features:**
+- US-00: "Meine Musik" display (appears first in selector, protected)
+- US-02: Kapellen-Auswahl as entry screen (smart routing: 1 Kapelle → direct, only "Meine Musik" → direct)
+- US-06: Approval workflow screens
+
+**User Story Impact:** 5 → 7 user stories, 10 → 15 acceptance criteria
+
+**Spec References:**
+- docs/feature-specs/auth-onboarding-spec.md — AC-05, AC-06 (entry point)
+- docs/feature-specs/kapellenverwaltung-spec.md — US-00, US-02, US-06, §7.9–7.13 (edge cases)
+
+**Status:** Request Wanda review of UX flows before implementation

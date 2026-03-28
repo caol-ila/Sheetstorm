@@ -244,3 +244,182 @@ All three branches merged to main and pushed to origin.
 6. Add `POST /api/auth/resend-verification` endpoint (blocking resend button re-enable)
 7. Fix typo `VorgeseheRolle` → `VorgeseheneRolle` (cosmetic)
 8. Password reset token hashing (follow-up PR, low priority)
+
+---
+
+## Decision 7: MS2 Backend Architecture — Feature-First Structure
+
+**By:** Banner (Backend Developer)  
+**Date:** 2026-03-28  
+**Context:** MS2 Backend Implementation — 5 CRUD Features  
+**Status:** Implemented in squad/ms2-banner-backend
+
+### Decisions Made
+
+#### 1. Feature-First Directory Structure
+Each feature gets its own namespace:
+- Domain: `Sheetstorm.Domain.{Feature}/{Feature}Models.cs`
+- Infrastructure: `Sheetstorm.Infrastructure.{Feature}/I{Feature}Service.cs` + `{Feature}Service.cs`
+
+**Rationale:** Clean separation, avoids namespace conflicts, makes feature ownership clear.
+
+#### 2. Enums Stored as Strings in Database
+All enums (`SetlistType`, `MediaLinkType`, `AttendanceStatus`) stored as strings via EF:
+```csharp
+builder.Property(e => e.Type)
+    .HasConversion<string>()
+    .HasMaxLength(30)
+    .IsRequired();
+```
+**Rationale:** Future-proof (enum values can change without breaking DB), human-readable, easier debugging.
+
+#### 3. Service-Level Authorization (Not Policy-Based)
+Role checks via `MemberRole` enum in Service layer:
+```csharp
+if (membership.Role != MemberRole.Administrator && 
+    membership.Role != MemberRole.Conductor)
+    throw new DomainException("FORBIDDEN", "...", 403);
+```
+**Rationale:** Roles are band-specific, not global. Flexible for multi-band scenarios. No JWT claims needed.
+
+#### 4. DomainException Standardization
+All business logic errors use standardized format:
+```csharp
+throw new DomainException("ERROR_CODE", "Human message", httpStatusCode);
+```
+Error codes: `NOT_FOUND` (404), `FORBIDDEN` (403), `CONFLICT` (409), `VALIDATION_ERROR` (400)
+
+**Rationale:** Consistent API error structure, middleware handles centrally, no HTTP leakage in business logic.
+
+#### 5. MediaLinkType Auto-Detection
+URL-based recognition in `MediaLinkService.DetermineMediaLinkType()`:
+- `youtube.com` / `youtu.be` → YouTube
+- `spotify.com` → Spotify
+- `soundcloud.com` → SoundCloud
+- `music.apple.com` → AppleMusic
+- Fallback → Other
+
+**Rationale:** Reduces user error, better UX.
+
+#### 6. Post Reactions: 1 Per User (Toggle)
+One user = one reaction per post. Re-reaction overwrites old.
+
+**Rationale:** Simplified UI, prevents spam, standard pattern (Discord, Slack).
+
+#### 7. Poll Votes: Overwrite Pattern
+New vote deletes old votes and adds new.
+
+**Rationale:** User can change opinion, no "Undo" button needed, matches UX expectations.
+
+#### 8. Attendance Rate Formula
+`AttendanceRate = (Present / Total) * 100`  
+**Late counts as NOT present** — only explicit `Present` status.
+
+**Rationale:** Statistical accuracy, fair comparison between musicians.
+
+#### 9. Shared Files Not Modified
+`AppDbContext.cs`, `DependencyInjection.cs`, `Program.cs` left untouched by Banner.
+
+**Rationale:** Avoid conflicts with parallel work (Strange agent). Follow-up agent adds DbSets/services centrally.
+
+### Features Implemented
+- Setlist Management (create, update, delete with timing)
+- Media Links (YouTube, Spotify, SoundCloud, AppleMusic auto-detection)
+- Communication/Posts (bulletin board with reactions)
+- Polls (band decision voting)
+- Attendance Tracking (presence stats)
+
+### Build Status
+✅ Infrastructure layer compiles cleanly. 43 new files created.
+
+---
+
+## Decision 8: MS2 Backend Architecture — Complex Features & Services
+
+**By:** Strange (Principal Backend Engineer)  
+**Date:** 2026-03-28  
+**Context:** MS2 Backend Implementation — 5 Complex Features  
+**Status:** Implemented in squad/ms2-strange-backend
+
+### Decisions Made
+
+#### 1. Service Independence Over Shared Base
+Each service has its own `RequireMembershipAsync` / `RequireConductorOrAdminAsync` helpers rather than extracting shared base class.
+
+**Rationale:** Keeps services independent and testable without tight coupling. Few lines of duplication preferable to inheritance complexity.
+
+#### 2. Substitute Token Security Model
+- Token generation: `RandomNumberGenerator.GetBytes(32)` → Base64Url encode  
+- Storage: SHA-256 hash only (raw token never stored)
+- Validation: `[AllowAnonymous]` endpoint (substitutes lack JWT accounts)
+
+**Rationale:** Follows same pattern as password reset tokens — one-way hash, compare on validation.
+
+#### 3. SongBroadcast as Pure SignalR (No DB Persistence)
+SongBroadcastHub uses `ConcurrentDictionary` for in-memory state. No database entity for broadcast sessions.
+
+**Rationale:** Sessions are ephemeral (< 2 hours). DB persistence adds latency. Server restart ends sessions — acceptable for real-time music broadcasting.
+
+#### 4. GEMA Export Formats
+- CSV: Semicolons (DACH standard) with UTF-8 BOM for Excel
+- XML: Simplified GEMA-Meldung schema
+- PDF: Deferred to MS3 (returns 400 until library added)
+
+**Rationale:** DACH region standards, future extensibility.
+
+#### 5. Files Not Modified
+`AppDbContext.cs`, `DependencyInjection.cs`, `Program.cs` left untouched. Follow-up integration agent will:
+- Add DbSets for all entities to AppDbContext
+- Register all new services in DependencyInjection
+- Map `SongBroadcastHub` in Program.cs
+
+**Rationale:** Avoid conflicts with Banner's parallel work. Centralized merge in final step.
+
+#### 6. Role-Based Access Pattern
+Conductor OR Admin can manage events, GEMA reports, substitutes, shifts. Regular musicians: read access + self-signup.
+
+**Rationale:** Matches existing BandService pattern, clear authority model.
+
+### Features Implemented
+- Events/Konzertplanung (RSVP, concert planning)
+- GEMA Compliance (export for copyright societies)
+- Song-Broadcast (real-time conductor-to-musicians via SignalR)
+- Aushilfen/Substitute Access (temporary non-member invites)
+- Schichtplanung (shift planning with self-signup)
+
+### Build Status
+✅ Infrastructure layer compiles cleanly. 35 new files created.
+
+---
+
+## Decision 9: AI Development Standards — Superpowers Adoption
+
+**By:** Stark (Lead / Architect)  
+**Date:** 2026-03-28  
+**Context:** Elevate Squad development practices  
+**Status:** Adopted and documented in `.github/copilot-instructions.md`
+
+### Standards Adopted
+
+#### 1. Test-Driven Development (TDD)
+Red-Green-Refactor mandatory for new features and bugfixes. No production code without failing test first.
+
+#### 2. Systematic Debugging (4-Phase Process)
+1. Root-Cause Analysis
+2. Pattern Identification
+3. Hypothesis Formation
+4. Fix Implementation
+
+No fixes without root-cause analysis. 3+ failed fixes → re-examine architecture.
+
+#### 3. Verification Before Completion
+No feature marked done without fresh evidence:
+- `flutter test` for Flutter features
+- `dotnet test` for .NET features
+- Build check (`dotnet build` / `flutter build`)
+
+### Rationale
+Superpowers standards are proven, language-agnostic, and complement existing policies (3-reviewer, UX review) without conflicts.
+
+### Documentation
+Created `.github/copilot-instructions.md` as project-wide Copilot guidance (previously missing).

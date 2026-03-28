@@ -331,3 +331,45 @@ Vollständiges 3-Schichten Backend-Scaffolding für Sheetstorm:
 MS1 complete — all test branches merged.
 
 DE→EN translation merged — backend (98 files) + frontend (115 files)
+
+### 2026-03-28: Superpowers-Evaluierung & Integration
+
+**Anlass:** Thomas hat das Repo [obra/superpowers](https://github.com/obra/superpowers) zur Evaluierung gegeben — eine Sammlung von AI-Coding-Assistant-Konfigurationen (Skills, Instructions, Agents).
+
+**Evaluierung:**
+- Repo enthält 14 Skills für Claude Code/Cursor/Codex, fokussiert auf TDD, Debugging, Plan-basierte Entwicklung, Subagent-Workflows und Code Review
+- Mehrere Skills (brainstorming, writing-plans, subagent-driven-development, code-review) überlappen mit unserem Squad-Framework → nicht übernommen
+- Drei Skills + ein Agent sind universell wertvoll und stack-unabhängig: TDD, Systematisches Debugging, Verifikation vor Abschluss
+
+**Übernommen (adaptiert für Flutter/Dart + ASP.NET Core):**
+1. `.github/copilot-instructions.md` — Projekt-weite Copilot-Anweisungen (TDD, Code-Standards, Anti-Patterns, Debugging, Projektstruktur)
+2. `.squad/skills/test-driven-development/` — Red-Green-Refactor + Testing-Anti-Patterns
+3. `.squad/skills/systematic-debugging/` — 4-Phasen Root-Cause + Defense-in-Depth
+4. `.squad/skills/verification-before-completion/` — Verifikationspflicht
+
+**Bewusst nicht übernommen:** brainstorming, writing-plans, executing-plans, subagent-driven-development, dispatching-parallel-agents, requesting/receiving-code-review, using-git-worktrees, finishing-a-development-branch (alles durch Squad abgedeckt oder anderer Workflow)
+
+**PR:** https://github.com/caol-ila/Sheetstorm/pull/98 (Draft)
+
+---
+
+## Team Update: Kapellenverwaltung & Auth-Onboarding Spec-Update (2026-03-28T22:10Z)
+
+**From:** Hill (Product Manager)  
+**Action:** Data model changes required per new approval workflow spec.
+
+**Changes:**
+- New column: Kapelle.ist_persoenlich (BOOLEAN) — "Meine Musik" personal library flag
+- New table: Beitrittsanfragen (ID, KapelleID, MusikerID, Status ENUM, ErstelltAm, EntschiedenenVon, Grund)
+- Modified: Einladung table — add Status field (Accepted/Pending/Rejected)
+- New indexes: UNIQUE (KapelleID, MusikerID) on Beitrittsanfragen
+
+**Affected Features:**
+- US-00: "Meine Musik" auto-created on registration (personal Kapelle)
+- US-02 (rewritten): Kapellen-Auswahl as entry screen (post-onboarding)
+- US-06 (new): Approval workflow (request → admin/conductor approves/rejects)
+- API: 3 new endpoints (POST /beitreten, GET /anfragen, PUT /anfragen/{id})
+
+**Specs Affected:**
+- docs/feature-specs/kapellenverwaltung-spec.md — 7 US total, 15 ACs, 13 edge cases
+- docs/feature-specs/auth-onboarding-spec.md — Entry point logic updated
