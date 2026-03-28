@@ -1,837 +1,527 @@
-# UX-Research: Konkurrenzanalyse — Workflows & Interface-Patterns
+# Konkurrenz-UX-Research — Sheetstorm
 
-> **Erstellt:** 2026-03-28
-> **Autorin:** Wanda (UX Designer)
-> **Methode:** Systematische Analyse von App-Store-Screenshots, Herstellerseiten, User-Guides, Video-Tutorials und Hilfe-Dokumentationen
-> **Status:** Abgeschlossen
-
----
-
-## Inhaltsverzeichnis
-
-1. [Übersicht der analysierten Apps](#1-übersicht)
-2. [App-by-App-Analyse](#2-app-by-app-analyse)
-   - 2.1 forScore
-   - 2.2 MobileSheets
-   - 2.3 Newzik
-   - 2.4 Marschpat
-   - 2.5 Notabl
-   - 2.6 Glissandoo
-   - 2.7 Konzertmeister
-   - 2.8 Musicorum
-   - 2.9 BandHelper
-   - 2.10 Musicnotes
-   - 2.11 SongBook (LinkeSOFT)
-   - 2.12 BAND App
-   - 2.13 Vereinsplaner
-   - 2.14 WePlayIn.Band
-3. [Lessons Learned — Best Practices für Sheetstorm](#3-lessons-learned)
-4. [Anti-Patterns — Was wir vermeiden sollten](#4-anti-patterns)
-5. [Ressourcen & Links](#5-ressourcen--links)
+> **Erstellt:** 2026-03-28  
+> **Aktualisiert:** 2026-03-28 (v2 — vollständige Neuerstellung)  
+> **Autor:** Fury (Business Analyst)  
+> **Quellen:** App Store Beschreibungen, User Guides, YouTube-Tutorials, Support-Dokumentationen, Nutzerbewertungen
 
 ---
 
-## 1. Übersicht
+## Einleitung
 
-| App | Hauptkategorie | Analysefokus | Demo/Trial verfügbar |
-|-----|---------------|-------------|---------------------|
-| forScore | Notenanzeige | Goldstandard PDF-Viewer, Annotation, Setlists | Einmalkauf $24,99 (App Store) |
-| MobileSheets | Notenanzeige | Cross-Platform, mächtige Bibliothek | Einmalkauf ~$15,99 (Google Play / App Store) |
-| Newzik | Notenanzeige + Ensemble | Echtzeit-Kollaboration, AI-Features | Freemium (3 Partituren kostenlos) |
-| Marschpat | Blasmusik-Noten | Stimmenverteilung, Dirigentenmodus | Freemium (eingeschränkt), Abo ab 97€/J |
-| Notabl | Musikverein All-in-One | Notenverwaltung + Konzertplanung | Vereins-Grundgebühr (auf Anfrage) |
-| Glissandoo | Musikverein-Organisation | Proben, Anwesenheit, Kommunikation | Bis 20 Mitglieder kostenlos |
-| Konzertmeister | Vereinsorganisation | Termine, Zu-/Absagen, Pinnwand | Kostenlos bis 30 Mitglieder |
-| Musicorum | Notenverwaltung | Digitales Notenarchiv, Stimmenverteilung | Demo kostenlos (eingeschränkt) |
-| BandHelper | Band-Management | Setlists, MIDI, Proben/Gig-Kalender | Abo |
-| Musicnotes | Notenstore + Viewer | Store-Integration, Viewer, Annotations | Kostenlose App + In-App-Käufe |
-| SongBook | Setlist-Management | ChordPro-Format, Setlists, Transposition | Einmalkauf |
-| BAND App | Gruppenkommunikation | Feed, Chat, Kalender, Dateien | Kostenlos |
-| Vereinsplaner | Vereinsverwaltung | Termine, Mitglieder, Inventar | Kostenlos (Basis) |
-| WePlayIn.Band | Orchester-Management | AI-Assistent, Analytics, Repertoire | Community Edition |
+Dieses Dokument analysiert die UX der wichtigsten Wettbewerber aus der Perspektive eines Blaskapellen-Musikers. Ziel: Verstehen, was gut funktioniert (übernehmen) und was nervt (vermeiden). Jede Analyse konzentriert sich auf die für Sheetstorm relevanten Flows: Import, Notenanzeige, Annotation, Setlist-Management, Performance-Modus und Ensemble-Koordination.
 
 ---
 
-## 2. App-by-App-Analyse
+## 1. forScore (iOS/macOS) — Goldstandard Notenanzeige
 
-### 2.1 forScore — Der Goldstandard für digitale Notenblätter
+**Demo/Trial:** https://forscore.co | App Store: $24,99 | User Guide: forscore.co/user-guides/
 
-**Plattformen:** iOS, iPadOS, macOS, visionOS
-**Website:** https://forscore.co
-**App Store:** https://apps.apple.com/app/forscore/id363738376
-**User Guide (PDF):** https://forscore.co/user-guides/
-**Video-Tutorials:** https://www.youtube.com/playlist?list=PLKT1tUigAhGPiY47ecDF2YHfKQLGYWf5G
+### 1.1 Kernscreens & Flows
 
-#### Haupt-Screens & Navigation
+#### Import-Flow
+1. Tippen auf das `+`-Symbol in der Bibliothek
+2. Quellen-Auswahl: iCloud, Dropbox, Files, direkte URL, Musicnotes-Integration
+3. Automatische Metadaten-Vorschau (Titel aus Dateiname)
+4. Manuelles Bearbeiten von Titel, Komponist, Genre, Tonart
+5. Optional: direkt zu Setlist hinzufügen
 
-- **Vollbild-Notenansicht:** Beim Öffnen wird die Partitur ablenkungsfrei im Vollbild angezeigt. Alle Steuerelemente sind versteckt. Antippen der Bildschirmmitte blendet eine obere Navigationsleiste ein (Bibliothek, Setlists, Suche, Tools, Seitennavigation).
-- **Sidebar / Hamburger-Menü:** Links oben — öffnet die Bibliothek mit Filtern nach Komponist, Genre, Tags, Labels. Unterstützt Smart-Bookmarks und mächtige Suche.
-- **Metadaten-Editor:** Für jede Partitur können Titel, Komponist, Genre, Tags und benutzerdefinierte Felder bearbeitet werden. Übersichtlicher Formularstil.
+**Was gut ist:** Schnell, keine Registrierung, breite Quellen. Der Musicnotes-Import ist nahtlos (kaufen → direkt öffnen in forScore).
 
-#### Import/Upload-Flow
+**Was nervt:** Kein Batch-Labeling für mehrstückige PDFs. Wenn eine PDF 12 Stücke enthält, muss man 12× manuell aufteilen. Kein AI-gestützte Titelerkennung.
 
-1. **Cloud-Import:** Integration mit Dropbox, Google Drive, OneDrive, Box, iCloud Drive, FTP/WebDAV. Über das Services-Panel (Werkzeugkasten-Icon) → Account hinzufügen → Ordner durchsuchen → PDF herunterladen.
-2. **Kamera-Scan:** Integriertes Scan-Tool (Menü → Scan). Seiten fotografieren, zuschneiden, optimieren, als mehrseitiges PDF zusammenfügen und in der Bibliothek speichern.
-3. **Files-App / E-Mail:** Über iOS Share-Sheet jede PDF an forScore senden.
-4. **Drag & Drop:** Auf iPad/Mac PDFs direkt ins Fenster ziehen.
-5. **Notenstore-Integration:** Direkter Login zu Musicnotes, Noteflight, Virtual Sheet Music im Services-Panel.
+#### Notenanzeige (Reading Mode)
+- Vollbild, keine Ablenkung
+- Tap rechts → nächste Seite, Tap links → zurück
+- Wischgeste ebenfalls möglich
+- "Reflow"-Modus: Systeme werden vertikal gestapelt (für kleine Displays)
+- Auto-Scroll als Alternative zu manuellen Page-Turns
+- Side-by-Side-Modus auf größeren iPads
 
-**UX-Bewertung Import:** ⭐⭐⭐⭐⭐ — Vielfältige Wege, kein Medienbruch. Best Practice für unseren Import-Flow.
+**Was gut ist:** Extrem sauber. Die Seite füllt den Bildschirm. Keine sichtbaren Controls während des Spielens.
 
-#### Performance-/Auftrittsmodus
+**Was nervt:** Kein Android. Auf iPhone ist die Schrift oft zu klein für echte Performance-Nutzung.
 
-- **Distraction-Free:** Alle Menüs, Annotationstools und versehentliche Eingaben werden gesperrt. Nur gezielte Aktionen (Seitenwechsel) sind möglich.
-- **Seitenwechsel-Optionen:**
-  - Tap links/rechts am Bildschirmrand
-  - Wisch-Geste
-  - Bluetooth-Fußpedal
-  - Half-Page-Turn (Hochformat): Untere Hälfte wird angezeigt während obere Hälfte sichtbar bleibt → nahtloser Lesefluss
-  - Two-Up-Modus (Querformat): Zwei Seiten nebeneinander
-  - Reflow (automatisches Scrollen)
-  - Face-Gesten (Mund öffnen, Lächeln)
-- **Visuelle Optionen:** Sepia-Modus, Nachtmodus, individuelles Cropping/Zoom
+#### Performance-Modus
+1. Aktivierung: Doppeltap auf die Seitenmitte ODER Tap auf Grid-Icon → "Performance Mode"
+2. Alle UI-Elemente verschwinden
+3. Rechts 2/3 des Screens = Forward-Zone (Tap → nächste Seite)
+4. Links 1/5 = Backward-Zone
+5. Repeat-Links bleiben aktiv (vorher konfiguriert)
+6. Exit: Blaues `×` oben rechts
 
-**UX-Bewertung Performance:** ⭐⭐⭐⭐⭐ — Half-Page-Turn ist genial für Blasmusiker. Fußpedal-Support essential.
+**UX-Insight:** Dieser Modus ist das Herzstück für Live-Auftritte. Der "Page Zone"-Ansatz (verschiedene Bildschirmbereiche = verschiedene Aktionen) ist brillant — erfordert keine genaue Treffsicherheit.
 
-#### Annotationen
+#### Annotation-Flow
+1. Stift-Icon antippen (oder Apple Pencil anlegen → sofort aktiv)
+2. Toolbar erscheint: Stift, Marker, Highlighter, Text, Stamps, Lineal, Radierer
+3. Layers: Verschiedene Ebenen für experimentelle Markierungen
+4. Layer ein-/ausblenden
+5. Annotationen sind PDF-gebunden, nicht Dateisystem-gebunden
 
-- **Apple-Pencil-Integration:** Sofortiger Eintritt in den Annotationsmodus bei Pencil-Berührung. Konfigurierbar.
-- **Toolbar (verschiebbar an jeden Bildschirmrand):**
-  - **Stifte & Textmarker:** Vordefinierte Presets + eigene (Dicke, Farbe, Deckkraft)
-  - **Stempel:** Musikalische Symbole (Vorzeichen, Dynamik, Noten), benutzerdefinierte Stempel aus Bildern
-  - **Formen:** Linien, Bögen, Pfeile, Textboxen
-  - **Lineal:** Für präzise gerade Linien
-  - **Auswahlwerkzeug:** Rechteck/Kreis zum Verschieben, Kopieren, Einfügen
-  - **Text-Tool:** Direkte Textnotizen auf den Noten
-  - **Radierer:** Doppeltipp am Apple Pencil 2 für Schnellzugriff
-- **Annotation-Layers:** Separate Ebenen für verschiedene Markierungstypen, ein-/ausblendbar
-- **Instant Annotation & Hover:** Mit Apple Pencil Hover auto-exit aus Annotationsmodus
+**Was gut ist:** Apple Pencil-Integration ist die beste am Markt. Stift anlegen = sofort Annotieren, kein Menü-Umweg. Undo/Redo. Export als annotiertes PDF möglich.
 
-**UX-Bewertung Annotation:** ⭐⭐⭐⭐⭐ — Benchmark. Aber: Keine Mehrstufigkeit (privat/Stimme/Orchester). Nur lokale Layers.
+**Was nervt:** Layers sind "neutral" — keine semantischen Ebenen (kein "Dirigenten-Layer" vs. "Musiker-Layer"). Keine Echtzeit-Sync der Annotationen im Ensemble. Alle Annotationen privat und lokal.
 
 #### Setlist-Management
+- Setlist erstellen → Stücke per Drag & Drop ordnen
+- Swipe zum Löschen
+- Nahtloser Übergang zwischen Stücken (letztes System von Stück 1 + erstes System von Stück 2)
+- Metronom, Tuner, Pitch Pipe pro Setlist konfigurierbar
 
-- Setlist-Hub über Sidebar erreichbar. Erstellen, Benennen, Sortieren (manuell, alphabetisch, meistgespielt).
-- Songs per Drag & Drop hinzufügen und umsortieren.
-- Platzhalter für noch nicht importierte Stücke.
-- Nahtlose Navigation: Innerhalb einer Setlist von Song zu Song wischen.
-- Setlists teilen (auch an Nicht-forScore-Nutzer).
+**Was gut ist:** Der "seamless transition"-Effekt beim Stückwechsel ist einzigartig — kein Umblättern, keine Pause.
 
-**UX-Bewertung Setlist:** ⭐⭐⭐⭐⭐ — Intuitiv, schnell, mit Sharing.
-
-#### Was forScore richtig gut macht
-
-- **Ablenkungsfreier Performance-Modus** — nichts zwischen Musiker und Noten
-- **Half-Page-Turn** — verhindert "Page-Jump-Schock"
-- **Pencil-First Annotation** — Start Drawing = Start Annotating
-- **Vielfältige Import-Wege** ohne Medienbruch
-- **Metronom, Stimmgerät, Piano** direkt integriert
-
-#### Schwächen / Chancen für Sheetstorm
-
-- Nur Apple-Ökosystem → wir müssen Cross-Platform sein
-- Keine zentrale Verwaltung für eine Kapelle (keine Stimmenverteilung)
-- Keine Mehrstufigkeit bei Annotationen (privat/Stimme/Dirigent)
-- Kein Vereinsleben (Termine, Zu-/Absagen, Schichtplanung)
-- Kein AI-Upload mit Metadaten-Erkennung
+**Was nervt:** Keine Gruppen-Setlists (kein "diese Setlist für alle Musiker der Kapelle").
 
 ---
 
-### 2.2 MobileSheets — Cross-Platform-Power für Musiker
+### 1.2 UX-Bewertung forScore
 
-**Plattformen:** Android, iOS, Windows, macOS
-**Website:** https://zubersoft.com/mobilesheets/
-**Google Play:** https://play.google.com/store/apps/details?id=com.zubersoft.mobilesheetspro
-**Handbuch:** https://zubersoft.com/mobilesheets/manual.php?lang=en
-**Annotations-Doku:** https://zubersoft.com/mobilesheets/features/annotations/
+| Dimension | Note | Kommentar |
+|-----------|------|-----------|
+| Notenanzeige | ★★★★★ | Bester Viewer am Markt |
+| Import-Flow | ★★★★☆ | Gut, aber kein AI/Batch-Labeling |
+| Annotation | ★★★★★ | Apple Pencil-Integration unübertroffen |
+| Performance-Modus | ★★★★★ | Industriestandard |
+| Setlist | ★★★★☆ | Smooth, aber kein Gruppen-Sharing |
+| Ensemble-Features | ★★☆☆☆ | Kaum vorhanden |
+| Lernkurve | ★★★★☆ | Für neue User etwas viel |
 
-#### Haupt-Screens & Navigation
+**Lessons Learned von forScore:**
+- ✅ Performance-Modus mit vollständigem UI-Lockdown ist Pflicht
+- ✅ Page-Zone-Konzept (Bildschirmregionen = Aktionen) übernehmen
+- ✅ Stylus/Pencil = sofort annotieren (kein Menü)
+- ✅ Layers für Annotationen sind sinnvoll
+- ✅ Seamless Transition zwischen Setlist-Stücken
+- ✅ Reflow-Modus für kleine Bildschirme (Innovation für mobile)
 
-- **Bibliotheks-Ansicht (Startscreen):** Tabs oben — Komponisten, Titel, Zuletzt geöffnet. Tabs konfigurierbar für weniger Clutter.
-- **Einstellungen:** Über 3-Punkte-Menü. Umfangreiche Anpassung von Theme, sichtbaren Metadaten, Tab-Auswahl.
-- **Overlay-Modus:** Bildschirmmitte tippen → Overlay mit Bookmarks, Linkpoints, Annotations-Zugang, Seitenmanagement.
+---
 
-#### Import/Upload-Flow
+## 2. MobileSheets (Android/Windows/iOS) — Der Cross-Platform Pragmatiker
 
-- Import über Gerätespeicher oder Cloud (Google Drive, Dropbox etc.)
-- Einzelimport empfohlen für präzise Metadaten-Eingabe
-- 20+ Metadatenfelder pro Partitur (Genre, Schwierigkeitsgrad, Instrument etc.)
+**Demo:** Gratis Trial-Version (5 Songs limit) | zubersoft.com | Quick Guide: PDF verfügbar
 
-**UX-Bewertung Import:** ⭐⭐⭐⭐ — Mächtig, aber steile Lernkurve wegen Funktionsvielfalt.
+### 2.1 Kernscreens & Flows
 
-#### Performance-Modus
+#### Import-Flow
+1. Menü → "Import" oder "Batch Import"
+2. Quellen: Lokaler Speicher, Dropbox, Google Drive, OneDrive, PC via Companion App
+3. Metadaten-Bearbeitung bei jedem Import
+4. Batch-Import: Ordner auswählen → alle Dateien importieren → Metadaten-Regeln setzen
+5. CSV-Import für Bibliotheken (Power-User-Feature)
 
-- **Overlay wird gesperrt** — kein versehentliches Editieren
-- **Zoom-Features werden deaktiviert** — nur Seitenwechsel möglich
-- **Anzeigemodi:** Ein-Seite, Zwei-Seiten (Querformat), Half-Page-Turn, vertikales Scrolling
-- **Hands-Free:** Bluetooth/USB-Fußpedale, Face-Gesten (Mund öffnen, Lächeln)
-- **Bookmarks & Link Points:** Schnellsprünge zu bestimmten Stellen, ideal für Wiederholungen und Codas
+**Was gut ist:** Batch-Import über CSV ist für große Bibliotheken sehr mächtig. PC-Companion-App ist clever für Desktop-Bibliotheksverwaltung.
 
-**UX-Bewertung Performance:** ⭐⭐⭐⭐⭐ — Gleichwertig mit forScore. Link Points für Wiederholungen = einzigartig.
+**Was nervt:** UI beim Import ist informationsdicht und für Nicht-Power-User erschlagend. Keine AI-Hilfe bei Titelerkennung.
 
-#### Annotationen
+#### Notenanzeige
+- Horizontal/Vertikal Scroll wählbar
+- Half-Page-Turn: Implementiert! Untere Hälfte der nächsten Seite sichtbar
+- Two-Page (Book Mode): Zwei Seiten nebeneinander
+- Auto-Crop: Ränder automatisch abschneiden
+- Auto-Scroll mit konfigurierbarer Geschwindigkeit
+- Gesichtserkennung für Page-Turn (Android, hands-free)
 
-- **Stift:** Freihandzeichnen, druckempfindlich mit Stylus
-- **Textmarker:** Halbtransparent für Hervorhebungen
-- **Stempel-Bibliothek:** Große Sammlung musikalischer Symbole, plus Custom-Stempel-Import
-- **Formen, Pfeile, Crescendo-Tool, Piano-Notensystem-Tool**
-- **Radierer, Nudge-Tool** (Pixel-genaues Verschieben)
-- **Layers:** Verschiedene Ebenen, ein-/ausblendbar
-- **Favoriten:** Häufig genutzte Tool-Konfigurationen speichern
-- **Undo/Redo, Autosave**
-- **3-Finger-Tap** zum schnellen Ein-/Ausstieg aus dem Annotationsmodus
+**Was gut ist:** Half-Page-Turn ist eine der besten Implementierungen. Auto-Crop ist wertvoll für schlecht gescannte Noten.
 
-**UX-Bewertung Annotation:** ⭐⭐⭐⭐⭐ — Nudge-Tool und Favoriten sind clever. Ebenfalls nur lokale Layers.
+**Was nervt:** Die schiere Anzahl an Display-Modi macht die Konfiguration schwierig. Zu viele Optionen ohne gute Defaults.
+
+#### Annotation-Flow
+1. Annotation-Icon tippen → Toolbar erscheint
+2. Stift, Highlighter, Text, Shapes, Stamps, Layers
+3. Multiple Annotation-Ebenen (aber ohne semantische Bedeutung)
+4. Export des annotierten PDFs
+
+**Was nervt:** Annotation-UI ist funktional aber nicht elegant. Stylus-Erkennung nicht so präzise wie forScore auf Apple-Geräten.
 
 #### Setlist-Management
+1. "Setlists"-Tab → "+" → Name eingeben
+2. Split-Screen: Links Library, Rechts Setlist
+3. Songs per Tap hinzufügen, per Drag & Drop ordnen
+4. Export: Setlist-File (Referenzen) oder mit allen Noten
 
-- Scores in Setlists gruppieren, nahtlose Übergänge
-- MIDI-Integration: Songs können MIDI-Befehle an externe Geräte senden
-- WiFi/Bluetooth-Sync für Gruppen-Performance (alle Geräte zeigen gleiches Stück)
+**Was gut ist:** Split-Screen für Setlist-Building ist sehr praktisch — man sieht Library und Setlist gleichzeitig.
 
-**UX-Bewertung Setlist:** ⭐⭐⭐⭐ — MIDI-Integration überlegen, aber Sync rudimentär.
+**Was nervt:** Keine Gruppen-Setlists, kein Zuweisen an Kapellen-Mitglieder.
 
-#### Was MobileSheets richtig gut macht
+#### Ensemble-Sync
+- WiFi-Sync: Mehrere Tablets im lokalen Netz verbinden → synchronisiertes Umblättern
+- Bluetooth-Sync ebenfalls möglich
+- Kein Cloud-Sync in Echtzeit
 
-- **Cross-Platform** — das breiteste Plattformangebot
-- **Link Points** für Wiederholungen/Codas — musikalisch gedacht
-- **20+ Metadatenfelder** für professionelle Archivierung
-- **Favoriten-System** für Annotationstools
-- **WiFi-Sync** für Gruppen (rudimentär aber funktional)
+**Was gut ist:** WiFi-Sync zwischen Tablets ist ein solides Ensemble-Feature.
 
-#### Schwächen / Chancen für Sheetstorm
-
-- UI wirkt technisch / weniger poliert als forScore
-- Steile Lernkurve — zu viele Optionen auf einmal
-- Keine zentrale Vereinsverwaltung
-- Separate Lizenzen pro Plattform (frustrierend)
+**Was nervt:** Jedes Gerät muss separat konfiguriert werden. Kein zentrales "Kapellen-Management" — es ist Peer-to-Peer.
 
 ---
 
-### 2.3 Newzik — Ensemble-Kollaboration auf Profi-Niveau
+### 2.2 UX-Bewertung MobileSheets
 
-**Plattformen:** iOS, Web
-**Website:** https://newzik.com/en
-**App Store:** https://apps.apple.com/app/newzik-sheet-music-reader/id966963109
-**Ensemble-Info:** https://newzik.com/en/ensemble
-**Support-Docs (Layers):** https://support.newzik.com/en/support/solutions/articles/77000152066-using-annotation-layers
+| Dimension | Note | Kommentar |
+|-----------|------|-----------|
+| Notenanzeige | ★★★★☆ | Half-Page-Turn top, UI etwas überladen |
+| Import-Flow | ★★★★☆ | Mächtig, aber komplex |
+| Annotation | ★★★☆☆ | Funktional, nicht elegant |
+| Performance-Modus | ★★★★☆ | Vorhanden, nicht so poliert wie forScore |
+| Setlist | ★★★★☆ | Split-Screen-Builder ist gut |
+| Ensemble-Features | ★★★☆☆ | Peer-to-Peer WiFi-Sync |
+| Lernkurve | ★★☆☆☆ | Sehr steil für neue Nutzer |
 
-#### Haupt-Screens & Navigation
-
-- **Noten-Ansicht:** Crisp PDF- oder interaktive "LiveScore"-Darstellung. Pinch/Zoom, Wisch-Navigation.
-- **Sidebar/Bibliothek:** Organisation nach Projekten, Setlists, Komponisten, Tags. Cloud-synchronisiert.
-- **Web-Interface:** Für Bibliotheksverwaltung, Metadaten-Editing, LiveScore-Konvertierung optimiert.
-- **iPad-Optimiert:** Lesen, Annotieren und Aufführen primär auf iPad. Web = Admin-Oberfläche.
-
-#### Import/Upload-Flow
-
-- PDF-Import oder direkte LiveScore-Konvertierung (AI-basiert: PDF → interaktive Partitur)
-- Cloud-basierte Notenbibliothek mit Access-Control
-- Projekte erstellen → Partituren hochladen → an Ensemble-Mitglieder verteilen
-
-#### Performance-Modus
-
-- Half-Page-Turns
-- Bluetooth-Fußpedale, Face-Gesten
-- Integriertes Metronom, Stimmgerät, Recorder
-- Playback mit MIDI-Begleitung, On-Screen-Cursor für Partitur-Verfolgung
-
-#### Annotationen — Das Highlight: Mehrstufige Layer
-
-**Newzik hat das fortschrittlichste Annotations-Layer-System:**
-
-1. **Private Layer:** Nur der Ersteller sieht und bearbeitet — persönliche Übungsnotizen
-2. **Public Layer:** Alle Projektmitglieder können sehen, nur Owner editiert — Dirigenten-Anweisungen
-3. **Shared Layer:** Alle können sehen UND editieren — kollaborative Eintragungen
-
-**Workflow für Dirigenten:**
-1. Dirigent erstellt ein Projekt, lädt Partituren hoch
-2. Ensemble-Mitglieder werden zum Projekt eingeladen
-3. Partituren werden verteilt — jeder bekommt die "Referenz-Version"
-4. Dirigent annotiert auf einem Public Layer → alle Musiker sehen die Änderungen sofort
-5. Musiker annotieren auf ihren Private Layers → nur für sie selbst sichtbar
-6. Updates (Score-Ersetzungen, Korrekturen) werden in Echtzeit an alle synchronisiert
-
-**UX-Bewertung Annotation:** ⭐⭐⭐⭐⭐ — Nächstes an unserem Drei-Ebenen-Modell (Privat/Stimme/Orchester). Aber kein explizites "Stimmen-Layer" — nur Privat vs. Projekt-Layer.
-
-#### Was Newzik richtig gut macht
-
-- **Echtzeit-Collaboration** — Annotationen live synchronisiert
-- **LiveScore AI** — PDFs in interaktive, navigierbare Partituren konvertieren
-- **Layer-System** (Privat/Public/Shared) — klarer Rollenseparation
-- **Projekt-basierter Workflow** — Dirigent steuert zentral
-- **Web-Admin + iPad-Performance** — klare Trennung Admin vs. Aufführung
-
-#### Schwächen / Chancen für Sheetstorm
-
-- Kein Android → kritisch für Blaskapellen mit gemischten Geräten
-- Abo-Modell kann teuer werden
-- Kein explizites Stimmen-Mapping (z.B. "2. Klarinette → Klarinette → 1. Klarinette" Fallback)
-- Keine Vereinsfeatures (Termine, Feste, Schichtplanung)
+**Lessons Learned von MobileSheets:**
+- ✅ Half-Page-Turn implementieren (forScore + MobileSheets = Industriestandard)
+- ✅ Auto-Crop für schlecht gescannte PDFs
+- ✅ Split-Screen für Setlist-Building
+- ✅ Auto-Scroll als Alternative zu manuellen Page-Turns
+- ⚠️ Nicht zu viele Display-Modi anbieten — gute Defaults setzen
 
 ---
 
-### 2.4 Marschpat — Speziell für Blasmusik entwickelt
+## 3. Newzik (iOS/Web) — Der Ensemble-Innovator
 
-**Plattformen:** iOS, Android, Web, PocketBook E-Reader
-**Website:** https://www.marschpat.com
-**App Store:** https://apps.apple.com/at/app/marschpat/id1505765384
-**Google Play:** https://play.google.com/store/apps/details?id=at.marschpat.Marschpat.Marching.App
-**YouTube Tutorial:** https://www.youtube.com/watch?v=WWgyUwENYtQ
-**Kurzanleitung:** https://de.readkong.com/page/kurzanleitungen-zum-marschpat-system-6921900
+**Demo:** Web-App kostenlos testbar (3 Scores) | newzik.com | Support: support.newzik.com
 
-#### Haupt-Screens & Navigation
+### 3.1 Kernscreens & Flows
 
-- **Dashboard/Startseite:** Übersicht der eigenen Notenbücher und Stücke. Button zum Anlegen neuer Notenbücher.
-- **Notenanzeige:** Vollbildmodus, abhängig vom gewählten Instrument/Stimme. Instrumentenauswahl über Dropdown-Menü.
-- **Stimmenmenü:** Für jedes Stück Drop-Down oder Instrumentenauswahl — zeigt nur die dem Musiker zugewiesene Stimme.
-- **Offline-Modus:** Nach Download alle Stimmen auch ohne Netz verfügbar.
+#### Onboarding
+1. Account-Registrierung (E-Mail oder Apple/Google)
+2. Geführte Tour: "Importiere dein erstes Stück"
+3. Bibliothek-View direkt nach Onboarding sichtbar
+4. "+" Floating-Button prominent in jeder Hauptansicht
 
-#### Import/Upload-Flow
+**Was gut ist:** Onboarding ist guided und nicht überfordernd. Sofortige Bibliotheks-Ansicht gibt Orientierung.
 
-- Eigene Arrangements (PDF, Bild, MusicXML) können hochgeladen und zugeordnet werden
-- Über 10.000 Stücke im Marschpat-Katalog mit bis zu 50 Stimmen pro Stück
-- Web-Interface für Verwaltung und Stimmenzuordnung
+#### Import-Flow
+1. Tap auf "+" → Quellen-Auswahl
+2. Quellen: Gerät, iCloud, Dropbox, Google Drive, Scanner (Kamera), IMSLP (Public Domain)
+3. PDF oder MusicXML auswählen
+4. Titel + Metadaten eingeben
+5. Optional: Als "Piece" kombinieren (Stück = mehrere Parts)
+6. Optional: Direkt zu Setlist hinzufügen
 
-#### Stimmenverteilung — Das Kernfeature
+**Was gut ist:** IMSLP-Integration ist brillant — man kann direkt aus dem größten Public-Domain-Archiv importieren. Kamera-Scanner direkt aus der App.
 
-- **Dirigenten-Masterfunktion:** Dirigent wählt Stück zentral aus → alle Geräte zeigen das gleiche Stück an
-- **Gleichzeitiges Umblättern** für alle durch Dirigent gesteuert
-- **Stimmenwechsel in Echtzeit:** Musiker kann zwischen verfügbaren Stimmen wechseln
-- **Zuweisung:** Leiter ordnet Musikern gezielt Stimmen zu
+**Was nervt:** Kein Batch-Labeling (mehrere Stücke in einer PDF trennen). Kein AI-gestützte Titelerkennung. Für große Bibliotheken mühsam.
 
-#### Performance-Modus
+#### LiveScore AI (Kern-Differenzierer)
+1. PDF hochladen → "Convert to LiveScore"
+2. AI verarbeitet (Wartezeit je nach Länge)
+3. Ergebnis: Interaktive, spielbare Partitur
+4. Features: Playback, Transposition, Cursorfunktion (folgt der Musik), MIDI-Export
+5. Sektions-Navigation (direkt zu Takt X springen)
 
-- Hochformat und Querformat für verschiedene Geräte (Tablet, E-Reader, Smartphone)
-- Kein dedizierter Performance-Lock-Modus erkennbar
-- E-Reader-Unterstützung (PocketBook): Leicht, wetterfest, outdoor-tauglich — einzigartig am Markt
+**Was gut ist:** Das ist die Zukunft des Notenlesens. Transposition in Echtzeit ohne Neudruck. Cursor der der Musik folgt = Lehrer-Tool.
 
-#### Annotationen
+**Was nervt:** Genauigkeit variiert stark (handgeschriebene Noten, schlechte Scans). Blasmusik-spezifische Notationen (Trios, Marsch-Strukturen) werden nicht immer korrekt erkannt. Erfordert Internet-Verbindung.
 
-- **Keine Annotationen auf Notenblättern!** — Größte UX-Lücke
-- Musiker können keine persönlichen Markierungen oder Dirigenten-Hinweise eintragen
+#### Echtzeit-Kollaboration
+1. Projekt erstellen → Mitglieder einladen (E-Mail oder Link)
+2. Annotationen werden in Echtzeit synchronisiert
+3. Admin kann Noten-Versionen pushen (alle sehen sofort das Update)
+4. Permissions: Wer darf was sehen/editieren
 
-#### Was Marschpat richtig gut macht
+**Was gut ist:** Real-time Annotation Sync ist einzigartig. Wenn der Dirigent etwas markiert, sehen alle Musiker es sofort.
 
-- **Einziger Anbieter mit E-Reader-Unterstützung** — outdoortauglich
-- **Blasmusik-Kontext verstanden:** 50 Stimmen pro Stück, Registerlogik
-- **Dirigenten-Steuerung** — zentrales Umblättern für alle
-- **Termin-/Probenverwaltung** mit Zu-/Absagen integriert
-- **Offline-Modus** für Auftritte essentiell
+**Was nervt:** Nur 2 Ebenen (Privat/Geteilt) — keine stimmen-spezifischen Annotationen. Ensemble-Preise intransparent.
 
-#### Schwächen / Chancen für Sheetstorm
+#### Setlist-Management
+- Setlists erstellen, ordnen per Drag & Drop
+- Stücke aus Bibliothek hinzufügen
+- Setlist mit Ensemble teilen (alle sehen dieselbe Reihenfolge)
+- Nahtloser Wechsel zwischen Stücken
 
-- Keine Annotationen — absolutes No-Go für ernsthafte Musiker
-- Account-/Support-Probleme (3,7/5 im App Store)
-- Keine AI-Metadatenerkennung beim Upload
-- Keine Mehrstufigkeit bei Markierungen
-- E-Reader-Hardware = Extra-Kosten
-
----
-
-### 2.5 Notabl — All-in-One für Musikvereine
-
-**Plattformen:** Web, App
-**Website:** https://notabl.de
-
-#### Haupt-Screens & Navigation
-
-- **Dashboard:** Tabellarische Übersicht mit Terminen, Proben, Stücken
-- **Notenarchiv:** Digitale Konzertmappe für alle Mitglieder, filterbar nach Setlist, Instrument/Stimme, Konzert
-- **Terminverwaltung:** Listen- und Kalenderansicht, direkte Zu-/Absage
-- **Responsives Design:** Vereinfachte Ansicht für Smartphone, erweitert für Tablet/Desktop
-
-#### Stimmenzuordnung
-
-- Digitale Zuweisung von Stimmen an einzelne Musiker
-- **Dynamische Stimmenzuweisung bei Ausfällen** — ein Klick, um Stimme an Ersatzmusiker zu übergeben
-- Mitglieder sehen immer nur die für sie relevanten Noten
-
-#### Was Notabl richtig gut macht
-
-- **Ein-Klick-Stimmenneuverteilung** bei Ausfällen — extrem pragmatisch
-- **Alles in einer App:** Noten + Konzertplanung + Stimmenzuordnung
-- **Mitglieder nutzen kostenlos** — Verein zahlt
-- **DSGVO-konform, gehostet in Deutschland**
-
-#### Schwächen / Chancen für Sheetstorm
-
-- Kein leistungsfähiger PDF-Viewer (kein Cropping, kein Auto-Zoom, keine Annotationen)
-- Keine AI-Features
-- Keine persönliche Notensammlung
-- Keine Multi-Kapellen-Zugehörigkeit
-- Preise nicht transparent
+**Was gut ist:** Ensemble-Setlist-Sharing ist das Missing Link, das forScore fehlt.
 
 ---
 
-### 2.6 Glissandoo — Vereinsorganisation mit Musikfokus
+### 3.2 UX-Bewertung Newzik
 
-**Plattformen:** iOS, Android, Web
-**Website:** https://glissandoo.com/de
-**App Store:** https://apps.apple.com/app/glissandoo/id1493953499
-**Google Play:** https://play.google.com/store/apps/details?id=com.glissandoo
+| Dimension | Note | Kommentar |
+|-----------|------|-----------|
+| Notenanzeige | ★★★★☆ | Sehr gut, LiveScore ist Zukunft |
+| Import-Flow | ★★★★☆ | IMSLP-Integration excellent |
+| Annotation | ★★★★☆ | Echtzeit-Sync ist Game-Changer |
+| Performance-Modus | ★★★★☆ | Half-Page-Turn + Face-Gesture vorhanden |
+| Setlist | ★★★★★ | Ensemble-Sharing ist Top |
+| Ensemble-Features | ★★★★★ | Bester am Markt |
+| Lernkurve | ★★★☆☆ | Moderate Kurve, gut erklärt |
 
-#### Haupt-Screens & Navigation
-
-- **Zentrales Dashboard:** Anstehende Events, Proben, Aktivitäten auf einen Blick
-- **Probenplanung:** Zeitraum, Dauer, Ort, Repertoire verknüpfen. Wiederkehrende Proben automatisierbar.
-- **Anwesenheit:** Echtzeit-Anwesenheitskontrolle, RSVP direkt in der App, Statistiken pro Mitglied/Sektion/Ensemble
-- **Kommunikation:** Gruppen- und 1:1-Messaging, Push-Benachrichtigungen
-- **Mitgliederverwaltung:** Profile mit Kontaktdaten, Anwesenheitshistorie, Filter nach Instrument/Register
-- **Repertoire & Dateien:** Upload, Zuordnung und Freigabe von Noten (PDF, Audio, Video) an Events
-
-#### Was Glissandoo richtig gut macht
-
-- **Anwesenheitsstatistiken** — motivierend visualisiert
-- **Noten an Proben verknüpft** — kontextueller Zugang
-- **Bis 20 Mitglieder kostenlos** — niedrige Einstiegshürde
-- **Push-Benachrichtigungen** für Probenänderungen
-
-#### Schwächen / Chancen für Sheetstorm
-
-- Kein PDF-Viewer, keine Annotations
-- Notenverteilung = reiner Datei-Upload (keine intelligente Stimmenzuordnung)
-- Kein Metronom, kein Stimmgerät
+**Lessons Learned von Newzik:**
+- ✅ Web = Admin/Verwaltung; App = Performance (Architektur-Prinzip)
+- ✅ IMSLP-Integration (Public Domain direkt importieren)
+- ✅ Echtzeit Annotation-Sync im Ensemble
+- ✅ Ensemble-Setlist-Sharing
+- ✅ AI-Konvertierung als Premium-Feature positionieren
+- ⚠️ Intransparente Preise für Ensembles erzeugen Misstrauen → Sheetstorm sollte klar kommunizieren
 
 ---
 
-### 2.7 Konzertmeister — Terminplanung perfektioniert
+## 4. Konzertmeister (iOS/Android/Web) — Der Vereins-Champion
 
-**Plattformen:** iOS, Android, Web
-**Website:** https://konzertmeister.app/de
-**App Store:** https://apps.apple.com/at/app/konzertmeister/id1114620982
-**Google Play:** https://play.google.com/store/apps/details?id=rocks.konzertmeister.Production
-**PDF-Anleitung (mit Screenshots):** https://www.musikverein-fremdingen.de/pdf/downloads/konzertmeister-anleitung-mvf-250308.pdf
+**Demo:** 30-Tage-Test kostenlos | konzertmeister.app | YouTube: @konzertmeister9730
 
-#### Haupt-Screens & Navigation
+### 4.1 Kernscreens & Flows
 
-- **Terminübersicht:** Modernes Kalendermodul. Jeder Termin mit Uhrzeit, Ort, Kommentarfeld, Rückmeldepflicht.
-- **Rückmeldung (1-Click):** Große Zu-/Absage-Buttons direkt am Termin. Anwesenheitsübersicht sofort sichtbar.
-- **Gruppeneinteilung:** Register, Stimmlage, Vereinsrolle
-- **Kommunikation:** Pinnwand, Chat, Push-Benachrichtigungen
-- **Setlist-/Musikstückverwaltung:** Stücke an Termine anhängen
-- **Umfragen & Aufgabenverwaltung**
-- **Kalender-Sync:** Google, Apple, Outlook Integration
+#### Hauptnavigation
+- Bottom-Navigation: Termine / Nachrichten / Mitglieder / Noten / Einstellungen
+- Terminliste als Startscreen (chronologisch, mit Status: offen/zugesagt/abgesagt)
+- Push-Badge zeigt offene Einladungen
 
-#### Was Konzertmeister richtig gut macht
+**Was gut ist:** Der Terminus-fokussierte Startscreen ist richtig für Blaskapellen — das Nächste Ereignis ist immer der wichtigste Context.
 
-- **1-Click Zu-/Absage** — minimaler Aufwand für Mitglieder
-- **Sofortige Anwesenheitsübersicht** für Vorstand/Dirigent
-- **Register-Benachrichtigungen** — nur relevante Infos an relevante Gruppen
-- **DSGVO-konform, Basic kostenlos** bis 30 Mitglieder
-- **Kalender-Sync** — kein Medienbruch mit privatem Kalender
+#### Termin-Flow (Kern-Use-Case)
+1. Admin erstellt Termin: Datum, Zeit, Ort, Typ (Probe/Konzert/Fest)
+2. Stücke können dem Termin als Setlist zugeordnet werden
+3. Musiker erhalten Push-Notification
+4. Mitglieder tippen: ✓ Zusagen / ✗ Absagen / ? Vielleicht
+5. Admin sieht in Echtzeit: Wer kommt, wer nicht
+6. Kommentarfeld für Sonderinfos (z.B. Dresscode)
 
-#### Schwächen / Chancen für Sheetstorm
+**Was gut ist:** Das 1-Klick Zu-/Absage-System ist das Herzstück und perfekt gelöst. Einfacher als WhatsApp-Polls, strukturierter als E-Mail.
 
-- Keine Notenanzeige, keine PDFs, keine Annotationen
-- Keine Notenverteilung
-- Begrenzter Online-Speicher
+**Was nervt:** Beim Absagen gibt es keine automatische "Wer könnte einspringen?"-Logik. Das ist eine verpasste Chance.
 
----
+#### Notenverwaltung (Schwäche des Systems)
+- Noten als Dateien hochladen (PDF, Bilder)
+- Stücken Terminen zuweisen
+- Kein professioneller PDF-Viewer
+- Metadaten nachträglich schwierig editierbar
+- Kein Stimmen-Mapping
 
-### 2.8 Musicorum — Intelligentes Notenarchiv
+**Was nervt:** Die Notenverwaltung ist eine offensichtliche Schwachstelle. Noten werden als Dateien verwaltet, nicht als strukturierte Musikstücke mit Stimmen. Das ist Konzertmeisters größte Lücke — und Sheetstorms Chance.
 
-**Plattformen:** iOS, Android, Web
-**Website:** https://musicorum.de/en/
-**App Store:** https://apps.apple.com/de/app/musicorum/id6740430635
-**Google Play:** https://play.google.com/store/apps/details?id=de.gertheiss.joshua.musicorum.musicorum_app
+#### Mitglieder & Register
+1. Mitglied anlegen → Instrument → Register zuweisen
+2. Register = Gruppe von Musikern desselben Instruments
+3. Chat-Funktionen nach Register
+4. Rollen: Admin, Dirigent, Registerführer, Mitglied
 
-#### Haupt-Screens & Navigation
+**Was gut ist:** Register-Konzept ist gut und kompatibel mit Blaskapellen-Struktur. Registerführer-Rolle ist realistisch.
 
-- **Listenansicht:** Stücke/Alben in übersichtlichen Listen, filterbar
-- **Detailseite pro Stück:** Metadaten (Kaufdatum, Komponist, Arrangeur, Genre, Verlag), Audio-Dateien, Stimmen-Übersicht
-- **Album-Management:** Stücke zu Konzertprogrammen zusammenstellen
-- **Download/Sharing:** Stimmen-Download direkt in App, Weitergabe an Aushilfen per Link (ohne Registrierung)
-
-#### Stimmenzuordnung
-
-- Automatische Zuordnung der passenden Stimme an jeden Musiker basierend auf Instrumentenprofil
-- System kennt die richtige Stimme für jedes Instrument, ob Quartett oder großes Ensemble
-- Import bestehender Archive (z.B. aus Excel)
-
-#### Was Musicorum richtig gut macht
-
-- **Aushilfen-Link ohne Registrierung** — extrem pragmatisch für Ersatzmusiker
-- **Auto-Stimmenzuordnung** nach Instrumentenprofil
-- **Bewertungssystem** für Stücke (anonyme Bewertungen zur Konzertauswahl)
-- **Excel-Import** für Migration bestehender Archive
-- **DSGVO-konform**
-
-#### Schwächen / Chancen für Sheetstorm
-
-- Kein integrierter Noten-Viewer — verweist auf PiaScore/MobileSheets
-- Keine Annotations
-- Keine Vereinsverwaltung (Termine, Events)
-- Keine AI-basierte Erkennung
+**Was nervt:** Kein automatisches Stimmen-Mapping basierend auf Register. Kein "wenn Musiker X absagt, diese Stimme neu zuweisen"-Feature.
 
 ---
 
-### 2.9 BandHelper — Band-Management mit MIDI-Power
+### 4.2 UX-Bewertung Konzertmeister
 
-**Plattformen:** iOS, Android, Mac, Windows, Web
-**Website:** https://www.bandhelper.com
-**App Store:** https://apps.apple.com/app/bandhelper/id552012927
-**Google Play:** https://play.google.com/store/apps/details?id=com.arlomedia.bandhelper
-**Screenshots:** https://www.bandhelper.com/screenshots.html
+| Dimension | Note | Kommentar |
+|-----------|------|-----------|
+| Terminverwaltung | ★★★★★ | Bester am Markt |
+| Zu-/Absage-System | ★★★★★ | Perfekt gelöst |
+| Kommunikation | ★★★★☆ | Chat + Push sehr gut |
+| Notenverwaltung | ★★☆☆☆ | Datei-Ablage, kein echter Viewer |
+| Notenanzeige | ★☆☆☆☆ | Nicht vorhanden als Feature |
+| Mitgliederverwaltung | ★★★★☆ | Register-Konzept gut |
+| Lernkurve | ★★★★☆ | Sehr intuitiv |
 
-#### Haupt-Screens & Navigation
-
-- **Tablet-Layout:** Linkes Panel = Setlists, rechtes Panel = Song-Details (Lyrics, Chords, Tempo, Notizen, MIDI-Actions)
-- **Song-Ansicht:** Auto-Scroll Lyrics, Akkorde, Tonart, Tempo, Performance-Anweisungen — pro Musiker individuell konfigurierbar
-- **Individuelle Layouts:** Sänger können Akkorde ausblenden, Instrumentalisten einblenden
-- **Cloud-Sync:** Änderungen sofort an alle Bandmitglieder
-
-#### MIDI-Integration
-
-- Jeder Song/Setlist-Eintrag kann MIDI-Messages triggern (Programmwechsel an Synths, Gitarren-Effektgeräte)
-- Mehrere MIDI-Presets pro Song für verschiedene Song-Sections
-- Bluetooth/USB-MIDI-Adapter-Unterstützung
-
-#### Weitere Features
-
-- Proben-/Gig-Kalender, Anwesenheitsbestätigung
-- Charts, MP3-Demos an Songs/Gigs anhängen
-- Finanz-/Booking-Tools, Bühnenplan-Verwaltung
-
-#### Was BandHelper richtig gut macht
-
-- **Rollenbasierte Views** — jeder Musiker sieht, was für ihn relevant ist
-- **MIDI-Automation** pro Song — professionell für Live-Performance
-- **Cloud-Sync in Echtzeit** — Last-Minute-Setlist-Änderungen funktionieren
-- **Split-Panel-UI** auf Tablets — effiziente Nutzung der Bildschirmfläche
-
-#### Schwächen / Chancen für Sheetstorm
-
-- Abo-basiert, komplex
-- Kein Vereinsfokus (keine Stimmenverteilung, keine Registerlogik)
-- Kein dedizierter PDF-Noten-Viewer
+**Lessons Learned von Konzertmeister:**
+- ✅ Termin-fokussierter Startscreen für Blaskapellen
+- ✅ 1-Klick Zu-/Absage ist Pflicht
+- ✅ Register-Konzept (Gruppen nach Instrument)
+- ✅ Push-Notifications für Termine
+- ✅ Kalender-Export (ICS)
+- ⚠️ Notenverwaltung als Datei-Ablage ist nicht ausreichend — Sheetstorm muss hier 5× besser sein
 
 ---
 
-### 2.10 Musicnotes — Store + Viewer in einem
+## 5. Marschpat (iOS/Android/Web/E-Reader) — Der Blasmusik-Spezialist
 
-**Plattformen:** iOS, Android, Windows, Kindle Fire, Web
-**Website:** https://www.musicnotes.com
-**Support-Docs:** https://help.musicnotes.com/hc/en-us/categories/360003336892-App-Support
+**Demo:** Freemium (5 Noten kostenlos) | marschpat.com | App Store verfügbar
 
-#### Haupt-Screens & Navigation
+### 5.1 Kernscreens & Flows
 
-- **Bibliothek/Hauptscreen:** Eigene gekaufte und importierte Noten
-- **Notenstore:** 500.000+ lizenzierte Arrangements direkt in der App durchsuchbar und kaufbar
-- **Viewer:** Interaktive Partitur mit Playback, Transposition, Markup-Tools, Seitenwechsel per Touch oder Fußpedal
-- **Multi-Page-View:** Auf iPad zwei Seiten nebeneinander
+#### Digitale Notenmappe
+1. Notenbuch erstellen (= Mappe mit mehreren Stücken)
+2. Stücke aus Verlagsbibliothek (500+) oder eigene PDFs hinzufügen
+3. Stimme auswählen (z.B. "2. Klarinette Bb")
+4. Offline-Sync für alle Noten des Notenbuchs
 
-#### Import
+**Was gut ist:** Das Notenbuch-Konzept ist für Blaskapellen intuitiv — es entspricht dem physischen Marschbuch. Verlagsbibliothek spart Zeit beim Einpflegen.
 
-- PDF-Import über Files-App (iOS 12+) oder iTunes/Finder
-- Importierte PDFs sind statisch (Playback/Transposition nur für gekaufte Noten)
+**Was nervt:** Keine automatische Stimmen-Fallback-Logik. Kein AI-Upload.
 
-#### Annotations
+#### Dirigenten-Masterfunktion
+1. Dirigent wählt "Mastermodus"
+2. Dirigent blättert um → alle Musiker sehen dasselbe
+3. Synchronisierung über WiFi oder Internet
 
-- Farbige Stifte, Textmarker, Text — direkt auf Partituren
-- Sync über Geräte mit Musicnotes Pro Abo
+**Was gut ist:** Diese Funktion ist für Blaskapellen essential und einzigartig unter den Wettbewerbern.
 
-#### Was Musicnotes richtig gut macht
+**Was nervt:** Erfordert stabile Internetverbindung oder lokales WiFi — bei Outdoor-Auftritten problematisch.
 
-- **Nahtlose Store-Integration** — entdecken, kaufen, sofort spielen
-- **Annotation-Sync** über Geräte (Pro-Feature)
-- **Playback mit Mixer** — Instrumente stummschalten, Tempo ändern
-- **Setlists & Ordner** für Organisation
+#### E-Reader-Integration
+- Spezielle PocketBook-Geräte unterstützt
+- E-Ink-Display: Kein Blenden in der Sonne
+- Offline-Synchronisation der Noten
 
-#### Schwächen / Chancen für Sheetstorm
+**Was gut ist:** E-Reader für Outdoor/Marsch ist eine intelligente Hardware-Strategie. Sonne = Problem für Tablets.
 
-- Hauptfokus = Notenverkauf, nicht Vereinsverwaltung
-- Importierte PDFs stark eingeschränkt
-- Kein Ensemble/Kapellen-Feature
+**Was nervt:** Hardware-Kauf erforderlich (Zusatzkosten). App-Funktionalität auf E-Readern eingeschränkt.
 
 ---
 
-### 2.11 SongBook (LinkeSOFT) — ChordPro-Profi
+### 5.2 UX-Bewertung Marschpat
 
-**Plattformen:** iOS, Android, Windows, macOS
-**Website/Handbuch:** https://linkesoft.com/songbook/manual.html
-**App Store:** https://apps.apple.com/app/songbook-chordpro/id392888837
+| Dimension | Note | Kommentar |
+|-----------|------|-----------|
+| Blasmusik-Fokus | ★★★★★ | Verständnis der Zielgruppe |
+| Notenanzeige | ★★★☆☆ | Funktional, nicht elegant |
+| Stimmen-Management | ★★★☆☆ | Vorhanden, ohne Fallback-Logik |
+| Dirigenten-Sync | ★★★★☆ | Gut, aber WiFi-abhängig |
+| E-Reader-Integration | ★★★★☆ | Innovativ für Outdoor |
+| Annotation | ★★☆☆☆ | Sehr begrenzt |
+| Vereinsverwaltung | ★★☆☆☆ | Rudimentär |
 
-#### Haupt-Screens & Navigation
-
-- **Songliste:** Kategorien, Tags, Sets. Filter und Suche.
-- **Setlist-Editor:** Drag & Drop zum Umsortieren, Songs hinzufügen/entfernen mit einem Tap
-- **Song-Ansicht:** Große Lyrics + Chords im ChordPro-Format, interaktive Akkorddiagramme bei Tap
-- **ChordPro-Editor:** Inline-Editing mit Syntax-Helfern und Chord-Picker
-
-#### Features
-
-- Transposition mit einem Tap
-- Auto-Scroll, Metronom, MIDI
-- Akkord-Bibliothek für verschiedene Instrumente
-- Offline + optionaler Cloud-Sync
-
-#### Was SongBook richtig gut macht
-
-- **ChordPro-Format native** — Standard für Text+Akkord-Songs
-- **Akkorddiagramm-Popup** bei Tap — lernfreundlich
-- **Auto-Scroll** mit konfigurierbarer Geschwindigkeit
-
-#### Schwächen / Chancen für Sheetstorm
-
-- Fokus auf Lyrics+Chords, nicht auf Notenblätter/PDFs
-- Kein Ensemble-Feature
-- Für Blaskapellen nicht direkt relevant (kein Notensatz-Format)
+**Lessons Learned von Marschpat:**
+- ✅ Notenbuch-Konzept (physische Mappe = digitale Metapher) ist intuitiv
+- ✅ Dirigenten-Masterfunktion als Sync-Methode
+- ✅ Offline-First für Outdoor-Auftritte
+- ✅ Stimmen-Auswahl als Kernfeature
+- ⚠️ E-Reader-Strategie: Sheetstorm sollte auf Tablet-Displays + hohe Helligkeit setzen
 
 ---
 
-### 2.12 BAND App — Gruppenkommunikation
+## 6. BAND App — Der Kommunikations-Champion
 
-**Plattformen:** iOS, Android, Web
-**Website:** https://about.band.us/features
-**Tutorials:** https://about.band.us/resources/tutorials
+**Demo:** Kostenlos | band.us
 
-#### Haupt-Screens & Navigation
+### 6.1 UX-Flow
 
-- **Home-Screen:** Alle "Bands" (Gruppen) als Thumbnails mit Unread-Badges
-- **Gruppen-Feed:** Social-Media-ähnlicher Verlauf mit Posts, Bildern, Links, Kommentaren, Reaktionen
-- **Chat:** Gruppen- und 1:1-Messaging, Untergruppen-Chats
-- **Kalender:** Integrierter Gruppen-Kalender mit RSVP und Erinnerungen
-- **Dateien/Alben:** Organisierte Ordner für Gruppenmedien
-- **Umfragen & To-Do-Listen**
-- **Admin-Controls:** Berechtigungen, Mitglieder-Genehmigung, Content-Moderation
+#### Gruppen-Management
+- Schnelle Gruppe erstellen (30 Sekunden)
+- Mitglieder per Link einladen (ohne Registrierung möglich)
+- Separate "Subgruppen" für Register
+- Admin-Controls: Posting-Regeln, Moderations-Level
 
-#### Was BAND richtig gut macht
+**Was gut ist:** Der virale Einladungs-Link (kein Account erforderlich für Empfänger) ist ein UX-Muster, das Sheetstorm für Aushilfen übernehmen sollte.
 
-- **Familiäre Social-Feed-UX** — niedrige Lernkurve
-- **Subgruppen-Chats** — z.B. nur Blechbläser
-- **Einladungsbasiert** — datenschutzfreundlich
-- **Kostenlos** — kein Preisargument gegen Adoption
+#### Kalender & Events
+1. Event erstellen: Datum, Zeit, Ort
+2. RSVP mit "Going / Not Going / Maybe"
+3. Push-Benachrichtigung an alle Mitglieder
+4. Event-Kommentare, Datei-Anhänge
 
-#### Schwächen / Chancen für Sheetstorm
+**Was gut ist:** Sehr niedrige Schwelle. Auch technisch-unerfahrene Blasmusiker verstehen es sofort.
 
-- Nicht musikspezifisch — keine Noten, keine Stimmen
-- Kein Notenmanagement
-- Wir könnten die Feed + Chat UX für unser Vereinsleben-Feature adaptieren
+**Was nervt:** Keine Struktur für Musikvereine (kein Register-System, keine Stimmenzuweisung). Kein DSGVO-konformer Betrieb nach EU-Standard.
 
 ---
 
-### 2.13 Vereinsplaner — Professionelle Vereinsverwaltung
+## 7. notabl (iOS/Android/Web) — Der Aufsteiger
 
-**Plattformen:** Web + App (iOS, Android)
-**Website:** https://vereinsplaner.at/v/software-fuer-musikvereine
-**App Store:** https://apps.apple.com/de/app/vereinsplaner-app-f%C3%BCr-vereine/id1067566347
-**Google Play:** https://play.google.com/store/apps/details?id=at.vereinsplaner.app
+**Info:** notabl.de | Kostenlos für Mitglieder
 
-#### Haupt-Screens & Navigation
+### 7.1 UX-Flow
 
-- **Dashboard:** Anstehende Termine, News, Vereinsinfos auf einen Blick
-- **Terminplanung:** Proben, Konzerte, Vorstandssitzungen anlegen. Auto-Erinnerungen, Zu-/Absagen, Kalender-Übernahme. Anwesenheitsprotokolle.
-- **Mitgliederverwaltung:** Stammdaten, Gruppen (Register, Jugendorchester, Vorstand), Rollen, Beiträge. Flexible Berechtigungen.
-- **Inventarverwaltung:** Instrumente, Equipment
-- **News & Chat:** DSGVO-konformer Newsfeed, Chat, Umfragen, Benachrichtigungen
-- **Für Musikvereine optimiert:** Registergruppen, Probenbeteiligungen, Inventar
+#### Digitale Konzertmappe
+1. Konzert erstellen + Stücke hinzufügen
+2. Stücke mit Stimmen versehen
+3. Musiker sehen automatisch "ihre" Stimme in der Konzertmappe
+4. 1-Klick Stimmenneuverteilung wenn Musiker absagt
 
-#### Was Vereinsplaner richtig gut macht
+**Was gut ist:** Das "Konzertmappe"-Konzept ist für Blaskapellen-Dirigenten perfekt verständlich. Der 1-Klick-Ersatz bei Absagen ist brillant.
 
-- **Musikverein-spezifische Module** (Register, Inventar)
-- **Modernes UI** — zeitgemäß, intuitiv für alle Altersklassen
-- **Automatische Erinnerungen** — reduzieren Verwaltungsaufwand
-- **Cloudbasiert & plattformübergreifend**
-
-#### Schwächen / Chancen für Sheetstorm
-
-- Keine Notenanzeige, keine Notenverteilung
-- Kein PDF-Viewer, keine Annotations
-- Fokus auf Administration, nicht auf Musikmachen
+**Was nervt:** Keine erweiterten Annotationen. Keine AI-Features. UI wirkt nicht ausgereift.
 
 ---
 
-### 2.14 WePlayIn.Band — Modernes Orchester-Management
+## 8. Synthese: Lessons Learned
 
-**Plattformen:** iOS, Android, Web
-**Website:** https://weplayin.band/
-**Google Play:** https://play.google.com/store/apps/details?id=com.weplayin.band
-**App Store:** https://apps.apple.com/app/we-play-in-band/id6743351042
+### 8.1 UX-Patterns die Sheetstorm übernehmen MUSS
 
-#### Haupt-Screens & Navigation
+| Pattern | Quelle | Begründung | Priorität |
+|---------|--------|-----------|-----------|
+| **Performance-Modus mit vollständigem UI-Lockdown** | forScore | Standard bei Professionals — ohne das ist Sheetstorm nicht bühnentauglich | P0 |
+| **Half-Page-Turn** | forScore, MobileSheets, Newzik | #1 Feature-Request bei Notenlese-Apps. Verhindert "Page Jump Schock" | P0 |
+| **Bluetooth-Pedal-Support** | forScore, MobileSheets | Blasmusiker haben beide Hände besetzt — ohne Pedal ist die App im Konzert nicht nutzbar | P0 |
+| **1-Klick Zu-/Absage** | Konzertmeister | Herzstück der Vereinsorganisation. Einfacher als WhatsApp, strukturierter als E-Mail | P0 |
+| **Stylus-First Annotation** | forScore | Stift anlegen = sofort annotieren, kein Menü. Für Probe essentiell | P0 |
+| **Register-Konzept** | Konzertmeister | Blaskapellen denken in Registern (Holz/Blech/Schlagwerk) | P0 |
+| **Dirigenten-Masterfunktion** | Marschpat | Zentrales Umblättern für Marsch/Outdoor-Auftritte | P1 |
+| **Ensemble-Setlist-Sharing** | Newzik | Dirigent definiert Setlist → alle sehen sie | P1 |
+| **Einladungslink ohne Registrierung** | BAND App | Aushilfen brauchen Zugang ohne Account-Zwang | P1 |
+| **Web = Admin / App = Performance** | Newzik | Notenwart verwaltet am PC, Musiker spielt am Tablet | P1 |
+| **Split-Screen Setlist-Builder** | MobileSheets | Library links + Setlist rechts = effizient | P2 |
+| **Auto-Crop für PDFs** | MobileSheets | Ränder bei schlecht gescannten Noten entfernen | P2 |
+| **IMSLP-Integration** | Newzik | Kostenlosen Noten-Pool direkt zugänglich machen | P3 |
 
-- **Dashboard:** Nächste Events und Anwesenheit auf einen Blick, Quick-Response-Buttons
-- **Event-Management:** Konzerte, Proben, Sektionsproben. Details mit Venue, Dresscode, Verfügbarkeit.
-- **Anwesenheits-Tracking:** Echtzeit, nach Sektionen und Positionen. Export als PDF.
-- **Repertoire:** Katalogisierung nach Genre, Komponist, Arrangeur, Schwierigkeitsgrad, Dauer. Noten verteilen, Stimmen zuweisen.
-- **Konzertprogramm-Planung:** Exakte Reihenfolge und Timing pro Stück
-- **Analytics-Dashboard:** Teilnahme-Trends, Lückenanalyse
-- **AI-Assistent:** Events erstellen, Repertoire verwalten per Sprachbefehl
-- **Operations-Log:** Protokoll aller Vereinsaktivitäten
+### 8.2 Anti-Patterns — Was Sheetstorm NICHT tun darf
 
-#### Was WePlayIn.Band richtig gut macht
-
-- **AI-Assistent für Verwaltungsaufgaben** — innovativ
-- **Analytics mit Lückenanalyse** — datengetriebene Probenplanung
-- **Event-spezifische Fragen** (Essen, Parkplatz, Equipment) — durchdacht
-- **Kalender-Sync** (iOS, Google)
-- **PDF-Export** für Berichte
-
-#### Schwächen / Chancen für Sheetstorm
-
-- Kein vollwertiger Noten-Viewer mit Annotationen
-- Relativ neuer Anbieter — wenig Community
-- Keine Echtzeit-Metronom-Synchronisation
-
----
-
-## 3. Lessons Learned — Best Practices für Sheetstorm
-
-### 3.1 Notenanzeige & Performance
-
-| Pattern | Quelle | Empfehlung für Sheetstorm |
-|---------|--------|--------------------------|
-| **Ablenkungsfreier Performance-Modus** | forScore, MobileSheets | MUST HAVE. Alle UI-Elemente verstecken, nur Seitenwechsel erlauben. Dedizierter "Auftritt"-Modus. |
-| **Half-Page-Turn** | forScore, Newzik | MUST HAVE. Untere Hälfte anzeigen, obere bleibt sichtbar. Verhindert den gefürchteten "Page-Jump-Schock". |
-| **Bluetooth-Fußpedal-Support** | forScore, MobileSheets, Newzik | MUST HAVE. Hands-free Seitenwechsel ist für Blasmusiker essentiell. |
-| **Face-Gesten** | forScore, MobileSheets | NICE TO HAVE. Innovativ, aber unzuverlässig in Probe-Umgebungen. |
-| **Link Points für Wiederholungen** | MobileSheets | SHOULD HAVE. D.S., D.C., Coda-Sprünge direkt auf der Partitur markieren. |
-| **Auto-Scroll/Reflow** | forScore, SongBook | COULD HAVE. Für lineare Stücke nützlich, für Blasmusik weniger relevant. |
-| **Two-Up-Modus (Querformat)** | forScore, MobileSheets, Musicnotes | SHOULD HAVE. Zwei Seiten nebeneinander auf großen Tablets. |
-
-### 3.2 Annotations
-
-| Pattern | Quelle | Empfehlung für Sheetstorm |
-|---------|--------|--------------------------|
-| **Pencil/Stylus-First** | forScore | MUST HAVE. Stift berührt Screen = sofort annotieren. Kein Menü-Umweg. |
-| **Musikalische Stempel-Bibliothek** | forScore, MobileSheets | MUST HAVE. Vorzeichen, Dynamik, Noten, Artikulation als fertige Symbole. |
-| **Annotation-Layers** | forScore, MobileSheets, Newzik | MUST HAVE. Unser 3-Ebenen-Modell (Privat/Stimme/Orchester) ist der Differenzierer. Newzik kommt am nächsten, hat aber nur Privat/Projekt. |
-| **Favoriten für Tools** | MobileSheets | SHOULD HAVE. Häufig genutzte Tool-Configs speichern und schnell wechseln. |
-| **Verschiebbare Toolbar** | forScore | SHOULD HAVE. Toolbar an jeden Rand schieben, stört nicht bei der Arbeit. |
-| **Echtzeit-Sync von Annotations** | Newzik | MUST HAVE. Dirigenten-Anweisungen sofort bei allen Musikern sichtbar. |
-
-### 3.3 Import & Bibliothek
-
-| Pattern | Quelle | Empfehlung für Sheetstorm |
-|---------|--------|--------------------------|
-| **Vielfältige Import-Wege** | forScore | MUST HAVE. Cloud, Kamera, Share-Sheet, Drag & Drop. Kein Medienbruch. |
-| **Kamera-Scan mit PDF-Erstellung** | forScore | SHOULD HAVE. Papier → Digital direkt in der App. Plus unser AI-Labeling. |
-| **20+ Metadatenfelder** | MobileSheets | SHOULD HAVE. Aber intelligente Defaults und AI-Vorschläge statt manueller Eingabe. |
-| **Aushilfen-Link ohne Registrierung** | Musicorum | MUST HAVE. Brillante UX für Ersatzmusiker. Temporärer Zugang per Link. |
-| **Excel-Import für Migration** | Musicorum | SHOULD HAVE. Viele Vereine haben existierende Archive in Spreadsheets. |
-
-### 3.4 Stimmenverwaltung
-
-| Pattern | Quelle | Empfehlung für Sheetstorm |
-|---------|--------|--------------------------|
-| **Auto-Stimmenzuordnung nach Instrumentenprofil** | Musicorum, Marschpat | MUST HAVE. Unser Fallback-System (2. Klarinette → Klarinette → 1. Klarinette) geht weiter. |
-| **1-Klick-Stimmenneuverteilung** | Notabl | MUST HAVE. Bei Absage → Stimme sofort an Ersatz übergeben. |
-| **Dirigenten-Mastersteuerung** | Marschpat | SHOULD HAVE. Dirigent steuert alle Geräte gleichzeitig. |
-| **Projekt-basierte Verteilung** | Newzik | SHOULD HAVE. Partituren an Ensemble-Projekte (= Konzerte) binden. |
-
-### 3.5 Setlist-Management
-
-| Pattern | Quelle | Empfehlung für Sheetstorm |
-|---------|--------|--------------------------|
-| **Drag & Drop Sortierung** | forScore, BandHelper | MUST HAVE. Intuitivste Methode zum Umsortieren. |
-| **Nahtlose Song-zu-Song-Navigation** | forScore, MobileSheets | MUST HAVE. Innerhalb der Setlist einfach weiterwischen. |
-| **Platzhalter für fehlende Stücke** | forScore | NICE TO HAVE. Setlist planen bevor alle Noten digital sind. |
-| **Cloud-Sync der Setlist** | BandHelper | MUST HAVE. Setlist-Änderungen sofort bei allen sichtbar. |
-| **Setlist teilen (auch an Nicht-Nutzer)** | forScore | SHOULD HAVE. PDF-Export oder temporärer Link. |
-
-### 3.6 Vereinsleben & Termine
-
-| Pattern | Quelle | Empfehlung für Sheetstorm |
-|---------|--------|--------------------------|
-| **1-Click Zu-/Absage** | Konzertmeister, Glissandoo | MUST HAVE. Maximale Reibungslosigkeit. |
-| **Sofortige Anwesenheitsübersicht** | Konzertmeister, WePlayIn.Band | MUST HAVE. Vorstand/Dirigent sieht sofort, wer kommt. |
-| **Register-basierte Benachrichtigungen** | Konzertmeister, Vereinsplaner | MUST HAVE. Nur relevante Infos an relevante Gruppen. |
-| **Kalender-Sync** | Konzertmeister, Vereinsplaner, WePlayIn.Band | MUST HAVE. Google, Apple, Outlook. |
-| **Social-Feed für Vereinsnews** | BAND App | SHOULD HAVE. Familiäre, niedrigschwellige Kommunikation. |
-| **Event-spezifische Fragen** | WePlayIn.Band | NICE TO HAVE. "Brauchst du Parkplatz?" etc. |
-| **Anwesenheitsstatistiken** | Glissandoo, WePlayIn.Band | SHOULD HAVE. Motivierend visualisiert. |
-| **Analytics-Dashboard** | WePlayIn.Band | COULD HAVE. Teilnahme-Trends, Lückenanalyse. |
-
-### 3.7 Navigation & Informationsarchitektur
-
-| Pattern | Quelle | Empfehlung für Sheetstorm |
-|---------|--------|--------------------------|
-| **Vollbild-Default für Noten** | forScore | MUST HAVE. Noten = Hauptbildschirm. Alles andere ist Overlay. |
-| **Tab-basierte Bibliothek** | MobileSheets | SHOULD HAVE. Konfigurierbare Tabs (Titel, Komponist, Zuletzt). |
-| **Split-Panel auf Tablets** | BandHelper | SHOULD HAVE. Links: Setlist/Bibliothek, Rechts: Notenansicht. |
-| **Sidebar für Navigation** | forScore, Newzik | SHOULD HAVE. Hamburger-Menü oder Sidebar für Bibliothek, Setlists, Einstellungen. |
-| **Web = Admin, App = Performance** | Newzik | SHOULD HAVE. Verwaltung am Desktop, Aufführung am Tablet. |
+| Anti-Pattern | Wo gesehen | Warum problematisch |
+|-------------|-----------|---------------------|
+| **Zu viele Display-Modi ohne gute Defaults** | MobileSheets | Überfordert neue Nutzer. Lösung: Sinnvolle Defaults, erweiterte Optionen versteckt |
+| **Notenverwaltung als reine Datei-Ablage** | Konzertmeister | Noten sind strukturierte Musikstücke mit Stimmen — keine Ordner-Dateien |
+| **Preis nur auf Anfrage** | Newzik Ensemble, notabl | Erzeugt Misstrauen. Sheetstorm: Klare, öffentliche Preise |
+| **iOS-Only** | forScore, OnSong | In Blaskapellen werden auch Android-Geräte genutzt |
+| **Kein Offline-Modus** | Cloud-first Apps | Bei Outdoor-Auftritten ist kein WLAN vorhanden |
+| **Annotationen ohne semantische Ebenen** | forScore, MobileSheets | Nur "Layer 1/2/3" macht für Dirigenten keinen Sinn |
+| **Metadaten nachträglich schwer editierbar** | Konzertmeister | Frustrations-Quelle Nr. 1 laut Nutzerbewertungen |
+| **Steep Learning Curve ohne Onboarding** | MobileSheets | Neue Blasmusiker (oft 50+) brauchen geführtes Onboarding |
+| **Sync-Abhängigkeit von stabilem Internet** | Newzik, Marschpat Dirigent | Live-Performance braucht Offline-Fallback |
+| **App-Absturz während Performance** | Allgemein beklagtes Problem | Perftest + Offline-first = Vertrauen aufbauen |
 
 ---
 
-## 4. Anti-Patterns — Was wir vermeiden sollten
+## 9. UX-Designprinzipien für Sheetstorm (abgeleitet)
 
-| Anti-Pattern | Gesehen bei | Warum vermeiden |
-|-------------|------------|----------------|
-| **Keine Annotationen auf Notenblättern** | Marschpat | Absolutes No-Go. Musiker MÜSSEN ihre Noten markieren können. |
-| **Separater Noten-Viewer nötig** | Musicorum (verweist auf PiaScore/MobileSheets) | App-Wechsel = Friction. Alles in einer App. |
-| **Zu viele Optionen ohne Guidance** | MobileSheets (20+ Metadatenfelder manuell) | Überforderung. AI-gestützte Defaults + optionale Detailfelder. |
-| **Nur Apple-Ökosystem** | forScore, Newzik | Blaskapellen = gemischte Geräte. Cross-Platform ist Pflicht. |
-| **Preise nicht transparent** | Notabl | Vertrauensverlust. Klare Preisseite. |
-| **Separate Lizenzen pro Plattform** | MobileSheets | Frustrierend. Ein Account, alle Plattformen. |
-| **Abo-only ohne Einmalkauf-Option** | BandHelper | Vereine haben fixe Budgets. Flexible Preismodelle. |
-| **Veraltete UI** | BNote (Open Source) | Adoptionshürde, besonders bei jüngeren Musikern. |
-| **Kein Offline-Modus** | Cloud-abhängige Apps | Auftritte sind oft an Orten ohne gutes WLAN/Netz. |
-| **WhatsApp als Fallback für Kommunikation** | Status quo bei Vereinen | Unsere integrierte Kommunikation muss BESSER sein als WhatsApp. |
+### 9.1 Für die Notenanzeige
 
----
+> **Prinzip: "Das Notenblatt ist König"**
+> 
+> Im Performance-Modus existiert keine UI. Nur Noten. Kein Logo, kein Status, keine Notifications. Das Notenblatt füllt den Bildschirm — horizontal ausgerichtet, mit Auto-Zoom auf maximale Lesbarkeit.
 
-## 5. Ressourcen & Links
+### 9.2 Für den Import
 
-### Demos & Trials
+> **Prinzip: "Ein Bild, ein Stück — oder ein Klick mehr"**  
+>
+> Standard-Import: Jede Datei = ein Stück. Wenn der Nutzer mehrere Stücke in einer Datei hat, startet der Labeling-Flow — visuell, mit Thumbnails aller Seiten, und AI-Vorschlägen für Stücktrennung und Titelerkennung.
 
-| App | Link | Typ |
-|-----|------|-----|
-| forScore | https://apps.apple.com/app/forscore/id363738376 | Einmalkauf |
-| MobileSheets | https://play.google.com/store/apps/details?id=com.zubersoft.mobilesheetspro | Einmalkauf |
-| Newzik | https://apps.apple.com/app/newzik-sheet-music-reader/id966963109 | Freemium |
-| Marschpat | https://apps.apple.com/at/app/marschpat/id1505765384 | Freemium |
-| Glissandoo | https://apps.apple.com/app/glissandoo/id1493953499 | Kostenlos bis 20 Mitgl. |
-| Konzertmeister | https://apps.apple.com/at/app/konzertmeister/id1114620982 | Kostenlos bis 30 Mitgl. |
-| Musicorum | https://apps.apple.com/de/app/musicorum/id6740430635 | Demo |
-| BandHelper | https://apps.apple.com/app/bandhelper/id552012927 | Abo |
-| Musicnotes | https://www.musicnotes.com/apps/ | Kostenlos + In-App |
-| SongBook | https://apps.apple.com/app/songbook-chordpro/id392888837 | Einmalkauf |
-| BAND | https://about.band.us/ | Kostenlos |
-| Vereinsplaner | https://vereinsplaner.at/ | Kostenlos (Basis) |
-| WePlayIn.Band | https://weplayin.band/ | Community Edition |
+### 9.3 Für Annotationen
 
-### User Guides & Handbücher
+> **Prinzip: "Drei Hüte, eine Seite"**  
+>
+> Jede Annotation gehört zu einer Ebene: Mein Hut (privat), Stimmen-Hut (alle 2. Klarinetten sehen das), Dirigenten-Hut (alle sehen das). Die Ebene ist beim Annotieren wählbar — die visuelle Unterscheidung ist klar (z.B. Farbe: Blau = Privat, Grün = Stimme, Rot = Orchester).
 
-| App | Link |
-|-----|------|
-| forScore User Guides | https://forscore.co/user-guides/ |
-| forScore Annotation Docs | https://forscore.co/documentation/annotation/ |
-| forScore Import Docs | https://forscore.co/documentation/adding-files/ |
-| MobileSheets Manual | https://zubersoft.com/mobilesheets/manual.php?lang=en |
-| MobileSheets Annotations | https://zubersoft.com/mobilesheets/features/annotations/ |
-| Newzik Layers Support | https://support.newzik.com/en/support/solutions/articles/77000152066-using-annotation-layers |
-| Marschpat Kurzanleitung | https://de.readkong.com/page/kurzanleitungen-zum-marschpat-system-6921900 |
-| Konzertmeister Anleitung (PDF) | https://www.musikverein-fremdingen.de/pdf/downloads/konzertmeister-anleitung-mvf-250308.pdf |
-| Musicnotes Support | https://help.musicnotes.com/hc/en-us/categories/360003336892-App-Support |
-| SongBook Manual | https://linkesoft.com/songbook/manual.html |
-| BAND Tutorials | https://about.band.us/resources/tutorials |
+### 9.4 Für Vereinsverwaltung
 
-### Video-Tutorials
+> **Prinzip: "Ein Klick bis zur Antwort"**  
+>
+> Probe nächste Woche? Musiker öffnet App → sieht sofort die offene Einladung → tippt ✓ oder ✗. Fertig. Kein Navigieren, kein Suchen.
 
-| App | Link | Beschreibung |
-|-----|------|-------------|
-| forScore Walkthrough 2024 | https://www.youtube.com/watch?v=7ro5VpW492U | Vollständiger Durchgang |
-| forScore Friday Summer 2025 | https://www.youtube.com/watch?v=z3I66zPVsSY | Wöchentliche Tipps kompiliert |
-| forScore Annotations Guide | https://www.youtube.com/watch?v=l6dTpq6HJh0 | Annotationsmodus im Detail |
-| forScore Tutorials Playlist | https://www.youtube.com/playlist?list=PLKT1tUigAhGPiY47ecDF2YHfKQLGYWf5G | 40+ Videos |
-| Marschpat Webmaske Tutorial | https://www.youtube.com/watch?v=WWgyUwENYtQ | Notenverwaltung im Web |
+### 9.5 Für Stimmen-Management
 
-### UI-Inspiration & Design-Pattern-Quellen
-
-| Quelle | Link | Nutzen |
-|--------|------|--------|
-| Mobbin | https://mobbin.com/ | Echte App-Screenshots und User Flows |
-| Page Flows | https://pageflows.com/ | User-Flow-Aufnahmen realer Apps |
-| UX Library | https://www.uxlibrary.org/explore/ui-design/ui-patterns-and-inspiration | UI-Pattern-Katalog |
-| Piano Pantry forScore Guide | https://pianopantry.com/utilizing-forscore-app-features-a-visual-guide/ | Visueller Guide mit Screenshots |
+> **Prinzip: "Die richtige Note, automatisch"**  
+>
+> Musiker konfiguriert einmal sein Standardinstrument (z.B. "2. Klarinette"). Bei jedem Stück erscheint sofort die richtige Stimme. Wenn sie fehlt: automatisch die nächste passende Stimme (Fallback). Kein manuelles Suchen.
 
 ---
 
-> **Nächste Schritte:** Die identifizierten Best Practices werden in die UX-Spezifikation und Wireframes für Sheetstorm übernommen. Besonderer Fokus auf:
-> 1. Ablenkungsfreier Performance-Modus mit Half-Page-Turn
-> 2. 3-Ebenen-Annotationssystem (Privat/Stimme/Orchester)
-> 3. Vielfältige Import-Wege mit AI-Unterstützung
-> 4. 1-Klick Zu-/Absage und sofortige Anwesenheitsübersicht
-> 5. Cross-Platform von Tag 1
+## 10. Priorisierte UX-Empfehlungen nach Meilenstein
+
+### Meilenstein 1 (MVP)
+- [ ] Performance-Modus (UI-Lockdown, Page-Zones)
+- [ ] Half-Page-Turn
+- [ ] Drei-Ebenen-Annotationen (Privat/Stimme/Orchester)
+- [ ] Stylus-First-Annotation (Stift anlegen = sofort aktiv)
+- [ ] 1-Klick Zu-/Absage für Termine
+- [ ] Stimmen-Auswahl + automatische Vorauswahl basierend auf Instrumentenprofil
+- [ ] Geführtes Onboarding (5-Minuten bis erste Note angezeigt)
+- [ ] Offline-Unterstützung für heruntergeladene Noten
+
+### Meilenstein 2
+- [ ] Bluetooth-Pedal-Support
+- [ ] Ensemble-Setlist-Sharing (Dirigent definiert, alle sehen)
+- [ ] Dirigenten-Masterfunktion (zentrales Umblättern)
+- [ ] Aushilfen-Link ohne Registrierung
+- [ ] Auto-Crop für schlecht gescannte PDFs
+- [ ] Split-Screen Setlist-Builder (Web)
+
+### Meilenstein 3+
+- [ ] AI-Upload mit Labeling-Flow
+- [ ] BYOK für AI-Dienste
+- [ ] IMSLP-Integration
+- [ ] Echtzeit-Annotationssync im Ensemble
+- [ ] Echtzeit-Metronom-Sync
+
+---
+
+*Dokument fertiggestellt. Nächster Schritt: Wanda (UX Designer) nutzt diese Erkenntnisse für Wireframes.*

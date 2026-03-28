@@ -39,3 +39,56 @@
 **Design-Inspirationsquellen:** Mobbin.com, PageFlows.com, UXLibrary.org für reale App-Screenshots und User Flows.
 
 **Entscheidungsvorschlag eingereicht:** `.squad/decisions/inbox/wanda-ux-research.md` — 7 konkrete UX-Entscheidungen mit Begründung.
+
+### 2026-03-28 — Vollständiges UX-Design v2.0 erstellt
+
+**Durchgeführte Arbeit:** Zwei umfassende UX-Design-Dokumente erstellt (v2-Überarbeitung mit verbessertem Modell):
+
+1. **`docs/ux-design.md`** (neu) — Vollständiges UX-Design-Dokument:
+   - 5 Design-Prinzipien (Focus-First, Touch-Native, Responsive, Accessibility, Progressive Disclosure)
+   - 7 User Personas (Dirigent, Musiker Probe/Auftritt, Notenwart, Admin, Lehrer, Schüler) mit Kontext, Zielen, Frustrationen und UX-Implikationen
+   - 8 vollständige Screen Flows mit ASCII-Wireframes (Spielmodus, Import, Bibliothek, Setlist, Kapellenverwaltung, Vereinsleben, Annotationen, Tuner)
+   - Navigation & IA (Bottom-Tabs Mobile, Sidebar Desktop, Deep-Link-Hierarchie)
+   - Responsive Breakpoints (Phone/Tablet/Desktop) mit adaptiver Zoom-Strategie
+   - Interaction Patterns (Seitenwechsel, Annotationsgesten, Feedback, Fußpedal)
+   - Design Tokens (Farben, Typografie, Spacing, Elevation, Animation, Icons)
+
+2. **`docs/ux-konfiguration.md`** (v2 Überarbeitung) — UX für 3-Ebenen-Konfiguration:
+   - Ebenenmodell (Kapelle/Blau → Nutzer/Grün → Gerät/Orange) mit Vererbungslogik
+   - Vollständige Settings-Navigation inkl. Suchfunktion
+   - Admin-Dashboard mit Handlungsbedarf-Widget
+   - Alle 3 Einstellungsebenen mit Phone + Desktop Wireframes
+   - Interaction Patterns (Auto-Save + Undo-Toast, kein Neustart, Vererbungsanzeige mit Lock)
+   - Onboarding-Wizard (5 Schritte, max. 3 Minuten)
+   - Kontextuelle Spielmodus-Einstellungen (max. 5 Optionen, Notenblatt bleibt sichtbar)
+   - 6 Edge Cases (Ersteinrichtung, Multi-Kapellen-Konflikt, Offline, AI-Key fehlt, Aushilfen, Gerätewechsel)
+   - 5 vollständige Key-Screen-Wireframes (Phone + Desktop)
+
+**Neue Erkenntnisse aus v2-Überarbeitung:**
+
+1. **Asymmetrische Tap-Zonen im Spielmodus** (40% zurück / 60% weiter) sind ergonomisch sinnvoll — rechts wird häufiger getippt, der Daumen liegt natürlich rechts.
+
+2. **Tuner muss aus 1 Meter Abstand lesbar sein** — Erkannter Ton mindestens 72sp. Das ist eine echte Accessibility-Anforderung für Blaskapellen-Proben.
+
+3. **Aushilfen-Link** ist sowohl UX-Feature als auch Verwaltungs-Feature — muss in beiden Kontexten (Bibliothek-Detail UND Mitgliederverwaltung) zugänglich sein.
+
+4. **Onboarding-Regel:** Maximal 5 Fragen, alle skipbar, keine Zahlungsinformationen. Musiker sollen in unter 3 Minuten spielbereit sein.
+
+5. **Deep-Link-Hierarchie** definiert — `sheetstorm://aushilfe/[token]` für Aushilfen-Zugang ohne Account ist ein wichtiger Edge-Case für das URL-Schema.
+
+6. **Kontextuelle Spielmodus-Einstellungen:** Maximal 5 Optionen (Nachtmodus, Half-Page-Turn, Schriftgröße, Ebenen-Toggle, Helligkeit) — Notenblatt bleibt immer sichtbar dahinter.
+
+7. **Gerät-Einstellungen nie synchronisieren** — intelligente Defaults pro Gerätetyp beim ersten Login (neu auf diesem Gerät). Phone und Tablet brauchen verschiedene Defaults.
+
+**Entscheidungsvorschlag eingereicht:** `.squad/decisions/inbox/wanda-v2-ux.md` — Zusammenfassung der wichtigsten UX-Entscheidungen aus v2.
+
+### 2026-03-28 — v2 Complete Relaunch Abgeschlossen
+
+**Scribe-Koordination:** Alle Inbox-Dateien in `decisions.md` konsolidiert. Session Log geschrieben: `.squad/log/2026-03-28T11-55-v2-relaunch.md`
+
+**Team-Status nach v2-Relaunch:**
+- Fury (Analyst): Marktanalyse v2 + Gap-Analyse v2 + PR #1 ✅
+- Stark (Lead/Architect): Spezifikation v2 + Meilensteine + Config + Tech-Stack ✅
+- Wanda (UX): UX-Design v2 + UX-Konfiguration ✅
+- Entscheidungen: 16 Directives + Policy-Entscheidungen in decisions.md dokumentiert
+- Next: Thomas Review im PR, danach MS1 Implementierung

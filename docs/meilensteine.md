@@ -1,404 +1,366 @@
-# Meilensteinplanung — Notenmanagement-App
+# Sheetstorm — Meilensteinplanung
 
-> Version: 1.0  
-> Status: Entwurf  
-> Autor: Stark (Lead / Architect)  
-> Datum: 2026-03-28  
-> Referenz: docs/spezifikation.md
-
----
-
-## Grundsätze
-
-1. **Jeder Meilenstein ist ein vollständiges, deploybares Produkt** mit echtem Endnutzer-Mehrwert.
-2. **Inkrementelle Wertlieferung:** Nutzer können nach jedem Meilenstein produktiv arbeiten.
-3. **Testing und UX-Validierung** sind Teil jedes Meilensteins, nicht nachgelagert.
-4. **Keine Feature-Flags oder halbe Features:** Was ausgeliefert wird, funktioniert vollständig.
+> **Version:** 2.0  
+> **Autor:** Stark (Lead / Architect)  
+> **Datum:** 2026-03-28  
+> **Status:** Zur Abstimmung via PR
 
 ---
 
 ## Übersicht
 
-| Meilenstein | Titel | Kern-Mehrwert |
-|:-----------:|-------|---------------|
-| **M1** | Kern — Noten & Kapelle | Noten importieren, anzeigen und spielen. Kapelle gründen, Mitglieder einladen, Stimmen zuweisen. |
-| **M2** | Organisation | Setlists erstellen, Konzerte planen, Termine verwalten, Schichten organisieren. |
-| **M3** | Erweiterte Tools | Stimmgerät, Echtzeit-Metronom, Cloud-Sync für persönliche Sammlung. |
-| **M4** | Lehre | Lehrer-/Schüler-System, Lernpfade, Content-Freischaltung. |
-| **M5** | Verfeinerung | Mehrsprachigkeit, erweiterte AI-Features, Performance-Optimierung. |
+```
+MS1 ──► MS2 ──► MS3 ──► MS5
+  │              │
+  └──────► MS4 ──┘
+           (parallel möglich)
+```
+
+| Meilenstein | Titel | Abhängigkeit | Kernwert |
+|:-----------:|-------|:------------:|----------|
+| **MS1** | Import + Play Mode + Kapelle + Config | — | Noten hochladen, ansehen, spielen |
+| **MS2** | Setlist + Konzertplanung + Vereinsleben | MS1 | Proben- und Konzertbetrieb organisieren |
+| **MS3** | Tuner + Echtzeit-Klick + Cloud-Sync | MS1 | Musikalische Werkzeuge für die Probe |
+| **MS4** | Lehre-Modul | MS1 | Musikunterricht digital unterstützen |
+| **MS5** | Polish, Multi-Language, Advanced AI | MS2, MS3 | Feinschliff und Internationalisierung |
 
 ---
 
-## M1 — Kern: Noten & Kapelle
-
-### Mehrwert für den Endnutzer
-
-> "Ich kann meine Noten digital auf mein Gerät bringen, meine Kapelle anlegen und im Fokus-Modus spielen — ohne Ablenkung."
+## MS1 — Import + Play Mode + Kapellenverwaltung + Konfiguration
 
 ### Scope
 
-#### Notenverwaltung
-- **F1.1** Zentrale Notenablage (Kapelle + persönlich)
-- **F1.2** Noten-Upload & Labeling (Bilder, PDFs, Kamera)
-- **F1.3** AI-basierte Metadaten-Erkennung (Grundversion: Titel, Stimme)
-- **F1.4** AI-Lizenzierung (pro User und pro Kapelle)
-- **F1.5** Stimmenauswahl & Instrument-Profil (Standard-Stimme, Fallback)
-- **F1.6** Berechtigungen für Noteneinpflege
+Das Fundament von Sheetstorm. Nach MS1 kann eine Kapelle gegründet, Noten hochgeladen, Stimmen zugewiesen und am Tablet gespielt werden. Die Konfiguration auf allen drei Ebenen (Kapelle/Nutzer/Gerät) ist funktional und hat eine erstklassige UX.
 
-#### Spielmodus
-- **F2.1** Fokus-Modus (Vollbild, ablenkungsfrei, Seitenwechsel per Swipe/Tap)
-- **F2.2** Auto-Rotation (Notenlinien-Erkennung)
-- **F2.3** Auto-Zoom (Notenbereich erkennen, optimal skalieren)
-- **F2.4** Annotationen & Markierungen (alle drei Sichtbarkeitsebenen)
+### Deliverables
+
+#### Authentifizierung & Onboarding
+- Registrierung (E-Mail + Passwort)
+- Login / Logout / Refresh Token (JWT)
+- Onboarding-Flow: Name, Instrumente, Kapelle beitreten/erstellen, Theme (max. 5 Fragen)
+- Passwort-Reset
 
 #### Kapellenverwaltung
-- **F3.1** Kapelle erstellen & verwalten
-- **F3.2** Multi-Kapellen-Zugehörigkeit (Wechsler)
-- **F3.3** Rollen & Mitgliederverwaltung (Admin, Dirigent, Notenwart, Registerführer, Musiker)
+- Kapelle erstellen (Name, Ort, Logo)
+- Einladungslink/-code zum Beitreten
+- Mitglieder-Übersicht mit Rollen und Instrumenten
+- Rollenzuweisung (Admin, Dirigent, Notenwart, Registerführer, Musiker)
+- Multi-Kapellen-Support: Kapellen-Wechsel in der Navigation
+- Mitglieder-Profil: Instrumente, Standard-Stimme pro Kapelle
+
+#### Noten-Upload & Labeling
+- Upload: PDF, JPG, PNG, TIFF, Kamera-Foto
+- PDF-Aufspaltung in Einzelseiten
+- Labeling-Workflow: Seitengrenzen markieren, Stücken zuordnen
+- Metadaten manuell eingeben (Titel, Komponist, Stimme, etc.)
+- AI-Metadaten-Erkennung (optional, wenn AI-Keys konfiguriert)
+- AI-Lizenzierung: Kapellen-Key + User-Key mit Fallback-Kette
+- Drag & Drop Umsortierung
+
+#### Spielmodus (Play Mode)
+- Notenansicht: Vollbild, ablenkungsfrei
+- Seitenwechsel < 100ms (Touch-Gesten: Tap, Swipe)
+- **Half-Page-Turn** (konfigurierbar)
+- **Bluetooth-Fußpedal-Support** (BLE HID)
+- Auto-Rotation & Auto-Zoom
+- Auftritt-Modus mit Touch-Lock
+- Stimmenauswahl mit Fallback-Logik
+
+#### Annotationen
+- SVG-Layer: Freihand-Stift, Text, Symbole
+- Drei Sichtbarkeitsebenen (Privat, Stimme, Orchester)
+- Stylus-First mit Palm Rejection
+- Undo/Redo
+- Layer ein-/ausblendbar
 
 #### Persönliche Sammlung
-- **F6.1** Eigene Notensammlung (lokale Speicherung, gleiche Mechanismen)
+- Noten zur eigenen Sammlung hinzufügen (gleiche Mechanismen wie Kapelle)
+- Lokal auf dem Gerät gespeichert
 
-#### Infrastruktur
-- Benutzer-Registrierung & Login (E-Mail + Passwort, JWT)
-- Responsive UI (Mobile, Tablet, Desktop)
-- Touch-Support (Swipe, Pinch-to-Zoom, Stift-Support)
-- Offline-Fähigkeit: Noten ansehen & Annotationen (lokal)
-- i18n-Architektur (alle Strings externalisiert, Deutsch als Sprache)
-- Basis-Sicherheit (TLS, verschlüsselte API-Keys, RBAC)
+#### Konfigurationssystem (3 Ebenen)
+- **Kapelle:** AI-Keys, Berechtigungen, Branding, Policies, Standard-Sprache
+- **Nutzer:** Theme (Dark/Light), Sprache, Instrumente, Standard-Stimme, Benachrichtigungen, persönliche AI-Keys
+- **Gerät:** Display-Helligkeit, Touch-Zonen, Schriftgröße, Audio-Eingang, Offline-Speicher
+- Override-Regel: Gerät > Nutzer > Kapelle > System-Default
+- Policy-System: Kapelle kann bestimmte Overrides sperren
+- Auto-Save mit Undo-Toast
+- Farbkodierung: Blau (Kapelle) / Grün (Nutzer) / Orange (Gerät)
+- Kontextuelle Einstellungen im Spielmodus (Overlay, max 5 Optionen)
+- Vererbung transparent: "Standard von Kapelle" mit "Eigenen Wert festlegen"
+- Keine Einstellung erfordert App-Neustart
 
-### Deliverables
-
-- [ ] Deploybare Web-App
-- [ ] Mobile App (iOS + Android) oder PWA mit Touch-Support
-- [ ] API-Server (v1) mit Authentifizierung
-- [ ] AI-Service-Integration (mindestens 1 Provider: Azure Vision)
-- [ ] Datenbankschema Version 1
-- [ ] Grundlegende CI/CD-Pipeline
-- [ ] Onboarding-Flow für neue Nutzer und Kapellen
+#### Backend & Infrastruktur
+- ASP.NET Core 10 API (REST, JWT, Cursor-Pagination)
+- PostgreSQL 18 Datenbank (JSONB für Config)
+- Azure Blob Storage + CDN für Notenbilder
+- SQLite/Drift Client-DB (Offline-Cache)
+- CI/CD Pipeline (GitHub Actions)
+- Basis-Monitoring (Application Insights + OpenTelemetry)
 
 ### Abhängigkeiten
+- Keine — MS1 ist der Startpunkt.
 
-- Keine externen Abhängigkeiten (erster Meilenstein)
-- AI-Provider-Evaluation muss abgeschlossen sein (Azure Vision als Minimum)
-- UX-Design für Fokus-Modus und Upload-Flow muss vorliegen
-
-### Testing & UX-Validierung
-
-- [ ] Unit-Tests: ≥80% Coverage für Business-Logik
-- [ ] Integration-Tests: Upload-Flow, Labeling, Stimmauswahl
-- [ ] E2E-Tests: Registrierung → Kapelle erstellen → Noten hochladen → Fokus-Modus
-- [ ] UX-Test: Musiker testet kompletten Flow auf Tablet (Touch-Optimierung)
-- [ ] UX-Test: Upload von 20+ Seiten mit Labeling (Performance, Usability)
-- [ ] UX-Test: Fokus-Modus im Probenszenario (Ablenkungsfreiheit, Seitenwechsel)
-- [ ] Accessibility-Check: Basis-WCAG 2.1 AA
-- [ ] Performance-Test: Seitenwechsel <100ms, App-Start <3s
+### Testing-Anforderungen
+- Unit-Tests: ≥ 80% Coverage für Business-Logik (Backend + Frontend State)
+- Widget-Tests: Alle kritischen UI-Flows (Onboarding, Upload, Spielmodus)
+- Integration-Tests: API-Endpunkte, Auth-Flow, Datei-Upload
+- E2E-Tests: Kern-Szenarien (Kapelle erstellen → Noten hochladen → Spielen)
+- Performance-Test: Seitenwechsel < 100ms, Stift-Latenz < 50ms
+- **3-Reviewer Code Review:** Sonnet 4.6, Opus 4.6, GPT 5.4 — Stark reviewed Reviews
+- **UX-Review** für alle Frontend-Änderungen
 
 ### Definition of Done
-
-- [ ] Alle oben genannten Features sind implementiert und getestet
-- [ ] App ist auf Web, iOS und Android deployt und nutzbar
-- [ ] Code Review durch 3 Reviewer (Claude Sonnet 4.6, Claude Opus 4.6, GPT 5.4) + Lead-Review
-- [ ] Keine kritischen oder hohen Bugs offen
-- [ ] Dokumentation: API-Docs, Setup-Anleitung
-- [ ] DSGVO-Grundlagen: Datenschutzerklärung, Account-Löschung
-- [ ] Mindestens 3 Musiker haben den kompletten Flow getestet und Feedback gegeben
+- [ ] Kapelle erstellen und Mitglieder einladen funktioniert
+- [ ] Noten-Upload mit Labeling-Prozess funktioniert (mit und ohne AI)
+- [ ] Spielmodus: Half-Page-Turn, Fußpedal, Auto-Rotation, Touch-Lock
+- [ ] Annotationen auf allen drei Sichtbarkeitsebenen funktionieren
+- [ ] Konfiguration auf drei Ebenen mit Policy-System
+- [ ] Persönliche Sammlung funktioniert (lokal)
+- [ ] Stimmenauswahl mit Fallback-Logik
+- [ ] i18n-Architektur: Alle Strings externalisiert (Deutsch)
+- [ ] Alle Tests grün, Performance-Ziele erreicht
+- [ ] Deployed und testbar auf iOS, Android, Windows, Web
+- [ ] UX-Review bestanden
 
 ---
 
-## M2 — Organisation: Setlists, Termine & Vereinsleben
-
-### Mehrwert für den Endnutzer
-
-> "Ich kann Setlists für Konzerte zusammenstellen, Termine verwalten und Schichten auf Festen organisieren — alles in einer App."
+## MS2 — Setlist + Konzertplanung + Vereinsleben
 
 ### Scope
+
+Organisation des Musikbetriebs. Nach MS2 können Kapellen ihren Proben- und Konzertbetrieb vollständig über Sheetstorm abwickeln — von der Setlist-Erstellung bis zur Anwesenheitsplanung.
+
+### Deliverables
 
 #### Setlist-Verwaltung
-- **F4.1** Setlist erstellen, bearbeiten, Stücke sortieren (Drag & Drop)
-- Setlist im Spielmodus: automatischer Übergang zum nächsten Stück
-- Setlist mit Termin/Konzert verknüpfen
-- Setlist duplizieren
+- Setlists erstellen, benennen, Stücke hinzufügen/umsortieren (Drag & Drop)
+- Metadaten: Name, Datum, Typ (Konzert/Probe/Marschmusik)
+- Setlist-Modus im Player: Nahtloser Übergang zwischen Stücken
+- Stücke in mehreren Setlists
 
 #### Konzertplanung
-- **F5.1** Konzert anlegen (Datum, Ort, Setlist)
-- Zu-/Absage-Funktion für Musiker
-- Teilnehmerübersicht (nach Registern)
-- Push-Benachrichtigungen
+- Termine erstellen: Datum, Uhrzeit, Ort, Typ, Setlist-Verknüpfung
+- Zu-/Absage-System mit optionaler Begründung
+- Übersicht: Zugesagt / Offen / Abgesagt
+- Ersatzmusiker-Vorschlag bei Absage (basierend auf Instrumentenprofil + Fallback)
+- Push-Benachrichtigungen / Erinnerungen
 
-#### Feste & Schichtplanung
-- **F5.2** Feste anlegen, Schichten definieren
-- Musiker tragen sich für Schichten ein
-- Schichttausch
-- Übersicht besetzt/offen
+#### Kalender
+- Monats-/Wochen-/Listenansicht
+- Filter nach Kapelle
+- Termin-Details mit verknüpfter Setlist
 
-#### Terminplanung
-- **F5.3** Kalenderansicht (Monat/Woche/Agenda)
-- Termine filtern nach Kapelle und Typ
-- iCal-Export
-- Zu-/Absage für alle Termintypen
+#### Aushilfen-Zugang
+- Temporärer Zugangslink (konfigurierbare Gültigkeitsdauer)
+- Nur zugewiesene Stimme für den Termin sichtbar
+- Web-Ansicht ohne App-Installation
+- QR-Code-Sharing
+- Admin/Dirigent kann widerrufen
 
-### Deliverables
-
-- [ ] Setlist-Modul (UI + API)
-- [ ] Konzertplanungs-Modul (UI + API)
-- [ ] Fest- und Schichtplanungs-Modul (UI + API)
-- [ ] Kalender-Modul mit Filterung und Export
-- [ ] Push-Notification-System (Firebase/APNs)
-- [ ] Aktualisierte API-Dokumentation
+#### Schichtplanung (Basic)
+- Schichten für Vereinsfeste definieren
+- Selbsteintragung und Zuweisung
+- Übersicht offener/besetzter Schichten
 
 ### Abhängigkeiten
+- MS1 (Kapellenverwaltung, Notenbank, Spielmodus)
 
-- M1 muss abgeschlossen sein (Kapellen, Mitglieder, Rollen, Noten)
-- Push-Notification-Infrastruktur muss eingerichtet werden
-
-### Testing & UX-Validierung
-
-- [ ] Unit-Tests: Setlist-Logik, Termin-Verwaltung, Schicht-Zuteilung
-- [ ] Integration-Tests: Setlist → Spielmodus-Übergang, Zu-/Absage-Flow
-- [ ] E2E-Tests: Konzert anlegen → Setlist zuordnen → Musiker sagt zu → Konzert spielen
-- [ ] UX-Test: Dirigent erstellt Setlist auf Tablet (Drag & Drop, Touch)
-- [ ] UX-Test: Musiker nutzt Kalender und sagt für Termine zu/ab
-- [ ] UX-Test: Schichtplanung auf Mobilgerät
-- [ ] Performance-Test: Kalender mit 100+ Terminen
+### Testing-Anforderungen
+- Unit-Tests: Setlist-Logik, Termin-Management, Berechtigungen
+- Widget-Tests: Setlist-Builder, Kalender, Zu-/Absage-Flow
+- Integration-Tests: Setlist → Spielmodus Übergang, Push-Benachrichtigungen
+- E2E: Konzert planen → Musiker laden → Absage → Ersatz-Vorschlag → Setlist spielen
+- **UX-Review** + **3-Reviewer Code Review**
 
 ### Definition of Done
-
-- [ ] Alle Features implementiert und getestet
-- [ ] Code Review (3 Reviewer + Lead)
-- [ ] Setlist-Spielmodus funktioniert nahtlos
-- [ ] Push-Benachrichtigungen funktionieren auf iOS und Android
-- [ ] Keine kritischen oder hohen Bugs offen
-- [ ] Mindestens 1 Kapelle hat den Organisations-Flow getestet
+- [ ] Setlists erstellen und im Spielmodus nahtlos durchspielen
+- [ ] Konzertplanung mit Zu-/Absage und Ersatzmusiker-Vorschlag
+- [ ] Kalenderansicht mit Kapellen-Filter
+- [ ] Aushilfen-Zugang via Link funktioniert
+- [ ] Schichtplanung (Basic) für Feste
+- [ ] Push-Benachrichtigungen für Termine
+- [ ] Alle Tests grün, UX-Review bestanden
 
 ---
 
-## M3 — Erweiterte Tools: Tuner, Metronom & Cloud-Sync
-
-### Mehrwert für den Endnutzer
-
-> "Ich kann mein Instrument in der App stimmen, im Probenraum hat jeder den gleichen Klick, und meine persönlichen Noten sind auf allen Geräten synchron."
+## MS3 — Tuner + Echtzeit-Klick + Cloud-Sync
 
 ### Scope
+
+Musikalische Werkzeuge für den Probenbetrieb. Nach MS3 können Musiker ihr Instrument stimmen, der Dirigent kann einen synchronen Taktschlag an alle senden, und die persönliche Sammlung wird über die Cloud synchronisiert.
+
+### Deliverables
 
 #### Stimmgerät (Tuner)
-- **F7.1** Chromatische Tonerkennung über Mikrofon
-- Anzeige: Ton, Abweichung in Cent, visuelles Feedback
-- Kammerton einstellbar (430–450 Hz)
-- Transposition für verschiedene Instrumente
-- Funktioniert offline
+- Chromatischer Tuner via Mikrofon (Platform Channels zu CoreAudio/Oboe)
+- FFT-basierte Frequenz-Erkennung
+- Anzeige: Ton, Cent-Abweichung, Frequenz (Hz)
+- Kammerton-Kalibrierung (Default 442 Hz, konfigurierbar in Geräte-Config)
+- Transpositions-Support (Bb, Eb, F — basierend auf Instrumentenprofil)
+- Ziel: < 20ms Audio-zu-Anzeige Latenz
 
-#### Echtzeit-Klick / Metronom
-- **F7.2** Tempo- und Taktart-Einstellung
-- Visuelles und akustisches Metronom
-- Synchronisation über lokales Netzwerk (WiFi UDP)
-- Fallback: WebSocket über Internet
-- Clock-Synchronisation (NTP-ähnlich)
-- Dirigent als Controller (Start/Stop/Tempo)
+#### Echtzeit-Metronom (Sync)
+- Dirigent startet/stoppt Metronom (BPM + Taktart)
+- **Clock-Synchronisation:** NTP-ähnliches Protokoll zwischen Server und Clients
+- **Primär:** WiFi UDP Multicast (ASP.NET Core UDP-Server)
+  - Ziel: < 5ms Latenz im LAN
+  - Beats als Timestamps, nicht als Live-Kommandos
+- **Fallback:** SignalR WebSocket (Remote/Internet)
+  - Ziel: < 50ms Latenz
+- Visuelle Anzeige: Taktschlag-Indikator mit Animation
+- Optionaler Audio-Click (konfigurierbar pro Gerät)
+- Latenz-Kompensation pro Gerät einstellbar
+- Automatische Erkennung: WiFi-Netz → UDP, sonst → WebSocket
 
-#### Cloud-Storage-Synchronisation
-- **F6.2** OneDrive-Integration (OAuth2)
-- Dropbox-Integration (OAuth2)
-- Bidirektionale Sync, Konfliktbehandlung
-- Sync-Status pro Datei
+#### Cloud-Sync (Persönliche Sammlung)
+- Synchronisation persönlicher Noten über Sheetstorm-Backend
+- Delta-Sync mit Versionierung
+- Konflikt-Auflösung: Last-Write-Wins per Feld
+- Offline-Fähigkeit erhalten
 
-### Deliverables
-
-- [ ] Tuner-Modul (Audio-Processing, UI)
-- [ ] Metronom-Modul (lokales Metronom)
-- [ ] Echtzeit-Sync-Server (UDP + WebSocket)
-- [ ] Clock-Synchronisations-Protokoll
-- [ ] Cloud-Storage-Integration (OneDrive + Dropbox)
-- [ ] Sync-Status-UI und Konflikt-Handling
+#### Annotationen-Sync (Erweitert)
+- Stimmen-Annotationen: Echtzeit-Sync für alle Musiker derselben Stimme
+- Orchester-Annotationen: Echtzeit-Sync für alle Musiker
+- Konflikt-Behandlung bei gleichzeitiger Bearbeitung
 
 ### Abhängigkeiten
+- MS1 (Spielmodus, Annotationen, Config-System)
 
-- M1 muss abgeschlossen sein (persönliche Sammlung für Cloud-Sync)
-- Audio-Processing-Libraries evaluiert und ausgewählt
-- Echtzeit-Server-Infrastruktur aufgebaut
-- OneDrive und Dropbox Developer-Accounts eingerichtet
-
-### Testing & UX-Validierung
-
-- [ ] Unit-Tests: Tonerkennungsalgorithmus, Clock-Sync-Logik
-- [ ] Integration-Tests: Cloud-Sync mit echten Diensten (Sandbox-Accounts)
-- [ ] E2E-Tests: Tuner starten → Ton spielen → Ergebnis korrekt
-- [ ] E2E-Tests: Metronom starten → 2+ Geräte synchron
-- [ ] UX-Test: Tuner im echten Probenraum-Szenario (Hintergrundgeräusche)
-- [ ] UX-Test: Metronom mit 5+ Musikern synchron (Latenz-Empfinden)
-- [ ] UX-Test: Cloud-Sync einrichten und Noten zwischen 2 Geräten synchronisieren
-- [ ] Performance-Test: Metronom-Latenz <20ms über WiFi
-- [ ] Performance-Test: Tuner-Latenz <100ms
+### Testing-Anforderungen
+- Unit-Tests: FFT-Algorithmus, Clock-Sync-Logik, Delta-Sync
+- Integration-Tests: UDP Multicast Latenz, WebSocket Fallback, Sync-Szenarien
+- Performance-Tests: Tuner < 20ms, UDP < 5ms, WebSocket < 50ms
+- Geräte-Tests: Verschiedene Mikrofone, BLE-Geräte, Netzwerk-Konfigurationen
+- **UX-Review** + **3-Reviewer Code Review**
 
 ### Definition of Done
-
-- [ ] Tuner funktioniert zuverlässig für alle gängigen Blasinstrumente
-- [ ] Metronom ist auf ≥5 Geräten im selben Netzwerk synchron (<20ms Abweichung)
-- [ ] Cloud-Sync funktioniert bidirektional mit OneDrive und Dropbox
-- [ ] Code Review (3 Reviewer + Lead)
-- [ ] Keine kritischen oder hohen Bugs offen
-- [ ] Tuner und Metronom in realer Probenumgebung getestet
+- [ ] Tuner funktioniert auf iOS, Android, Windows mit < 20ms Latenz
+- [ ] Metronom: UDP-Sync < 5ms im LAN
+- [ ] Metronom: WebSocket-Fallback < 50ms
+- [ ] Automatischer Wechsel UDP ↔ WebSocket
+- [ ] Cloud-Sync für persönliche Sammlung
+- [ ] Annotationen-Sync (Stimme + Orchester) in Echtzeit
+- [ ] Alle Tests grün, Performance-Ziele gemessen und dokumentiert
 
 ---
 
-## M4 — Lehre: Lehrer, Schüler & Lernpfade
-
-### Mehrwert für den Endnutzer
-
-> "Als Musiklehrer kann ich meinen Schülern gezielt Noten freischalten und strukturierte Lernpfade erstellen. Schüler arbeiten Stück für Stück durch."
+## MS4 — Lehre-Modul
 
 ### Scope
 
-#### Lehrer-/Schüler-Rollen
-- **F8.1** Rolle "Lehrer" mit Schüler-Verwaltung
-- Rolle "Schüler" mit eingeschränktem Zugriff
-- Noten pro Schüler freischalten/sperren
-- Schüler sieht nur freigeschaltete Inhalte
+Digitaler Musikunterricht. Lehrer können Schülern Noten freischalten und strukturierte Lernpfade anbieten. Kann parallel zu MS2/MS3 gestartet werden (nur MS1-Abhängigkeit).
+
+### Deliverables
+
+#### Lehrer-Schüler-Verwaltung
+- Zusätzliche Rollen: Lehrer und Schüler
+- Lehrer erstellt Schüler-Accounts oder lädt bestehende Nutzer ein
+- Schüler-Dashboard mit freigeschalteten Noten
+- Lehrer-Dashboard: Schüler-Übersicht mit Status
+
+#### Notenfreischaltung
+- Lehrer schaltet einzelne Stücke/Stimmen für Schüler frei
+- Schüler sieht nur freigeschaltete Noten
+- Freischaltung mit optionaler Notiz/Anweisung
+- Bulk-Freischaltung für mehrere Schüler
 
 #### Lernpfade
-- **F8.2** Lernpfad erstellen (geordnete Stücke/Übungen)
-- Stufenweise Freischaltung (sequenziell oder manuell)
-- Fortschrittsanzeige für Schüler
-- Lehrer kann Fortschritt einsehen
-- Lernpfade duplizieren und anpassen
+- Geordnete Sequenz von Stücken/Übungen
+- Fortschritts-Tracking: Markierung als "geübt" / "abgeschlossen"
+- Optional: Automatische Freischaltung des nächsten Stücks
+- Lehrer sieht Fortschritt aller Schüler
 
-### Deliverables
-
-- [ ] Lehrer-Dashboard (Schüler-Übersicht, Freischaltung)
-- [ ] Schüler-Ansicht (freigeschaltete Stücke, Lernpfade)
-- [ ] Lernpfad-Editor (Drag & Drop Stücke sortieren)
-- [ ] Fortschrittstracking (UI + API)
-- [ ] Rollen-Erweiterung im Berechtigungssystem
-- [ ] Dokumentation des Lehre-Moduls
+#### Schüler-Spielmodus
+- Identisch mit normalem Spielmodus (inkl. Annotationen, Half-Page-Turn)
+- Zusätzlich: Lernpfad-Navigation (Vorheriges/Nächstes Stück im Pfad)
 
 ### Abhängigkeiten
+- MS1 (Spielmodus, Annotationen, Rollen-System)
+- **NICHT** abhängig von MS2 oder MS3 → kann parallel gestartet werden
 
-- M1 muss abgeschlossen sein (Noten, Rollen, Berechtigungen)
-- Detaillierte Spezifikation des Lehre-Moduls von Thomas (ausstehend)
-- UX-Design für Lehrer- und Schüler-Flows
-
-### Testing & UX-Validierung
-
-- [ ] Unit-Tests: Freischaltungslogik, Lernpfad-Progression
-- [ ] Integration-Tests: Lehrer schaltet frei → Schüler sieht Stück
-- [ ] E2E-Tests: Lernpfad erstellen → Schüler zuweisen → Fortschritt tracken
-- [ ] UX-Test: Lehrer erstellt Lernpfad und verwaltet 5+ Schüler
-- [ ] UX-Test: Schüler arbeitet Lernpfad auf Tablet durch
-- [ ] Berechtigungs-Test: Schüler kann keine nicht-freigeschalteten Inhalte sehen
+### Testing-Anforderungen
+- Unit-Tests: Freischaltungs-Logik, Lernpfad-Progression
+- Widget-Tests: Lehrer- und Schüler-Dashboards
+- Integration-Tests: Freischaltung → Schüler sieht Noten
+- **UX-Review** + **3-Reviewer Code Review**
 
 ### Definition of Done
-
-- [ ] Lehrer können Schüler verwalten, Noten freischalten und Lernpfade erstellen
-- [ ] Schüler sehen nur freigeschaltete Inhalte und können Fortschritt tracken
-- [ ] Code Review (3 Reviewer + Lead)
-- [ ] Keine kritischen oder hohen Bugs offen
-- [ ] Mindestens 1 Lehrer-Schüler-Paar hat den kompletten Flow getestet
+- [ ] Lehrer kann Schüler verwalten und Noten freischalten
+- [ ] Lernpfade erstellen und Fortschritt tracken
+- [ ] Schüler sieht nur freigeschaltete Noten
+- [ ] Spielmodus mit Lernpfad-Navigation
+- [ ] Detailspezifikation von Thomas abgenommen (offener Punkt)
+- [ ] Alle Tests grün, UX-Review bestanden
 
 ---
 
-## M5 — Verfeinerung: i18n, AI-Erweiterung & Performance
-
-### Mehrwert für den Endnutzer
-
-> "Die App ist schneller, unterstützt weitere Sprachen, und die AI-Erkennung ist noch zuverlässiger."
+## MS5 — Polish, Multi-Language, Advanced AI
 
 ### Scope
 
-#### Mehrsprachigkeit
-- Englisch als zweite Sprache
-- Sprachauswahl in den Einstellungen
-- Alle UI-Texte übersetzt
-
-#### Erweiterte AI-Features
-- Weitere AI-Provider unterstützen (Google Vision, OpenAI GPT-4V)
-- Verbesserte Metadaten-Erkennung (Tonart, Tempo, Genre)
-- AI-Konfidenz-Schwellwerte konfigurierbar
-- Batch-Verarbeitung für große Uploads
-
-#### Performance-Optimierung
-- Bild-Komprimierung und Caching optimieren
-- Lazy Loading für Noten-Galerie
-- Offline-Cache-Strategie verfeinern
-- App-Start-Optimierung
-- Memory-Management für große Notensammlungen
-
-#### Zusätzliche Features
-- Social Login (Google, Apple)
-- 2FA für Administratoren (TOTP)
-- Datenexport (DSGVO)
-- Erweiterte Suche (Volltextsuche über Metadaten)
-- Nutzungsstatistiken für Administratoren
+Feinschliff, Internationalisierung und erweiterte AI-Funktionen. Sheetstorm wird mehrsprachig und die AI-Integration wird vertieft.
 
 ### Deliverables
 
-- [ ] Englische Übersetzung aller UI-Texte
-- [ ] Sprachauswahl-UI
-- [ ] Weitere AI-Provider-Adapter
-- [ ] Performance-Optimierungen (messbar)
-- [ ] Social Login Integration
-- [ ] 2FA-Modul
-- [ ] Datenexport-Funktion
-- [ ] Erweiterte Suchfunktion
+#### Internationalisierung
+- Englisch als zweite Sprache (vollständige Übersetzung aller Strings)
+- Sprachauswahl: Nutzer-Ebene Config
+- Fallback-Kette: Nutzer-Sprache → Kapelle-Default → Deutsch
+- Community-Beitrag-Infrastruktur für weitere Sprachen
+
+#### Advanced AI
+- Erweiterte OCR: Taktart, Tonart, Wiederholungszeichen erkennen
+- AI-gestützte Stimmen-Zuordnung (Vorschlag basierend auf Notenblatt-Inhalt)
+- Batch-Verarbeitung: Ganzer Noten-Ordner → automatische Zuordnung
+- Weitere AI-Provider evaluieren und integrieren
+
+#### Kalender-Integration
+- Export als iCal
+- Sync mit Google Calendar / Apple Calendar / Outlook
+- Bidirektionale Sync (Read/Write)
+
+#### Analytics & Dashboard
+- Anwesenheits-Statistiken
+- Proben-Trends
+- Noten-Nutzungsstatistiken
+
+#### Performance & Polish
+- Animations-Feinschliff (Spielmodus, Seitenwechsel)
+- Accessibility-Audit (WCAG 2.1 AA)
+- Performance-Optimierung basierend auf Real-World-Daten
+- Dokumentation & Hilfe-System in der App
 
 ### Abhängigkeiten
+- MS2, MS3 (Setlists, Termine, Metronom müssen stehen)
 
-- M1–M4 müssen abgeschlossen sein
-- Übersetzungen müssen erstellt werden
-- Performance-Baseline muss gemessen sein (vor Optimierung)
-
-### Testing & UX-Validierung
-
-- [ ] Unit-Tests: Sprachumschaltung, neue AI-Provider, Datenexport
-- [ ] Integration-Tests: Social Login, 2FA-Flow
-- [ ] E2E-Tests: App komplett auf Englisch durchspielen
-- [ ] Performance-Tests: Vorher/Nachher-Vergleich (App-Start, Seitenwechsel, Upload)
-- [ ] UX-Test: Englischsprachiger Nutzer testet kompletten Flow
-- [ ] Security-Audit: 2FA, Social Login, Datenexport
-- [ ] Last-Test: 200+ gleichzeitige Nutzer
+### Testing-Anforderungen
+- Vollständiger Regressions-Test aller Features
+- i18n-Tests: Alle Screens in Deutsch und Englisch
+- Accessibility-Tests mit Screen Reader
+- Performance-Benchmarks: Alle NFAs erfüllt
+- **UX-Review** + **3-Reviewer Code Review**
 
 ### Definition of Done
-
 - [ ] App vollständig auf Deutsch und Englisch nutzbar
-- [ ] Mindestens 2 AI-Provider unterstützt
-- [ ] Performance-Ziele erreicht (Seitenwechsel <100ms, App-Start <3s)
-- [ ] Social Login und 2FA funktionieren
-- [ ] Datenexport DSGVO-konform
-- [ ] Code Review (3 Reviewer + Lead)
-- [ ] Keine kritischen oder hohen Bugs offen
-- [ ] Security-Audit bestanden
+- [ ] Kalender-Integration funktioniert (iCal Export, Google/Apple/Outlook Sync)
+- [ ] Advanced AI: Batch-Upload, verbesserte Erkennung
+- [ ] Analytics-Dashboard für Admins/Dirigenten
+- [ ] WCAG 2.1 AA Accessibility bestanden
+- [ ] Performance-Ziele in Produktion gemessen und erfüllt
+- [ ] Alle Tests grün, Regressions-Suite vollständig
 
 ---
 
-## Risiken & Mitigationsstrategien
+## Zusammenfassung: Wertversprechen pro Meilenstein
 
-| Risiko | Auswirkung | Mitigation |
-|--------|-----------|------------|
-| AI-Erkennung unzuverlässig für Notenblätter | Manueller Aufwand steigt | Mehrere Provider evaluieren; manuelle Eingabe immer als Fallback |
-| Metronom-Latenz zu hoch für musikalische Zwecke | Feature nicht nutzbar | WiFi UDP als primären Kanal; frühzeitig mit echten Musikern testen |
-| Cloud-Sync-Konflikte bei Annotationen | Datenverlust möglich | Merge-Strategie statt Last-Write-Wins für Annotationen |
-| Touch-Performance auf älteren Geräten | UX leidet | Frühzeitig auf Zielgeräten testen; Performance-Budget definieren |
-| Lehre-Modul: Spezifikation unklar | Verzögerung M4 | Frühzeitig mit Thomas klären; M4 kann unabhängig von M2/M3 starten |
-| Urheberrecht bei Noten | Rechtliches Risiko | Klarer Haftungsausschluss; keine öffentliche Sharing-Funktion |
-
----
-
-## Zeitplanung
-
-> Zeitschätzungen hängen von Team-Größe und Verfügbarkeit ab. Die folgende Reihenfolge ist verbindlich.
-
-```
-M1 ─────────────▶ M2 ─────────────▶ M3 ─────────────▶ M4 ──────▶ M5
-Kern               Organisation       Erweiterte Tools   Lehre      Verfeinerung
-                                                         │
-                                                         └── Kann parallel zu M3
-                                                              starten (unabhängig)
-```
-
-**Parallelisierbarkeit:**
-- M1 → M2 → M3: Strikt sequenziell (Abhängigkeiten)
-- M4: Kann nach M1 parallel zu M2/M3 gestartet werden (benötigt nur Kern-Features)
-- M5: Beginnt nach M4, kann aber einzelne Optimierungen bereits ab M2 einstreuen
+| MS | Was der Nutzer damit tun kann |
+|----|-------------------------------|
+| **MS1** | Kapelle gründen, Noten hochladen, am Tablet spielen, Einstellungen personalisieren |
+| **MS2** | Proben und Konzerte organisieren, Setlists durchspielen, Aushilfen einladen |
+| **MS3** | Instrument stimmen, synchron zum Dirigenten-Klick spielen, Noten überall dabeiahaben |
+| **MS4** | Musikunterricht digital gestalten, Schüler-Fortschritt verfolgen |
+| **MS5** | App auf Englisch nutzen, erweiterte AI-Erkennung, Kalender-Sync, Statistiken |
 
 ---
 
-*Diese Planung wird fortlaufend angepasst. Änderungen werden dokumentiert und mit dem Team abgestimmt.*
+*Dieses Dokument wird via PR zur Abstimmung vorgelegt. Änderungen erfordern Thomas' Freigabe.*

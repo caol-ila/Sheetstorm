@@ -1,468 +1,387 @@
-# Technologie-Entscheidung — Sheetstorm
+# Sheetstorm — Technologie-Entscheidung
 
-> Version: 1.0  
-> Status: Entscheidung  
-> Autor: Stark (Lead / Architect)  
-> Datum: 2026-03-28  
-> Referenz: docs/spezifikation.md, docs/anforderungen.md, docs/konfigurationskonzept.md
-
----
-
-## 1. Entscheidungsrahmen
-
-### 1.1 Nicht-verhandelbare Anforderungen
-
-Aus der Spezifikation ergeben sich harte Kriterien, die jeder Stack erfüllen **muss**:
-
-| # | Anforderung | Warum kritisch |
-|---|------------|----------------|
-| R1 | Multi-Plattform: Web, iOS, Android, Desktop (Win/Mac) | Musiker nutzen gemischte Geräte |
-| R2 | Touch-first mit Stift-Support (Apple Pencil, Surface Pen, S Pen) | Annotationen sind Kernfeature |
-| R3 | Hochqualitative PDF/Bild-Darstellung mit Zoom, Rotation, Seitenwechsel <100ms | Spielmodus ist das Herzstück |
-| R4 | Offline-Fähigkeit mit lokalem Storage und Sync | Probenräume haben oft kein Internet |
-| R5 | Echtzeit-Fähigkeit (UDP/WebSocket für Metronom, <20ms Jitter) | Musikalische Synchronisation |
-| R6 | Audio-Processing (Tuner: Mikrofon-Zugriff, FFT) | Integriertes Stimmgerät |
-| R7 | Cloud-Storage-Integration (OneDrive, Dropbox OAuth2) | Persönliche Notensammlung |
-| R8 | AI-API-Integration (REST zu Azure Vision et al.) | OCR/Metadaten-Erkennung |
-| R9 | i18n-Architektur | Deutsch first, Erweiterung später |
-| R10 | Thomas hat .NET-Hintergrund | Produktivität des Hauptentwicklers |
-
-### 1.2 Bewertungsskala
-
-- ⭐⭐⭐⭐⭐ = Exzellent, nativ/erstklassig unterstützt
-- ⭐⭐⭐⭐ = Gut, mit geringem Aufwand machbar
-- ⭐⭐⭐ = Machbar, aber Kompromisse nötig
-- ⭐⭐ = Schwierig, erhebliche Workarounds
-- ⭐ = Sehr problematisch, kaum empfehlenswert
+> **Version:** 2.0  
+> **Autor:** Stark (Lead / Architect)  
+> **Datum:** 2026-03-28  
+> **Status:** Zur Abstimmung via PR  
+> **Methodik:** Web-Recherche für alle Versionen (kein Training-Data)
 
 ---
 
-## 2. Frontend-Stack-Evaluierung
+## 1. Zusammenfassung der Entscheidung
 
-### 2.1 Option A: .NET MAUI + Blazor Hybrid
-
-**Konzept:** C# und .NET überall. Blazor-Komponenten für UI, MAUI für native Plattform-Integration.
-
-| Kriterium | Bewertung | Begründung |
-|-----------|:---------:|-----------|
-| Sheet Music Rendering | ⭐⭐⭐ | PDF via native Views, Bild via SkiaSharp. Canvas-Annotationen über Blazor möglich, aber weniger Ökosystem für SVG-Overlay als Web-Stacks. |
-| Real-Time (Metronom) | ⭐⭐⭐⭐ | Nativer UDP-Zugriff über .NET Sockets. Gute Low-Level-Kontrolle. |
-| Offline/Sync | ⭐⭐⭐⭐ | SQLite natürlich eingebunden, EF Core. Gute Unterstützung. |
-| Touch/Stift | ⭐⭐⭐ | Touch-Support vorhanden, aber Stift-Unterstützung (insb. Apple Pencil) weniger ausgereift als native Frameworks. |
-| Developer Productivity | ⭐⭐⭐⭐⭐ | Thomas' Heimat. C# everywhere, bekannte Tools (Visual Studio, Rider). |
-| Community/Musik-Libraries | ⭐⭐ | Sehr kleine Community für Musik-Apps. Wenige NuGet-Pakete für Audio-Processing/Sheet Music. NAudio existiert, aber Desktop-fokussiert. |
-| Mobile Performance | ⭐⭐⭐ | MAUI hat Verbesserungen gemacht, aber Startup-Zeit und UI-Rendering noch hinter Flutter/Native. |
-| Desktop/Browser | ⭐⭐⭐ | Desktop gut (WinUI/Mac Catalyst). Web via Blazor WASM möglich, aber WASM-Bundle groß (~15 MB) und Performance suboptimal für bildlastige Apps. |
-| Code-Sharing | ⭐⭐⭐⭐⭐ | Nahezu 100% C#-Code-Sharing möglich. |
-
-**Stärken:** Einheitliche Sprache, Thomas' Expertise, guter nativer Zugriff.  
-**Risiken:** Kleines Ökosystem für Musik-Apps, Blazor WASM im Browser hat Performance-Grenzen, MAUI-Community kleiner als React Native/Flutter.
+| Komponente | Technologie | Version |
+|------------|-------------|---------|
+| **Frontend** | Flutter (Dart) | 3.35.4 / Dart 3.9.2 |
+| **State Management** | Riverpod | 3.3.1 (flutter_riverpod) |
+| **PDF-Rendering** | pdfrx | 2.2.24 |
+| **Client-DB** | SQLite via Drift | Drift 2.32.1 / SQLite 3.51.3 |
+| **Backend** | ASP.NET Core (.NET 10 LTS, C# 14) | 10.0.5 |
+| **Server-DB** | PostgreSQL | 18.3 |
+| **Echtzeit (LAN)** | WiFi UDP Multicast | Custom (ASP.NET Core) |
+| **Echtzeit (Remote)** | SignalR WebSocket | Teil von ASP.NET Core 10 |
+| **File Storage** | Azure Blob Storage + CDN | Aktuell |
+| **CI/CD** | GitHub Actions | Aktuell |
+| **Hosting** | Azure (App Service, Blob, CDN) | Aktuell |
+| **Monitoring** | Application Insights + OpenTelemetry | Nativ in .NET 10 |
 
 ---
 
-### 2.2 Option B: React Native / Expo
+## 2. Frontend-Evaluierung
 
-**Konzept:** JavaScript/TypeScript, gemeinsame Codebasis für iOS, Android. Web via React Native Web oder separatem Next.js.
+### Bewertungskriterien
 
-| Kriterium | Bewertung | Begründung |
-|-----------|:---------:|-----------|
-| Sheet Music Rendering | ⭐⭐⭐⭐ | react-native-pdf, react-native-canvas, SVG-Libraries gut verfügbar. Web hat ohnehin DOM-Zugriff. |
-| Real-Time (Metronom) | ⭐⭐⭐ | WebSocket gut, UDP braucht native Module (react-native-udp). Audio-Scheduling über Web Audio API (Web) oder native Module (Mobile). Bridge-Overhead möglich. |
-| Offline/Sync | ⭐⭐⭐⭐ | AsyncStorage, WatermelonDB, SQLite-Bindings. Gutes Ökosystem. |
-| Touch/Stift | ⭐⭐⭐⭐ | react-native-gesture-handler ist exzellent. Stift via PanResponder/GestureHandler gut. |
-| Developer Productivity | ⭐⭐⭐ | Thomas müsste JS/TS lernen. Hot Reload ist produktiv, aber Lernkurve für .NET-Entwickler. |
-| Community/Musik-Libraries | ⭐⭐⭐⭐ | Großes npm-Ökosystem, Web Audio API, tone.js, pitchy (Tuner). Viele Beispiele. |
-| Mobile Performance | ⭐⭐⭐⭐ | New Architecture (TurboModules, Fabric) deutlich verbessert. JSI reduziert Bridge-Overhead. |
-| Desktop/Browser | ⭐⭐⭐ | React Native Web ist limitiert. Separates Web-Projekt oder Electron nötig → Code-Split. |
-| Code-Sharing | ⭐⭐⭐ | ~70–80% Sharing zwischen iOS/Android. Web braucht separate Arbeit. Desktop-Story unklar. |
+Jedes Framework wurde auf 5 Kriterien bewertet (je 0–5 Punkte):
+1. **Plattform-Support** — Android, iOS, Windows, Web (alle 4 benötigt)
+2. **Canvas/PDF-Rendering** — Hochauflösende Notenblätter, SVG-Overlay, Seitenwechsel < 100ms
+3. **Touch/Stylus** — Palm Rejection, Ink-Input, Fußpedal (BLE HID)
+4. **Echtzeit-Fähigkeit** — Platform Channels, Audio-Latenz, UDP-Support
+5. **Ökosystem & Lernkurve** — Für Thomas (C#/.NET-Hintergrund), Community, Packages
 
-**Stärken:** Riesiges Ökosystem, gute Musik-Libraries, schnelle Iteration.  
-**Risiken:** Kein echtes Desktop/Browser-Story ohne zweites Framework. Thomas' Lernkurve. Bridge-Overhead bei Audio.
+### Bewertungsmatrix
 
----
+| Kriterium | Flutter 3.35 | .NET MAUI 10 | React Native 0.84 | KMP/Compose 1.10.3 | Avalonia 11.3 | Tauri v2.10 |
+|-----------|:------------:|:------------:|:------------------:|:-------------------:|:-------------:|:-----------:|
+| Plattform-Support | 5 | 4 | 3.5 | 4 | 4 | 3.5 |
+| Canvas/PDF | 5 | 3 | 3.5 | 3 | 3 | 2.5 |
+| Touch/Stylus | 5 | 3.5 | 3.5 | 3.5 | 3 | 2 |
+| Echtzeit | 4 | 4.5 | 3.5 | 3.5 | 4 | 3 |
+| Ökosystem/Lernkurve | 4.5 | 4.5 | 3 | 3 | 4 | 3 |
+| **Gesamt** | **4.70** | **3.90** | **3.40** | **3.40** | **3.60** | **2.80** |
 
-### 2.3 Option C: Flutter
+### Framework-Analyse im Detail
 
-**Konzept:** Dart, ein Framework für Mobile, Web und Desktop. Eigene Rendering-Engine (Skia/Impeller).
+#### ✅ Flutter 3.35.4 / Dart 3.9.2 — GEWÄHLT (Score: 4.70)
 
-| Kriterium | Bewertung | Begründung |
-|-----------|:---------:|-----------|
-| Sheet Music Rendering | ⭐⭐⭐⭐⭐ | CustomPaint (Skia/Impeller) für Annotationen, pdf_render für PDFs, canvas-basiert → volle Kontrolle über Rendering. Flutter's eigene Engine rendert pixel-perfekt auf allen Plattformen. |
-| Real-Time (Metronom) | ⭐⭐⭐⭐ | UDP über dart:io (Mobile/Desktop). Platform Channels für native Audio. Dart-Isolates für Background-Processing. |
-| Offline/Sync | ⭐⭐⭐⭐⭐ | Drift (SQLite), Hive, Isar — hervorragende lokale Datenbank-Libraries. Offline-first ist ein starkes Flutter-Pattern. |
-| Touch/Stift | ⭐⭐⭐⭐⭐ | Flutter hat erstklassige Gesture-Erkennung, Stylus-Support, Pressure-Sensitivity. CustomPainter für Freihand-Zeichnung. |
-| Developer Productivity | ⭐⭐⭐⭐ | Dart ist C#-ähnlich (stark typisiert, OOP, async/await, null-safety). Thomas wird sich schnell einarbeiten. Hot Reload ist extrem produktiv. |
-| Community/Musik-Libraries | ⭐⭐⭐ | Kleinere Community als JS, aber wachsend. flutter_audio, pitch_detector verfügbar. FFT-Libraries existieren. Weniger Auswahl als npm, aber ausreichend. |
-| Mobile Performance | ⭐⭐⭐⭐⭐ | Ahead-of-Time-kompiliert, eigene Rendering-Engine, kein Bridge-Overhead. Impeller (neue Engine) liefert 120fps. |
-| Desktop/Browser | ⭐⭐⭐⭐ | Desktop-Support (Windows, macOS, Linux) ist stable. Web-Support funktioniert, Rendering via CanvasKit (Skia-in-WASM) — gut für unseren Use Case (Canvas-basiert). Bundle-Größe ~2–3 MB. |
-| Code-Sharing | ⭐⭐⭐⭐⭐ | ~95–98% Code-Sharing zwischen allen Plattformen. Ein Codebase, ein Build-System. |
+**Aktuelle Version:** Flutter 3.35.4 (September 2025) mit Dart 3.9.2
 
-**Stärken:** Beste plattformübergreifende UI-Konsistenz, eigene Rendering-Engine (perfekt für Noten-Darstellung), Dart nahe an C#, exzellente Touch/Stift-Unterstützung.  
-**Risiken:** Dart ist eine neue Sprache (aber ähnlich zu C#). Musik-Library-Ökosystem kleiner als JS. Google-Abhängigkeit.
+**Stärken:**
+- **Eigene Rendering-Engine (Impeller):** Kein WebView, kein nativer Widget-Wrapper. Pixelgenaue Kontrolle über Canvas — ideal für Notenblatt-Rendering mit SVG-Overlay.
+- **Plattform-Support:** Android ✅, iOS ✅, Windows Desktop ✅ (GA seit 2022), Web ✅ (Wasm in Arbeit, CanvasKit stable). Alle 4 Zielplattformen mit einer Codebase.
+- **Touch/Stylus:** GestureDetector, CustomPainter, Listener — volle Kontrolle über Touch-Events, Pointer-Typ-Erkennung (Stylus vs. Finger), Palm Rejection via `PointerDeviceKind`.
+- **PDF-Rendering:** pdfrx 2.2.24 (PDFium-basiert, alle Plattformen, aktiv gepflegt).
+- **BLE-Support:** flutter_blue_plus — Fußpedal-Integration via Bluetooth HID.
+- **Dart ≈ C#:** Ähnliche Syntax (statisch typisiert, null safety, async/await, Klassen). Thomas' geschätzte Lernkurve: ~2 Wochen.
+- **State Management:** Riverpod 3.3.1 — Offline-Persistence, Auto-Retry, typsichere Providers.
+- **Community:** >1M aktive Entwickler, >167K GitHub Stars, 8 Stable Releases in 2025.
 
----
+**Schwächen:**
+- **Audio-Latenz:** 1-2ms Platform Channel Overhead pro Aufruf. Für Sheetstorm akzeptabel, weil Metronom-Timing serverseitig (ASP.NET Core UDP) läuft und Flutter nur UI rendert.
+- **Dart-Ökosystem kleiner als C#/.NET:** Weniger Enterprise-Libraries, aber für unsere Anforderungen alles vorhanden.
 
-### 2.4 Option D: Next.js (Web) + Capacitor/Tauri (Native)
+**Risiko-Mitigation:** Performance-Benchmark nach M1 Sprint 2 (Spielmodus-Prototype). Falls Seitenwechsel >200ms oder Stift-Latenz >50ms → Eskalation und Re-Evaluierung.
 
-**Konzept:** Web-first mit Next.js/React. Mobile via Capacitor (WebView-Wrapper), Desktop via Tauri (Rust + WebView).
+#### ❌ .NET MAUI 10.0 (.NET 10 LTS) — Score: 3.90
 
-| Kriterium | Bewertung | Begründung |
-|-----------|:---------:|-----------|
-| Sheet Music Rendering | ⭐⭐⭐⭐ | PDF.js, Canvas API, SVG nativ im Browser. Web-Technologie ist stark für Dokument-Rendering. |
-| Real-Time (Metronom) | ⭐⭐ | WebSocket ja, aber UDP nur über Capacitor-Plugin (begrenzt). Web Audio API für Timing, aber Jitter-Probleme im Browser (~20–50ms). |
-| Offline/Sync | ⭐⭐⭐ | Service Workers, IndexedDB. Funktioniert, aber PWA-Offline ist weniger robust als native Lösungen. Capacitor hilft. |
-| Touch/Stift | ⭐⭐⭐ | Pointer Events API, aber WebView-Layer kann Touch-Latenz hinzufügen. Stift-Pressure via PointerEvent.pressure. |
-| Developer Productivity | ⭐⭐⭐ | Neues Ökosystem für Thomas. React/TS-Lernkurve. Aber Web-Dev-Tooling ist exzellent. |
-| Community/Musik-Libraries | ⭐⭐⭐⭐⭐ | Web hat das größte Ökosystem: tone.js, pitchfinder, PDF.js, Fabric.js (Canvas). |
-| Mobile Performance | ⭐⭐ | WebView-basiert (Capacitor) = Browser in App. Merkbarer Performance-Unterschied zu nativen Apps. Seitenwechsel <100ms wird schwierig. |
-| Desktop/Browser | ⭐⭐⭐⭐⭐ | Browser ist die Heimat. Tauri für Desktop ist schnell und schlank. |
-| Code-Sharing | ⭐⭐⭐⭐ | 100% Code-Sharing da alles Web. Aber: WebView-Performance-Kompromisse auf Mobile. |
+**Aktuelle Version:** .NET MAUI 10.0.50 (März 2026), .NET 10 LTS
 
-**Stärken:** Maximales Code-Sharing, riesiges Web-Ökosystem, Browser-Support natürlich exzellent.  
-**Risiken:** Mobile Performance leidet unter WebView. Metronom-Latenz via WebView kritisch. Touch-Latenz ein Thema. Kein nativer UDP.
+**Stärken:**
+- Thomas' Komfort-Zone (C#, Visual Studio)
+- Performance-Verbesserungen in .NET 10 (NativeAOT, schnellere Cold Starts)
+- Blazor Hybrid für Web-Story
+- Gute Desktop-Unterstützung (Windows, macOS)
 
----
+**Schwächen:**
+- **Kein einheitlicher InkCanvas:** Touch/Stift-Support ist plattformabhängig, kein konsistentes API wie Flutters CustomPainter
+- **PDF-Rendering:** Kein natives MAUI PDF-Package auf dem Level von pdfrx. Abhängig von Drittanbietern (Telerik, Syncfusion — kostenpflichtig)
+- **Blazor WASM:** ~15MB Download für Web-App — zu schwer für schnellen Start
+- **Mobile-UX:** MAUI-Apps fühlen sich auf Mobile "weniger nativ" an als Flutter (keine eigene Rendering-Engine, Wrapper über native Widgets)
 
-### 2.5 Option E: Electron + React (Desktop) + React Native (Mobile)
+**Fazit:** Gute Option für Desktop-Apps, aber für unseren canvas-intensiven, touch-first Use Case hinter Flutter.
 
-**Konzept:** Zwei Projekte: React Native für Mobile, Electron + React für Desktop/Web.
+#### ❌ React Native 0.84.x — Score: 3.40
 
-| Kriterium | Bewertung | Begründung |
-|-----------|:---------:|-----------|
-| Sheet Music Rendering | ⭐⭐⭐⭐ | Gute Libraries für beide Welten (react-native-pdf, PDF.js). |
-| Real-Time (Metronom) | ⭐⭐⭐ | Electron hat Node.js-Zugriff (UDP direkt). Mobile braucht Native Modules. |
-| Offline/Sync | ⭐⭐⭐⭐ | Gute Libraries auf beiden Seiten. |
-| Touch/Stift | ⭐⭐⭐ | Mobile gut, Desktop/Electron mittelmäßig (DOM-basiert). |
-| Developer Productivity | ⭐⭐ | Zwei Projekte pflegen = doppelter Aufwand. Thomas müsste JS/TS lernen. |
-| Community/Musik-Libraries | ⭐⭐⭐⭐ | Großes npm-Ökosystem für beide. |
-| Mobile Performance | ⭐⭐⭐⭐ | React Native nativ, gut. |
-| Desktop/Browser | ⭐⭐⭐⭐ | Electron funktioniert, aber RAM-Hunger (~200–400 MB). |
-| Code-Sharing | ⭐⭐ | ~50–60% Sharing. Business-Logik teilbar, UI muss doppelt gebaut werden. |
+**Aktuelle Version:** React Native 0.84.1 (Februar 2026)
 
-**Stärken:** Jede Plattform bekommt ein passendes Tool.  
-**Risiken:** Zwei Projekte = doppelter Maintenance-Aufwand. Für ein kleines Team (Thomas + AI-Agents) nicht tragbar.
+**Stärken:**
+- Riesiges Ökosystem (npm)
+- New Architecture (ab 0.82) mit synchronem Layout und Concurrent Rendering
+- Gute Mobile-Story (iOS/Android)
 
----
+**Schwächen:**
+- **Windows:** react-native-windows existiert, aber signifikante Feature-Lücken vs. iOS/Android
+- **Web:** react-native-web hat Einschränkungen bei Canvas-intensiven UIs
+- **Lernkurve:** Thomas müsste JavaScript/TypeScript + React lernen (signifikanter Aufwand)
+- **PDF/Canvas:** Keine native PDF-Rendering-Lösung auf dem Niveau von pdfrx
 
-### 2.6 Frontend-Vergleichsmatrix
+**Fazit:** Starkes Mobile-Framework, aber Desktop/Web-Story zu schwach und erhebliche Lernkurve für Thomas.
 
-| Kriterium (Gewicht) | MAUI+Blazor | React Native | **Flutter** | Next.js+Cap. | Electron+RN |
-|---------------------|:-----------:|:------------:|:-----------:|:------------:|:-----------:|
-| Sheet Music (20%) | ⭐⭐⭐ | ⭐⭐⭐⭐ | **⭐⭐⭐⭐⭐** | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ |
-| Real-Time (15%) | ⭐⭐⭐⭐ | ⭐⭐⭐ | **⭐⭐⭐⭐** | ⭐⭐ | ⭐⭐⭐ |
-| Offline/Sync (10%) | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | **⭐⭐⭐⭐⭐** | ⭐⭐⭐ | ⭐⭐⭐⭐ |
-| Touch/Stift (15%) | ⭐⭐⭐ | ⭐⭐⭐⭐ | **⭐⭐⭐⭐⭐** | ⭐⭐⭐ | ⭐⭐⭐ |
-| Dev Productivity (15%) | **⭐⭐⭐⭐⭐** | ⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐ |
-| Community/Musik (10%) | ⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐ | **⭐⭐⭐⭐⭐** | ⭐⭐⭐⭐ |
-| Mobile Perf. (5%) | ⭐⭐⭐ | ⭐⭐⭐⭐ | **⭐⭐⭐⭐⭐** | ⭐⭐ | ⭐⭐⭐⭐ |
-| Desktop/Browser (5%) | ⭐⭐⭐ | ⭐⭐⭐ | **⭐⭐⭐⭐** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ |
-| Code-Sharing (5%) | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | **⭐⭐⭐⭐⭐** | ⭐⭐⭐⭐ | ⭐⭐ |
-| **Gewichteter Score** | **3.45** | **3.50** | **4.40** | **3.20** | **3.15** |
+#### ❌ Kotlin Compose Multiplatform 1.10.3 — Score: 3.40
 
----
+**Aktuelle Version:** Compose Multiplatform 1.10.3 (März 2026)
 
-## 3. Backend-Evaluierung
+**Stärken:**
+- iOS Support jetzt stable (seit 1.8.0)
+- Starker Canvas-Support (Compose Canvas API)
+- Kotlin ist gut lesbar für C#-Entwickler
 
-### 3.1 Option A: ASP.NET Core
+**Schwächen:**
+- **Kein multiplatform PDF-Package:** Kritischer Blocker — PDF muss plattformübergreifend gerendert werden
+- **JRE-Abhängigkeit auf Desktop:** Verteilung schwieriger
+- **Web:** Wasm-Support noch experimentell, noch nicht produktionsreif
+- **Ökosystem:** Kleiner als Flutter für multiplatform-spezifische Packages
 
-| Kriterium | Bewertung | Begründung |
-|-----------|:---------:|-----------|
-| API-Performance | ⭐⭐⭐⭐⭐ | Einer der schnellsten Web-Frameworks (TechEmpower Benchmarks). |
-| Auth (JWT, OAuth2) | ⭐⭐⭐⭐⭐ | ASP.NET Identity, eingebauter JWT-Support, OAuth2-Middleware. |
-| Real-Time | ⭐⭐⭐⭐⭐ | SignalR (WebSocket + Fallbacks), raw UDP via .NET Sockets. |
-| File Storage | ⭐⭐⭐⭐ | Azure Blob Storage SDK, S3-kompatibel, Streaming-Upload. |
-| Database | ⭐⭐⭐⭐⭐ | EF Core (PostgreSQL, SQLite), Dapper für Performance-kritisches. |
-| Thomas' Expertise | ⭐⭐⭐⭐⭐ | Heimvorteil. Bekannte Patterns, bekannte Tools. |
-| Hosting | ⭐⭐⭐⭐ | Azure, AWS, Docker. Etwas höherer Ops-Aufwand als BaaS. |
-| Echtzeit-Metronom-Server | ⭐⭐⭐⭐⭐ | Kestrel + UDP-Socket-Server in einem Prozess. Volle Kontrolle. |
+**Fazit:** Vielversprechend für die Zukunft, aber das fehlende PDF-Ökosystem ist ein Dealbreaker.
 
-### 3.2 Option B: Node.js / Bun
+#### ❌ Avalonia UI 11.3.12 — Score: 3.60
 
-| Kriterium | Bewertung | Begründung |
-|-----------|:---------:|-----------|
-| API-Performance | ⭐⭐⭐⭐ | Gut, aber single-threaded. Bun verbessert Performance signifikant. |
-| Auth | ⭐⭐⭐⭐ | Passport.js, jose (JWT). Gutes Ökosystem. |
-| Real-Time | ⭐⭐⭐⭐ | Socket.io, ws, dgram (UDP). |
-| File Storage | ⭐⭐⭐⭐ | AWS SDK, Azure SDK, multer für Upload. |
-| Database | ⭐⭐⭐⭐ | Prisma, Drizzle, TypeORM. |
-| Thomas' Expertise | ⭐⭐ | Neue Sprache, neues Ökosystem. |
-| Hosting | ⭐⭐⭐⭐⭐ | Überall deploybar, Vercel/Railway/Fly.io. |
-| Echtzeit-Metronom-Server | ⭐⭐⭐ | UDP möglich, aber single-threaded = Risiko bei vielen gleichzeitigen Sessions. |
+**Aktuelle Version:** Avalonia 11.3.12 stable (Februar 2026), 12.0.0-rc1 in Preview
 
-### 3.3 Option C: Supabase / Firebase (BaaS)
+**Stärken:**
+- C#/XAML — Thomas' native Sprache
+- Skia-basierte Rendering-Engine (wie Flutter)
+- Guter Desktop-Support (Windows, macOS, Linux)
+- Avalonia 12 bringt verbessertes Mobile-Targeting
 
-| Kriterium | Bewertung | Begründung |
-|-----------|:---------:|-----------|
-| API-Performance | ⭐⭐⭐⭐ | Managed, autoskalierend. |
-| Auth | ⭐⭐⭐⭐⭐ | Out-of-the-box Auth mit Social Login, JWT, Row-Level-Security. |
-| Real-Time | ⭐⭐⭐ | Supabase Realtime (PostgreSQL Changes). Aber: Kein UDP, kein Custom-Protokoll für Metronom. |
-| File Storage | ⭐⭐⭐⭐⭐ | Eingebauter File Storage mit Policies. |
-| Database | ⭐⭐⭐⭐⭐ | Supabase = PostgreSQL. Firebase = Firestore (Document DB). |
-| Thomas' Expertise | ⭐⭐⭐ | Supabase hat gute Docs, aber anderes Paradigma (Row-Level-Security statt API-Controller). |
-| Hosting | ⭐⭐⭐⭐⭐ | Fully managed, kein Ops-Aufwand. |
-| Echtzeit-Metronom-Server | ⭐ | **Dealbreaker.** BaaS bietet keine Custom-UDP-Server. Metronom braucht separaten Server → Hybrid-Architektur nötig. |
+**Schwächen:**
+- **Mobile zu jung:** iOS/Android-Support ist funktional, aber das Ökosystem (Packages, Community-Erfahrung) ist deutlich kleiner
+- **PDF-Rendering:** AvaloniaPdfViewer ist 0.0.2-pre — nicht produktionsreif
+- **BLE/Fußpedal:** Kein dediziertes Avalonia-Package, müsste über .NET-Libraries gemacht werden
+- **Community:** ~14K GitHub Stars vs. Flutters >167K — weniger Packages, weniger Stack Overflow Antworten
 
-### 3.4 Backend-Entscheidung
+**Fazit:** Spannend für Desktop-first C#-Apps. Für unseren mobile-first, PDF-intensiven Use Case zu unreif. Bleibt als **Fallback-Option A** falls Flutter scheitert.
 
-**BaaS alleine reicht nicht.** Der Echtzeit-Metronom-Server braucht UDP-Kontrolle und Custom-Timing-Logik. Das geht mit keinem BaaS. Wir brauchen einen Custom-Server — mindestens für den Metronom-Dienst.
+#### ❌ Tauri v2.10.3 — Score: 2.80
 
-**ASP.NET Core ist die klare Wahl:**
-- Thomas' Expertise ist hier. Keine Lernkurve.
-- Performance-Leader unter den Web-Frameworks.
-- UDP-Server nativ möglich (kein separater Service nötig).
-- SignalR liefert WebSocket-Fallback für den Metronom.
-- EF Core für PostgreSQL ist ausgereift.
+**Aktuelle Version:** Tauri v2.10.3 (März 2026)
 
-**Hybride Nutzung von Supabase:** Supabase Auth und Storage **können** als zusätzliche Services genutzt werden, wenn Thomas den Ops-Aufwand reduzieren will. Aber der Kern-API-Server bleibt ASP.NET Core.
+**Stärken:**
+- Leichtgewichtig (Rust-Backend, kleine Binary-Größe)
+- Web-Technologien im Frontend (HTML/CSS/JS)
+- Mobile-Support in Tauri v2
+
+**Schwächen:**
+- **WebView = Dealbreaker:** Auf Mobile verwendet Tauri den System-WebView. Für canvas-intensive Touch-Apps mit <100ms Seitenwechsel und Stylus-Support nicht ausreichend.
+- **Keine eigene Rendering-Engine:** Abhängig von WebView-Implementierung des OS
+- **PDF in WebView:** Plattformabhängig, keine konsistente Performance
+- **Touch/Stylus:** WebView-Touch-Events sind weniger präzise als native Gesture-APIs
+
+**Fazit:** Hervorragend für Desktop-Utilities, aber für unseren Use Case (Touch, Canvas, Echtzeit) nicht geeignet.
 
 ---
 
-## 4. Datenbank-Entscheidung
+## 3. Backend
 
-### 4.1 Anforderungen
+### ✅ ASP.NET Core 10 (.NET 10 LTS, C# 14) — GEWÄHLT
 
-- **Server:** Relationale Daten (Musiker, Kapellen, Stücke, Rollen) + JSONB für Konfigurationen
-- **Client:** Offline-Cache für Noten, Annotationen, Konfigurationen
-- **Sync:** Bidirektionale Synchronisation für Annotationen und Konfigurationen
+**Aktuelle Version:** .NET 10.0.5 / ASP.NET Core 10.0.0 (November 2025, LTS bis November 2028)
 
-### 4.2 Entscheidung: PostgreSQL (Server) + SQLite (Client)
+**Begründung:**
+1. **Thomas' Expertise:** C# ist seine Stärke. Kein Onboarding nötig.
+2. **Performance:** ASP.NET Core ist einer der schnellsten Web-Frameworks (TechEmpower Benchmarks Top-10).
+3. **UDP-Server:** Nativer UDP-Socket-Support in C# für Metronom-Multicast — kein Workaround nötig.
+4. **SignalR:** Eingebauter WebSocket-Fallback für Echtzeit-Features, 100K+ Concurrent Connections pro Server.
+5. **LTS:** .NET 10 ist Long-Term-Support bis November 2028.
+6. **OpenTelemetry:** Natives Monitoring in .NET 10, nahtlose Integration mit Application Insights.
+7. **Entity Framework Core:** Typsicheres ORM für PostgreSQL mit JSONB-Support.
 
-| Komponente | Technologie | Begründung |
-|-----------|------------|-----------|
-| **Server-DB** | PostgreSQL | JSONB für flexible Config-Speicherung (siehe Konfigurationskonzept). Volle relationale Power für Berechtigungen und Mitgliedschaften. EF Core hat erstklassigen PostgreSQL-Support. |
-| **Client-DB** | SQLite (Drift/sqflite) | Leichtgewichtig, in jeder Plattform eingebaut. Perfekt für Offline-Cache. Drift (Flutter) bietet typsichere Queries. |
-| **File Storage** | Azure Blob Storage / S3 | Notenblatt-Bilder und PDFs. CDN für schnelle Auslieferung. |
-| **Cache** | Redis (optional) | Session-Cache, Rate-Limiting. Nur wenn Performance-Bedarf entsteht. |
+### Verworfene Alternativen
 
-**Warum nicht Document DB?**
-MongoDB/Firestore wären für Sheet-Music-Metadaten denkbar, aber:
-- Unser Datenmodell ist stark relational (Musiker ↔ Kapelle ↔ Stücke ↔ Stimmen).
-- JSONB in PostgreSQL gibt uns die Flexibilität einer Document DB für Config, **ohne** auf JOIN-Power zu verzichten.
-- Ein Datenbanksystem weniger = weniger Ops.
+| Alternative | Warum nicht |
+|-------------|-------------|
+| Node.js / Express | Thomas müsste JS lernen. UDP weniger ergonomisch. Kein nativer Typ-Safety. |
+| Go / Gin | Performant, aber Thomas müsste Go lernen. Kein ORM auf EF-Core-Niveau. |
+| Rust / Actix | Höchste Performance, aber steilste Lernkurve. Für Backend overkill. |
+| Spring Boot (Java/Kotlin) | Solide, aber JVM-Overhead. Thomas ist in C#, nicht Java, zuhause. |
 
 ---
 
-## 5. Echtzeit-Metronom — Technologie-Entscheidung
+## 4. Datenbanken
 
-### 5.1 Anforderungen
+### Server: PostgreSQL 18.3 — GEWÄHLT
 
-- Synchronisation auf <20ms Abweichung zwischen Geräten
-- 5–30+ Geräte gleichzeitig im lokalen Netzwerk
-- Dirigent als Controller (Start/Stop/Tempo-Änderung)
-- Offline-Standalone-Modus (lokales Metronom)
+**Aktuelle Version:** PostgreSQL 18.3 (Februar 2026)
 
-### 5.2 Evaluierung
+**Begründung:**
+- **JSONB:** Ideal für flexibles Config-Speichermodell (3-Ebenen-Konfiguration)
+- **Relationale Power:** Rollen, Berechtigungen, Mitgliedschaften — klassisch relational
+- **Async I/O:** Neu in PostgreSQL 18 — bessere Performance bei vielen gleichzeitigen Verbindungen
+- **64-bit Transaction IDs:** Kein Transaction-ID-Wraparound mehr bei Langzeitbetrieb
+- **Volltextsuche:** Eingebaut — für Noten-/Stücksuche ohne Elasticsearch
+- **Entity Framework Core Support:** Npgsql ist ausgereift und stabil
 
-| Technologie | Latenz | Plattform-Support | Implementierung | Eignung |
-|------------|--------|-------------------|-----------------|---------|
-| **WiFi UDP Multicast** | ⭐⭐⭐⭐⭐ (<5ms LAN) | Mobil + Desktop | Custom-Server, dart:io auf Client | **Primär für lokales Netz** |
-| **WebSocket** | ⭐⭐⭐ (20–80ms) | Alle Plattformen | ASP.NET Core SignalR | **Fallback für Remote** |
-| **WebRTC Data Channels** | ⭐⭐⭐⭐ (5–20ms) | Web, Mobile (mit Plugin) | Komplex, P2P-Setup, STUN/TURN | Overkill für diesen Use Case |
-| **Bluetooth Low Energy** | ⭐⭐ (50–200ms) | Mobil | Platform-spezifisch, Pairing nötig | Zu hohe Latenz, zu komplex |
-| **WiFi Direct** | ⭐⭐⭐ (10–30ms) | Android (gut), iOS (schlecht) | Platform-spezifisch | iOS-Support zu schwach |
+### Client: SQLite 3.51.3 via Drift 2.32.1 — GEWÄHLT
 
-### 5.3 Entscheidung: WiFi UDP (Primär) + WebSocket (Fallback)
+**Aktuelle Version:** SQLite 3.51.3 (März 2026), Drift 2.32.1 (März 2026)
+
+**Begründung:**
+- **Offline-Cache:** Noten, Config, Annotationen offline verfügbar
+- **Drift:** Typsichere Queries in Dart, Auto-Updating Streams (reaktive UI), Schema-Migrationen
+- **Plattform-Support:** Android, iOS, Windows, macOS, Linux, Web (Wasm)
+- **Performance:** SQLite ist der schnellste eingebettete DB-Engine
+- **Drift 2.32.1:** Migration zu sqlite3 v3.x, verbesserte Web-Kompatibilität
+
+---
+
+## 5. Echtzeit-Metronom-Architektur
+
+### Anforderungen
+- Synchroner Taktschlag bei allen Musikern (< 5ms Abweichung im LAN)
+- Funktioniert im lokalen Netzwerk (Proberaum) UND remote (Internet)
+- Musikalisch tauglich: Kein hörbarer Versatz
+
+### Technologie-Vergleich
+
+| Technologie | Latenz (LAN) | Latenz (Internet) | Zuverlässigkeit | Komplexität | Eignung |
+|-------------|:------------:|:------------------:|:---------------:|:-----------:|:-------:|
+| **WiFi UDP Multicast** | < 5ms | N/A (nur LAN) | Mittel (kein Ack) | Mittel | ✅ Primär (LAN) |
+| **SignalR WebSocket** | 25–50ms | 50–150ms | Hoch (TCP) | Gering | ✅ Fallback (Remote) |
+| **WebRTC DataChannel** | 10–50ms | 50–100ms | Hoch | Hoch (STUN/TURN) | ❌ Zu komplex |
+| **BLE Broadcast** | 5–30ms | N/A (10m Reichweite) | Mittel (Interferenz) | Mittel | ❌ Reichweite zu gering |
+
+### Entscheidung: Dual-Layer-Architektur
 
 ```
-┌───────────────────────────────────────────────────┐
-│                  Metronom-Architektur               │
-│                                                     │
-│  ┌─────────────────┐                               │
-│  │  Dirigent-App    │                               │
-│  │  (Controller)    │                               │
-│  └────────┬─────────┘                               │
-│           │                                         │
-│           ▼                                         │
-│  ┌─────────────────┐     NTP-like Clock Sync       │
-│  │  ASP.NET Core    │◄────────────────────────────  │
-│  │  Metronom-Server │                               │
-│  │                  │                               │
-│  │  ┌──────────┐   │     UDP Multicast (LAN)       │
-│  │  │ UDP      │───│──────────────────────────────▶ │
-│  │  │ Sender   │   │                               │
-│  │  └──────────┘   │                               │
-│  │  ┌──────────┐   │     WebSocket (Remote)        │
-│  │  │ SignalR   │───│──────────────────────────────▶ │
-│  │  │ Hub      │   │                               │
-│  │  └──────────┘   │                               │
-│  └─────────────────┘                               │
-│                                                     │
-│  Client-Seite:                                     │
-│  1. Clock-Sync beim Session-Start (RTT messen)     │
-│  2. Beats als Master-Clock-Timestamps empfangen    │
-│  3. Lokale Audio-Engine plant Beats voraus          │
-│  4. Visuelles + akustisches + haptisches Feedback  │
-└───────────────────────────────────────────────────┘
+Proberaum (LAN):
+  Dirigent → ASP.NET Core UDP-Server → WiFi UDP Multicast → Alle Clients
+  Latenz: < 5ms
+
+Remote (Internet):
+  Dirigent → ASP.NET Core SignalR Hub → WebSocket → Alle Clients
+  Latenz: < 50ms (tolerierbar für Remote-Proben)
 ```
 
-**Warum nicht WebRTC?** WebRTC löst das Problem "P2P-Kommunikation über NAT" — aber im Probenraum sind alle im selben WiFi. UDP Multicast ist simpler, schneller und braucht keinen STUN/TURN-Server. Für Remote-Sessions reicht WebSocket.
+### Clock-Synchronisation
+
+- **Protokoll:** NTP-ähnlich (Client sendet Ping, Server antwortet mit Timestamp, Client berechnet Offset)
+- **Beats als Timestamps:** Server sendet `{beat_nr, scheduled_time}` — Client spielt zum geplanten Zeitpunkt, nicht "jetzt"
+- **Kompensation:** Jeder Client hat konfigurierbaren Latenz-Offset (Geräte-Config)
+- **Auto-Detection:** App erkennt automatisch, ob UDP-Multicast verfügbar ist → sonst WebSocket
+
+### Warum nicht WebRTC
+
+- **Overhead:** ICE/STUN/TURN-Handshake für einfache Taktschlag-Nachrichten überdimensioniert
+- **NAT-Traversal:** In Vereins-Netzwerken oft problematisch
+- **Server-Architektur:** Wir brauchen ohnehin einen zentralen Server (ASP.NET Core) — kein P2P-Vorteil
+- **Signaling-Server nötig:** Zusätzliche Komplexität ohne Gewinn für unseren Use Case
+
+### Warum nicht BLE
+
+- **Reichweite:** ~10m praktisch — zu wenig für größere Proberäume/Konzerthallen
+- **Interferenz:** Bei 40+ Geräten in einem Raum Zuverlässigkeitsprobleme
+- **Latenz-Spikes:** Bei Crowding unvorhersagbar
+- **Bereits WiFi vorhanden:** Proberäume haben WiFi, BLE bringt keinen Zusatznutzen
 
 ---
 
-## 6. Gesamtarchitektur — ENTSCHEIDUNG
+## 6. File Storage
 
-### 6.1 Empfohlener Tech-Stack
+### Azure Blob Storage + CDN — GEWÄHLT
+
+**Begründung:**
+- **Azure-Ökosystem:** Passt zum ASP.NET Core Backend
+- **CDN:** Schneller Download der Notenbilder weltweit
+- **Skalierung:** Automatisch, keine Capacity-Planung nötig
+- **Kosten:** Pay-per-Use, für Bilder/PDFs sehr günstig
+- **SAS-Tokens:** Sichere, zeitlich begrenzte Download-URLs für Clients
+
+---
+
+## 7. Hosting & Infrastruktur
+
+| Komponente | Service | Begründung |
+|------------|---------|-------------|
+| Backend API | Azure App Service | Managed, Auto-Scaling, Slots für Blue/Green Deployment |
+| Datenbank | Azure Database for PostgreSQL Flexible Server | Managed PostgreSQL 18, Backups, HA |
+| File Storage | Azure Blob Storage + Azure CDN | Notenbilder, Thumbnails |
+| Monitoring | Application Insights + OpenTelemetry | Nativ in .NET 10, End-to-End Tracing |
+| CI/CD | GitHub Actions | Thomas nutzt GitHub, nahtlose Integration |
+| Secrets | Azure Key Vault | AI-Keys, Connection Strings |
+
+---
+
+## 8. Versions-Referenz
+
+Alle Versionen per Web-Recherche validiert (März 2026):
+
+| Technologie | Version | Release-Datum | Support bis |
+|-------------|---------|:-------------:|:-----------:|
+| Flutter | 3.35.4 | Sep 2025 | Laufend (Quarterly Releases) |
+| Dart | 3.9.2 | Sep 2025 | Gekoppelt an Flutter |
+| ASP.NET Core | 10.0.5 (.NET 10 LTS) | Nov 2025 | Nov 2028 |
+| C# | 14 | Nov 2025 | Gekoppelt an .NET 10 |
+| PostgreSQL | 18.3 | Feb 2026 | ~Nov 2030 |
+| SQLite | 3.51.3 | Mär 2026 | Laufend |
+| Drift (Flutter) | 2.32.1 | Mär 2026 | Laufend |
+| Riverpod (flutter_riverpod) | 3.3.1 | 2026 | Laufend |
+| pdfrx (Flutter PDF) | 2.2.24 | Jan 2026 | Laufend |
+| .NET MAUI | 10.0.50 | Mär 2026 | Mai 2027 |
+| React Native | 0.84.1 | Feb 2026 | ~6 Monate |
+| Compose Multiplatform | 1.10.3 | Mär 2026 | Laufend |
+| Avalonia UI | 11.3.12 (stable) | Feb 2026 | Laufend |
+| Tauri | v2.10.3 | Mär 2026 | Laufend |
+
+---
+
+## 9. Fallback-Strategie
+
+### Trigger für Re-Evaluierung
+
+Nach M1 Sprint 2 (Spielmodus-Prototype) werden folgende Metriken gemessen:
+
+| Metrik | Akzeptabel | Eskalation |
+|--------|:----------:|:----------:|
+| Seitenwechsel (Noten) | < 200ms | ≥ 200ms |
+| Stift-Latenz (Annotation) | < 50ms | ≥ 50ms |
+| Cold Start | < 4s | ≥ 4s |
+| Speicherverbrauch (Spielmodus) | < 300MB | ≥ 300MB |
+
+### Fallback-Reihenfolge
+
+1. **Avalonia UI 12** — C#/XAML, Skia-Engine, Thomas' native Sprache. Desktop stark, Mobile wachsend.
+2. **.NET MAUI 10** — C#, Visual Studio, Thomas' Expertise. Weniger Touch/Canvas-Kontrolle.
+3. **React Native** — Nur als letzte Option. Erfordert JavaScript-Onboarding.
+
+---
+
+## 10. Architektur-Übersicht
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                        SHEETSTORM                            │
-│                                                              │
-│  FRONTEND                                                    │
-│  ┌────────────────────────────────────────────────────────┐ │
-│  │  Flutter (Dart)                                         │ │
-│  │  → iOS, Android, Web, Windows, macOS                    │ │
-│  │  → Ein Codebase, ~95% Code-Sharing                      │ │
-│  │  → CustomPainter für Annotations-Layer                  │ │
-│  │  → pdf_render für Notenblatt-Darstellung                │ │
-│  │  → Drift (SQLite) für Offline-Storage                   │ │
-│  │  → flutter_riverpod für State Management                │ │
-│  │  → go_router für Navigation                             │ │
-│  └────────────────────────────────────────────────────────┘ │
-│                                                              │
-│  BACKEND                                                     │
-│  ┌────────────────────────────────────────────────────────┐ │
-│  │  ASP.NET Core 9 (C#)                                    │ │
-│  │  → REST API mit JWT-Auth                                │ │
-│  │  → SignalR für WebSocket-Echtzeit                       │ │
-│  │  → UDP-Server für Metronom (lokales Netz)               │ │
-│  │  → EF Core + PostgreSQL                                 │ │
-│  │  → Azure Blob Storage für Notenblatt-Dateien            │ │
-│  │  → AI-Service-Adapter (Azure Vision, OpenAI, etc.)      │ │
-│  └────────────────────────────────────────────────────────┘ │
-│                                                              │
-│  DATENBANK                                                   │
-│  ┌────────────────────────────────────────────────────────┐ │
-│  │  Server: PostgreSQL 16 (JSONB für Config)               │ │
-│  │  Client: SQLite via Drift (Offline-Cache)               │ │
-│  │  Files:  Azure Blob Storage + CDN                       │ │
-│  │  Cache:  Redis (optional, ab Skalierungsbedarf)         │ │
-│  └────────────────────────────────────────────────────────┘ │
-│                                                              │
-│  ECHTZEIT                                                    │
-│  ┌────────────────────────────────────────────────────────┐ │
-│  │  Metronom:  WiFi UDP Multicast (primär)                 │ │
-│  │             SignalR WebSocket (Fallback/Remote)          │ │
-│  │  Clock-Sync: NTP-ähnliches Protokoll                    │ │
-│  │  Notifications: Firebase Cloud Messaging (FCM)          │ │
-│  └────────────────────────────────────────────────────────┘ │
-│                                                              │
-│  INFRASTRUKTUR                                               │
-│  ┌────────────────────────────────────────────────────────┐ │
-│  │  Hosting:  Azure App Service / Azure Container Apps     │ │
-│  │  CI/CD:    GitHub Actions                               │ │
-│  │  Storage:  Azure Blob Storage                           │ │
-│  │  CDN:      Azure CDN / Cloudflare                       │ │
-│  │  Monitoring: Application Insights                       │ │
-│  └────────────────────────────────────────────────────────┘ │
+│                    Flutter Client (Dart)                      │
+│                                                               │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐    │
+│  │ Spielmodus│  │  Upload  │  │  Config  │  │  Kalender │    │
+│  │ (pdfrx,  │  │  Labeling│  │  3-Ebenen │  │  Termine  │    │
+│  │  Canvas, │  │  AI-OCR  │  │  System   │  │  Setlists │    │
+│  │  SVG)    │  │          │  │          │  │          │    │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────┘    │
+│                                                               │
+│  ┌──────────────────────────────────────────────────────┐    │
+│  │            Riverpod 3.3 (State Management)            │    │
+│  └──────────────────────────────────────────────────────┘    │
+│  ┌──────────────────────────────────────────────────────┐    │
+│  │         Drift 2.32 (SQLite — Offline Cache)           │    │
+│  └──────────────────────────────────────────────────────┘    │
+│  ┌──────────────────┐  ┌────────────────────────────────┐    │
+│  │ Platform Channels │  │    BLE (Fußpedal / Tuner)      │    │
+│  │ (Audio: CoreAudio/│  │    flutter_blue_plus            │    │
+│  │  Oboe)            │  │                                │    │
+│  └──────────────────┘  └────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────┘
+                          │
+              HTTPS (REST) │ + WebSocket (SignalR) + UDP
+                          │
+┌─────────────────────────────────────────────────────────────┐
+│              ASP.NET Core 10 Backend (C# 14)                 │
+│                                                               │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐    │
+│  │ REST API │  │ SignalR  │  │ UDP Mcast│  │ AI Adapter│    │
+│  │ (JWT,    │  │ Hub      │  │ Server   │  │ (Azure,   │    │
+│  │  RBAC)   │  │ (Metro-  │  │ (Metro-  │  │  OpenAI,  │    │
+│  │          │  │  nom     │  │  nom LAN)│  │  Google)  │    │
+│  │          │  │  Fallback│  │          │  │          │    │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────┘    │
+│                                                               │
+│  ┌──────────────────────────────────────────────────────┐    │
+│  │    Entity Framework Core + Npgsql (PostgreSQL 18)     │    │
+│  └──────────────────────────────────────────────────────┘    │
+│  ┌──────────────────────────────────────────────────────┐    │
+│  │     Azure Blob Storage + CDN (Notenbilder)            │    │
+│  └──────────────────────────────────────────────────────┘    │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### 6.2 Begründung der Entscheidung
-
-**Frontend: Flutter statt .NET MAUI**
-
-Das ist die schwerste Entscheidung. MAUI wäre Thomas' Komfortzone — aber die technischen Anforderungen sprechen klar für Flutter:
-
-1. **Sheet Music Rendering:** Flutter's CustomPainter + Skia/Impeller gibt uns volle Canvas-Kontrolle für den SVG-Annotations-Layer. MAUI hat hier weniger Ökosystem.
-2. **Touch/Stift:** Flutter hat die beste Touch-Gesture-Erkennung aller Cross-Platform-Frameworks. Für eine Touch-first App mit Stift-Annotationen ist das entscheidend.
-3. **Plattform-Abdeckung:** Ein Codebase für iOS, Android, Web, Windows, macOS. MAUI kann Web nur über Blazor WASM (15+ MB Bundle, Performance-Sorgen).
-4. **Dart ≈ C#:** Dart ist stark typisiert, hat async/await, null-safety, OOP — Thomas wird sich in 1–2 Wochen produktiv fühlen. Die Syntax-Unterschiede sind kosmetisch.
-5. **Performance:** Ahead-of-Time-kompiliert, eigene Engine, kein Bridge. Seitenwechsel <100ms ist garantierbar.
-
-**Kompromiss:** Thomas verliert seine C#-Heimat im Frontend. Aber er behält sie im Backend (ASP.NET Core). Das ist der richtige Trade-off: Das Frontend braucht die beste UI-Engine, das Backend braucht Thomas' Expertise.
-
-**Backend: ASP.NET Core**
-
-Keine Diskussion nötig. Thomas' Expertise + Performance-Leader + UDP-Kontrolle für Metronom + EF Core für PostgreSQL. Perfekte Wahl.
-
-**Warum nicht Full-Flutter + Firebase/Supabase?**
-Der Metronom-Server braucht Custom-UDP-Logik. BaaS kann das nicht. Ein Custom-Backend ist unvermeidlich — und wenn wir schon eins brauchen, dann richtig: ASP.NET Core gibt uns volle Kontrolle über API, Auth, Real-Time und File-Handling.
-
-### 6.3 Lernkurve für Thomas
-
-| Technologie | Einarbeitungszeit | Strategie |
-|------------|-------------------|-----------|
-| **Dart/Flutter** | 1–2 Wochen Grundlagen, 4 Wochen produktiv | C#-zu-Dart-Guide erstellen, Flutter-Codelabs durcharbeiten |
-| **ASP.NET Core** | Sofort produktiv | Heimvorteil |
-| **PostgreSQL** | Minimal (wenn SQL-Erfahrung vorhanden) | EF Core abstrahiert vieles |
-| **Drift (SQLite für Flutter)** | 1 Woche | Ähnlich zu EF Core, Code-Generator-basiert |
-
-### 6.4 Projekt-Struktur
-
-```
-sheetstorm/
-├── app/                          ← Flutter-Frontend (alle Plattformen)
-│   ├── lib/
-│   │   ├── core/                 Business-Logik, Models, Services
-│   │   ├── features/             Feature-Module (Noten, Kapelle, Tools, ...)
-│   │   ├── ui/                   Shared UI-Komponenten
-│   │   ├── config/               Config-Resolution (3-Ebenen-Modell)
-│   │   └── l10n/                 i18n-Ressourcen
-│   ├── android/
-│   ├── ios/
-│   ├── web/
-│   ├── windows/
-│   └── macos/
-│
-├── server/                       ← ASP.NET Core Backend
-│   ├── Sheetstorm.Api/           REST API + SignalR
-│   ├── Sheetstorm.Core/          Domain-Models, Interfaces
-│   ├── Sheetstorm.Data/          EF Core, Repositories
-│   ├── Sheetstorm.AI/            AI-Provider-Adapter
-│   ├── Sheetstorm.Metronome/     UDP + Clock-Sync-Service
-│   └── Sheetstorm.Tests/         Unit + Integration Tests
-│
-├── docs/                         ← Dokumentation
-├── infrastructure/               ← IaC (Terraform/Bicep)
-└── .github/workflows/            ← CI/CD
-```
-
 ---
 
-## 7. Risiken & Mitigationen
-
-| Risiko | Auswirkung | Mitigation |
-|--------|-----------|------------|
-| Dart-Lernkurve für Thomas | Langsamerer Start | C#↔Dart-Comparison-Guide erstellen. Dart ist die ähnlichste Sprache zu C#. |
-| Flutter Web-Performance für große PDFs | Spielmodus könnte ruckeln | CanvasKit-Renderer nutzen, Lazy Loading, Tile-basiertes Rendering. |
-| Weniger Musik-Libraries in Dart | Mehr eigene Arbeit für Tuner/Audio | FFT via Platform Channels an native Libraries (Core Audio/AAudio) delegieren. |
-| Zwei Sprachen (Dart + C#) | Kontext-Wechsel | Klare Trennung: Dart = UI/Client, C# = Server/API. Kein Mischmasch. |
-| Flutter Web Bundle-Größe (~2–3 MB) | Langsamer Erstaufruf | CDN, Caching, Code-Splitting wo möglich. Für eine App akzeptabel. |
-
----
-
-## 8. Alternativen und wann wir umschwenken
-
-Wenn Flutter sich **innerhalb von M1** als ungeeignet herausstellt (z.B. PDF-Rendering-Probleme, Touch-Latenz, Stift-Support), ist der Fallback-Plan:
-
-1. **Fallback A: React Native + Expo** — Größeres Ökosystem, aber Web/Desktop-Story schwächer
-2. **Fallback B: .NET MAUI** — Thomas' Komfort, aber Kompromisse bei UI-Rendering und Web
-
-**Trigger für Umschwenken:**
-- Seitenwechsel >200ms auf Zielgeräten
-- Stift-Latenz >50ms (nicht akzeptabel für Annotationen)
-- PDF-Rendering-Qualität unter forScore/MobileSheets-Niveau
-- Flutter Web nicht nutzbar für den Spielmodus
-
-Entscheidungspunkt: **Ende M1 Sprint 2** (nach Prototype des Spielmodus).
-
----
-
-## 9. Zusammenfassung der Entscheidungen
-
-| Bereich | Entscheidung | Begründung (ein Satz) |
-|---------|-------------|----------------------|
-| **Frontend** | Flutter (Dart) | Beste Cross-Platform-Engine für touch-first, canvas-intensive Apps mit einer Codebasis. |
-| **Backend** | ASP.NET Core 9 (C#) | Thomas' Expertise + Performance + UDP-Kontrolle für Metronom. |
-| **Server-DB** | PostgreSQL 16 | JSONB für Config, relationale Power für Berechtigungen, EF Core. |
-| **Client-DB** | SQLite via Drift | Leichtgewichtiger Offline-Cache mit typsicheren Queries. |
-| **File Storage** | Azure Blob Storage | Notenblatt-Bilder/PDFs, CDN-fähig, Azure-Ökosystem. |
-| **Echtzeit** | WiFi UDP + SignalR | UDP für <5ms LAN-Latenz, SignalR als Remote-Fallback. |
-| **Auth** | JWT + ASP.NET Identity | Bewährt, sicher, bekannt. |
-| **CI/CD** | GitHub Actions | Standard, gute Flutter- und .NET-Integration. |
-| **Hosting** | Azure | Konsistentes Ökosystem (App Service, Blob, CDN, AI). |
-| **Monitoring** | Application Insights | Azure-nativ, gute .NET-Integration. |
-
----
-
-*Diese Technologie-Entscheidung ist verbindlich für Meilenstein 1. Anpassungen werden nach dem Spielmodus-Prototype (M1 Sprint 2) evaluiert.*
+*Dieses Dokument wird via PR zur Abstimmung vorgelegt. Änderungen erfordern Thomas' Freigabe.*
