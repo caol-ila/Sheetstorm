@@ -112,3 +112,6 @@ app.MapHealthChecks("/health");
 // app.MapHub<AnnotationHub>("/hubs/annotations");
 
 app.Run();
+
+// Expose Program to the test project via WebApplicationFactory<Program>
+public partial class Program { }

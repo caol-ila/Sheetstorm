@@ -3,5 +3,6 @@
     <Project Path="src/Sheetstorm.Api/Sheetstorm.Api.csproj" />
     <Project Path="src/Sheetstorm.Domain/Sheetstorm.Domain.csproj" />
     <Project Path="src/Sheetstorm.Infrastructure/Sheetstorm.Infrastructure.csproj" />
+    <Project Path="src/Sheetstorm.Tests/Sheetstorm.Tests.csproj" />
   </Folder>
 </Solution>
