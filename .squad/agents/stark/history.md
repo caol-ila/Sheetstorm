@@ -2,13 +2,32 @@
 
 - **Owner:** Thomas
 - **Project:** Notenmanagement-App für eine Blaskapelle — Verwaltung von Musiknoten, Stimmen, Besetzungen und Aufführungsmaterial für Blasorchester
-- **Stack:** Flutter (Dart) Frontend + ASP.NET Core 9 Backend + PostgreSQL + SQLite (Client)
+- **Stack:** Flutter (Dart) Frontend + ASP.NET Core 10 LTS Backend + PostgreSQL + SQLite (Client)
 - **Phase:** Anforderungsanalyse, Marktrecherche, Spezifikation, UX Design, Technologie-Entscheidung
 - **Created:** 2026-03-28
 
 ## Learnings
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
+
+### 2026-03-28: GitHub Issues für MS1–MS3 erstellt
+
+**Aufgabe:** Als Hill/Stark 80 GitHub Issues für Meilensteine 1–3 erstellt.
+
+**Architektur der Issue-Struktur:**
+- 4 Issues pro Feature: UX-Design → Feature-Spec → Implementierung → Tests
+- Epics für MS1 (#3), MS2 (#4), MS3 (#5) mit vollständiger Child-Issue-Übersicht
+- Klare Abhängigkeitsketten: UX → Spec → Dev+Test (alles in Issue-Bodies)
+
+**MS1 (36 Issues):** Projekt-Setup (Backend + Frontend), Auth, Kapellenverwaltung, Noten-Import + AI-Pipeline, Spielmodus (Half-Page-Turn, BLE Fußpedal), Stimmenauswahl + Fallback, Konfigurationssystem (3 Ebenen), Annotationen (SVG-Layer)
+
+**MS2 (24 Issues):** Setlist-Verwaltung + Player-Integration, Konzertplanung + Zu-/Absage + Ersatzmusiker, Terminkalender (3 Ansichten), Aushilfen-Token-Zugang, Schichtplanung (Basic)
+
+**MS3 (20 Issues):** Chromatischer Tuner (Platform Channels, < 20ms), Echtzeit-Metronom (UDP < 5ms + SignalR Fallback), Cloud-Sync (Delta-Sync, Last-Write-Wins), Annotationen-Echtzeit-Sync (SignalR Groups)
+
+**Labels:** `ms1/ms2/ms3`, `ux-design`, `feature-spec`, `implementation`, `testing`, `type:epic`, `squad:*`
+
+**GitHub Auth:** Token aus Windows Credential Manager via `git credential fill` extrahiert und als GH_TOKEN gesetzt.
 
 ### 2026-03-28: Spezifikation & Meilensteinplanung erstellt
 
@@ -168,3 +187,35 @@
 - SQLite 3.52.0-Rückzug dokumentiert
 - Impeller 2.0 in Flutter 3.41 als Key-Feature ergänzt
 ```
+
+### 2026-03-28: Issue #7 — ASP.NET Core 10 Backend Scaffolding
+
+**Worktree:** `C:\Source\Sheetstorm-7`, Branch: `squad/7-backend-scaffolding`
+**PR:** https://github.com/caol-ila/Sheetstorm/pull/83
+
+**Was implementiert wurde:**
+
+Vollständiges 3-Schichten Backend-Scaffolding für Sheetstorm:
+- **Solution:** `Sheetstorm.slnx` (neues .NET 10 XML Solution Format)
+- **Projekte:** `Sheetstorm.Api` / `Sheetstorm.Domain` / `Sheetstorm.Infrastructure`
+- **References:** Api→Domain, Api→Infrastructure, Infrastructure→Domain
+
+**Packages (alle via web_search verifiziert, März 2026):**
+- `Npgsql.EntityFrameworkCore.PostgreSQL` 10.0.1
+- `Microsoft.EntityFrameworkCore.Design` 10.0.2
+- `Microsoft.AspNetCore.Authentication.JwtBearer` 10.0.5
+- `Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore` 10.0.5
+- SignalR: in ASP.NET Core 10 shared framework (kein separates NuGet)
+
+**Architektur-Entscheidungen:**
+- JWT: `ClockSkew = 30s`, SignalR Query-String Token-Extraktion für WebSocket-Hubs vorbereitet
+- `AppDbContext`: auto-setzt `CreatedAt`/`UpdatedAt` via `ChangeTracker` in `SaveChangesAsync`
+- `AddInfrastructure()` Extension Method: saubere DI-Kapselung, Migrations-Assembly explizit gesetzt
+- `RequestLoggingMiddleware`: method/path/status/ms für alle Requests geloggt
+- `.gitignore`: bin/ + obj/ ausgeschlossen (zweiter Fix-Commit nötig, da erster Commit diese noch enthielt)
+
+**Domain-Entitäten (Kern-Modell):**
+`BaseEntity`, `Musiker`, `Kapelle`, `Mitgliedschaft` (N:M mit `MitgliedRolle` Enum), `Stueck`, `Stimme`, `Notenblatt`
+
+**Lernpunkt:** .NET 10 SDK erstellt `.slnx` statt `.sln` — neues XML Solution Format. `dotnet build Sheetstorm.sln` schlägt fehl, `dotnet build Sheetstorm.slnx` funktioniert.
+
