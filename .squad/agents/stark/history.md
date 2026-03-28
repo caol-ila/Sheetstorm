@@ -124,4 +124,47 @@
 - Wanda (UX): UX-Design v2 + UX-Konfiguration ✅
 - Entscheidungen: 16 Directives + Policy-Entscheidungen in decisions.md dokumentiert
 - Next: Thomas Review im PR, danach MS1 Implementierung
+
+### 2026-03-28: 18 Gap-Features in Spezifikation & Meilensteine übernommen
+
+**Anlass:** Thomas hat die Feature-Gap-Analyse (docs/feature-gap-analyse.md) reviewt und 18 Features zur Aufnahme freigegeben.
+
+**Übernommene Features nach Meilenstein:**
+- MS1: Zweiseitenansicht (F-SM-07), Link Points für Wiederholungen (F-SM-08), Dark Mode/Sepia (F-SM-09)
+- MS2: GEMA-Meldung (F-VL-04), Kalender-Sync bidirektional (F-VL-03 erweitert), Dirigenten-Mastersteuerung (F-VL-05), Anwesenheitsstatistiken (F-VL-06), Register-Benachrichtigungen (F-VL-07), Nachrichten-Board (F-VL-08), Umfragen (F-VL-09), Media Links (F-NV-08), Konzertprogramm-Timing (F-SL-03), Platzhalter in Setlists (F-SL-02)
+- MS3: Aufgabenverwaltung (F-VL-10), Auto-Scroll/Reflow (F-SM-10)
+- MS4: AI-Annotations-Analyse Cross-Part (F-AI-01)
+- MS5: Face-Gesten (F-SM-11), Inventarverwaltung (F-VL-11)
+
+**Geänderte Dokumente:**
+- docs/feature-gap-analyse.md (neu auf main, 18x ✅ Übernommen, restliche 🔜 Backlog)
+- docs/spezifikation.md (18 neue Features mit User Stories + Akzeptanzkriterien)
+- docs/meilensteine.md (Deliverables + DoD für MS1–MS5 aktualisiert)
+
+**PR:** https://github.com/caol-ila/Sheetstorm/pull/2
+
+### 2026-03-28: Tech-Stack v3 — Alle Versionen per Web-Suche verifiziert
+
+**Anlass:** Thomas hat beanstandet, dass v2 des Tech-Stack-Dokuments Versionsnummern aus Training-Data enthielt. v3 korrigiert dies durch individuelle `web_search`-Aufrufe für **jede einzelne Technologie**.
+
+**Durchgeführte Web-Suchen (18 Stück):**
+- Flutter SDK, Dart SDK, .NET MAUI, React Native, Kotlin Multiplatform, Compose Multiplatform, Avalonia UI, Tauri
+- ASP.NET Core / .NET 10 LTS, PostgreSQL, SQLite
+- flutter_riverpod, pdfrx, Drift, flutter_blue_plus
+- SignalR, Azure AI Vision
+
+**Kritische Versions-Korrekturen (v2 → v3):**
+- Flutter: 3.35.4 → **3.41.5** (neues Stable-Release Feb 2026, Impeller 2.0)
+- Dart: 3.9.2 → **3.11.0**
+- .NET MAUI: 10.0.50 → **10.0.5** (Patch-Nummern folgen .NET 10 Cadence)
+- SQLite 3.52.0 zurückgezogen → **3.51.3** bleibt empfohlen
+- SignalR: Jetzt als @microsoft/signalr **10.0.0** dokumentiert
+- flutter_blue_plus: Jetzt mit Version **1.34.5** dokumentiert
+- Azure AI Vision: **Image Analysis 4.0 GA** (Preview-APIs seit Mär 2025 retired)
+
+**Neues im Dokument:**
+- Alle Versionen haben "verifiziert via Web-Suche, Stand 2026-03-28" Tag
+- Versions-Referenz-Tabelle mit Spalte "Verifiziert via" für Audit-Trail
+- SQLite 3.52.0-Rückzug dokumentiert
+- Impeller 2.0 in Flutter 3.41 als Key-Feature ergänzt
 ```
