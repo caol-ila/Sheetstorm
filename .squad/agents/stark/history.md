@@ -329,3 +329,5 @@ Vollständiges 3-Schichten Backend-Scaffolding für Sheetstorm:
 
 
 MS1 complete — all test branches merged.
+
+DE→EN translation merged — backend (98 files) + frontend (115 files)
