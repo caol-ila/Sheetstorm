@@ -37,6 +37,9 @@ dependencies:
   # BLE (Fußpedal)
   flutter_blue_plus: ^1.34.5
 
+  # Secure Token Storage
+  flutter_secure_storage: ^10.0.0
+
   # Utilities
   intl: ^0.20.2
   equatable: ^2.0.7
