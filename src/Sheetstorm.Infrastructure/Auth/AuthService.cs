@@ -7,11 +7,12 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using Sheetstorm.Domain.Auth;
 using Sheetstorm.Domain.Entities;
+using Sheetstorm.Infrastructure.Email;
 using Sheetstorm.Infrastructure.Persistence;
 
 namespace Sheetstorm.Infrastructure.Auth;
 
-public class AuthService(AppDbContext db, IConfiguration configuration) : IAuthService
+public class AuthService(AppDbContext db, IConfiguration configuration, IEmailService emailService) : IAuthService
 {
     private const int AccessTokenExpirySeconds = 900; // 15 minutes
     private const int RefreshTokenExpiryDays = 30;
@@ -29,17 +30,24 @@ public class AuthService(AppDbContext db, IConfiguration configuration) : IAuthS
         if (await db.Musiker.AnyAsync(m => m.Email == emailLower))
             throw new AuthException("EMAIL_ALREADY_EXISTS", "Diese E-Mail-Adresse ist bereits registriert.", 409);
 
+        var verificationToken = GenerateSecureToken("ev_");
+
         var musiker = new Musiker
         {
             Name = request.DisplayName.Trim(),
             Email = emailLower,
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
             Instrument = request.Instrument?.Trim(),
-            OnboardingCompleted = false
+            OnboardingCompleted = false,
+            EmailVerified = false,
+            EmailVerificationToken = HashToken(verificationToken),
+            EmailVerificationTokenExpiresAt = DateTime.UtcNow.AddHours(24)
         };
 
         db.Musiker.Add(musiker);
         await db.SaveChangesAsync();
+
+        await emailService.SendEmailVerificationAsync(musiker.Email, musiker.Name, verificationToken);
 
         var (accessToken, refreshToken) = await CreateTokenPairAsync(musiker);
         return BuildAuthResponse(musiker, accessToken, refreshToken);
@@ -55,6 +63,9 @@ public class AuthService(AppDbContext db, IConfiguration configuration) : IAuthS
         if (musiker is null || !BCrypt.Net.BCrypt.Verify(request.Password, musiker.PasswordHash))
             throw new AuthException("INVALID_CREDENTIALS", "E-Mail oder Passwort ist falsch.", 401);
 
+        if (!musiker.EmailVerified)
+            throw new AuthException("EMAIL_NOT_VERIFIED", "Bitte bestätige zuerst deine E-Mail-Adresse.", 403);
+
         var (accessToken, refreshToken) = await CreateTokenPairAsync(musiker);
         return BuildAuthResponse(musiker, accessToken, refreshToken);
     }
@@ -63,9 +74,11 @@ public class AuthService(AppDbContext db, IConfiguration configuration) : IAuthS
 
     public async Task<TokenResponse> RefreshAsync(RefreshTokenRequest request)
     {
+        var tokenHash = HashToken(request.RefreshToken);
+
         var existing = await db.RefreshTokens
             .Include(rt => rt.Musiker)
-            .FirstOrDefaultAsync(rt => rt.Token == request.RefreshToken);
+            .FirstOrDefaultAsync(rt => rt.Token == tokenHash);
 
         if (existing is null || existing.IsRevoked || existing.ExpiresAt <= DateTime.UtcNow)
             throw new AuthException("INVALID_REFRESH_TOKEN", "Das Refresh Token ist ungültig oder abgelaufen.", 401);
@@ -93,6 +106,32 @@ public class AuthService(AppDbContext db, IConfiguration configuration) : IAuthS
         var newRefreshToken = await CreateRefreshTokenAsync(existing.Musiker, existing.FamilyId);
 
         return new TokenResponse(newAccessToken, newRefreshToken, "Bearer", AccessTokenExpirySeconds);
+    }
+
+    // ─── Verify Email ─────────────────────────────────────────────────────────
+
+    public async Task<MessageResponse> VerifyEmailAsync(VerifyEmailRequest request)
+    {
+        var tokenHash = HashToken(request.Token);
+
+        var musiker = await db.Musiker
+            .FirstOrDefaultAsync(m => m.EmailVerificationToken == tokenHash);
+
+        if (musiker is null ||
+            musiker.EmailVerificationTokenExpiresAt is null ||
+            musiker.EmailVerificationTokenExpiresAt <= DateTime.UtcNow)
+            throw new AuthException("INVALID_VERIFICATION_TOKEN", "Der Bestätigungslink ist ungültig oder abgelaufen.", 400);
+
+        if (musiker.EmailVerified)
+            return new MessageResponse("E-Mail-Adresse wurde bereits bestätigt.");
+
+        musiker.EmailVerified = true;
+        musiker.EmailVerificationToken = null;
+        musiker.EmailVerificationTokenExpiresAt = null;
+
+        await db.SaveChangesAsync();
+
+        return new MessageResponse("E-Mail-Adresse erfolgreich bestätigt.");
     }
 
     // ─── Forgot Password ──────────────────────────────────────────────────────
@@ -203,7 +242,7 @@ public class AuthService(AppDbContext db, IConfiguration configuration) : IAuthS
 
         var refreshToken = new RefreshToken
         {
-            Token = tokenValue,
+            Token = HashToken(tokenValue),   // store SHA-256 hash, return raw value to client
             FamilyId = familyId,
             MusikerId = musiker.Id,
             ExpiresAt = DateTime.UtcNow.AddDays(RefreshTokenExpiryDays)
@@ -213,6 +252,12 @@ public class AuthService(AppDbContext db, IConfiguration configuration) : IAuthS
         await db.SaveChangesAsync();
 
         return tokenValue;
+    }
+
+    private static string HashToken(string token)
+    {
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(token));
+        return Convert.ToHexString(bytes).ToLowerInvariant();
     }
 
     private static string GenerateSecureToken(string prefix = "")
@@ -242,6 +287,7 @@ public class AuthService(AppDbContext db, IConfiguration configuration) : IAuthS
             musiker.Name,
             musiker.Instrument,
             musiker.OnboardingCompleted,
+            musiker.EmailVerified,
             musiker.CreatedAt);
 
         return new AuthResponse(userDto, accessToken, refreshToken, "Bearer", AccessTokenExpirySeconds);

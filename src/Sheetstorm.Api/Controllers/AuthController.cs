@@ -67,6 +67,19 @@ public class AuthController(IAuthService authService) : ControllerBase
         return Ok(response);
     }
 
+    // POST /api/auth/verify-email
+    [HttpPost("verify-email")]
+    [ProducesResponseType(typeof(MessageResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> VerifyEmail([FromBody] VerifyEmailRequest request)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(new ErrorResponse("VALIDATION_ERROR", "Token fehlt."));
+
+        var response = await authService.VerifyEmailAsync(request);
+        return Ok(response);
+    }
+
     // POST /api/auth/reset-password
     [HttpPost("reset-password")]
     [EnableRateLimiting("auth")]

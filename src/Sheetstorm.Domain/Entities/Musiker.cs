@@ -11,6 +11,11 @@ public class Musiker : BaseEntity
     public string? Instrument { get; set; }
     public bool OnboardingCompleted { get; set; }
 
+    // Email verification
+    public bool EmailVerified { get; set; }
+    public string? EmailVerificationToken { get; set; }
+    public DateTime? EmailVerificationTokenExpiresAt { get; set; }
+
     // Password reset
     public string? PasswordResetToken { get; set; }
     public DateTime? PasswordResetTokenExpiresAt { get; set; }
