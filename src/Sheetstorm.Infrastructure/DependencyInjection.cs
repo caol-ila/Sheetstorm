@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Sheetstorm.Infrastructure.Auth;
 using Sheetstorm.Infrastructure.Email;
+using Sheetstorm.Infrastructure.KapelleManagement;
 using Sheetstorm.Infrastructure.Persistence;
 
 namespace Sheetstorm.Infrastructure;
@@ -23,6 +24,7 @@ public static class DependencyInjection
 
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IEmailService, DevEmailService>();
+        services.AddScoped<IKapelleService, KapelleService>();
 
         return services;
     }
