@@ -6,6 +6,7 @@ How to decide who handles what.
 
 | Work Type | Route To | Examples |
 |-----------|----------|----------|
+| Feature-Definition & Specs | Hill | Feature-Specs, User Stories, Akzeptanzkriterien, Scope |
 | Architektur & Spezifikation | Stark | Systemdesign, technische Entscheidungen, API-Verträge, Anforderungsdokumentation |
 | Markt- & Konkurrenzanalyse | Fury | Marktrecherche, Wettbewerber, Zielgruppen, User Stories, Business Case |
 | UX & Design | Wanda | Wireframes, User Flows, Mockups, Interaktionsdesign, Accessibility |

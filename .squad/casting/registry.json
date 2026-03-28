@@ -47,6 +47,14 @@
       "created_at": "2026-03-28T10:10:43Z",
       "legacy_named": false,
       "status": "active"
+    },
+    "hill": {
+      "persistent_name": "Hill",
+      "universe": "Marvel Cinematic Universe",
+      "role": "Product Manager",
+      "created_at": "2026-03-28T12:13:50Z",
+      "legacy_named": false,
+      "status": "active"
     }
   }
 }

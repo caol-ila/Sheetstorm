@@ -1,25 +1,28 @@
 # Sheetstorm — Technologie-Entscheidung
 
-> **Version:** 2.0  
+> **Version:** 3.0  
 > **Autor:** Stark (Lead / Architect)  
 > **Datum:** 2026-03-28  
+> **Aktualisiert:** 2026-03-28 (v3 — alle Versionen per `web_search` verifiziert)  
 > **Status:** Zur Abstimmung via PR  
-> **Methodik:** Web-Recherche für alle Versionen (kein Training-Data)
+> **Methodik:** Jede Version per Web-Suche validiert. Keine Training-Data-Versionen.
 
 ---
 
 ## 1. Zusammenfassung der Entscheidung
 
-| Komponente | Technologie | Version |
-|------------|-------------|---------|
-| **Frontend** | Flutter (Dart) | 3.35.4 / Dart 3.9.2 |
+| Komponente | Technologie | Version (verifiziert) |
+|------------|-------------|----------------------|
+| **Frontend** | Flutter (Dart) | 3.41.5 / Dart 3.11.0 |
 | **State Management** | Riverpod | 3.3.1 (flutter_riverpod) |
 | **PDF-Rendering** | pdfrx | 2.2.24 |
 | **Client-DB** | SQLite via Drift | Drift 2.32.1 / SQLite 3.51.3 |
 | **Backend** | ASP.NET Core (.NET 10 LTS, C# 14) | 10.0.5 |
 | **Server-DB** | PostgreSQL | 18.3 |
 | **Echtzeit (LAN)** | WiFi UDP Multicast | Custom (ASP.NET Core) |
-| **Echtzeit (Remote)** | SignalR WebSocket | Teil von ASP.NET Core 10 |
+| **Echtzeit (Remote)** | SignalR WebSocket | @microsoft/signalr 10.0.0 |
+| **BLE (Fußpedal)** | flutter_blue_plus | 1.34.5 |
+| **AI-OCR** | Azure AI Vision | Image Analysis 4.0 GA |
 | **File Storage** | Azure Blob Storage + CDN | Aktuell |
 | **CI/CD** | GitHub Actions | Aktuell |
 | **Hosting** | Azure (App Service, Blob, CDN) | Aktuell |
@@ -40,7 +43,7 @@ Jedes Framework wurde auf 5 Kriterien bewertet (je 0–5 Punkte):
 
 ### Bewertungsmatrix
 
-| Kriterium | Flutter 3.35 | .NET MAUI 10 | React Native 0.84 | KMP/Compose 1.10.3 | Avalonia 11.3 | Tauri v2.10 |
+| Kriterium | Flutter 3.41 | .NET MAUI 10 | React Native 0.84 | KMP/Compose 1.10.3 | Avalonia 11.3 | Tauri v2.10 |
 |-----------|:------------:|:------------:|:------------------:|:-------------------:|:-------------:|:-----------:|
 | Plattform-Support | 5 | 4 | 3.5 | 4 | 4 | 3.5 |
 | Canvas/PDF | 5 | 3 | 3.5 | 3 | 3 | 2.5 |
@@ -51,19 +54,20 @@ Jedes Framework wurde auf 5 Kriterien bewertet (je 0–5 Punkte):
 
 ### Framework-Analyse im Detail
 
-#### ✅ Flutter 3.35.4 / Dart 3.9.2 — GEWÄHLT (Score: 4.70)
+#### ✅ Flutter 3.41.5 / Dart 3.11.0 — GEWÄHLT (Score: 4.70)
 
-**Aktuelle Version:** Flutter 3.35.4 (September 2025) mit Dart 3.9.2
+**Aktuelle Version:** Flutter 3.41.5 (März 2026) mit Dart 3.11.0 (verifiziert via Web-Suche, Stand 2026-03-28)
 
 **Stärken:**
-- **Eigene Rendering-Engine (Impeller):** Kein WebView, kein nativer Widget-Wrapper. Pixelgenaue Kontrolle über Canvas — ideal für Notenblatt-Rendering mit SVG-Overlay.
+- **Eigene Rendering-Engine (Impeller 2.0):** Kein WebView, kein nativer Widget-Wrapper. Pixelgenaue Kontrolle über Canvas — ideal für Notenblatt-Rendering mit SVG-Overlay. Impeller 2.0 in Flutter 3.41 nutzt AOT-Shader-Compilation, Metal (iOS) und Vulkan (Android) für ruckelfreies Rendering.
 - **Plattform-Support:** Android ✅, iOS ✅, Windows Desktop ✅ (GA seit 2022), Web ✅ (Wasm in Arbeit, CanvasKit stable). Alle 4 Zielplattformen mit einer Codebase.
 - **Touch/Stylus:** GestureDetector, CustomPainter, Listener — volle Kontrolle über Touch-Events, Pointer-Typ-Erkennung (Stylus vs. Finger), Palm Rejection via `PointerDeviceKind`.
 - **PDF-Rendering:** pdfrx 2.2.24 (PDFium-basiert, alle Plattformen, aktiv gepflegt).
-- **BLE-Support:** flutter_blue_plus — Fußpedal-Integration via Bluetooth HID.
+- **BLE-Support:** flutter_blue_plus 1.34.5 — Fußpedal-Integration via Bluetooth HID.
 - **Dart ≈ C#:** Ähnliche Syntax (statisch typisiert, null safety, async/await, Klassen). Thomas' geschätzte Lernkurve: ~2 Wochen.
 - **State Management:** Riverpod 3.3.1 — Offline-Persistence, Auto-Retry, typsichere Providers.
-- **Community:** >1M aktive Entwickler, >167K GitHub Stars, 8 Stable Releases in 2025.
+- **Community:** >1M aktive Entwickler, >167K GitHub Stars.
+- **Flutter 3.41 Highlights:** Public Release Windows (transparente Quartals-Releases), Decoupling von Material/Cupertino-Bibliotheken, plattformspezifisches Asset-Bundling, Swift Package Manager (statt CocoaPods), Gradle 9 / Kotlin DSL auf Android.
 
 **Schwächen:**
 - **Audio-Latenz:** 1-2ms Platform Channel Overhead pro Aufruf. Für Sheetstorm akzeptabel, weil Metronom-Timing serverseitig (ASP.NET Core UDP) läuft und Flutter nur UI rendert.
@@ -71,9 +75,9 @@ Jedes Framework wurde auf 5 Kriterien bewertet (je 0–5 Punkte):
 
 **Risiko-Mitigation:** Performance-Benchmark nach M1 Sprint 2 (Spielmodus-Prototype). Falls Seitenwechsel >200ms oder Stift-Latenz >50ms → Eskalation und Re-Evaluierung.
 
-#### ❌ .NET MAUI 10.0 (.NET 10 LTS) — Score: 3.90
+#### ❌ .NET MAUI 10 (.NET 10 LTS) — Score: 3.90
 
-**Aktuelle Version:** .NET MAUI 10.0.50 (März 2026), .NET 10 LTS
+**Aktuelle Version:** .NET MAUI 10.0.5 (März 2026), .NET 10 LTS (verifiziert via Web-Suche, Stand 2026-03-28)
 
 **Stärken:**
 - Thomas' Komfort-Zone (C#, Visual Studio)
@@ -91,7 +95,7 @@ Jedes Framework wurde auf 5 Kriterien bewertet (je 0–5 Punkte):
 
 #### ❌ React Native 0.84.x — Score: 3.40
 
-**Aktuelle Version:** React Native 0.84.1 (Februar 2026)
+**Aktuelle Version:** React Native 0.84.x (Februar 2026) (verifiziert via Web-Suche, Stand 2026-03-28)
 
 **Stärken:**
 - Riesiges Ökosystem (npm)
@@ -108,7 +112,7 @@ Jedes Framework wurde auf 5 Kriterien bewertet (je 0–5 Punkte):
 
 #### ❌ Kotlin Compose Multiplatform 1.10.3 — Score: 3.40
 
-**Aktuelle Version:** Compose Multiplatform 1.10.3 (März 2026)
+**Aktuelle Version:** Compose Multiplatform 1.10.3 (März 2026), Kotlin 2.1.x (verifiziert via Web-Suche, Stand 2026-03-28)
 
 **Stärken:**
 - iOS Support jetzt stable (seit 1.8.0)
@@ -125,7 +129,7 @@ Jedes Framework wurde auf 5 Kriterien bewertet (je 0–5 Punkte):
 
 #### ❌ Avalonia UI 11.3.12 — Score: 3.60
 
-**Aktuelle Version:** Avalonia 11.3.12 stable (Februar 2026), 12.0.0-rc1 in Preview
+**Aktuelle Version:** Avalonia 11.3.12 stable (Februar 2026), 12.0.0-rc1 in Preview (verifiziert via Web-Suche, Stand 2026-03-28)
 
 **Stärken:**
 - C#/XAML — Thomas' native Sprache
@@ -143,7 +147,7 @@ Jedes Framework wurde auf 5 Kriterien bewertet (je 0–5 Punkte):
 
 #### ❌ Tauri v2.10.3 — Score: 2.80
 
-**Aktuelle Version:** Tauri v2.10.3 (März 2026)
+**Aktuelle Version:** Tauri v2.10.3 (März 2026) (verifiziert via Web-Suche, Stand 2026-03-28)
 
 **Stärken:**
 - Leichtgewichtig (Rust-Backend, kleine Binary-Größe)
@@ -164,7 +168,7 @@ Jedes Framework wurde auf 5 Kriterien bewertet (je 0–5 Punkte):
 
 ### ✅ ASP.NET Core 10 (.NET 10 LTS, C# 14) — GEWÄHLT
 
-**Aktuelle Version:** .NET 10.0.5 / ASP.NET Core 10.0.0 (November 2025, LTS bis November 2028)
+**Aktuelle Version:** .NET 10.0.5 / ASP.NET Core 10 (Release: November 2025, Patch 10.0.5: März 2026, LTS bis November 2028) (verifiziert via Web-Suche, Stand 2026-03-28)
 
 **Begründung:**
 1. **Thomas' Expertise:** C# ist seine Stärke. Kein Onboarding nötig.
@@ -190,7 +194,7 @@ Jedes Framework wurde auf 5 Kriterien bewertet (je 0–5 Punkte):
 
 ### Server: PostgreSQL 18.3 — GEWÄHLT
 
-**Aktuelle Version:** PostgreSQL 18.3 (Februar 2026)
+**Aktuelle Version:** PostgreSQL 18.3 (Februar 2026) (verifiziert via Web-Suche, Stand 2026-03-28)
 
 **Begründung:**
 - **JSONB:** Ideal für flexibles Config-Speichermodell (3-Ebenen-Konfiguration)
@@ -202,7 +206,9 @@ Jedes Framework wurde auf 5 Kriterien bewertet (je 0–5 Punkte):
 
 ### Client: SQLite 3.51.3 via Drift 2.32.1 — GEWÄHLT
 
-**Aktuelle Version:** SQLite 3.51.3 (März 2026), Drift 2.32.1 (März 2026)
+**Aktuelle Version:** SQLite 3.51.3 (März 2026), Drift 2.32.1 (März 2026) (verifiziert via Web-Suche, Stand 2026-03-28)
+
+> **Hinweis:** SQLite 3.52.0 wurde am 6. März 2026 released, aber wegen Rückwärtskompatibilitätsproblemen zurückgezogen. 3.51.3 bleibt die empfohlene stabile Version bis 3.53.0 erscheint.
 
 **Begründung:**
 - **Offline-Cache:** Noten, Config, Annotationen offline verfügbar
@@ -292,24 +298,52 @@ Remote (Internet):
 
 ## 8. Versions-Referenz
 
-Alle Versionen per Web-Recherche validiert (März 2026):
+Alle Versionen per Web-Suche validiert (28. März 2026). Keine Version stammt aus Training-Data.
 
-| Technologie | Version | Release-Datum | Support bis |
-|-------------|---------|:-------------:|:-----------:|
-| Flutter | 3.35.4 | Sep 2025 | Laufend (Quarterly Releases) |
-| Dart | 3.9.2 | Sep 2025 | Gekoppelt an Flutter |
-| ASP.NET Core | 10.0.5 (.NET 10 LTS) | Nov 2025 | Nov 2028 |
-| C# | 14 | Nov 2025 | Gekoppelt an .NET 10 |
-| PostgreSQL | 18.3 | Feb 2026 | ~Nov 2030 |
-| SQLite | 3.51.3 | Mär 2026 | Laufend |
-| Drift (Flutter) | 2.32.1 | Mär 2026 | Laufend |
-| Riverpod (flutter_riverpod) | 3.3.1 | 2026 | Laufend |
-| pdfrx (Flutter PDF) | 2.2.24 | Jan 2026 | Laufend |
-| .NET MAUI | 10.0.50 | Mär 2026 | Mai 2027 |
-| React Native | 0.84.1 | Feb 2026 | ~6 Monate |
-| Compose Multiplatform | 1.10.3 | Mär 2026 | Laufend |
-| Avalonia UI | 11.3.12 (stable) | Feb 2026 | Laufend |
-| Tauri | v2.10.3 | Mär 2026 | Laufend |
+### Frontend-Stack
+
+| Technologie | Version | Verifiziert via | Release-Datum | Support bis |
+|-------------|---------|:---------------:|:-------------:|:-----------:|
+| **Flutter** | 3.41.5 | web_search: "Flutter 3.41 latest patch version March 2026" | Feb 2026 (3.41.0), Patches bis Mär 2026 | Laufend (Quarterly Releases) |
+| **Dart** | 3.11.0 | web_search: "Dart SDK latest stable version 2025 2026" | Feb 2026 | Gekoppelt an Flutter |
+| **flutter_riverpod** | 3.3.1 | web_search: "flutter riverpod latest version 2026 pub.dev" | Mär 2026 | Laufend |
+| **pdfrx** | 2.2.24 | web_search: "pdfrx flutter package latest version 2026" | Jan 2026 | Laufend |
+| **Drift** | 2.32.1 | web_search: "drift flutter database package latest version 2026" | Mär 2026 | Laufend |
+| **flutter_blue_plus** | 1.34.5 | web_search: "flutter_blue_plus latest version 2026 pub.dev" | Nov 2024 | Laufend |
+
+### Backend-Stack
+
+| Technologie | Version | Verifiziert via | Release-Datum | Support bis |
+|-------------|---------|:---------------:|:-------------:|:-----------:|
+| **ASP.NET Core / .NET** | 10.0.5 (LTS) | web_search: "ASP.NET Core .NET 10 LTS latest version 2026" | Nov 2025 (GA), Mär 2026 (Patch) | Nov 2028 |
+| **C#** | 14 | Gekoppelt an .NET 10 | Nov 2025 | Nov 2028 |
+| **SignalR** | @microsoft/signalr 10.0.0 | web_search: "SignalR ASP.NET Core latest version 2026" | Nov 2025 | Gekoppelt an .NET 10 |
+
+### Datenbanken
+
+| Technologie | Version | Verifiziert via | Release-Datum | Support bis |
+|-------------|---------|:---------------:|:-------------:|:-----------:|
+| **PostgreSQL** | 18.3 | web_search: "PostgreSQL latest stable version 2026" | Feb 2026 | ~Nov 2030 |
+| **SQLite** | 3.51.3 | web_search: "SQLite latest version 2026" + "SQLite 3.52.0 release" (3.52.0 zurückgezogen) | Mär 2026 | Laufend (Support bis mindestens 2050) |
+
+### Evaluierte Frontend-Frameworks (nicht gewählt)
+
+| Technologie | Version | Verifiziert via | Release-Datum |
+|-------------|---------|:---------------:|:-------------:|
+| **.NET MAUI** | 10.0.5 (.NET 10 LTS) | web_search: ".NET MAUI latest stable version 2025 2026" | Nov 2025 (GA), Mär 2026 (Patch) |
+| **React Native** | 0.84.x | web_search: "React Native latest stable version 2025 2026" | Feb 2026 |
+| **Compose Multiplatform** | 1.10.3 | web_search: "Compose Multiplatform latest stable version 2025 2026" | Mär 2026 |
+| **Kotlin** | 2.1.x | web_search: "Kotlin Multiplatform latest version 2025 2026" | 2025–2026 |
+| **Avalonia UI** | 11.3.12 (stable) | web_search: "Avalonia UI latest stable version 2025 2026" | Feb 2026 |
+| **Tauri** | v2.10.3 | web_search: "Tauri latest stable version 2025 2026" | Mär 2026 |
+
+### Cloud / AI
+
+| Technologie | Version | Verifiziert via | Status |
+|-------------|---------|:---------------:|:------:|
+| **Azure AI Vision** | Image Analysis 4.0 GA | web_search: "Azure AI Vision API latest version 2026" | GA (Preview-APIs retired Mär 2025) |
+| **Azure Blob Storage** | Aktuell | Managed Service | GA |
+| **Application Insights** | Aktuell | Nativ in .NET 10 | GA |
 
 ---
 
@@ -338,7 +372,7 @@ Nach M1 Sprint 2 (Spielmodus-Prototype) werden folgende Metriken gemessen:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    Flutter Client (Dart)                      │
+│                    Flutter Client (Dart 3.11)                     │
 │                                                               │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐    │
 │  │ Spielmodus│  │  Upload  │  │  Config  │  │  Kalender │    │
@@ -355,7 +389,7 @@ Nach M1 Sprint 2 (Spielmodus-Prototype) werden folgende Metriken gemessen:
 │  └──────────────────────────────────────────────────────┘    │
 │  ┌──────────────────┐  ┌────────────────────────────────┐    │
 │  │ Platform Channels │  │    BLE (Fußpedal / Tuner)      │    │
-│  │ (Audio: CoreAudio/│  │    flutter_blue_plus            │    │
+│  │ (Audio: CoreAudio/│  │    flutter_blue_plus 1.34       │    │
 │  │  Oboe)            │  │                                │    │
 │  └──────────────────┘  └────────────────────────────────┘    │
 └─────────────────────────────────────────────────────────────┘

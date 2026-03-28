@@ -18,6 +18,7 @@
 | Romanoff | Frontend / App Dev | `.squad/agents/romanoff/charter.md` | 📱 Frontend |
 | Banner | Backend Dev | `.squad/agents/banner/charter.md` | 🔧 Backend |
 | Parker | Tester / QA | `.squad/agents/parker/charter.md` | 🧪 QA |
+| Hill | Product Manager | `.squad/agents/hill/charter.md` | 📋 Product |
 | Scribe | Session Logger | `.squad/agents/scribe/charter.md` | 📋 Logger |
 | Ralph | Work Monitor | — | 🔄 Monitor |
 
