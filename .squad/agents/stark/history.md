@@ -2,8 +2,8 @@
 
 - **Owner:** Thomas
 - **Project:** Notenmanagement-App für eine Blaskapelle — Verwaltung von Musiknoten, Stimmen, Besetzungen und Aufführungsmaterial für Blasorchester
-- **Stack:** TBD (wird in der Spezifikationsphase festgelegt)
-- **Phase:** Anforderungsanalyse, Marktrecherche, Spezifikation, UX Design
+- **Stack:** Flutter (Dart) Frontend + ASP.NET Core 9 Backend + PostgreSQL + SQLite (Client)
+- **Phase:** Anforderungsanalyse, Marktrecherche, Spezifikation, UX Design, Technologie-Entscheidung
 - **Created:** 2026-03-28
 
 ## Learnings
@@ -26,6 +26,34 @@
 - Jeder Meilenstein hat eigene Definition of Done mit Testing und UX-Validierung
 
 **Offene Punkte:**
-- Tech-Stack noch nicht entschieden (wird nach Evaluierung festgelegt)
 - Lehre-Modul: Details von Thomas ausstehend
 - AI-Provider: Azure Vision als Minimum, weitere zu evaluieren
+
+### 2026-03-28: Konfigurationskonzept & Technologie-Entscheidung
+
+**Konfigurationskonzept (3-Ebenen-Modell):**
+- Ebene 1 (Kapelle): AI-Keys, Berechtigungen, Branding, Policies, Standard-Sprache. Nur Admin darf ändern, Dirigent teilweise.
+- Ebene 2 (Nutzer): Theme, Sprache, Instrumente, Standard-Stimme pro Kapelle, Benachrichtigungen, persönliche AI-Keys. Synchronisiert über alle Geräte.
+- Ebene 3 (Gerät): Display, Audio/Tuner, Touch, Offline-Speicher. Bleibt lokal auf dem Gerät.
+- Override-Regel: Gerät > Nutzer > Kapelle > System-Default. Kapelle kann Policies setzen die Override verbieten (forceLocale, allowUserKeys=false).
+- Speicherung: JSONB in PostgreSQL (Server), SQLite (Client-Cache). Config pro Ebene als eigene Tabelle.
+- Sync: Kapelle = Server→Client, Nutzer = bidirektional (Last-Write-Wins per Feld), Gerät = lokal (Server-Backup optional).
+- Multi-Kapellen: Kapellen-Config gilt nur im aktiven Kapellen-Kontext. Nutzer-/Geräte-Config ist kapellen-unabhängig.
+- Audit-Trail für Kapellen-Config-Änderungen.
+
+**Technologie-Entscheidung:**
+- Frontend: Flutter (Dart) — Beste Cross-Platform-Engine für touch-first, canvas-intensive Apps. Dart ähnlich C#, Thomas Lernkurve ~2 Wochen.
+- Backend: ASP.NET Core 9 (C#) — Thomas' Expertise, Performance-Leader, UDP-Kontrolle für Metronom.
+- Server-DB: PostgreSQL 16 (JSONB für Config, relationale Power für Rollen/Berechtigungen).
+- Client-DB: SQLite via Drift (Offline-Cache, typsichere Queries).
+- File Storage: Azure Blob Storage + CDN.
+- Echtzeit: WiFi UDP Multicast (primär, <5ms LAN) + SignalR WebSocket (Fallback/Remote).
+- CI/CD: GitHub Actions. Hosting: Azure Ökosystem.
+- Fallback-Trigger: Wenn Flutter Spielmodus-Prototype (M1 Sprint 2) Seitenwechsel >200ms oder Stift-Latenz >50ms zeigt → React Native oder MAUI evaluieren.
+
+**Bewertete und verworfene Alternativen:**
+- .NET MAUI + Blazor: Thomas' Komfort, aber schwächeres Touch/Stift-Ökosystem, Blazor WASM zu schwer für Web.
+- React Native: Gutes Ökosystem, aber Desktop/Web-Story schwach, Lernkurve für Thomas.
+- Next.js + Capacitor: Web-first, aber WebView-Performance auf Mobile kritisch für Seitenwechsel <100ms.
+- Electron + React Native: Zwei Projekte = doppelter Aufwand, nicht tragbar für kleines Team.
+- BaaS (Supabase/Firebase): Kein Custom-UDP für Metronom möglich → Dealbreaker als alleiniges Backend.
