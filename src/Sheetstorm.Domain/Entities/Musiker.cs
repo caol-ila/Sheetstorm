@@ -8,8 +8,14 @@ public class Musiker : BaseEntity
     public string Name { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public string PasswordHash { get; set; } = string.Empty;
-    public string? RefreshToken { get; set; }
-    public DateTime? RefreshTokenExpiresAt { get; set; }
+    public string? Instrument { get; set; }
+    public bool OnboardingCompleted { get; set; }
+
+    // Password reset
+    public string? PasswordResetToken { get; set; }
+    public DateTime? PasswordResetTokenExpiresAt { get; set; }
+    public DateTime? PasswordResetRequestedAt { get; set; }
 
     public ICollection<Mitgliedschaft> Mitgliedschaften { get; set; } = [];
+    public ICollection<RefreshToken> RefreshTokens { get; set; } = [];
 }

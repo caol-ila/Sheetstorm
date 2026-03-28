@@ -1,5 +1,7 @@
 using System.Text;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using Sheetstorm.Infrastructure;
 using Sheetstorm.Infrastructure.Persistence;
@@ -51,6 +53,29 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 
+// Rate limiting — 10 requests per 15 minutes per IP for auth endpoints
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddPolicy("auth", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 10,
+                Window = TimeSpan.FromMinutes(15),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0
+            }));
+
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = async (context, _) =>
+    {
+        context.HttpContext.Response.ContentType = "application/json";
+        await context.HttpContext.Response.WriteAsJsonAsync(
+            new { error = "TOO_MANY_ATTEMPTS", message = "Zu viele Versuche. Bitte warte 15 Minuten." });
+    };
+});
+
 // SignalR (Realtime: WebSocket fallback for Metronome + Annotation sync)
 builder.Services.AddSignalR();
 
@@ -73,7 +98,9 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseRateLimiter();
 app.UseMiddleware<RequestLoggingMiddleware>();
+app.UseMiddleware<AuthExceptionMiddleware>();
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -85,3 +112,6 @@ app.MapHealthChecks("/health");
 // app.MapHub<AnnotationHub>("/hubs/annotations");
 
 app.Run();
+
+// Expose Program to the test project via WebApplicationFactory<Program>
+public partial class Program { }

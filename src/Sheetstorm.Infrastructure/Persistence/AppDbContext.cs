@@ -6,6 +6,7 @@ namespace Sheetstorm.Infrastructure.Persistence;
 public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
     public DbSet<Musiker> Musiker => Set<Musiker>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<Kapelle> Kapellen => Set<Kapelle>();
     public DbSet<Mitgliedschaft> Mitgliedschaften => Set<Mitgliedschaft>();
     public DbSet<Stueck> Stuecke => Set<Stueck>();
