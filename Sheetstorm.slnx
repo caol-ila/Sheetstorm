@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Sheetstorm.Api/Sheetstorm.Api.csproj" />
+    <Project Path="src/Sheetstorm.Domain/Sheetstorm.Domain.csproj" />
+    <Project Path="src/Sheetstorm.Infrastructure/Sheetstorm.Infrastructure.csproj" />
+  </Folder>
+</Solution>

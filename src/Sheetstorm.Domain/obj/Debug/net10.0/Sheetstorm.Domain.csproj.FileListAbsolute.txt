@@ -1,0 +1,12 @@
+C:\Source\Sheetstorm-7\src\Sheetstorm.Domain\bin\Debug\net10.0\Sheetstorm.Domain.deps.json
+C:\Source\Sheetstorm-7\src\Sheetstorm.Domain\bin\Debug\net10.0\Sheetstorm.Domain.dll
+C:\Source\Sheetstorm-7\src\Sheetstorm.Domain\bin\Debug\net10.0\Sheetstorm.Domain.pdb
+C:\Source\Sheetstorm-7\src\Sheetstorm.Domain\obj\Debug\net10.0\Sheetstorm.Domain.GeneratedMSBuildEditorConfig.editorconfig
+C:\Source\Sheetstorm-7\src\Sheetstorm.Domain\obj\Debug\net10.0\Sheetstorm.Domain.AssemblyInfoInputs.cache
+C:\Source\Sheetstorm-7\src\Sheetstorm.Domain\obj\Debug\net10.0\Sheetstorm.Domain.AssemblyInfo.cs
+C:\Source\Sheetstorm-7\src\Sheetstorm.Domain\obj\Debug\net10.0\Sheetstorm.Domain.csproj.CoreCompileInputs.cache
+C:\Source\Sheetstorm-7\src\Sheetstorm.Domain\obj\Debug\net10.0\Sheetstorm.Domain.sourcelink.json
+C:\Source\Sheetstorm-7\src\Sheetstorm.Domain\obj\Debug\net10.0\Sheetstorm.Domain.dll
+C:\Source\Sheetstorm-7\src\Sheetstorm.Domain\obj\Debug\net10.0\refint\Sheetstorm.Domain.dll
+C:\Source\Sheetstorm-7\src\Sheetstorm.Domain\obj\Debug\net10.0\Sheetstorm.Domain.pdb
+C:\Source\Sheetstorm-7\src\Sheetstorm.Domain\obj\Debug\net10.0\ref\Sheetstorm.Domain.dll

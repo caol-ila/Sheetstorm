@@ -5,3 +5,22 @@
 .squad/sessions/
 # Squad: SubSquad activation file (local to this machine)
 .squad-workstream
+
+# .NET build artifacts
+bin/
+obj/
+*.user
+*.suo
+.vs/
+.vscode/
+*.DS_Store
+
+# NuGet packages (restored, not committed)
+*.nupkg
+packages/
+
+# Secrets (never commit)
+appsettings.Production.json
+appsettings.*.local.json
+secrets.json
+

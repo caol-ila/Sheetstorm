@@ -1,0 +1,26 @@
+<Project>
+  <PropertyGroup>
+    <!-- All projects target .NET 10 LTS -->
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Enable in CI via /p:TreatWarningsAsErrors=true -->
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
+    <LangVersion>latest</LangVersion>
+
+    <!-- Deterministic builds -->
+    <Deterministic>true</Deterministic>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+
+    <!-- Assembly metadata -->
+    <Company>Sheetstorm</Company>
+    <Product>Sheetstorm</Product>
+    <Copyright>Copyright © 2026 Sheetstorm</Copyright>
+    <Version>0.1.0</Version>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <Optimize>true</Optimize>
+  </PropertyGroup>
+</Project>
