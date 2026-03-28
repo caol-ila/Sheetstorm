@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+﻿import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -16,6 +16,10 @@ import 'package:sheetstorm/features/kapelle/presentation/screens/kapelle_screen.
 import 'package:sheetstorm/features/kapelle/presentation/screens/mitglieder_screen.dart';
 import 'package:sheetstorm/features/kapelle/presentation/screens/register_screen.dart';
 import 'package:sheetstorm/features/noten/presentation/screens/bibliothek_screen.dart';
+import 'package:sheetstorm/features/noten/presentation/screens/import_screen.dart';
+import 'package:sheetstorm/features/noten/presentation/screens/import_summary_screen.dart';
+import 'package:sheetstorm/features/noten/presentation/screens/labeling_screen.dart';
+import 'package:sheetstorm/features/noten/presentation/screens/metadata_editor_screen.dart';
 import 'package:sheetstorm/features/spielmodus/presentation/screens/spielmodus_screen.dart';
 import 'package:sheetstorm/shared/widgets/app_shell.dart';
 
@@ -49,10 +53,23 @@ abstract final class AppRoutes {
   static String kapelleRegister({required String kapelleId}) =>
       '/app/kapelle/$kapelleId/register';
 
+  // ── Import routes ──────────────────────────────────────────────────────────
+  static const String importStart = '/app/import';
+  static const String _importLabeling = '/app/import/:uploadId/labeling';
+  static const String _importMetadata =
+      '/app/import/:uploadId/metadata/:stueckIndex';
+  static const String _importSummary = '/app/import/:uploadId/summary';
+
   // Deep-Links: sheetstorm://bibliothek/[id]
   static String bibliothekDetail(String id) => '/app/bibliothek/$id';
   static String aushilfeToken(String token) => '/aushilfe/$token';
   static String emailVerifyWithToken(String token) => '/email-verify/$token';
+  static String importLabeling(String uploadId) =>
+      '/app/import/$uploadId/labeling';
+  static String importMetadata(String uploadId, String stueckIndex) =>
+      '/app/import/$uploadId/metadata/$stueckIndex';
+  static String importSummary(String uploadId) =>
+      '/app/import/$uploadId/summary';
 }
 
 /// Routes that do not require authentication.
@@ -120,6 +137,32 @@ GoRouter appRouter(Ref ref) {
         path: AppRoutes.aushilfe,
         builder: (context, state) => _AushilfeScreen(
           token: state.pathParameters['token']!,
+        ),
+      ),
+
+      // ── Import flow (full-screen, outside the shell) ────────────────────────
+      GoRoute(
+        path: AppRoutes.importStart,
+        builder: (context, state) => const ImportScreen(),
+      ),
+      GoRoute(
+        path: '/app/import/:uploadId/labeling',
+        builder: (context, state) => LabelingScreen(
+          uploadId: state.pathParameters['uploadId']!,
+        ),
+      ),
+      GoRoute(
+        path: '/app/import/:uploadId/metadata/:stueckIndex',
+        builder: (context, state) => MetadataEditorScreen(
+          uploadId: state.pathParameters['uploadId']!,
+          stueckIndex:
+              int.tryParse(state.pathParameters['stueckIndex'] ?? '0') ?? 0,
+        ),
+      ),
+      GoRoute(
+        path: '/app/import/:uploadId/summary',
+        builder: (context, state) => ImportSummaryScreen(
+          uploadId: state.pathParameters['uploadId']!,
         ),
       ),
 

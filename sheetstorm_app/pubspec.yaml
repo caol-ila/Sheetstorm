@@ -40,10 +40,15 @@ dependencies:
   # Secure Token Storage
   flutter_secure_storage: ^10.0.0
 
+  # File/Camera Import
+  image_picker: ^1.1.2
+  file_picker: ^8.3.0
+
   # Utilities
   intl: ^0.20.2
   equatable: ^2.0.7
-  freezed_annotation: ^3.0.0
+  uuid: ^4.5.1
+  freezed_annotation: ^3.1.0
   json_annotation: ^4.9.0
   shared_preferences: ^2.3.5
 
