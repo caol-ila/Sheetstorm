@@ -16,6 +16,9 @@ import 'package:sheetstorm/features/spielmodus/presentation/widgets/spielmodus_o
 import 'package:sheetstorm/features/spielmodus/presentation/widgets/stimme_bottom_sheet.dart';
 import 'package:sheetstorm/features/spielmodus/presentation/widgets/two_page_view.dart';
 import 'package:sheetstorm/features/spielmodus/presentation/widgets/ui_lock_overlay.dart';
+import 'package:sheetstorm/features/annotationen/application/annotation_notifier.dart';
+import 'package:sheetstorm/features/annotationen/presentation/widgets/annotation_layer.dart';
+import 'package:sheetstorm/features/annotationen/presentation/widgets/layer_toggle_panel.dart';
 
 /// Performance-Modus Screen — Focus-First (ux-design.md § 1.1)
 ///
