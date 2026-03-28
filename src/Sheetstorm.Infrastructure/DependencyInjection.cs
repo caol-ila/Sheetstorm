@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Sheetstorm.Infrastructure.Auth;
+using Sheetstorm.Infrastructure.Config;
 using Sheetstorm.Infrastructure.Email;
 using Sheetstorm.Infrastructure.Import;
 using Sheetstorm.Infrastructure.KapelleManagement;
@@ -27,6 +28,7 @@ public static class DependencyInjection
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IEmailService, DevEmailService>();
         services.AddScoped<IKapelleService, KapelleService>();
+        services.AddScoped<IConfigService, ConfigService>();
 
         // Import pipeline
         services.AddScoped<IImportService, ImportService>();
