@@ -102,8 +102,8 @@ class AuthNotifier extends _$AuthNotifier {
       state = _resolveAuthenticatedState(response.user);
     } on DioException catch (e) {
       state = AuthError(_messageFromDioError(e));
-    } catch (_) {
-      state = const AuthError('Ein unbekannter Fehler ist aufgetreten.');
+    } catch (e) {
+      state = AuthError('Ein unbekannter Fehler ist aufgetreten: $e');
     }
   }
 

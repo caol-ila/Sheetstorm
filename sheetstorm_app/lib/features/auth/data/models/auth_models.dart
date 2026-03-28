@@ -70,10 +70,10 @@ class AuthTokens {
   });
 
   factory AuthTokens.fromJson(Map<String, dynamic> json) => AuthTokens(
-        accessToken: json['access_token'] as String,
-        refreshToken: json['refresh_token'] as String,
-        tokenType: json['token_type'] as String? ?? 'Bearer',
-        expiresIn: json['expires_in'] as int? ?? 900,
+        accessToken: json['accessToken'] as String,
+        refreshToken: json['refreshToken'] as String,
+        tokenType: json['tokenType'] as String? ?? 'Bearer',
+        expiresIn: json['expiresIn'] as int? ?? 900,
       );
 }
 

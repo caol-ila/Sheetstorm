@@ -53,7 +53,7 @@ class AuthService {
   Future<AuthTokens> refreshToken(String refreshToken) async {
     final res = await _dio.post<Map<String, dynamic>>(
       '/api/auth/refresh',
-      data: {'refresh_token': refreshToken},
+      data: {'refreshToken': refreshToken},
     );
     return AuthTokens.fromJson(res.data!);
   }
