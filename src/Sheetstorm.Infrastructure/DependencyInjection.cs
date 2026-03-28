@@ -5,6 +5,7 @@ using Sheetstorm.Infrastructure.Auth;
 using Sheetstorm.Infrastructure.Email;
 using Sheetstorm.Infrastructure.KapelleManagement;
 using Sheetstorm.Infrastructure.Persistence;
+using Sheetstorm.Infrastructure.Stimmen;
 
 namespace Sheetstorm.Infrastructure;
 
@@ -25,6 +26,7 @@ public static class DependencyInjection
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IEmailService, DevEmailService>();
         services.AddScoped<IKapelleService, KapelleService>();
+        services.AddScoped<IStimmenService, StimmenService>();
 
         return services;
     }
