@@ -11,13 +11,13 @@ public interface IImportService
         Stream fileStream,
         string fileName,
         string contentType,
-        Guid? kapelleId,
-        Guid musikerId,
+        Guid? bandId,
+        Guid musicianId,
         CancellationToken ct = default);
 
-    Task<IReadOnlyList<StueckDto>> GetStueckeAsync(Guid kapelleId, Guid musikerId, CancellationToken ct = default);
-    Task<StueckDto> GetStueckAsync(Guid kapelleId, Guid stueckId, Guid musikerId, CancellationToken ct = default);
-    Task<StueckDto> CreateStueckAsync(Guid kapelleId, StueckCreateDto dto, Guid musikerId, CancellationToken ct = default);
-    Task<StueckDto> UpdateStueckAsync(Guid kapelleId, Guid stueckId, StueckUpdateDto dto, Guid musikerId, CancellationToken ct = default);
-    Task DeleteStueckAsync(Guid kapelleId, Guid stueckId, Guid musikerId, CancellationToken ct = default);
+    Task<IReadOnlyList<PieceDto>> GetPiecesAsync(Guid bandId, Guid musicianId, CancellationToken ct = default);
+    Task<PieceDto> GetPieceAsync(Guid bandId, Guid pieceId, Guid musicianId, CancellationToken ct = default);
+    Task<PieceDto> CreatePieceAsync(Guid bandId, PieceCreateDto dto, Guid musicianId, CancellationToken ct = default);
+    Task<PieceDto> UpdatePieceAsync(Guid bandId, Guid pieceId, PieceUpdateDto dto, Guid musicianId, CancellationToken ct = default);
+    Task DeletePieceAsync(Guid bandId, Guid pieceId, Guid musicianId, CancellationToken ct = default);
 }

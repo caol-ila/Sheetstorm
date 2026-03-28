@@ -85,11 +85,11 @@ public class AuthServiceTests : IDisposable
 
         Assert.NotNull(capturedRawToken);
 
-        var musiker = await _db.Musiker.FirstAsync(m => m.Email == "hash-test@example.com");
+        var Musician = await _db.Musicians.FirstAsync(m => m.Email == "hash-test@example.com");
 
         // DB must contain the SHA-256 hash, NOT the raw token
-        Assert.NotEqual(capturedRawToken, musiker.EmailVerificationToken);
-        Assert.Equal(HashToken(capturedRawToken), musiker.EmailVerificationToken);
+        Assert.NotEqual(capturedRawToken, Musician.EmailVerificationToken);
+        Assert.Equal(HashToken(capturedRawToken), Musician.EmailVerificationToken);
     }
 
     [Fact]
@@ -177,9 +177,9 @@ public class AuthServiceTests : IDisposable
         var result = await _sut.VerifyEmailAsync(new VerifyEmailRequest(capturedToken));
 
         Assert.Contains("erfolgreich", result.Message);
-        var musiker = await _db.Musiker.FirstAsync(m => m.Email == "verify@example.com");
-        Assert.True(musiker.EmailVerified);
-        Assert.Null(musiker.EmailVerificationToken);
+        var Musician = await _db.Musicians.FirstAsync(m => m.Email == "verify@example.com");
+        Assert.True(Musician.EmailVerified);
+        Assert.Null(Musician.EmailVerificationToken);
     }
 
     [Fact]
@@ -202,8 +202,8 @@ public class AuthServiceTests : IDisposable
         Assert.NotNull(capturedToken);
 
         // Manually mark as verified but keep the token hash for the lookup
-        var musiker = await _db.Musiker.FirstAsync(m => m.Email == "double@example.com");
-        musiker.EmailVerified = true;
+        var Musician = await _db.Musicians.FirstAsync(m => m.Email == "double@example.com");
+        Musician.EmailVerified = true;
         await _db.SaveChangesAsync();
 
         var result = await _sut.VerifyEmailAsync(new VerifyEmailRequest(capturedToken));
@@ -277,8 +277,8 @@ public class AuthServiceTests : IDisposable
         await _sut.RegisterAsync(new RegisterRequest(email, password, name, null));
 
         // Directly verify in DB (simulates email click)
-        var musiker = await _db.Musiker.FirstAsync(m => m.Email == email.ToLowerInvariant());
-        musiker.EmailVerified = true;
+        var Musician = await _db.Musicians.FirstAsync(m => m.Email == email.ToLowerInvariant());
+        Musician.EmailVerified = true;
         await _db.SaveChangesAsync();
     }
 }

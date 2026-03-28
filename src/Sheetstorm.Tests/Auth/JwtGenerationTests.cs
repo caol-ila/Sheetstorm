@@ -34,9 +34,9 @@ public class JwtGenerationTests : IDisposable
         var handler = new JwtSecurityTokenHandler();
         var token = handler.ReadJwtToken(response.AccessToken);
 
-        var musiker = _db.Musiker.Single();
+        var Musician = _db.Musicians.Single();
 
-        Assert.Equal(musiker.Id.ToString(), token.Subject);
+        Assert.Equal(Musician.Id.ToString(), token.Subject);
         Assert.Equal(ValidEmail,
             token.Claims.First(c => c.Type == JwtRegisteredClaimNames.Email).Value);
         Assert.Equal(ValidDisplayName,
@@ -84,8 +84,8 @@ public class JwtGenerationTests : IDisposable
         var response1 = await _sut.RegisterAsync(request);
 
         // Mark email as verified so login is allowed
-        var musiker = _db.Musiker.Single();
-        musiker.EmailVerified = true;
+        var Musician = _db.Musicians.Single();
+        Musician.EmailVerified = true;
         await _db.SaveChangesAsync();
 
         // Login to get a second token

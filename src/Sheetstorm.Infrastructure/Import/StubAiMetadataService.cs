@@ -8,16 +8,16 @@ namespace Sheetstorm.Infrastructure.Import;
 /// </summary>
 public class StubAiMetadataService : IAiMetadataService
 {
-    public Task<StueckMetadataDto> ExtractMetadataAsync(
+    public Task<PieceMetadataDto> ExtractMetadataAsync(
         Stream stream, string fileName, CancellationToken ct = default)
     {
         var titleGuess = Path.GetFileNameWithoutExtension(fileName);
 
-        var metadata = new StueckMetadataDto(
-            Titel: titleGuess,
-            Komponist: null,
-            Tonart: null,
-            Taktart: null,
+        var metadata = new PieceMetadataDto(
+            Title: titleGuess,
+            Composer: null,
+            MusicalKey: null,
+            TimeSignature: null,
             Tempo: null
         );
 

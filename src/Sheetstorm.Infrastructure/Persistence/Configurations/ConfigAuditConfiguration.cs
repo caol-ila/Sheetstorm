@@ -10,27 +10,27 @@ public class ConfigAuditConfiguration : IEntityTypeConfiguration<ConfigAudit>
     {
         builder.HasKey(a => a.Id);
 
-        builder.Property(a => a.Ebene)
+        builder.Property(a => a.Level)
             .IsRequired()
             .HasMaxLength(20);
 
-        builder.Property(a => a.Schluessel)
+        builder.Property(a => a.Key)
             .IsRequired()
             .HasMaxLength(200);
 
-        builder.Property(a => a.AlterWert)
+        builder.Property(a => a.OldValue)
             .HasColumnType("jsonb");
 
-        builder.Property(a => a.NeuerWert)
+        builder.Property(a => a.NewValue)
             .HasColumnType("jsonb");
 
-        builder.Property(a => a.Zeitstempel)
+        builder.Property(a => a.Timestamp)
             .IsRequired();
 
-        builder.HasIndex(a => new { a.KapelleId, a.Zeitstempel })
+        builder.HasIndex(a => new { a.BandId, a.Timestamp })
             .IsDescending(false, true);
 
-        builder.HasIndex(a => new { a.MusikerId, a.Zeitstempel })
+        builder.HasIndex(a => new { a.MusicianId, a.Timestamp })
             .IsDescending(false, true);
 
         // No navigation properties — audit is append-only, no cascade deletes

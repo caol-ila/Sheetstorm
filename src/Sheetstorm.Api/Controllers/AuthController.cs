@@ -19,7 +19,7 @@ public class AuthController(IAuthService authService) : ControllerBase
     public async Task<IActionResult> Register([FromBody] RegisterRequest request)
     {
         if (!ModelState.IsValid)
-            return BadRequest(new ErrorResponse("VALIDATION_ERROR", "Ungültige Anfrage."));
+            return BadRequest(new ErrorResponse("VALIDATION_ERROR", "Invalid request."));
 
         var response = await authService.RegisterAsync(request);
         return StatusCode(StatusCodes.Status201Created, response);
@@ -34,7 +34,7 @@ public class AuthController(IAuthService authService) : ControllerBase
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
         if (!ModelState.IsValid)
-            return BadRequest(new ErrorResponse("VALIDATION_ERROR", "E-Mail oder Passwort fehlt."));
+            return BadRequest(new ErrorResponse("VALIDATION_ERROR", "Email or password missing."));
 
         var response = await authService.LoginAsync(request);
         return Ok(response);
@@ -48,7 +48,7 @@ public class AuthController(IAuthService authService) : ControllerBase
     public async Task<IActionResult> Refresh([FromBody] RefreshTokenRequest request)
     {
         if (!ModelState.IsValid)
-            return BadRequest(new ErrorResponse("VALIDATION_ERROR", "Refresh Token fehlt."));
+            return BadRequest(new ErrorResponse("VALIDATION_ERROR", "Refresh token missing."));
 
         var response = await authService.RefreshAsync(request);
         return Ok(response);
@@ -61,7 +61,7 @@ public class AuthController(IAuthService authService) : ControllerBase
     public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request)
     {
         if (!ModelState.IsValid)
-            return BadRequest(new ErrorResponse("VALIDATION_ERROR", "E-Mail fehlt oder ungültig."));
+            return BadRequest(new ErrorResponse("VALIDATION_ERROR", "Email missing or invalid."));
 
         var response = await authService.ForgotPasswordAsync(request);
         return Ok(response);
@@ -74,7 +74,7 @@ public class AuthController(IAuthService authService) : ControllerBase
     public async Task<IActionResult> VerifyEmail([FromBody] VerifyEmailRequest request)
     {
         if (!ModelState.IsValid)
-            return BadRequest(new ErrorResponse("VALIDATION_ERROR", "Token fehlt."));
+            return BadRequest(new ErrorResponse("VALIDATION_ERROR", "Token missing."));
 
         var response = await authService.VerifyEmailAsync(request);
         return Ok(response);
@@ -89,7 +89,7 @@ public class AuthController(IAuthService authService) : ControllerBase
     public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request)
     {
         if (!ModelState.IsValid)
-            return BadRequest(new ErrorResponse("VALIDATION_ERROR", "Token oder Passwort fehlt."));
+            return BadRequest(new ErrorResponse("VALIDATION_ERROR", "Token or password missing."));
 
         var response = await authService.ResetPasswordAsync(request);
         return Ok(response);

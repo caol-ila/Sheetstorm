@@ -27,12 +27,12 @@ public class AuthService(AppDbContext db, IConfiguration configuration, IEmailSe
 
         var emailLower = request.Email.Trim().ToLowerInvariant();
 
-        if (await db.Musiker.AnyAsync(m => m.Email == emailLower))
+        if (await db.Musicians.AnyAsync(m => m.Email == emailLower))
             throw new AuthException("EMAIL_ALREADY_EXISTS", "Diese E-Mail-Adresse ist bereits registriert.", 409);
 
         var verificationToken = GenerateSecureToken("ev_");
 
-        var musiker = new Musiker
+        var Musician = new Musician
         {
             Name = request.DisplayName.Trim(),
             Email = emailLower,
@@ -44,13 +44,13 @@ public class AuthService(AppDbContext db, IConfiguration configuration, IEmailSe
             EmailVerificationTokenExpiresAt = DateTime.UtcNow.AddHours(24)
         };
 
-        db.Musiker.Add(musiker);
+        db.Musicians.Add(Musician);
         await db.SaveChangesAsync();
 
-        await emailService.SendEmailVerificationAsync(musiker.Email, musiker.Name, verificationToken);
+        await emailService.SendEmailVerificationAsync(Musician.Email, Musician.Name, verificationToken);
 
-        var (accessToken, refreshToken) = await CreateTokenPairAsync(musiker);
-        return BuildAuthResponse(musiker, accessToken, refreshToken);
+        var (accessToken, refreshToken) = await CreateTokenPairAsync(Musician);
+        return BuildAuthResponse(Musician, accessToken, refreshToken);
     }
 
     // ─── Login ────────────────────────────────────────────────────────────────
@@ -58,16 +58,16 @@ public class AuthService(AppDbContext db, IConfiguration configuration, IEmailSe
     public async Task<AuthResponse> LoginAsync(LoginRequest request)
     {
         var emailLower = request.Email.Trim().ToLowerInvariant();
-        var musiker = await db.Musiker.FirstOrDefaultAsync(m => m.Email == emailLower);
+        var Musician = await db.Musicians.FirstOrDefaultAsync(m => m.Email == emailLower);
 
-        if (musiker is null || !BCrypt.Net.BCrypt.Verify(request.Password, musiker.PasswordHash))
+        if (Musician is null || !BCrypt.Net.BCrypt.Verify(request.Password, Musician.PasswordHash))
             throw new AuthException("INVALID_CREDENTIALS", "E-Mail oder Passwort ist falsch.", 401);
 
-        if (!musiker.EmailVerified)
+        if (!Musician.EmailVerified)
             throw new AuthException("EMAIL_NOT_VERIFIED", "Bitte bestätige zuerst deine E-Mail-Adresse.", 403);
 
-        var (accessToken, refreshToken) = await CreateTokenPairAsync(musiker);
-        return BuildAuthResponse(musiker, accessToken, refreshToken);
+        var (accessToken, refreshToken) = await CreateTokenPairAsync(Musician);
+        return BuildAuthResponse(Musician, accessToken, refreshToken);
     }
 
     // ─── Refresh ──────────────────────────────────────────────────────────────
@@ -77,7 +77,7 @@ public class AuthService(AppDbContext db, IConfiguration configuration, IEmailSe
         var tokenHash = HashToken(request.RefreshToken);
 
         var existing = await db.RefreshTokens
-            .Include(rt => rt.Musiker)
+            .Include(rt => rt.Musician)
             .FirstOrDefaultAsync(rt => rt.Token == tokenHash);
 
         if (existing is null || existing.IsRevoked || existing.ExpiresAt <= DateTime.UtcNow)
@@ -102,8 +102,8 @@ public class AuthService(AppDbContext db, IConfiguration configuration, IEmailSe
         await db.SaveChangesAsync();
 
         // Issue new token pair in same family
-        var newAccessToken = GenerateJwt(existing.Musiker);
-        var newRefreshToken = await CreateRefreshTokenAsync(existing.Musiker, existing.FamilyId);
+        var newAccessToken = GenerateJwt(existing.Musician);
+        var newRefreshToken = await CreateRefreshTokenAsync(existing.Musician, existing.FamilyId);
 
         return new TokenResponse(newAccessToken, newRefreshToken, "Bearer", AccessTokenExpirySeconds);
     }
@@ -114,20 +114,20 @@ public class AuthService(AppDbContext db, IConfiguration configuration, IEmailSe
     {
         var tokenHash = HashToken(request.Token);
 
-        var musiker = await db.Musiker
+        var Musician = await db.Musicians
             .FirstOrDefaultAsync(m => m.EmailVerificationToken == tokenHash);
 
-        if (musiker is null ||
-            musiker.EmailVerificationTokenExpiresAt is null ||
-            musiker.EmailVerificationTokenExpiresAt <= DateTime.UtcNow)
+        if (Musician is null ||
+            Musician.EmailVerificationTokenExpiresAt is null ||
+            Musician.EmailVerificationTokenExpiresAt <= DateTime.UtcNow)
             throw new AuthException("INVALID_VERIFICATION_TOKEN", "Der Bestätigungslink ist ungültig oder abgelaufen.", 400);
 
-        if (musiker.EmailVerified)
+        if (Musician.EmailVerified)
             return new MessageResponse("E-Mail-Adresse wurde bereits bestätigt.");
 
-        musiker.EmailVerified = true;
-        musiker.EmailVerificationToken = null;
-        musiker.EmailVerificationTokenExpiresAt = null;
+        Musician.EmailVerified = true;
+        Musician.EmailVerificationToken = null;
+        Musician.EmailVerificationTokenExpiresAt = null;
 
         await db.SaveChangesAsync();
 
@@ -139,25 +139,25 @@ public class AuthService(AppDbContext db, IConfiguration configuration, IEmailSe
     public async Task<MessageResponse> ForgotPasswordAsync(ForgotPasswordRequest request)
     {
         var emailLower = request.Email.Trim().ToLowerInvariant();
-        var musiker = await db.Musiker.FirstOrDefaultAsync(m => m.Email == emailLower);
+        var Musician = await db.Musicians.FirstOrDefaultAsync(m => m.Email == emailLower);
 
         // Always return success to prevent user enumeration
-        if (musiker is null)
+        if (Musician is null)
             return new MessageResponse("Wenn diese E-Mail registriert ist, wurde ein Reset-Link gesendet.");
 
         // 60-second cooldown
-        if (musiker.PasswordResetRequestedAt.HasValue &&
-            (DateTime.UtcNow - musiker.PasswordResetRequestedAt.Value).TotalSeconds < ResetCooldownSeconds)
+        if (Musician.PasswordResetRequestedAt.HasValue &&
+            (DateTime.UtcNow - Musician.PasswordResetRequestedAt.Value).TotalSeconds < ResetCooldownSeconds)
             return new MessageResponse("Wenn diese E-Mail registriert ist, wurde ein Reset-Link gesendet.");
 
-        musiker.PasswordResetToken = GenerateSecureToken("reset_");
-        musiker.PasswordResetTokenExpiresAt = DateTime.UtcNow.AddMinutes(ResetTokenExpiryMinutes);
-        musiker.PasswordResetRequestedAt = DateTime.UtcNow;
+        Musician.PasswordResetToken = GenerateSecureToken("reset_");
+        Musician.PasswordResetTokenExpiresAt = DateTime.UtcNow.AddMinutes(ResetTokenExpiryMinutes);
+        Musician.PasswordResetRequestedAt = DateTime.UtcNow;
 
         await db.SaveChangesAsync();
 
         // TODO: Send email via email service (not in scope for this issue)
-        // Email would contain: /api/auth/reset-password?token={musiker.PasswordResetToken}
+        // Email would contain: /api/auth/reset-password?token={Musician.PasswordResetToken}
 
         return new MessageResponse("Wenn diese E-Mail registriert ist, wurde ein Reset-Link gesendet.");
     }
@@ -168,28 +168,28 @@ public class AuthService(AppDbContext db, IConfiguration configuration, IEmailSe
     {
         ValidatePasswordStrength(request.NewPassword);
 
-        var musiker = await db.Musiker.FirstOrDefaultAsync(m => m.PasswordResetToken == request.Token);
+        var Musician = await db.Musicians.FirstOrDefaultAsync(m => m.PasswordResetToken == request.Token);
 
-        if (musiker is null ||
-            musiker.PasswordResetTokenExpiresAt is null ||
-            musiker.PasswordResetTokenExpiresAt <= DateTime.UtcNow)
+        if (Musician is null ||
+            Musician.PasswordResetTokenExpiresAt is null ||
+            Musician.PasswordResetTokenExpiresAt <= DateTime.UtcNow)
             throw new AuthException("INVALID_RESET_TOKEN", "Der Reset-Link ist ungültig oder abgelaufen.", 400);
 
-        musiker.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
-        musiker.PasswordResetToken = null;
-        musiker.PasswordResetTokenExpiresAt = null;
-        musiker.PasswordResetRequestedAt = null;
+        Musician.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+        Musician.PasswordResetToken = null;
+        Musician.PasswordResetTokenExpiresAt = null;
+        Musician.PasswordResetRequestedAt = null;
 
         // Revoke all existing refresh tokens
         var allTokens = await db.RefreshTokens
-            .Where(rt => rt.MusikerId == musiker.Id && !rt.IsRevoked)
+            .Where(rt => rt.MusicianId == Musician.Id && !rt.IsRevoked)
             .ToListAsync();
         foreach (var t in allTokens)
             t.IsRevoked = true;
 
         await db.SaveChangesAsync();
 
-        var (accessToken, refreshToken) = await CreateTokenPairAsync(musiker);
+        var (accessToken, refreshToken) = await CreateTokenPairAsync(Musician);
 
         return new ResetPasswordResponse(
             "Passwort erfolgreich geändert.",
@@ -201,14 +201,14 @@ public class AuthService(AppDbContext db, IConfiguration configuration, IEmailSe
 
     // ─── Private Helpers ──────────────────────────────────────────────────────
 
-    private async Task<(string AccessToken, string RefreshToken)> CreateTokenPairAsync(Musiker musiker)
+    private async Task<(string AccessToken, string RefreshToken)> CreateTokenPairAsync(Musician Musician)
     {
-        var accessToken = GenerateJwt(musiker);
-        var refreshToken = await CreateRefreshTokenAsync(musiker, Guid.NewGuid());
+        var accessToken = GenerateJwt(Musician);
+        var refreshToken = await CreateRefreshTokenAsync(Musician, Guid.NewGuid());
         return (accessToken, refreshToken);
     }
 
-    private string GenerateJwt(Musiker musiker)
+    private string GenerateJwt(Musician Musician)
     {
         var jwtSection = configuration.GetSection("Jwt");
         var key = jwtSection["Key"] ?? throw new InvalidOperationException("JWT Key not configured.");
@@ -217,9 +217,9 @@ public class AuthService(AppDbContext db, IConfiguration configuration, IEmailSe
 
         var claims = new[]
         {
-            new Claim(JwtRegisteredClaimNames.Sub, musiker.Id.ToString()),
-            new Claim(JwtRegisteredClaimNames.Email, musiker.Email),
-            new Claim(JwtRegisteredClaimNames.Name, musiker.Name),
+            new Claim(JwtRegisteredClaimNames.Sub, Musician.Id.ToString()),
+            new Claim(JwtRegisteredClaimNames.Email, Musician.Email),
+            new Claim(JwtRegisteredClaimNames.Name, Musician.Name),
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
 
@@ -236,7 +236,7 @@ public class AuthService(AppDbContext db, IConfiguration configuration, IEmailSe
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
-    private async Task<string> CreateRefreshTokenAsync(Musiker musiker, Guid familyId)
+    private async Task<string> CreateRefreshTokenAsync(Musician Musician, Guid familyId)
     {
         var tokenValue = GenerateSecureToken("rt_");
 
@@ -244,7 +244,7 @@ public class AuthService(AppDbContext db, IConfiguration configuration, IEmailSe
         {
             Token = HashToken(tokenValue),   // store SHA-256 hash, return raw value to client
             FamilyId = familyId,
-            MusikerId = musiker.Id,
+            MusicianId = Musician.Id,
             ExpiresAt = DateTime.UtcNow.AddDays(RefreshTokenExpiryDays)
         };
 
@@ -279,16 +279,16 @@ public class AuthService(AppDbContext db, IConfiguration configuration, IEmailSe
             throw new AuthException("PASSWORD_TOO_WEAK", "Das Passwort muss mindestens eine Zahl oder ein Sonderzeichen enthalten.", 422);
     }
 
-    private static AuthResponse BuildAuthResponse(Musiker musiker, string accessToken, string refreshToken)
+    private static AuthResponse BuildAuthResponse(Musician Musician, string accessToken, string refreshToken)
     {
         var userDto = new UserDto(
-            musiker.Id,
-            musiker.Email,
-            musiker.Name,
-            musiker.Instrument,
-            musiker.OnboardingCompleted,
-            musiker.EmailVerified,
-            musiker.CreatedAt);
+            Musician.Id,
+            Musician.Email,
+            Musician.Name,
+            Musician.Instrument,
+            Musician.OnboardingCompleted,
+            Musician.EmailVerified,
+            Musician.CreatedAt);
 
         return new AuthResponse(userDto, accessToken, refreshToken, "Bearer", AccessTokenExpirySeconds);
     }
