@@ -63,7 +63,7 @@ class SheetMusicPageView extends StatelessWidget {
             _buildStaffLines(textColor),
             const SizedBox(height: 32),
           ],
-          const Spacer(),
+          const SizedBox(height: 16),
           Text(
             'Seite ${page.pageNumber + 1}',
             style: TextStyle(

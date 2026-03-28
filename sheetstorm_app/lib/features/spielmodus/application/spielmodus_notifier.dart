@@ -2,8 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:sheetstorm/features/spielmodus/data/models/spielmodus_models.dart';
+
+part 'spielmodus_notifier.g.dart';
 
 /// Core state for the Spielmodus screen.
 class SpielmodusState {
@@ -108,30 +110,23 @@ class SpielmodusState {
 }
 
 /// Family provider: one notifier instance per notenId.
-final spielmodusNotifierProvider = StateNotifierProvider.autoDispose
-    .family<SpielmodusNotifier, SpielmodusState, String>(
-  (ref, notenId) => SpielmodusNotifier(notenId),
-);
-
-/// Core state management for the Spielmodus — page navigation, overlay, UI lock,
-/// setlist, auto-scroll, zoom memory.
-class SpielmodusNotifier extends StateNotifier<SpielmodusState> {
-  SpielmodusNotifier(this._notenId) : super(const SpielmodusState()) {
-    _loadSheetMusic();
-  }
-
-  final String _notenId;
+@riverpod
+class SpielmodusNotifier extends _$SpielmodusNotifier {
   Timer? _overlayAutoHideTimer;
+  late String _notenId;
 
   @override
-  void dispose() {
-    _overlayAutoHideTimer?.cancel();
-    super.dispose();
+  SpielmodusState build(String notenId) {
+    _notenId = notenId;
+    ref.onDispose(() => _overlayAutoHideTimer?.cancel());
+    Future<void>.microtask(_loadSheetMusic);
+    return const SpielmodusState();
   }
 
   /// Loads sheet music metadata — in production this would come from the API/cache.
   Future<void> _loadSheetMusic() async {
     await Future<void>.delayed(const Duration(milliseconds: 100));
+    if (!ref.mounted) return;
 
     const pageCount = 8;
     final pages = List.generate(
@@ -153,7 +148,6 @@ class SpielmodusNotifier extends StateNotifier<SpielmodusState> {
       const Stimme(id: 'tb', name: 'Tuba'),
     ];
 
-    if (!mounted) return;
     state = state.copyWith(
       pages: pages,
       totalPages: pageCount,
@@ -283,7 +277,7 @@ class SpielmodusNotifier extends StateNotifier<SpielmodusState> {
   void _startOverlayAutoHide() {
     _overlayAutoHideTimer?.cancel();
     _overlayAutoHideTimer = Timer(const Duration(seconds: 4), () {
-      if (mounted && state.overlayVisible) {
+      if (state.overlayVisible) {
         state = state.copyWith(overlayVisible: false);
       }
     });
