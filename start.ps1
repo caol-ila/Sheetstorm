@@ -84,12 +84,23 @@ function Start-Frontend {
 
     Push-Location $FlutterApp
     if ($Web) {
-        Write-Host '    Mode: Chrome (web)'
-        flutter run -d chrome
+        # Find available web browser (Edge fallback if Chrome not installed)
+        $webDevice = 'chrome'
+        $devices = flutter devices --machine 2>$null | ConvertFrom-Json -ErrorAction SilentlyContinue
+        if ($devices) {
+            $hasChrome = $devices | Where-Object { $_.id -eq 'chrome' }
+            if (-not $hasChrome) {
+                $edgeDevice = $devices | Where-Object { $_.id -eq 'edge' }
+                if ($edgeDevice) { $webDevice = 'edge' }
+            }
+        }
+        Write-Host "    Mode: Web ($webDevice)"
+        flutter run -d $webDevice
     } else {
+        # Auto-detect best available device
         Write-Host '    Mode: default device'
-        Write-Host '    Tip: Use -Web flag to run in Chrome'
-        flutter run
+        Write-Host '    Tip: Use -Web flag to run in browser'
+        flutter run -d windows
     }
     Pop-Location
 }
