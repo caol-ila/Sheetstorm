@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:equatable/equatable.dart';
 
@@ -28,6 +28,15 @@ ConfidenceLevel _levelFromConfidence(double confidence) {
   return ConfidenceLevel.unknown;
 }
 
+// ─── Platform-agnostic file data ──────────────────────────────────────────────
+
+/// Holds raw file bytes + name so the import flow works on web and native.
+class PickedFileData {
+  const PickedFileData({required this.name, required this.bytes});
+  final String name;
+  final Uint8List bytes;
+}
+
 // ─── Upload Progress ──────────────────────────────────────────────────────────
 
 class FileUploadProgress extends Equatable {
@@ -41,13 +50,13 @@ class FileUploadProgress extends Equatable {
   });
 
   final String clientId;
-  final File file;
+  final PickedFileData file;
   final double progress;
   final FileUploadStatus status;
   final String? errorMessage;
   final String? fileId;
 
-  String get displayName => file.path.split(Platform.pathSeparator).last;
+  String get displayName => file.name;
 
   FileUploadProgress copyWith({
     double? progress,

@@ -1,5 +1,3 @@
-﻿import 'dart:io';
-
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -77,12 +75,13 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
       allowMultiple: true,
       type: FileType.custom,
       allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'tiff', 'heic', 'heif'],
+      withData: true,
     );
     if (result == null || result.files.isEmpty) return;
 
     final files = result.files
-        .where((f) => f.path != null)
-        .map((f) => File(f.path!))
+        .where((f) => f.bytes != null)
+        .map((f) => PickedFileData(name: f.name, bytes: f.bytes!))
         .toList();
 
     if (!mounted) return;
@@ -94,7 +93,7 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
 
   Future<void> _onCameraPressed() async {
     final picker = ImagePicker();
-    final images = <File>[];
+    final images = <PickedFileData>[];
 
     // Capture multiple pages in a loop
     while (mounted) {
@@ -104,7 +103,8 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
         preferredCameraDevice: CameraDevice.rear,
       );
       if (image == null) break;
-      images.add(File(image.path));
+      final bytes = await image.readAsBytes();
+      images.add(PickedFileData(name: image.name, bytes: bytes));
 
       if (!mounted) break;
       final addMore = await showDialog<bool>(
