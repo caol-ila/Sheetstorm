@@ -33,10 +33,14 @@ class _UiLockOverlayState extends State<UiLockOverlay> {
       _centerTapCount = 0;
     }
     _lastTapTime = now;
-    _centerTapCount++;
+    setState(() {
+      _centerTapCount++;
+    });
 
     if (_centerTapCount >= _requiredTaps) {
-      _centerTapCount = 0;
+      setState(() {
+        _centerTapCount = 0;
+      });
       widget.onUnlockTriggered();
     }
   }

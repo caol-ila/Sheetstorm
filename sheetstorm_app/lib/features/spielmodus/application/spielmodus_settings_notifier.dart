@@ -1,26 +1,20 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sheetstorm/features/spielmodus/data/models/spielmodus_models.dart';
 
-/// Provider for persistent Spielmodus settings (Spec §4, Datenmodell §7.3).
-final spielmodusSettingsNotifierProvider = StateNotifierProvider.autoDispose<
-    SpielmodusSettingsNotifier, SpielmodusEinstellungen>(
-  (ref) => SpielmodusSettingsNotifier(),
-);
+part 'spielmodus_settings_notifier.g.dart';
 
-/// Manages persistent Spielmodus settings.
-///
-/// Settings saved per-user via SharedPreferences.
-/// In production: sync with PUT /api/v1/nutzer/einstellungen/spielmodus
-class SpielmodusSettingsNotifier
-    extends StateNotifier<SpielmodusEinstellungen> {
-  SpielmodusSettingsNotifier() : super(const SpielmodusEinstellungen()) {
-    _loadFromPrefs();
+/// Provider for persistent Spielmodus settings (Spec §4, Datenmodell §7.3).
+@riverpod
+class SpielmodusSettingsNotifier extends _$SpielmodusSettingsNotifier {
+  @override
+  SpielmodusEinstellungen build() {
+    Future<void>.microtask(_loadFromPrefs);
+    return const SpielmodusEinstellungen();
   }
 
   Future<void> _loadFromPrefs() async {
     final prefs = await SharedPreferences.getInstance();
-    if (!mounted) return;
     state = SpielmodusEinstellungen(
       halfPageTurn: prefs.getBool('spielmodus_halfPageTurn') ?? true,
       farbmodus: Farbmodus.values[prefs.getInt('spielmodus_farbmodus') ?? 0],
