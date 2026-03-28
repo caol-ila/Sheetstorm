@@ -21,34 +21,84 @@ function Write-Ok    { param([string]$msg) Write-Host "    OK: $msg" -Foreground
 function Write-Warn  { param([string]$msg) Write-Host "    WARN: $msg" -ForegroundColor Yellow }
 function Write-Fail  { param([string]$msg) Write-Host "    FAIL: $msg" -ForegroundColor Red }
 
-# ── 1. Check prerequisites ──────────────────────────────────────────
+# ── Helper: refresh PATH from registry ──────────────────────────────
+function Refresh-Path {
+    $env:Path = [System.Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' +
+                [System.Environment]::GetEnvironmentVariable('Path', 'User')
+}
+
+# ── Helper: check if winget is available ────────────────────────────
+$HasWinget = [bool](Get-Command winget -ErrorAction SilentlyContinue)
+
+# ── 1. Check & install prerequisites ────────────────────────────────
 Write-Step 'Checking prerequisites'
 
-$missing = @()
-
-# dotnet
+# ── 1a. .NET SDK ────────────────────────────────────────────────────
 if (Get-Command dotnet -ErrorAction SilentlyContinue) {
     $dotnetVersion = (dotnet --version)
     Write-Ok "dotnet $dotnetVersion"
-} else { $missing += 'dotnet (.NET SDK 10+)' }
+} else {
+    Write-Warn '.NET SDK not found — installing'
+    if ($HasWinget) {
+        winget install --id Microsoft.DotNet.SDK.10 -e --accept-source-agreements --accept-package-agreements
+        Refresh-Path
+        if (Get-Command dotnet -ErrorAction SilentlyContinue) {
+            Write-Ok "dotnet $(dotnet --version) installed"
+        } else {
+            Write-Fail '.NET SDK install succeeded but dotnet not found in PATH.'
+            Write-Host '    Close and reopen your terminal, then re-run this script.'
+            exit 1
+        }
+    } else {
+        Write-Fail '.NET SDK is missing and winget is not available.'
+        Write-Host '    Install manually from: https://dotnet.microsoft.com/download'
+        exit 1
+    }
+}
 
-# flutter
+# ── 1b. Flutter SDK (includes Dart) ─────────────────────────────────
 if (Get-Command flutter -ErrorAction SilentlyContinue) {
     $flutterVersion = (flutter --version --machine 2>$null | ConvertFrom-Json).frameworkVersion
     if (-not $flutterVersion) { $flutterVersion = 'unknown' }
     Write-Ok "flutter $flutterVersion"
-} else { $missing += 'flutter (Flutter SDK 3.35+)' }
+} else {
+    Write-Warn 'Flutter SDK not found — installing'
+    if ($HasWinget) {
+        winget install --id Google.Flutter -e --accept-source-agreements --accept-package-agreements
+        Refresh-Path
+        if (Get-Command flutter -ErrorAction SilentlyContinue) {
+            Write-Ok "flutter installed"
+        } else {
+            Write-Fail 'Flutter install succeeded but flutter not found in PATH.'
+            Write-Host '    Close and reopen your terminal, then re-run this script.'
+            exit 1
+        }
+    } else {
+        Write-Fail 'Flutter SDK is missing and winget is not available.'
+        Write-Host '    Install manually from: https://docs.flutter.dev/get-started/install/windows/mobile'
+        exit 1
+    }
+}
 
-# dart
+# Accept Android licenses non-interactively (ignore errors if no Android SDK)
+try { flutter doctor --android-licenses 2>$null | Out-Null } catch { }
+
+# Dart ships with Flutter — verify it's on PATH
 if (Get-Command dart -ErrorAction SilentlyContinue) {
     $dartVersion = (dart --version 2>&1) -replace '.*version:\s*', '' -replace '\s.*', ''
     Write-Ok "dart $dartVersion"
-} else { $missing += 'dart (comes with Flutter SDK)' }
+} else {
+    Write-Warn 'dart not on PATH — it should come with Flutter. You may need to restart your terminal.'
+}
 
-if ($missing.Count -gt 0) {
-    Write-Fail "Missing prerequisites: $($missing -join ', ')"
-    Write-Host '    Install them and re-run this script.'
-    exit 1
+# ── 1c. PostgreSQL (optional — do NOT auto-install) ─────────────────
+$PgAvailable = $false
+if (Get-Command psql -ErrorAction SilentlyContinue) {
+    Write-Ok 'PostgreSQL client found'
+    $PgAvailable = $true
+} else {
+    Write-Warn 'PostgreSQL not found — using in-memory database for dev.'
+    Write-Host '    Install PostgreSQL for production-like testing.'
 }
 
 # ── 2. Restore .NET dependencies ────────────────────────────────────
@@ -69,12 +119,22 @@ if (-not (Test-Path $toolManifest)) {
 
 $efInstalled = dotnet tool list --local 2>$null | Select-String 'dotnet-ef'
 if (-not $efInstalled) {
-    Write-Warn 'dotnet-ef not installed locally — installing'
+    # Try local install first, fall back to global
+    Write-Warn 'dotnet-ef not installed — installing'
     Push-Location $RepoRoot
-    dotnet tool install dotnet-ef --local
+    try {
+        dotnet tool install dotnet-ef --local
+        Write-Ok 'dotnet-ef installed (local tool)'
+    } catch {
+        Write-Warn 'Local install failed — trying global install'
+        dotnet tool install --global dotnet-ef
+        Refresh-Path
+        Write-Ok 'dotnet-ef installed (global tool)'
+    }
     Pop-Location
+} else {
+    Write-Ok 'dotnet-ef is available'
 }
-Write-Ok 'dotnet-ef is available'
 
 # ── 4. EF Core migrations ───────────────────────────────────────────
 Write-Step 'Checking EF Core migrations'
@@ -97,18 +157,24 @@ if (-not $hasMigrations) {
 
 # ── 5. Apply migrations (requires PostgreSQL running) ────────────────
 Write-Step 'Applying EF Core migrations'
-Write-Host '    (Requires PostgreSQL running on localhost:5432)'
-try {
-    Push-Location $RepoRoot
-    dotnet ef database update `
-        --project $InfraProject `
-        --startup-project $ApiProject
-    Pop-Location
-    Write-Ok 'Database updated'
-} catch {
-    Write-Warn "Could not apply migrations: $_"
-    Write-Host '    Make sure PostgreSQL is running and connection string is correct.'
-    Write-Host '    You can apply later with: dotnet ef database update --project src/Sheetstorm.Infrastructure --startup-project src/Sheetstorm.Api'
+if (-not $PgAvailable) {
+    Write-Warn 'Skipping database migration — PostgreSQL not detected.'
+    Write-Host '    The app will use an in-memory database for development.'
+    Write-Host '    To apply migrations later:  dotnet ef database update --project src/Sheetstorm.Infrastructure --startup-project src/Sheetstorm.Api'
+} else {
+    Write-Host '    (Requires PostgreSQL running on localhost:5432)'
+    try {
+        Push-Location $RepoRoot
+        dotnet ef database update `
+            --project $InfraProject `
+            --startup-project $ApiProject
+        Pop-Location
+        Write-Ok 'Database updated'
+    } catch {
+        Write-Warn "Could not apply migrations: $_"
+        Write-Host '    Make sure PostgreSQL is running and connection string is correct.'
+        Write-Host '    You can apply later with: dotnet ef database update --project src/Sheetstorm.Infrastructure --startup-project src/Sheetstorm.Api'
+    }
 }
 
 # ── 6. Enrich appsettings.Development.json ───────────────────────────
@@ -166,9 +232,11 @@ Write-Host '  Sheetstorm setup complete!' -ForegroundColor Green
 Write-Host '========================================' -ForegroundColor Green
 Write-Host ''
 Write-Host 'Next steps:'
-Write-Host '  1. Make sure PostgreSQL is running (localhost:5432)'
-Write-Host '  2. Make sure MinIO is running (localhost:9000) if using storage features'
-Write-Host '  3. Run: .\start.ps1              — start backend + frontend'
-Write-Host '  4. Run: .\start.ps1 -BackendOnly — start backend only'
-Write-Host '  5. Run: .\start.ps1 -FrontendOnly — start Flutter only'
+if (-not $PgAvailable) {
+    Write-Host '  NOTE: PostgreSQL was not found. The app can run with an in-memory database.'
+    Write-Host '        Install PostgreSQL for production-like testing.'
+}
+Write-Host '  1. Run: .\start.ps1              — start backend + frontend'
+Write-Host '  2. Run: .\start.ps1 -BackendOnly — start backend only'
+Write-Host '  3. Run: .\start.ps1 -FrontendOnly — start Flutter only'
 Write-Host ''

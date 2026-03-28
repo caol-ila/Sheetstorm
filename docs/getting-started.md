@@ -4,14 +4,18 @@ Quick-start guide for developers joining the Sheetstorm project.
 
 ## Prerequisites
 
-| Tool | Version | Install |
-|------|---------|---------|
-| .NET SDK | 10+ | [dot.net/download](https://dot.net/download) |
-| Flutter SDK | 3.35+ | [flutter.dev/get-started](https://flutter.dev/docs/get-started/install) |
-| Dart | (bundled with Flutter) | — |
-| PostgreSQL | 18+ | [postgresql.org/download](https://www.postgresql.org/download/) |
-| PowerShell | 7+ | [github.com/PowerShell/PowerShell](https://github.com/PowerShell/PowerShell) |
-| Git | 2.40+ | [git-scm.com](https://git-scm.com/) |
+| Tool | Version | Auto-installed by `setup.ps1`? |
+|------|---------|-------------------------------|
+| PowerShell | 7+ | ❌ (must be pre-installed) |
+| Git | 2.40+ | ❌ (must be pre-installed) |
+| .NET SDK | 10+ | ✅ via `winget` |
+| Flutter SDK | 3.35+ | ✅ via `winget` |
+| Dart | (bundled with Flutter) | ✅ (comes with Flutter) |
+| PostgreSQL | 18+ | ❌ optional — app uses in-memory DB if missing |
+
+> **Note:** `setup.ps1` will automatically install missing .NET and Flutter SDKs using
+> `winget` (the Windows Package Manager). If `winget` is not available, the script prints
+> download URLs so you can install manually.
 
 **Optional** (for storage features):
 - MinIO — S3-compatible object storage for local dev (`localhost:9000`)
@@ -28,12 +32,17 @@ cd sheetstorm
 ```
 
 The setup script will:
-- Verify that `dotnet`, `flutter`, and `dart` are installed
+- **Auto-install** `.NET SDK` and `Flutter SDK` via `winget` if they are missing
+- Detect `dart` (ships with Flutter) and `dotnet-ef` and install if needed
+- Detect PostgreSQL — if missing, the app uses an in-memory database for development
 - Restore .NET NuGet packages
 - Install `dotnet-ef` as a local tool (if not present)
-- Apply EF Core migrations to the PostgreSQL database
+- Apply EF Core migrations to the PostgreSQL database (if available)
 - Run `flutter pub get` for the Flutter app
 - Run `build_runner` for code generation (Freezed, Riverpod, Drift, JSON serialization)
+
+> The script is idempotent — safe to re-run at any time. It will not reinstall tools that
+> are already present.
 
 ### Database setup
 
