@@ -323,6 +323,291 @@ Parallel creation of 9 comprehensive MS2 feature UX specifications:
 - **Accessibility:** 44×64px touch targets, ARIA labels, screen reader support, keyboard navigation
 - **Responsive:** Phone/Tablet/Desktop layouts with grid systems
 - **Permissions:** Admin/Dirigent full control, Notenwart CRUD, Registerführer limited, Musiker read-only
+
+---
+
+## MS2 Frontend Implementation Decisions (2026-04-15)
+
+### Vision: Setlist + Song Broadcast Architecture
+
+**Date:** 2026-04-15  
+**By:** Vision (Principal Frontend Engineer)  
+**Status:** Implemented (21 files)
+
+#### 1. SignalR via WebSocket + JSON Protocol (Manual Implementation)
+**Decision:** No Dart SignalR package available → implemented SignalR JSON protocol manually over `web_socket_channel:^3.0.2`
+- Record separator (0x1E) delimited JSON messages
+- Handles invocation (type 1), ping/pong (type 6), close (type 7)
+- Exponential backoff reconnect (2s → 32s, 5 attempts max)
+
+**Impact:** Backend team aware that client implements raw SignalR JSON. Future Dart SignalR package adoption affects only `BroadcastSignalRService`.
+
+#### 2. Feature Routes in routes.dart (Not app_router.dart)
+**Decision:** Each feature exports GoRoute definitions in `routes.dart`. NOT integrated into `app_router.dart` per charter.
+- Avoids merge conflicts
+- Requires manual integration (separate PR)
+- Placeholder replacement for setlist routes in shell branch
+
+#### 3. German Identifier Normalization
+**Decision:** API spec uses `ü` in JSON field names (e.g., `aktivesStückId`). Dart source uses ASCII equivalents (`aktiveStueckId`) with JSON key mapping.
+**Reason:** Avoid encoding issues in Dart source files while matching API contract.
+
+#### 4. Player State Machine
+**Decision:** SetlistPlayer uses simple state machine: `idle → loading → playing ↔ paused → finished`
+- Auto-advance timer-based (30s default)
+- Real timing data from API overrides default
+
+---
+
+### Romanoff: Events/Calendar Feature Module
+
+**Date:** 2026-04-15  
+**By:** Romanoff (Frontend Developer)  
+**Status:** Implemented (13 files)
+
+#### 1. CalendarEntry vs Event Model Separation
+**Decision:** Separate `CalendarEntry` model for calendar views (minimal data) vs. full `Event` model for detail screens.
+**Rationale:**
+- Calendar views need only title, type, date, time, RSVP status
+- Event details include description, setlist, statistics, meeting point, dress code
+- Backend can optimize `/kalender` endpoint separately from `/termine`
+- Reduces network traffic and rendering time
+
+#### 2. RsvpStatus & EventType as Enums with Backend String Mapping
+**Decision:** Enums with `toJson()`/`fromJson()` methods mapping to German backend strings ("Probe", "Zugesagt").
+**Reason:** Backend sends German strings, Dart enums default to lowercase. Custom label property controls JSON serialization.
+
+#### 3. Riverpod Family for EventDetailNotifier
+**Decision:** `EventDetailNotifier` as Riverpod family (parameter: `eventId`).
+**Reason:** Each event has own state. Fine-grained caching. Only affected event reloads on RSVP change. Matches band_notifier pattern.
+
+#### 4. Material 3 SegmentedButton for View Switcher
+**Decision:** `SegmentedButton` instead of TabBar for Month/Week/List switching.
+**Reason:** No AppBar needed. Material 3 consistent. Better for mode selection (not hierarchical navigation).
+
+#### 5. RSVP Cancellation Dialog with Optional Reason
+**Decision:** Cancel opens dialog with optional reason text field.
+**Reason:** Progressive disclosure. Prevents accidental rejection. Follows UX spec.
+
+#### 6. CalendarMonthView with Colored Dots
+**Decision:** Month grid shows only colored dots (max 3) per day, not event titles.
+**Reason:** Space constraint on phone (40-50px per cell). UX spec requires dots. Tap day for full list.
+
+#### 7. Create/Edit Flows Deferred
+**Decision:** Create/Edit events NOT implemented. FAB shows placeholder snackbar.
+**Reason:** Focus on calendar views + detail + RSVP. Complex form deferred. Backend contract defined.
+
+---
+
+### Romanoff: GEMA Compliance + Media Links Implementation
+
+**Date:** 2026-04-15  
+**By:** Romanoff (Frontend Developer)  
+**Status:** Implemented (22 files)
+
+#### 1. Manual JSON Serialization (No json_serializable)
+**Decision:** Hand-written `fromJson`/`toJson` methods for all models.
+**Rationale:** Consistent with auth_models pattern. Avoids build_runner churn. Models simple without complex nesting.
+
+#### 2. Media Links as Widgets, Not Standalone Routes
+**Decision:** Media Links are reusable widgets (`MediaLinkList`, `MediaLinkEditor`) integrated into piece detail views.
+**Rationale:** Per UX spec, links primarily in piece detail/setlist views. Reduces navigation complexity. Contextual to specific pieces. Empty `routes.dart` as placeholder.
+
+#### 3. Stub .g.dart Files for Generated Providers
+**Decision:** Create stub files for Riverpod-generated providers until `build_runner` execution.
+**Rationale:** Flutter SDK unavailable on build agent. Stubs allow compilation. Real generation via `flutter pub run build_runner build`.
+
+#### 4. url_launcher for Deep Links
+**Decision:** Use `url_launcher:6.3.1` with `LaunchMode.externalApplication` for YouTube/Spotify links.
+**Rationale:** Cross-platform solution. Auto-selects app if installed, fallback to browser. No platform-specific code needed.
+
+#### 5. GEMA Report Status = Edit Permission Source
+**Decision:** Report status (`Entwurf` vs. `Exportiert`) is single source of truth for edit permissions.
+**Rationale:** Exported reports immutable (audit requirement). UI enforces via status checks. Backend must also enforce.
+
+#### 6. Family Notifiers for Parametrized State
+**Decision:** Use `@riverpod` family notifiers:
+- `GemaReportDetailNotifier(kapelleId, reportId)`
+- `MediaLinkNotifier(kapelleId, stueckId)`
+**Rationale:** Fine-grained cache invalidation. Best practice for parametrized Riverpod 3.x state.
+
+---
+
+### Romanoff: Communication Module (Posts + Polls)
+
+**Date:** 2026-04-15  
+**By:** Romanoff (Frontend Developer)  
+**Status:** Implemented (23 files)
+
+#### 1. Shared Author Model via Duplication
+**Decision:** Duplicate `Author` class in `post_models.dart` and `poll_models.dart`.
+**Rationale:**
+- No shared/models/ directory in current architecture
+- Avoids circular dependencies
+- Low maintenance cost for stable 4-field model
+- Acceptable DRY violation for feature scoping
+
+#### 2. Reaction Storage as Map<ReactionType, Reaction>
+**Decision:** Use `Map<ReactionType, Reaction>` instead of `List<Reaction>`.
+**Rationale:**
+- O(1) lookup for toggle logic
+- Matches backend JSON structure (object keys)
+- Type-safe enum keys
+- Efficient updates without list scanning
+
+#### 3. No Build Runner Generated Code (Stub .g.dart Files)
+**Decision:** Create `.g.dart` stub files instead of running build_runner during implementation.
+**Rationale:** Flutter SDK unavailable. Stubs enable compilation. Real providers generated post-install.
+
+#### 4. timeago Package for Relative Time
+**Decision:** Add `timeago:^3.7.0` for "vor 5 Minuten" formatting.
+**Rationale:** German locale support. Automatic unit selection. Standard pattern. Zero maintenance.
+
+#### 5. Board Screen = Unified Feed (Posts + Polls)
+**Decision:** Integrate polls into `board_screen.dart` via tabs (Alle/Pinned/Umfragen).
+**Rationale:** UX spec alignment. Single navigation destination. Simpler routing. Distinct card designs make mixing intuitive.
+
+#### 6. Routes in routes.dart (Not app_router.dart)
+**Decision:** Create `routes.dart` with GoRoute definitions. DO NOT modify app_router.dart.
+**Rationale:** Charter constraint. Clean separation. Easy integration. Future-proof for routing changes.
+
+#### 7. Optimistic UI for Reactions & Comments
+**Decision:** Update state immediately, rollback on error.
+**Rationale:** Perceived performance. UX best practice (Twitter/Facebook pattern). Low-risk operations. Riverpod AsyncValue auto-rollback.
+
+---
+
+### Romanoff: Attendance + Substitute + Shifts Implementation
+
+**Date:** 2026-04-15  
+**By:** Romanoff (Frontend Developer)  
+**Status:** Implemented (33 files)
+
+#### 1. Standard Feature Structure
+**Decision:** All 3 modules (Attendance, Substitute, Shifts) follow identical folder structure:
+```
+features/{feature_name}/
+├── data/models/       # Manual JSON serialization
+├── data/services/     # API service layers
+├── application/       # Riverpod notifiers
+├── presentation/
+│   ├── screens/
+│   └── widgets/
+└── routes.dart        # NOT in app_router.dart
+```
+**Reason:** Consistency, predictable navigation, separation of concerns.
+
+#### 2. Riverpod 3.x Codegen with @riverpod Annotations
+**Decision:** All notifiers use `@riverpod` codegen with part directives.
+- Type-safe code generation
+- Auto-dispose by default (keepAlive: true for persistent state)
+- Family notifiers for parametrized state
+- Consistent with band_notifier pattern
+
+#### 3. Manual JSON Serialization
+**Decision:** Hand-written fromJson/toJson (no build_runner generation yet).
+**Reason:** Matches auth_models pattern. Avoids build_runner churn. Simple models don't need generated serialization.
+
+#### 4. Color-Coded Status Indicators
+**Decision:** Use consistent color scheme for percentage-based statistics:
+- **Green (AppColors.success):** >80%
+- **Yellow/Orange (AppColors.warning):** 60-80%
+- **Red (AppColors.error):** <60%
+**Reason:** Accessibility (color + icon). Consistent with design tokens. Matches UX spec.
+
+#### 5. Routes as Separate Files (Not app_router.dart)
+**Decision:** Each feature has `routes.dart`. DO NOT modify app_router.dart.
+**Reason:** Avoids merge conflicts. Feature routes independent. Integration in separate PR.
+
+#### 6. Hardcoded German Strings (No i18n in MS2)
+**Decision:** All UI strings hardcoded in German.
+**Reason:** German-first implementation. i18n framework deferred to MS3. Faster development.
+
+#### 7. QR Code & Charts as Placeholders
+**Decision:** QR generation (`qr_flutter`) and charts (`fl_chart`) implemented as custom widgets with TODOs.
+**Reason:** Avoid dependencies before Flutter install. Structure ready. Packages added later.
+
+#### Attendance Feature Specifics
+- **Models:** 7 (AttendanceStats, MemberAttendance, RegisterAttendance, AttendanceTrend, TrendDataPoint, ExportData)
+- **Screens:** 1 dashboard with 3 tabs (Musiker, Register, Trends)
+- **Widgets:** 5 (Chart, StatCard, RegisterBreakdown, ExportButton, TrendGraph)
+- **API:** 5 endpoints (GET stats, register, trends; POST/GET export)
+- **State:** AttendanceNotifier with date range + event type filters
+
+#### Substitute Feature Specifics
+- **Models:** 3 (SubstituteAccess, SubstituteLink, SubstituteStatus enum)
+- **Screens:** 2 (Management list, Link display with QR)
+- **Widgets:** 3 (AccessLinkCard, QRCodeGenerator, StatusBadge)
+- **API:** 5 endpoints (CRUD + extend)
+- **State:** SubstituteListNotifier with active/expired filtering
+
+#### Shift Planning Feature Specifics
+- **Models:** 4 (ShiftPlan, Shift, ShiftAssignment, ShiftStatus enum)
+- **Screens:** 2 (Plan overview, Shift detail)
+- **Widgets:** 3 (ShiftSlot, ShiftAssignmentCard, OpenShiftsBadge)
+- **API:** 8 endpoints (Plans/Shifts CRUD, assignments)
+- **State:** ShiftPlanListNotifier, ShiftPlanNotifier family, myShifts, openShifts providers
+
+#### Code Style Conventions
+- **Imports:** Alphabetical (flutter → riverpod → sheetstorm → features → shared)
+- **const constructors** where possible
+- **Null-safety:** required without `?`, optional with `?`
+- **Provider naming:** `{feature}ServiceProvider`, `{feature}NotifierProvider`
+
+#### UI/UX Standards
+- Material 3 design
+- AppTokens spacing (xs/sm/md/lg/xl)
+- AppColors theme colors
+- Touch targets: min 44px
+- RefreshIndicator on all list screens
+- Empty states with helpful messages
+
+#### Error Handling Pattern
+- Try-catch in notifiers
+- AsyncValue.guard() for mutations
+- Return bool for success/failure
+- SnackBar feedback in UI
+
+---
+
+## Shared MS2 Frontend Decisions
+
+### Dependency Additions
+```yaml
+web_socket_channel: ^3.0.2        # SignalR WebSocket protocol
+url_launcher: ^6.3.1              # Deep linking for media
+timeago: ^3.7.0                   # German relative time formatting
+```
+
+**Placeholder Dependencies (post-Flutter install):**
+- `qr_flutter` — QR code generation
+- `fl_chart` or `syncfusion_flutter_charts` — Charts
+- `share_plus` — Link sharing
+
+### Common Patterns Across All Modules
+1. **Clean Architecture:** data/application/presentation separation
+2. **Riverpod 3.x:** Family notifiers, auto-dispose, codegen
+3. **Manual JSON:** No json_serializable (avoids build_runner churn)
+4. **Material 3:** Consistent design across all features
+5. **Accessibility:** 44px touch targets, color + icon indicators
+6. **German-First:** Hardcoded strings (i18n deferred to MS3)
+7. **Routes.dart:** Feature routes NOT integrated into app_router.dart
+
+### Post-Implementation Tasks
+1. **Route Integration:** Wire feature routes into app_router.dart (requires Lead approval)
+2. **build_runner:** Run after Flutter SDK installed
+3. **Add Placeholder Dependencies:** qr_flutter, fl_chart, share_plus
+4. **Create Post Screen:** Higher priority than polls
+5. **Backend Validation:** Ensure endpoint contracts match specs
+6. **Infinite Scroll:** Implement once backend supports pagination
+7. **Unit & Widget Tests:** For all notifiers and key screens
+
+### Key Learnings for Team
+- SignalR manual implementation enables flexibility; upgrade path clear if Dart package becomes available
+- Family notifiers essential for fine-grained state management in multi-list applications
+- Separate CalendarEntry vs Event models optimize network traffic and rendering
+- Optimistic UI patterns (reactions/comments) improve perceived performance significantly
+- Color-coded status (with icon fallback) maintains accessibility while improving visual feedback
 - **Real-time:** SignalR integration for Broadcast, status transparency
 - **AI Integration:** GEMA work-number search, media-link suggestions (Azure OpenAI)
 

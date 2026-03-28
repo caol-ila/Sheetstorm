@@ -10,6 +10,109 @@
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
+## 2026-04-15 — Complete MS2 Frontend Implementation Summary (5 Agent Instances)
+
+**Overall Context:**
+In parallel orchestration, Romanoff implemented **5 separate feature modules** (Eventkalender, GEMA, Media Links, Kommunikation, and the 3 documented below). Vision independently implemented Setlist + Broadcast (2 modules). All decisions consolidated in `.squad/decisions.md` (MS2 Frontend Decisions section).
+
+**Orchestration Logs:**
+- `.squad/orchestration-log/2026-04-15T0017Z-romanoff-events-calendar.md` — Events/Konzertplanung
+- `.squad/orchestration-log/2026-04-15T0024Z-romanoff-gema-media.md` — GEMA + Media Links  
+- `.squad/orchestration-log/2026-04-15T0031Z-romanoff-communication.md` — Kommunikation (Posts + Polls)
+- `.squad/orchestration-log/2026-04-15T0040Z-romanoff-attendance-subs-shifts.md` — Anwesenheit, Aushilfen, Schichtplanung
+
+---
+
+### Events/Konzertplanung Feature (`features/events/`)
+
+**Models:** `Event`, `CalendarEntry`, `RsvpStatus`, `EventType` (Probe/Konzert/Sonstiges) enums with German label mapping
+
+**Key Decisions:**
+1. **CalendarEntry vs Event separation** — Calendar views get minimal data (`CalendarEntry`), detail screens get full `Event` model. Optimizes `/kalender` vs `/termine` API endpoints.
+2. **Riverpod Family for EventDetailNotifier** — Scoped by `eventId`. Fine-grained state caching. Auto-invalidation on RSVP change (pattern from band_notifier).
+3. **SegmentedButton for view switcher** — Month/Week/List modes (not TabBar). No AppBar needed, matches Material 3 mode selection patterns.
+4. **RSVP Dialog with optional reason** — Progressive disclosure for cancellation reason. Prevents accidental rejections. Follows UX spec.
+5. **CalendarMonthView with colored dots** — Space-constrained phone layouts. Tap day for full event list. Dots color-coded by event type.
+
+**Architecture:** Same as other modules (Clean Architecture, Riverpod 3.x, Material 3, German strings)  
+**Files:** 13 files (models, services, notifiers, 2 screens, 3+ widgets, routes.dart)  
+**Status:** Routes NOT integrated into app_router.dart (separate task per charter)
+
+---
+
+### GEMA Compliance + Media Links Features
+
+**GEMA Compliance (`features/gema/`)**
+
+**Models:** `GemaReport`, `GemaEntry`, `GemaReportStatus` (Entwurf/Exportiert), `ExportFormat`
+
+**Key Decisions:**
+1. **Manual JSON serialization** — No json_serializable (consistent with auth_models pattern). Models simple, avoids build_runner churn.
+2. **Report status = edit permission source** — `status == Entwurf` controls UI edit capabilities. Exported reports immutable (audit requirement). Every edit widget checks status.
+3. **Family Notifiers** — `GemaReportDetailNotifier(kapelleId, reportId)`. Fine-grained cache. Separate persistent list notifier from transient detail.
+
+**Media Links (`features/media/`)**
+
+**Models:** `MediaLink`, `MediaLinkType` (YouTube/Spotify/SoundCloud/Other)
+
+**Key Decisions:**
+1. **Widgets, not routes** — `MediaLinkList` and `MediaLinkEditor` are reusable widgets integrated into piece detail + setlist views. NOT standalone screens. Per UX spec, links are contextual.
+2. **url_launcher for deep linking** — `url_launcher:6.3.1` with `LaunchMode.externalApplication`. Auto-selects app if installed (youtube://, spotify://), fallback to browser. Cross-platform, no platform-specific code.
+3. **Stub routes.dart** — Empty placeholder (media links are widget-based, not screen-based). Required per charter structure.
+
+**Architecture:** Same Clean Architecture + Riverpod 3.x  
+**Files:** 22 files combined (models, services, notifiers, screens for GEMA, widgets for media, routes.dart stubs)  
+**Dependencies:** Added `url_launcher: ^6.3.1` to pubspec.yaml
+
+---
+
+### Kommunikation Feature (Posts + Polls) (`features/communication/`)
+
+**Models:** `Post`, `Comment`, `Poll`, `PollOption`, `Author` (duplicated in post_models + poll_models), `ReactionType` enum
+
+**Key Decisions:**
+1. **Shared Author model via duplication** — Separate `Author` in post_models.dart + poll_models.dart. No shared/models/ directory in current architecture. Avoids circular imports. Acceptable DRY for stable 4-field model.
+2. **Reaction storage as Map<ReactionType, Reaction>** — O(1) lookup for toggle logic (`reactions[type]?.hasReacted ?? false`). Matches backend JSON structure (object keys). Type-safe enum keys.
+3. **Unified Board screen with tabs** — Posts + Polls in `board_screen.dart` (Alle/Pinned/Umfragen tabs). UX spec alignment. Single navigation destination. Distinct card designs make mixing intuitive. ~300 LOC acceptable for main feature screen.
+4. **Optimistic UI for reactions + comments** — Instant update, rollback on error. Perceived performance (no spinner). UX best practice (Twitter/Facebook). Riverpod AsyncValue auto-rollback on failure.
+5. **timeago package for relative time** — Added `timeago: ^3.7.0`. German locale support (`timeago.setLocaleMessages('de', timeago.DeMessages())`). Auto unit selection (seconds → minutes → hours → days). Standard pattern, zero maintenance.
+
+**Architecture:** Same Clean Architecture + Riverpod 3.x, Material 3  
+**Files:** 23 files (models, services, notifiers, 4 screens, 8 widgets, routes.dart stubs)  
+**Dependencies:** Added `timeago: ^3.7.0` to pubspec.yaml
+
+---
+
+### Konsolidierte Cross-Feature Entscheidungen
+
+**Shared Patterns Across All 5 Modules (Romanoff):**
+
+1. **Feature Structure:** All follow identical `features/{name}/` → `data/models/` + `data/services/` + `application/` (notifiers) + `presentation/` (screens + widgets) + `routes.dart`
+2. **State Management:** Riverpod 3.x with `@riverpod` codegen. Family notifiers for parametrized state. `keepAlive: true` for persistent, auto-dispose for transient.
+3. **JSON Serialization:** Hand-written fromJson/toJson (no build_runner generation). Manual control over camelCase vs snake_case mapping.
+4. **Routes:** Each feature's `routes.dart` is standalone. DO NOT modify app_router.dart (per charter). Integration in separate PR.
+5. **German Strings:** All UI hardcoded in German (no i18n in MS2). i18n framework deferred to MS3.
+6. **UI/UX:** Material 3 design. AppTokens spacing (xs/sm/md/lg/xl). AppColors theme. Touch targets min 44px. RefreshIndicator on list screens.
+7. **Error Handling:** Try-catch in notifiers. AsyncValue.guard() for mutations. Boolean return for success/failure. SnackBar feedback.
+8. **Code Style:** Alphabetical imports (flutter → riverpod → sheetstorm → features). const constructors. Null-safety (required without `?`, optional with `?`). Provider naming: `{feature}ServiceProvider`, `{feature}NotifierProvider`.
+
+**Stub .g.dart Files:**
+- Created for all Riverpod-generated providers (Flutter SDK unavailable on build agent)
+- Real generation: `flutter pub run build_runner build --delete-conflicting-outputs` (post-Flutter install)
+- Allows code compilation and review before Flutter toolchain available
+
+**Dependencies Added:**
+- `web_socket_channel: ^3.0.2` (Vision: SignalR WebSocket)
+- `url_launcher: ^6.3.1` (Media Links deep linking)
+- `timeago: ^3.7.0` (Communication: relative time)
+
+**Placeholder Dependencies (ready post-Flutter install):**
+- `qr_flutter` — QR code generation (Substitute)
+- `fl_chart` or `syncfusion_flutter_charts` — Charts (Attendance)
+- `share_plus` — Link sharing
+
+---
+
 ## 2026-04-15 — 3 Flutter Feature Modules: Anwesenheit, Aushilfen, Schichtplanung
 
 **Implemented:**

@@ -10,6 +10,32 @@
 
 <!-- Append new learnings below. -->
 
+### 2026-04-15: MS2 Frontend Orchestration Summary — Setlist + Song Broadcast + 7 Romanoff Modules
+
+**Overall Context:**
+Parallel orchestration completed. Vision implemented 2 modules (Setlist + Song Broadcast). Romanoff completed 5 separate feature modules (Events, GEMA, Media Links, Communication, Attendance+Substitute+Shifts). Total: 9 modules, 112 files, ~50 minutes wall-clock time.
+
+**Cross-Agent Decisions:** All architecture patterns, dependencies, and design decisions consolidated in `.squad/decisions.md` under "MS2 Frontend Implementation Decisions" section.
+
+**Related Orchestration Logs:**
+- `.squad/orchestration-log/2026-04-15T0000Z-vision-setlist-broadcast.md` — This agent's output
+- `.squad/orchestration-log/2026-04-15T0017Z-romanoff-events-calendar.md`
+- `.squad/orchestration-log/2026-04-15T0024Z-romanoff-gema-media.md`
+- `.squad/orchestration-log/2026-04-15T0031Z-romanoff-communication.md`
+- `.squad/orchestration-log/2026-04-15T0040Z-romanoff-attendance-subs-shifts.md`
+
+**Session Log:** `.squad/log/2026-04-15T0040Z-ms2-frontend-implementation.md` — Full summary of all 9 modules, dependencies, next steps.
+
+**Key Shared Learnings:**
+1. **SignalR Manual Implementation (Vision):** Enables flexibility and clear upgrade path. If Dart SignalR package becomes available, only `BroadcastSignalRService` changes.
+2. **Family Notifiers Essential:** Fine-grained state management crucial for multi-list applications. CalendarEntry + Event separation optimizes network traffic.
+3. **Routes.dart Pattern:** Modular, conflict-free. Requires manual integration in app_router.dart (separate PR task).
+4. **Stub .g.dart Files:** Successful compilation without build_runner. Real generation documented for post-Flutter-install.
+5. **Optimistic UI Patterns:** Reactions/comments with rollback significantly improve perceived performance (no spinners).
+6. **Color + Icon Accessibility:** Status indicators (green/yellow/red) with icons maintain accessibility while providing visual feedback.
+
+---
+
 ### 2026-03-28: Setlist + Song Broadcast Feature Modules (MS2)
 
 **Architecture Decisions:**

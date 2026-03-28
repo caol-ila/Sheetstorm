@@ -2,12 +2,21 @@ using Amazon.S3;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Sheetstorm.Infrastructure.Attendance;
 using Sheetstorm.Infrastructure.Auth;
+using Sheetstorm.Infrastructure.BandManagement;
+using Sheetstorm.Infrastructure.Communication;
 using Sheetstorm.Infrastructure.Config;
 using Sheetstorm.Infrastructure.Email;
+using Sheetstorm.Infrastructure.Events;
+using Sheetstorm.Infrastructure.Gema;
 using Sheetstorm.Infrastructure.Import;
-using Sheetstorm.Infrastructure.BandManagement;
+using Sheetstorm.Infrastructure.MediaLinks;
 using Sheetstorm.Infrastructure.Persistence;
+using Sheetstorm.Infrastructure.Polls;
+using Sheetstorm.Infrastructure.Setlists;
+using Sheetstorm.Infrastructure.Shifts;
+using Sheetstorm.Infrastructure.Substitutes;
 using Sheetstorm.Infrastructure.Voices;
 
 namespace Sheetstorm.Infrastructure;
@@ -38,6 +47,15 @@ public static class DependencyInjection
         services.AddScoped<IBandService, BandService>();
         services.AddScoped<IConfigService, ConfigService>();
         services.AddScoped<IVoiceService, VoiceService>();
+        services.AddScoped<ISetlistService, SetlistService>();
+        services.AddScoped<IMediaLinkService, MediaLinkService>();
+        services.AddScoped<IPostService, PostService>();
+        services.AddScoped<IPollService, PollService>();
+        services.AddScoped<IAttendanceService, AttendanceService>();
+        services.AddScoped<IEventService, EventService>();
+        services.AddScoped<IGemaService, GemaService>();
+        services.AddScoped<ISubstituteService, SubstituteService>();
+        services.AddScoped<IShiftService, ShiftService>();
 
         // Import pipeline
         services.AddScoped<IImportService, ImportService>();

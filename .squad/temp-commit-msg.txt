@@ -1,0 +1,20 @@
+docs(squad): Orchestration log & session log — Hill spec-update (Meine Musik + approval flow)
+
+- Add orchestration-log/2026-03-28T22-10-25Z-hill.md (task completion, team coordination)
+- Add log/2026-03-28T22-10-25Z-spec-update-meine-musik.md (session summary)
+- Merge inbox decisions → decisions.md (Hill's "Meine Musik" + approval decisions)
+- Delete merged inbox files (2 files)
+- Update team history files (Stark, Banner, Romanoff, Wanda, Parker) with spec change notices
+  - Stark: data model changes (ist_persoenlich, beitrittsanfragen table)
+  - Banner: 3 new endpoints (POST /beitreten, GET /anfragen, PUT /anfragen/{id})
+  - Romanoff: 3 new screens (Kapellen-Auswahl, join-request, request-list)
+  - Wanda: entry point logic, "Meine Musik" UI, approval flows
+  - Parker: 13 edge cases, approval workflow testing
+
+Specs affected:
+- docs/feature-specs/kapellenverwaltung-spec.md (US-00, US-02 rewritten, US-06 new)
+- docs/feature-specs/auth-onboarding-spec.md (entry point post-onboarding)
+
+Team impact: 5→7 user stories, 10→15 ACs, 8→13 test cases
+
+Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>

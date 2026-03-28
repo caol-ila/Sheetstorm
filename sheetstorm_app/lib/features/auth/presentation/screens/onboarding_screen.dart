@@ -5,7 +5,6 @@ import 'package:sheetstorm/core/routing/app_router.dart';
 import 'package:sheetstorm/core/theme/app_colors.dart';
 import 'package:sheetstorm/core/theme/app_tokens.dart';
 import 'package:sheetstorm/features/auth/application/auth_notifier.dart';
-import 'package:sheetstorm/shared/services/api_client.dart';
 
 /// 5-step onboarding wizard shown once after first registration.
 /// All steps skippable. Prefills data from registration where possible.
@@ -63,19 +62,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   void _skipPage() => _nextPage();
 
   Future<void> _finish() async {
-    try {
-      // Uses the interceptor-equipped Dio so the Bearer token is attached.
-      await ref.read(apiClientProvider).patch<void>(
-        '/api/users/me/onboarding',
-        data: {
-          if (_instrument != null) 'instrument': _instrument,
-          if (_themeMode.name != 'system') 'theme': _themeMode.name,
-          'onboardingCompleted': true,
-        },
-      );
-    } catch (_) {
-      // Non-blocking: onboarding data saved locally, API best-effort
-    }
+    // Mark onboarding complete (updates in-memory state + persists).
+    // The PATCH endpoint for saving preferences server-side does not exist
+    // yet — will be added when the backend user-profile API is built.
     await ref.read(authProvider.notifier).markOnboardingCompleted();
     if (mounted) context.go(AppRoutes.library);
   }

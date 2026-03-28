@@ -22,67 +22,71 @@ namespace Sheetstorm.Infrastructure.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("Sheetstorm.Domain.Entities.Einladung", b =>
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.AttendanceRecord", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
+                    b.Property<Guid>("BandId")
+                        .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<Guid?>("EingeloestVonMusikerID")
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<Guid?>("EventId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("ErstelltVonMusikerID")
+                    b.Property<Guid>("MusicianId")
                         .HasColumnType("uuid");
 
-                    b.Property<DateTime>("ExpiresAt")
-                        .HasColumnType("timestamp with time zone");
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
 
-                    b.Property<bool>("IsUsed")
-                        .HasColumnType("boolean");
-
-                    b.Property<Guid>("KapelleID")
+                    b.Property<Guid>("RecordedByMusicianId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<int>("VorgeseheRolle")
-                        .HasColumnType("integer");
-
                     b.HasKey("Id");
 
-                    b.HasIndex("Code")
-                        .IsUnique();
+                    b.HasIndex("MusicianId");
 
-                    b.HasIndex("EingeloestVonMusikerID");
+                    b.HasIndex("RecordedByMusicianId");
 
-                    b.HasIndex("ErstelltVonMusikerID");
+                    b.HasIndex("BandId", "Date");
 
-                    b.HasIndex("KapelleID");
+                    b.HasIndex("BandId", "MusicianId", "Date");
 
-                    b.ToTable("Einladungen");
+                    b.ToTable("AttendanceRecords");
                 });
 
-            modelBuilder.Entity("Sheetstorm.Domain.Entities.Kapelle", b =>
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.Band", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<string>("Beschreibung")
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                    b.Property<string>("Location")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
 
                     b.Property<string>("LogoUrl")
                         .HasMaxLength(512)
@@ -93,22 +97,21 @@ namespace Sheetstorm.Infrastructure.Migrations
                         .HasMaxLength(80)
                         .HasColumnType("character varying(80)");
 
-                    b.Property<string>("Ort")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
 
-                    b.ToTable("Kapellen");
+                    b.ToTable("Bands");
                 });
 
-            modelBuilder.Entity("Sheetstorm.Domain.Entities.KapelleStimmenMapping", b =>
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.BandVoiceMapping", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BandId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
@@ -119,10 +122,235 @@ namespace Sheetstorm.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
-                    b.Property<Guid>("KapelleId")
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Voice")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BandId", "Instrument")
+                        .IsUnique();
+
+                    b.ToTable("BandVoiceMappings");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.ConfigAudit", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<string>("Stimme")
+                    b.Property<Guid?>("BandId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Level")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid?>("MusicianId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("NewValue")
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("OldValue")
+                        .HasColumnType("jsonb");
+
+                    b.Property<DateTime>("Timestamp")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BandId", "Timestamp")
+                        .IsDescending(false, true);
+
+                    b.HasIndex("MusicianId", "Timestamp")
+                        .IsDescending(false, true);
+
+                    b.ToTable("ConfigAudit");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.ConfigBand", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BandId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UpdatedById");
+
+                    b.HasIndex("BandId", "Key")
+                        .IsUnique();
+
+                    b.ToTable("ConfigBand");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.ConfigPolicy", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BandId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UpdatedById");
+
+                    b.HasIndex("BandId", "Key")
+                        .IsUnique();
+
+                    b.ToTable("ConfigPolicies");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.ConfigUser", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("MusicianId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<long>("Version")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L);
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MusicianId", "Key")
+                        .IsUnique();
+
+                    b.ToTable("ConfigUser");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.Event", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BandId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatedByMusicianId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("DressCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime?>("EndDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<bool>("IsAllDay")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Location")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("MeetingPoint")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("RepeatRule")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime?>("RsvpDeadline")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("SetlistId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("StartDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
@@ -132,50 +360,325 @@ namespace Sheetstorm.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("KapelleId", "Instrument")
-                        .IsUnique();
+                    b.HasIndex("CreatedByMusicianId");
 
-                    b.ToTable("KapelleStimmenMappings");
+                    b.HasIndex("SetlistId");
+
+                    b.HasIndex("BandId", "StartDate");
+
+                    b.ToTable("Events");
                 });
 
-            modelBuilder.Entity("Sheetstorm.Domain.Entities.Mitgliedschaft", b =>
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.EventRsvp", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("Comment")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<bool>("IstAktiv")
-                        .HasColumnType("boolean");
-
-                    b.Property<Guid>("KapelleID")
+                    b.Property<Guid>("EventId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("MusikerID")
+                    b.Property<Guid>("MusicianId")
                         .HasColumnType("uuid");
 
-                    b.Property<int>("Rolle")
-                        .HasColumnType("integer");
+                    b.Property<DateTime?>("RespondedAt")
+                        .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("StimmenOverride")
-                        .HasColumnType("text");
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("KapelleID");
+                    b.HasIndex("MusicianId");
 
-                    b.HasIndex("MusikerID", "KapelleID")
+                    b.HasIndex("EventId", "MusicianId")
                         .IsUnique();
 
-                    b.ToTable("Mitgliedschaften");
+                    b.ToTable("EventRsvps");
                 });
 
-            modelBuilder.Entity("Sheetstorm.Domain.Entities.Musiker", b =>
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.GemaReport", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BandId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("EventCategory")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<Guid?>("EventId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("EventLocation")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("ExportFormat")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime?>("ExportedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("GeneratedByMusicianId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Organizer")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("ReportDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("SetlistId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EventId");
+
+                    b.HasIndex("GeneratedByMusicianId");
+
+                    b.HasIndex("SetlistId");
+
+                    b.HasIndex("BandId", "ReportDate");
+
+                    b.ToTable("GemaReports");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.GemaReportEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Arranger")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Composer")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("DurationSeconds")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("GemaReportId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("PieceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Publisher")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("WorkNumber")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PieceId");
+
+                    b.HasIndex("GemaReportId", "Position")
+                        .IsUnique();
+
+                    b.ToTable("GemaReportEntries");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.Invitation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BandId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatedByMusicianId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("IntendedRole")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsUsed")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid?>("RedeemedByMusicianId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BandId");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.HasIndex("CreatedByMusicianId");
+
+                    b.HasIndex("RedeemedByMusicianId");
+
+                    b.ToTable("Invitations");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.MediaLink", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AddedByMusicianId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BandId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int?>("DurationSeconds")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("PieceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ThumbnailUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
+
+                    b.Property<string>("Title")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Url")
+                        .IsRequired()
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AddedByMusicianId");
+
+                    b.HasIndex("BandId");
+
+                    b.HasIndex("PieceId", "Url")
+                        .IsUnique();
+
+                    b.ToTable("MediaLinks");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.Membership", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BandId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("MusicianId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Role")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("VoiceOverride")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BandId");
+
+                    b.HasIndex("MusicianId", "BandId")
+                        .IsUnique();
+
+                    b.ToTable("Memberships");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.Musician", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -236,29 +739,201 @@ namespace Sheetstorm.Infrastructure.Migrations
                         .IsUnique()
                         .HasFilter("\"PasswordResetToken\" IS NOT NULL");
 
-                    b.ToTable("Musiker");
+                    b.ToTable("Musicians");
                 });
 
-            modelBuilder.Entity("Sheetstorm.Domain.Entities.Notenblatt", b =>
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.Piece", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<string>("BlobUrl")
-                        .IsRequired()
-                        .HasColumnType("text");
+                    b.Property<string>("Arranger")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
 
-                    b.Property<string>("ContentType")
-                        .HasColumnType("text");
+                    b.Property<Guid?>("BandId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Composer")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<long?>("FileSizeBytes")
-                        .HasColumnType("bigint");
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
 
-                    b.Property<Guid>("StimmeID")
+                    b.Property<string>("ImportStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("MusicalKey")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<Guid?>("MusicianId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("OriginalFileName")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int?>("PublicationYear")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("StorageKey")
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)");
+
+                    b.Property<int?>("Tempo")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("TimeSignature")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BandId");
+
+                    b.HasIndex("MusicianId");
+
+                    b.ToTable("Pieces");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.PiecePage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("OcrText")
+                        .HasColumnType("text");
+
+                    b.Property<int>("PageNumber")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("PieceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("StorageKey")
+                        .IsRequired()
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PieceId", "PageNumber")
+                        .IsUnique();
+
+                    b.ToTable("PiecePages");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.Poll", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BandId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatedByMusicianId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsAnonymous")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsClosed")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsMultipleChoice")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Question")
+                        .IsRequired()
+                        .HasMaxLength(250)
+                        .HasColumnType("character varying(250)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByMusicianId");
+
+                    b.HasIndex("BandId", "IsClosed");
+
+                    b.ToTable("Polls");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.PollOption", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("PollId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PollId", "Position");
+
+                    b.ToTable("PollOptions");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.PollVote", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("MusicianId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("PollOptionId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("UpdatedAt")
@@ -266,9 +941,131 @@ namespace Sheetstorm.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("StimmeID");
+                    b.HasIndex("MusicianId");
 
-                    b.ToTable("Notenblaetter");
+                    b.HasIndex("PollOptionId", "MusicianId");
+
+                    b.ToTable("PollVotes");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.Post", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AuthorMusicianId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BandId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Category")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasMaxLength(5000)
+                        .HasColumnType("character varying(5000)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsPinned")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("PinnedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuthorMusicianId");
+
+                    b.HasIndex("BandId", "IsPinned", "CreatedAt");
+
+                    b.ToTable("Posts");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.PostComment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AuthorMusicianId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid?>("ParentCommentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("PostId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuthorMusicianId");
+
+                    b.HasIndex("ParentCommentId");
+
+                    b.HasIndex("PostId");
+
+                    b.ToTable("PostComments");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.PostReaction", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("MusicianId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("PostId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ReactionType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MusicianId");
+
+                    b.HasIndex("PostId", "MusicianId")
+                        .IsUnique();
+
+                    b.ToTable("PostReactions");
                 });
 
             modelBuilder.Entity("Sheetstorm.Domain.Entities.RefreshToken", b =>
@@ -292,7 +1089,7 @@ namespace Sheetstorm.Infrastructure.Migrations
                     b.Property<bool>("IsUsed")
                         .HasColumnType("boolean");
 
-                    b.Property<Guid>("MusikerId")
+                    b.Property<Guid>("MusicianId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("Token")
@@ -307,7 +1104,7 @@ namespace Sheetstorm.Infrastructure.Migrations
 
                     b.HasIndex("FamilyId");
 
-                    b.HasIndex("MusikerId");
+                    b.HasIndex("MusicianId");
 
                     b.HasIndex("Token")
                         .IsUnique();
@@ -315,285 +1112,1130 @@ namespace Sheetstorm.Infrastructure.Migrations
                     b.ToTable("RefreshTokens");
                 });
 
-            modelBuilder.Entity("Sheetstorm.Domain.Entities.Stimme", b =>
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.Setlist", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<string>("Bezeichnung")
+                    b.Property<Guid>("BandId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateOnly?>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid?>("EventId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<TimeOnly?>("StartTime")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BandId");
+
+                    b.ToTable("Setlists");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.SetlistEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("DurationSeconds")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsPlaceholder")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(250)
+                        .HasColumnType("character varying(250)");
+
+                    b.Property<Guid?>("PieceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("PlaceholderComposer")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("PlaceholderTitle")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("SetlistId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PieceId");
+
+                    b.HasIndex("SetlistId", "Position");
+
+                    b.ToTable("SetlistEntries");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.SheetMusic", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("BlobUrl")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<string>("ContentType")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long?>("FileSizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("VoiceId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("VoiceId");
+
+                    b.ToTable("SheetMusic");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.Shift", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<TimeOnly>("EndTime")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<int>("RequiredCount")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("ShiftPlanId")
+                        .HasColumnType("uuid");
+
+                    b.Property<TimeOnly>("StartTime")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("VoiceId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ShiftPlanId");
+
+                    b.HasIndex("VoiceId");
+
+                    b.ToTable("Shifts");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.ShiftAssignment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("AssignedByMusicianId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("MusicianId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("ShiftId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AssignedByMusicianId");
+
+                    b.HasIndex("MusicianId");
+
+                    b.HasIndex("ShiftId", "MusicianId")
+                        .IsUnique();
+
+                    b.ToTable("ShiftAssignments");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.ShiftPlan", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BandId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatedByMusicianId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid?>("EventId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BandId");
+
+                    b.HasIndex("CreatedByMusicianId");
+
+                    b.HasIndex("EventId");
+
+                    b.ToTable("ShiftPlans");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.SubstituteAccess", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BandId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid?>("EventId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("GrantedByMusicianId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Instrument")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("LastAccessedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Token")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("VoiceId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EventId");
+
+                    b.HasIndex("GrantedByMusicianId");
+
+                    b.HasIndex("Token")
+                        .IsUnique();
+
+                    b.HasIndex("VoiceId");
+
+                    b.HasIndex("BandId", "IsActive");
+
+                    b.ToTable("SubstituteAccesses");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.UserInstrument", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("InstrumentLabel")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("InstrumentType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<Guid>("MusicianId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MusicianId");
+
+                    b.HasIndex("MusicianId", "InstrumentType")
+                        .IsUnique();
+
+                    b.ToTable("UserInstruments");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.Voice", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Instrument")
-                        .HasColumnType("text");
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
 
-                    b.Property<Guid>("StueckID")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("StueckID");
-
-                    b.ToTable("Stimmen");
-                });
-
-            modelBuilder.Entity("Sheetstorm.Domain.Entities.Stueck", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Arrangeur")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<string>("Beschreibung")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("ImportStatus")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<Guid?>("KapelleID")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Komponist")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<Guid?>("MusikerID")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("OriginalDateiname")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<string>("StorageKey")
-                        .HasMaxLength(1024)
-                        .HasColumnType("character varying(1024)");
-
-                    b.Property<string>("Taktart")
+                    b.Property<string>("InstrumentFamily")
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
-                    b.Property<int?>("Tempo")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Titel")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<string>("Tonart")
+                    b.Property<string>("InstrumentType")
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("VeroeffentlichungsJahr")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("KapelleID");
-
-                    b.HasIndex("MusikerID");
-
-                    b.ToTable("Stuecke");
-                });
-
-            modelBuilder.Entity("Sheetstorm.Domain.Entities.StueckSeite", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("OcrText")
-                        .HasColumnType("text");
-
-                    b.Property<int>("Seitennummer")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("StorageKey")
+                    b.Property<string>("Label")
                         .IsRequired()
-                        .HasMaxLength(1024)
-                        .HasColumnType("character varying(1024)");
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
 
-                    b.Property<Guid>("StueckID")
+                    b.Property<Guid>("PieceId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<int?>("VoiceNumber")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
 
-                    b.HasIndex("StueckID", "Seitennummer")
+                    b.HasIndex("PieceId", "Label")
                         .IsUnique();
 
-                    b.ToTable("StueckSeiten");
+                    b.HasIndex("PieceId", "InstrumentType", "VoiceNumber");
+
+                    b.ToTable("Voices");
                 });
 
-            modelBuilder.Entity("Sheetstorm.Domain.Entities.Einladung", b =>
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.VoicePreselection", b =>
                 {
-                    b.HasOne("Sheetstorm.Domain.Entities.Musiker", "EingeloestVon")
-                        .WithMany()
-                        .HasForeignKey("EingeloestVonMusikerID")
-                        .OnDelete(DeleteBehavior.SetNull);
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
 
-                    b.HasOne("Sheetstorm.Domain.Entities.Musiker", "ErstelltVon")
+                    b.Property<Guid>("BandId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("MusicianId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserInstrumentID")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("VoiceLabel")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BandId");
+
+                    b.HasIndex("UserInstrumentID");
+
+                    b.HasIndex("MusicianId", "BandId");
+
+                    b.HasIndex("MusicianId", "BandId", "UserInstrumentID")
+                        .IsUnique();
+
+                    b.ToTable("VoicePreselections");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.AttendanceRecord", b =>
+                {
+                    b.HasOne("Sheetstorm.Domain.Entities.Band", "Band")
                         .WithMany()
-                        .HasForeignKey("ErstelltVonMusikerID")
+                        .HasForeignKey("BandId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Sheetstorm.Domain.Entities.Musician", "Musician")
+                        .WithMany()
+                        .HasForeignKey("MusicianId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("Sheetstorm.Domain.Entities.Kapelle", "Kapelle")
-                        .WithMany("Einladungen")
-                        .HasForeignKey("KapelleID")
-                        .OnDelete(DeleteBehavior.Cascade)
+                    b.HasOne("Sheetstorm.Domain.Entities.Musician", "RecordedByMusician")
+                        .WithMany()
+                        .HasForeignKey("RecordedByMusicianId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.Navigation("EingeloestVon");
+                    b.Navigation("Band");
 
-                    b.Navigation("ErstelltVon");
+                    b.Navigation("Musician");
 
-                    b.Navigation("Kapelle");
+                    b.Navigation("RecordedByMusician");
                 });
 
-            modelBuilder.Entity("Sheetstorm.Domain.Entities.KapelleStimmenMapping", b =>
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.BandVoiceMapping", b =>
                 {
-                    b.HasOne("Sheetstorm.Domain.Entities.Kapelle", "Kapelle")
-                        .WithMany("StimmenMappings")
-                        .HasForeignKey("KapelleId")
+                    b.HasOne("Sheetstorm.Domain.Entities.Band", "Band")
+                        .WithMany("VoiceMappings")
+                        .HasForeignKey("BandId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Kapelle");
+                    b.Navigation("Band");
                 });
 
-            modelBuilder.Entity("Sheetstorm.Domain.Entities.Mitgliedschaft", b =>
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.ConfigBand", b =>
                 {
-                    b.HasOne("Sheetstorm.Domain.Entities.Kapelle", "Kapelle")
-                        .WithMany("Mitglieder")
-                        .HasForeignKey("KapelleID")
+                    b.HasOne("Sheetstorm.Domain.Entities.Band", "Band")
+                        .WithMany()
+                        .HasForeignKey("BandId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("Sheetstorm.Domain.Entities.Musiker", "Musiker")
-                        .WithMany("Mitgliedschaften")
-                        .HasForeignKey("MusikerID")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                    b.HasOne("Sheetstorm.Domain.Entities.Musician", "UpdatedBy")
+                        .WithMany()
+                        .HasForeignKey("UpdatedById")
+                        .OnDelete(DeleteBehavior.SetNull);
 
-                    b.Navigation("Kapelle");
+                    b.Navigation("Band");
 
-                    b.Navigation("Musiker");
+                    b.Navigation("UpdatedBy");
                 });
 
-            modelBuilder.Entity("Sheetstorm.Domain.Entities.Notenblatt", b =>
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.ConfigPolicy", b =>
                 {
-                    b.HasOne("Sheetstorm.Domain.Entities.Stimme", "Stimme")
-                        .WithMany("Notenblaetter")
-                        .HasForeignKey("StimmeID")
+                    b.HasOne("Sheetstorm.Domain.Entities.Band", "Band")
+                        .WithMany()
+                        .HasForeignKey("BandId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Stimme");
+                    b.HasOne("Sheetstorm.Domain.Entities.Musician", "UpdatedBy")
+                        .WithMany()
+                        .HasForeignKey("UpdatedById")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Band");
+
+                    b.Navigation("UpdatedBy");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.ConfigUser", b =>
+                {
+                    b.HasOne("Sheetstorm.Domain.Entities.Musician", "Musician")
+                        .WithMany()
+                        .HasForeignKey("MusicianId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Musician");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.Event", b =>
+                {
+                    b.HasOne("Sheetstorm.Domain.Entities.Band", "Band")
+                        .WithMany()
+                        .HasForeignKey("BandId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Sheetstorm.Domain.Entities.Musician", "CreatedByMusician")
+                        .WithMany()
+                        .HasForeignKey("CreatedByMusicianId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Sheetstorm.Domain.Entities.Setlist", "Setlist")
+                        .WithMany()
+                        .HasForeignKey("SetlistId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Band");
+
+                    b.Navigation("CreatedByMusician");
+
+                    b.Navigation("Setlist");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.EventRsvp", b =>
+                {
+                    b.HasOne("Sheetstorm.Domain.Entities.Event", "Event")
+                        .WithMany("Rsvps")
+                        .HasForeignKey("EventId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Sheetstorm.Domain.Entities.Musician", "Musician")
+                        .WithMany()
+                        .HasForeignKey("MusicianId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Event");
+
+                    b.Navigation("Musician");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.GemaReport", b =>
+                {
+                    b.HasOne("Sheetstorm.Domain.Entities.Band", "Band")
+                        .WithMany()
+                        .HasForeignKey("BandId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Sheetstorm.Domain.Entities.Event", "Event")
+                        .WithMany()
+                        .HasForeignKey("EventId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Sheetstorm.Domain.Entities.Musician", "GeneratedByMusician")
+                        .WithMany()
+                        .HasForeignKey("GeneratedByMusicianId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Sheetstorm.Domain.Entities.Setlist", "Setlist")
+                        .WithMany()
+                        .HasForeignKey("SetlistId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Band");
+
+                    b.Navigation("Event");
+
+                    b.Navigation("GeneratedByMusician");
+
+                    b.Navigation("Setlist");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.GemaReportEntry", b =>
+                {
+                    b.HasOne("Sheetstorm.Domain.Entities.GemaReport", "GemaReport")
+                        .WithMany("Entries")
+                        .HasForeignKey("GemaReportId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Sheetstorm.Domain.Entities.Piece", "Piece")
+                        .WithMany()
+                        .HasForeignKey("PieceId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("GemaReport");
+
+                    b.Navigation("Piece");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.Invitation", b =>
+                {
+                    b.HasOne("Sheetstorm.Domain.Entities.Band", "Band")
+                        .WithMany("Invitationen")
+                        .HasForeignKey("BandId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Sheetstorm.Domain.Entities.Musician", "CreatedBy")
+                        .WithMany()
+                        .HasForeignKey("CreatedByMusicianId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Sheetstorm.Domain.Entities.Musician", "RedeemedBy")
+                        .WithMany()
+                        .HasForeignKey("RedeemedByMusicianId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Band");
+
+                    b.Navigation("CreatedBy");
+
+                    b.Navigation("RedeemedBy");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.MediaLink", b =>
+                {
+                    b.HasOne("Sheetstorm.Domain.Entities.Musician", "AddedByMusician")
+                        .WithMany()
+                        .HasForeignKey("AddedByMusicianId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Sheetstorm.Domain.Entities.Band", "Band")
+                        .WithMany()
+                        .HasForeignKey("BandId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Sheetstorm.Domain.Entities.Piece", "Piece")
+                        .WithMany()
+                        .HasForeignKey("PieceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AddedByMusician");
+
+                    b.Navigation("Band");
+
+                    b.Navigation("Piece");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.Membership", b =>
+                {
+                    b.HasOne("Sheetstorm.Domain.Entities.Band", "Band")
+                        .WithMany("Members")
+                        .HasForeignKey("BandId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Sheetstorm.Domain.Entities.Musician", "Musician")
+                        .WithMany("Membershipen")
+                        .HasForeignKey("MusicianId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Band");
+
+                    b.Navigation("Musician");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.Piece", b =>
+                {
+                    b.HasOne("Sheetstorm.Domain.Entities.Band", "Band")
+                        .WithMany("Pieces")
+                        .HasForeignKey("BandId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("Sheetstorm.Domain.Entities.Musician", "Musician")
+                        .WithMany()
+                        .HasForeignKey("MusicianId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Band");
+
+                    b.Navigation("Musician");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.PiecePage", b =>
+                {
+                    b.HasOne("Sheetstorm.Domain.Entities.Piece", "Piece")
+                        .WithMany("Pages")
+                        .HasForeignKey("PieceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Piece");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.Poll", b =>
+                {
+                    b.HasOne("Sheetstorm.Domain.Entities.Band", "Band")
+                        .WithMany()
+                        .HasForeignKey("BandId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Sheetstorm.Domain.Entities.Musician", "CreatedByMusician")
+                        .WithMany()
+                        .HasForeignKey("CreatedByMusicianId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Band");
+
+                    b.Navigation("CreatedByMusician");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.PollOption", b =>
+                {
+                    b.HasOne("Sheetstorm.Domain.Entities.Poll", "Poll")
+                        .WithMany("Options")
+                        .HasForeignKey("PollId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Poll");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.PollVote", b =>
+                {
+                    b.HasOne("Sheetstorm.Domain.Entities.Musician", "Musician")
+                        .WithMany()
+                        .HasForeignKey("MusicianId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Sheetstorm.Domain.Entities.PollOption", "PollOption")
+                        .WithMany("Votes")
+                        .HasForeignKey("PollOptionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Musician");
+
+                    b.Navigation("PollOption");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.Post", b =>
+                {
+                    b.HasOne("Sheetstorm.Domain.Entities.Musician", "AuthorMusician")
+                        .WithMany()
+                        .HasForeignKey("AuthorMusicianId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Sheetstorm.Domain.Entities.Band", "Band")
+                        .WithMany()
+                        .HasForeignKey("BandId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AuthorMusician");
+
+                    b.Navigation("Band");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.PostComment", b =>
+                {
+                    b.HasOne("Sheetstorm.Domain.Entities.Musician", "AuthorMusician")
+                        .WithMany()
+                        .HasForeignKey("AuthorMusicianId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Sheetstorm.Domain.Entities.PostComment", "ParentComment")
+                        .WithMany()
+                        .HasForeignKey("ParentCommentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Sheetstorm.Domain.Entities.Post", "Post")
+                        .WithMany("Comments")
+                        .HasForeignKey("PostId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AuthorMusician");
+
+                    b.Navigation("ParentComment");
+
+                    b.Navigation("Post");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.PostReaction", b =>
+                {
+                    b.HasOne("Sheetstorm.Domain.Entities.Musician", "Musician")
+                        .WithMany()
+                        .HasForeignKey("MusicianId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Sheetstorm.Domain.Entities.Post", "Post")
+                        .WithMany("Reactions")
+                        .HasForeignKey("PostId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Musician");
+
+                    b.Navigation("Post");
                 });
 
             modelBuilder.Entity("Sheetstorm.Domain.Entities.RefreshToken", b =>
                 {
-                    b.HasOne("Sheetstorm.Domain.Entities.Musiker", "Musiker")
+                    b.HasOne("Sheetstorm.Domain.Entities.Musician", "Musician")
                         .WithMany("RefreshTokens")
-                        .HasForeignKey("MusikerId")
+                        .HasForeignKey("MusicianId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Musiker");
+                    b.Navigation("Musician");
                 });
 
-            modelBuilder.Entity("Sheetstorm.Domain.Entities.Stimme", b =>
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.Setlist", b =>
                 {
-                    b.HasOne("Sheetstorm.Domain.Entities.Stueck", "Stueck")
-                        .WithMany("Stimmen")
-                        .HasForeignKey("StueckID")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Stueck");
-                });
-
-            modelBuilder.Entity("Sheetstorm.Domain.Entities.Stueck", b =>
-                {
-                    b.HasOne("Sheetstorm.Domain.Entities.Kapelle", "Kapelle")
-                        .WithMany("Stuecke")
-                        .HasForeignKey("KapelleID")
-                        .OnDelete(DeleteBehavior.Cascade);
-
-                    b.HasOne("Sheetstorm.Domain.Entities.Musiker", "Musiker")
+                    b.HasOne("Sheetstorm.Domain.Entities.Band", "Band")
                         .WithMany()
-                        .HasForeignKey("MusikerID")
+                        .HasForeignKey("BandId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Band");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.SetlistEntry", b =>
+                {
+                    b.HasOne("Sheetstorm.Domain.Entities.Piece", "Piece")
+                        .WithMany()
+                        .HasForeignKey("PieceId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.Navigation("Kapelle");
-
-                    b.Navigation("Musiker");
-                });
-
-            modelBuilder.Entity("Sheetstorm.Domain.Entities.StueckSeite", b =>
-                {
-                    b.HasOne("Sheetstorm.Domain.Entities.Stueck", "Stueck")
-                        .WithMany("Seiten")
-                        .HasForeignKey("StueckID")
+                    b.HasOne("Sheetstorm.Domain.Entities.Setlist", "Setlist")
+                        .WithMany("Entries")
+                        .HasForeignKey("SetlistId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Stueck");
+                    b.Navigation("Piece");
+
+                    b.Navigation("Setlist");
                 });
 
-            modelBuilder.Entity("Sheetstorm.Domain.Entities.Kapelle", b =>
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.SheetMusic", b =>
                 {
-                    b.Navigation("Einladungen");
+                    b.HasOne("Sheetstorm.Domain.Entities.Voice", "Voice")
+                        .WithMany("SheetMusicFiles")
+                        .HasForeignKey("VoiceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
-                    b.Navigation("Mitglieder");
-
-                    b.Navigation("StimmenMappings");
-
-                    b.Navigation("Stuecke");
+                    b.Navigation("Voice");
                 });
 
-            modelBuilder.Entity("Sheetstorm.Domain.Entities.Musiker", b =>
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.Shift", b =>
                 {
-                    b.Navigation("Mitgliedschaften");
+                    b.HasOne("Sheetstorm.Domain.Entities.ShiftPlan", "ShiftPlan")
+                        .WithMany("Shifts")
+                        .HasForeignKey("ShiftPlanId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Sheetstorm.Domain.Entities.Voice", "Voice")
+                        .WithMany()
+                        .HasForeignKey("VoiceId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("ShiftPlan");
+
+                    b.Navigation("Voice");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.ShiftAssignment", b =>
+                {
+                    b.HasOne("Sheetstorm.Domain.Entities.Musician", "AssignedByMusician")
+                        .WithMany()
+                        .HasForeignKey("AssignedByMusicianId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Sheetstorm.Domain.Entities.Musician", "Musician")
+                        .WithMany()
+                        .HasForeignKey("MusicianId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Sheetstorm.Domain.Entities.Shift", "Shift")
+                        .WithMany("Assignments")
+                        .HasForeignKey("ShiftId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AssignedByMusician");
+
+                    b.Navigation("Musician");
+
+                    b.Navigation("Shift");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.ShiftPlan", b =>
+                {
+                    b.HasOne("Sheetstorm.Domain.Entities.Band", "Band")
+                        .WithMany()
+                        .HasForeignKey("BandId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Sheetstorm.Domain.Entities.Musician", "CreatedByMusician")
+                        .WithMany()
+                        .HasForeignKey("CreatedByMusicianId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Sheetstorm.Domain.Entities.Event", "Event")
+                        .WithMany()
+                        .HasForeignKey("EventId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Band");
+
+                    b.Navigation("CreatedByMusician");
+
+                    b.Navigation("Event");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.SubstituteAccess", b =>
+                {
+                    b.HasOne("Sheetstorm.Domain.Entities.Band", "Band")
+                        .WithMany()
+                        .HasForeignKey("BandId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Sheetstorm.Domain.Entities.Event", "Event")
+                        .WithMany()
+                        .HasForeignKey("EventId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Sheetstorm.Domain.Entities.Musician", "GrantedByMusician")
+                        .WithMany()
+                        .HasForeignKey("GrantedByMusicianId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Sheetstorm.Domain.Entities.Voice", "Voice")
+                        .WithMany()
+                        .HasForeignKey("VoiceId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Band");
+
+                    b.Navigation("Event");
+
+                    b.Navigation("GrantedByMusician");
+
+                    b.Navigation("Voice");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.UserInstrument", b =>
+                {
+                    b.HasOne("Sheetstorm.Domain.Entities.Musician", "Musician")
+                        .WithMany("UserInstruments")
+                        .HasForeignKey("MusicianId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Musician");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.Voice", b =>
+                {
+                    b.HasOne("Sheetstorm.Domain.Entities.Piece", "Piece")
+                        .WithMany("Voices")
+                        .HasForeignKey("PieceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Piece");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.VoicePreselection", b =>
+                {
+                    b.HasOne("Sheetstorm.Domain.Entities.Band", "Band")
+                        .WithMany()
+                        .HasForeignKey("BandId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Sheetstorm.Domain.Entities.Musician", "Musician")
+                        .WithMany()
+                        .HasForeignKey("MusicianId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Sheetstorm.Domain.Entities.UserInstrument", "UserInstrument")
+                        .WithMany("Preselections")
+                        .HasForeignKey("UserInstrumentID")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("Band");
+
+                    b.Navigation("Musician");
+
+                    b.Navigation("UserInstrument");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.Band", b =>
+                {
+                    b.Navigation("Invitationen");
+
+                    b.Navigation("Members");
+
+                    b.Navigation("Pieces");
+
+                    b.Navigation("VoiceMappings");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.Event", b =>
+                {
+                    b.Navigation("Rsvps");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.GemaReport", b =>
+                {
+                    b.Navigation("Entries");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.Musician", b =>
+                {
+                    b.Navigation("Membershipen");
 
                     b.Navigation("RefreshTokens");
+
+                    b.Navigation("UserInstruments");
                 });
 
-            modelBuilder.Entity("Sheetstorm.Domain.Entities.Stimme", b =>
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.Piece", b =>
                 {
-                    b.Navigation("Notenblaetter");
+                    b.Navigation("Pages");
+
+                    b.Navigation("Voices");
                 });
 
-            modelBuilder.Entity("Sheetstorm.Domain.Entities.Stueck", b =>
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.Poll", b =>
                 {
-                    b.Navigation("Seiten");
+                    b.Navigation("Options");
+                });
 
-                    b.Navigation("Stimmen");
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.PollOption", b =>
+                {
+                    b.Navigation("Votes");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.Post", b =>
+                {
+                    b.Navigation("Comments");
+
+                    b.Navigation("Reactions");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.Setlist", b =>
+                {
+                    b.Navigation("Entries");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.Shift", b =>
+                {
+                    b.Navigation("Assignments");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.ShiftPlan", b =>
+                {
+                    b.Navigation("Shifts");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.UserInstrument", b =>
+                {
+                    b.Navigation("Preselections");
+                });
+
+            modelBuilder.Entity("Sheetstorm.Domain.Entities.Voice", b =>
+                {
+                    b.Navigation("SheetMusicFiles");
                 });
 #pragma warning restore 612, 618
         }

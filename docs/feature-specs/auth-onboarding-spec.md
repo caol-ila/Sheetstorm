@@ -44,7 +44,7 @@ Die vollständigen Wireframes, Flows und Interaction Patterns sind in Wandas UX-
 
 Kernaussagen aus der UX-Spec:
 - Ziel: **unter 3 Minuten** von App-Installation bis erster Note
-- Auth-State-Machine: Kein Token → Auth-Screen; Token vorhanden → Validierung → Bibliothek oder Re-Auth
+- Auth-State-Machine: Kein Token → Auth-Screen; Token vorhanden → Validierung → Kapellen-/Band-Auswahl oder Re-Auth
 - Onboarding: Max. 5 Fragen, jeder Schritt überspringbar, kein Blocker
 - Passwort-Stärke: Live-Anzeige mit Balken + Checkliste (8 Zeichen, Großbuchstabe, Zahl/Sonderzeichen)
 - Social Login: Google immer; Apple nur auf iOS/macOS — kein Fake-Button auf Android
@@ -66,6 +66,7 @@ damit ich Zugang zu meinen Noten, meiner Kapelle und allen App-Funktionen bekomm
 - Ich werde durch 4 klare Schritte geführt (E-Mail+PW → Name → Instrument → Kapelle)
 - Jeder Schritt hat einen einzigen Fokus (Progressive Disclosure)
 - Nach Registrierung startet automatisch der Onboarding-Wizard
+- Bei der Registrierung wird automatisch **„Meine Musik"** (persönliche Bibliothek) erstellt — der Nutzer ist darin alleiniger Admin (→ Kapellenverwaltung US-00)
 - Ich kann mich alternativ mit Google (alle Plattformen) oder Apple (nur iOS/macOS) registrieren
 
 **INVEST-Bewertung:**
@@ -88,7 +89,8 @@ damit ich schnell wieder auf meine Noten und Kapelle zugreifen kann.
 **Akzeptanzkriterien:**
 - Ich kann mich mit E-Mail + Passwort anmelden
 - Ich kann mich alternativ mit Google oder Apple (nur iOS/macOS) anmelden
-- Nach erfolgreichem Login werde ich direkt zur Bibliothek weitergeleitet (kein Onboarding)
+- Nach erfolgreichem Login werde ich zur **Kapellen-/Band-Auswahl** weitergeleitet — ich wähle „Meine Musik" oder eine meiner Kapellen/Bands, dann sehe ich die Bibliothek im gewählten Kontext (kein Onboarding)
+- **Ausnahme:** Wenn ich nur in einer Kapelle + „Meine Musik" bin, wird direkt zur zuletzt aktiven Kapelle navigiert (kein Auswahl-Screen nötig)
 - Bei falschem Passwort sehe ich eine klare Fehlermeldung
 - Mein Login-Zustand bleibt erhalten (kein Re-Login bei erneutem App-Start solange Token gültig)
 - Ich kann mein Passwort über "Passwort vergessen?" zurücksetzen
@@ -139,7 +141,8 @@ damit ich Sheetstorm sofort sinnvoll nutzen kann — mit meinem Instrument und m
 - Der Wizard hat maximal 5 Schritte (Name bestätigen → Instrument → Kapelle & Standardstimme → Theme → Fertig)
 - Jeder Schritt ist überspringbar
 - Daten aus der Registrierung sind vorausgefüllt
-- Nach Abschluss ist der Nutzer direkt in der Bibliothek (kein weiterer Blocker)
+- Nach Abschluss wird der Nutzer zur **Kapellen-/Band-Auswahl** weitergeleitet (kein weiterer Blocker)
+- **Ausnahme:** Wenn der Nutzer nur „Meine Musik" hat (keine Kapelle beigetreten), wird direkt in „Meine Musik" navigiert
 - Der Wizard startet **nicht** bei nachfolgendem Login bestehender Accounts
 - Alle Onboarding-Daten können später in den Einstellungen geändert werden
 
@@ -206,15 +209,16 @@ damit ich Sheetstorm sofort sinnvoll nutzen kann — mit meinem Instrument und m
 
 ---
 
-### AC-05: Nach Onboarding — Nutzer hat Instrument und Kapelle
+### AC-05: Nach Onboarding — Nutzer hat „Meine Musik", Instrument und ggf. Kapelle
 
 - **Gegeben:** Nutzer hat den Onboarding-Wizard abgeschlossen (oder übersprungen)
 - **Dann:**
+  - **„Meine Musik"** (persönliche Bibliothek) wurde bei der Registrierung **automatisch erstellt** — Nutzer ist alleiniger Admin
   - Wenn Schritt 2 (Instrument) ausgefüllt: `user.instruments` enthält mindestens ein Instrument
-  - Wenn Schritt 3 (Kapelle) ausgefüllt: `user.bandMemberships` enthält mindestens einen Eintrag mit `defaultVoice`
-  - Wenn übersprungen: Felder sind null/leer — App bleibt funktionsfähig
+  - Wenn Schritt 3 (Kapelle) ausgefüllt: `user.bandMemberships` enthält mindestens einen Eintrag mit `defaultVoice` (zusätzlich zu „Meine Musik")
+  - Wenn übersprungen: Felder sind null/leer — App bleibt funktionsfähig (Nutzer hat immer „Meine Musik")
   - `user.onboardingCompleted = true` wird gesetzt (unabhängig davon ob übersprungen oder ausgefüllt)
-  - Nutzer landet in der Bibliothek — kein weiterer Onboarding-Screen erscheint
+  - Nutzer wird zur **Kapellen-/Band-Auswahl** weitergeleitet — oder direkt zu „Meine Musik" wenn keine Kapelle beigetreten
 
 ---
 
@@ -225,7 +229,7 @@ damit ich Sheetstorm sofort sinnvoll nutzen kann — mit meinem Instrument und m
   - Google-Login ist auf allen Plattformen (Web, iOS, Android) verfügbar
   - Apple-Login ist **nur** auf iOS und macOS angezeigt; auf Android/Web ist der Apple-Button **nicht sichtbar**
   - Nach erfolgreichem OAuth-Callback: Wenn E-Mail neu → Account erstellen + Onboarding starten
-  - Nach erfolgreichem OAuth-Callback: Wenn E-Mail bekannt → einloggen + zur Bibliothek
+  - Nach erfolgreichem OAuth-Callback: Wenn E-Mail bekannt → einloggen + zur Kapellen-/Band-Auswahl
 
 ---
 
@@ -570,7 +574,7 @@ UserInstrument
 | Nutzer schließt App während Onboarding | Beim Wiedereröffnen: Onboarding fortsetzen (wird erst als abgeschlossen markiert wenn Schritt 5 fertig oder komplett übersprungen) |
 | Einladungscode ungültig | Fehlermeldung inline, Nutzer kann anderen Code eingeben oder "Erst mal ohne Kapelle" wählen |
 | Einladungscode bereits abgelaufen | Fehlermeldung mit Hinweis, Kapellen-Admin zu kontaktieren |
-| Nutzer überspringt alle Schritte | `onboardingCompleted = true`, alle Instrument/Kapellen-Felder leer → App funktioniert im "Solo-Modus" |
+| Nutzer überspringt alle Schritte | `onboardingCompleted = true`, alle Instrument/Kapellen-Felder leer → App navigiert zu „Meine Musik" (persönliche Bibliothek, automatisch bei Registrierung erstellt) |
 
 ### Sicherheits-Szenarien
 
