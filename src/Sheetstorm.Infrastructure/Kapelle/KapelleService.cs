@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
 using Sheetstorm.Domain.Entities;
+using Sheetstorm.Domain.Exceptions;
 using Sheetstorm.Domain.Kapellenverwaltung;
 using Sheetstorm.Infrastructure.Auth;
 using Sheetstorm.Infrastructure.Persistence;
@@ -35,7 +36,7 @@ public class KapelleService(AppDbContext db) : IKapelleService
             .Include(k => k.Mitglieder.Where(m => m.IstAktiv))
             .ThenInclude(m => m.Musiker)
             .FirstOrDefaultAsync(k => k.Id == kapelleId)
-            ?? throw new AuthException("KAPELLE_NOT_FOUND", "Kapelle nicht gefunden.", 404);
+            ?? throw new DomainException("KAPELLE_NOT_FOUND", "Kapelle nicht gefunden.", 404);
 
         var mitglieder = kapelle.Mitglieder
             .Select(m => new MitgliedDto(
@@ -44,6 +45,7 @@ public class KapelleService(AppDbContext db) : IKapelleService
                 m.Musiker.Email,
                 m.Musiker.Instrument,
                 m.Rolle,
+                m.StimmenOverride,
                 m.CreatedAt
             ))
             .ToList();
@@ -98,7 +100,7 @@ public class KapelleService(AppDbContext db) : IKapelleService
         await RequireAdminAsync(kapelleId, musikerId);
 
         var kapelle = await db.Kapellen.FindAsync(kapelleId)
-            ?? throw new AuthException("KAPELLE_NOT_FOUND", "Kapelle nicht gefunden.", 404);
+            ?? throw new DomainException("KAPELLE_NOT_FOUND", "Kapelle nicht gefunden.", 404);
 
         kapelle.Name = request.Name.Trim();
         kapelle.Beschreibung = request.Beschreibung?.Trim();
@@ -125,7 +127,7 @@ public class KapelleService(AppDbContext db) : IKapelleService
         await RequireAdminAsync(kapelleId, musikerId);
 
         var kapelle = await db.Kapellen.FindAsync(kapelleId)
-            ?? throw new AuthException("KAPELLE_NOT_FOUND", "Kapelle nicht gefunden.", 404);
+            ?? throw new DomainException("KAPELLE_NOT_FOUND", "Kapelle nicht gefunden.", 404);
 
         db.Kapellen.Remove(kapelle);
         await db.SaveChangesAsync();
@@ -143,6 +145,7 @@ public class KapelleService(AppDbContext db) : IKapelleService
                 m.Musiker.Email,
                 m.Musiker.Instrument,
                 m.Rolle,
+                m.StimmenOverride,
                 m.CreatedAt
             ))
             .ToListAsync();
@@ -180,19 +183,19 @@ public class KapelleService(AppDbContext db) : IKapelleService
         var einladung = await db.Einladungen
             .Include(e => e.Kapelle)
             .FirstOrDefaultAsync(e => e.Code == code)
-            ?? throw new AuthException("INVALID_CODE", "Ungültiger oder abgelaufener Einladungscode.", 400);
+            ?? throw new DomainException("INVALID_CODE", "Ungültiger oder abgelaufener Einladungscode.", 400);
 
         if (einladung.IsUsed)
-            throw new AuthException("CODE_ALREADY_USED", "Dieser Einladungscode wurde bereits verwendet.", 400);
+            throw new DomainException("CODE_ALREADY_USED", "Dieser Einladungscode wurde bereits verwendet.", 400);
 
         if (einladung.ExpiresAt < now)
-            throw new AuthException("CODE_EXPIRED", "Der Einladungscode ist abgelaufen.", 400);
+            throw new DomainException("CODE_EXPIRED", "Der Einladungscode ist abgelaufen.", 400);
 
         var existing = await db.Mitgliedschaften
             .FirstOrDefaultAsync(m => m.KapelleID == einladung.KapelleID && m.MusikerID == musikerId);
 
         if (existing is { IstAktiv: true })
-            throw new AuthException("ALREADY_MEMBER", "Du bist bereits Mitglied dieser Kapelle.", 409);
+            throw new DomainException("ALREADY_MEMBER", "Du bist bereits Mitglied dieser Kapelle.", 409);
 
         if (existing is not null)
         {
@@ -239,11 +242,23 @@ public class KapelleService(AppDbContext db) : IKapelleService
         await RequireAdminAsync(kapelleId, musikerId);
 
         if (userId == musikerId)
-            throw new AuthException("CANNOT_CHANGE_OWN_ROLE", "Du kannst deine eigene Rolle nicht ändern.", 400);
+            throw new DomainException("CANNOT_CHANGE_OWN_ROLE", "Du kannst deine eigene Rolle nicht ändern.", 400);
 
         var mitgliedschaft = await db.Mitgliedschaften
             .FirstOrDefaultAsync(m => m.KapelleID == kapelleId && m.MusikerID == userId && m.IstAktiv)
-            ?? throw new AuthException("MEMBER_NOT_FOUND", "Mitglied nicht gefunden.", 404);
+            ?? throw new DomainException("MEMBER_NOT_FOUND", "Mitglied nicht gefunden.", 404);
+
+        // Prevent demoting the last admin
+        if (mitgliedschaft.Rolle == MitgliedRolle.Administrator && request.Rolle != MitgliedRolle.Administrator)
+        {
+            var adminCount = await db.Mitgliedschaften
+                .CountAsync(m => m.KapelleID == kapelleId && m.IstAktiv && m.Rolle == MitgliedRolle.Administrator);
+            if (adminCount <= 1)
+                throw new DomainException(
+                    "LAST_ADMIN",
+                    "Der letzte Admin kann nicht herabgestuft werden. Ernenne zuerst einen anderen Admin.",
+                    400);
+        }
 
         mitgliedschaft.Rolle = request.Rolle;
         await db.SaveChangesAsync();
@@ -253,7 +268,7 @@ public class KapelleService(AppDbContext db) : IKapelleService
     {
         var requester = await db.Mitgliedschaften
             .FirstOrDefaultAsync(m => m.KapelleID == kapelleId && m.MusikerID == musikerId && m.IstAktiv)
-            ?? throw new AuthException("KAPELLE_NOT_FOUND", "Kapelle nicht gefunden oder kein Zugriff.", 404);
+            ?? throw new DomainException("KAPELLE_NOT_FOUND", "Kapelle nicht gefunden oder kein Zugriff.", 404);
 
         // Only admins can remove others; any member can remove themselves (leave)
         if (userId != musikerId && requester.Rolle != MitgliedRolle.Administrator)
@@ -265,7 +280,7 @@ public class KapelleService(AppDbContext db) : IKapelleService
             var adminCount = await db.Mitgliedschaften
                 .CountAsync(m => m.KapelleID == kapelleId && m.IstAktiv && m.Rolle == MitgliedRolle.Administrator);
             if (adminCount <= 1)
-                throw new AuthException(
+                throw new DomainException(
                     "LAST_ADMIN",
                     "Der letzte Admin kann die Kapelle nicht verlassen. Ernenne zuerst einen anderen Admin.",
                     400);
@@ -275,7 +290,7 @@ public class KapelleService(AppDbContext db) : IKapelleService
             ? requester
             : await db.Mitgliedschaften
                 .FirstOrDefaultAsync(m => m.KapelleID == kapelleId && m.MusikerID == userId && m.IstAktiv)
-                ?? throw new AuthException("MEMBER_NOT_FOUND", "Mitglied nicht gefunden.", 404);
+                ?? throw new DomainException("MEMBER_NOT_FOUND", "Mitglied nicht gefunden.", 404);
 
         target.IstAktiv = false;
         await db.SaveChangesAsync();
@@ -341,7 +356,7 @@ public class KapelleService(AppDbContext db) : IKapelleService
             ? requester
             : await db.Mitgliedschaften
                 .FirstOrDefaultAsync(m => m.KapelleID == kapelleId && m.MusikerID == userId && m.IstAktiv)
-                ?? throw new AuthException("MEMBER_NOT_FOUND", "Mitglied nicht gefunden.", 404);
+                ?? throw new DomainException("MEMBER_NOT_FOUND", "Mitglied nicht gefunden.", 404);
 
         target.StimmenOverride = string.IsNullOrWhiteSpace(request.StimmenOverride)
             ? null
@@ -357,7 +372,7 @@ public class KapelleService(AppDbContext db) : IKapelleService
         var m = await db.Mitgliedschaften
             .FirstOrDefaultAsync(m => m.KapelleID == kapelleId && m.MusikerID == musikerId && m.IstAktiv);
 
-        return m ?? throw new AuthException("KAPELLE_NOT_FOUND", "Kapelle nicht gefunden oder kein Zugriff.", 404);
+        return m ?? throw new DomainException("KAPELLE_NOT_FOUND", "Kapelle nicht gefunden oder kein Zugriff.", 404);
     }
 
     private async Task<Mitgliedschaft> RequireAdminAsync(Guid kapelleId, Guid musikerId)

@@ -76,6 +76,7 @@ public record MitgliedDto(
     string Email,
     string? Instrument,
     MitgliedRolle Rolle,
+    string? StimmenOverride,
     DateTime BeigetretenAm
 );
 
