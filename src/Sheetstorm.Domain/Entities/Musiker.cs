@@ -23,4 +23,5 @@ public class Musiker : BaseEntity
 
     public ICollection<Mitgliedschaft> Mitgliedschaften { get; set; } = [];
     public ICollection<RefreshToken> RefreshTokens { get; set; } = [];
+    public ICollection<NutzerInstrument> NutzerInstrumente { get; set; } = [];
 }

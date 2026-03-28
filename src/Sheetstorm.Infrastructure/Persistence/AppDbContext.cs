@@ -19,6 +19,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<ConfigNutzer> ConfigNutzer => Set<ConfigNutzer>();
     public DbSet<ConfigPolicy> ConfigPolicies => Set<ConfigPolicy>();
     public DbSet<ConfigAudit> ConfigAudit => Set<ConfigAudit>();
+    public DbSet<NutzerInstrument> NutzerInstrumente => Set<NutzerInstrument>();
+    public DbSet<StimmeVorauswahl> StimmeVorauswahlen => Set<StimmeVorauswahl>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

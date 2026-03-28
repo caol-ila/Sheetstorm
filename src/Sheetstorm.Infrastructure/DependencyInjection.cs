@@ -8,6 +8,7 @@ using Sheetstorm.Infrastructure.Email;
 using Sheetstorm.Infrastructure.Import;
 using Sheetstorm.Infrastructure.KapelleManagement;
 using Sheetstorm.Infrastructure.Persistence;
+using Sheetstorm.Infrastructure.Stimmen;
 
 namespace Sheetstorm.Infrastructure;
 
@@ -29,6 +30,7 @@ public static class DependencyInjection
         services.AddScoped<IEmailService, DevEmailService>();
         services.AddScoped<IKapelleService, KapelleService>();
         services.AddScoped<IConfigService, ConfigService>();
+        services.AddScoped<IStimmenService, StimmenService>();
 
         // Import pipeline
         services.AddScoped<IImportService, ImportService>();
