@@ -219,3 +219,38 @@ Vollständiges 3-Schichten Backend-Scaffolding für Sheetstorm:
 
 **Lernpunkt:** .NET 10 SDK erstellt `.slnx` statt `.sln` — neues XML Solution Format. `dotnet build Sheetstorm.sln` schlägt fehl, `dotnet build Sheetstorm.slnx` funktioniert.
 
+### 2026-03-28: Issue #6 — Projekt-Setup Spezifikation
+
+**Worktree:** `C:\Source\Sheetstorm-6`, Branch: `squad/6-projekt-setup-spec`  
+**Dokument:** `docs/feature-specs/projekt-setup-spec.md`
+
+**Was spezifiziert wurde:**
+
+1. **Projektstruktur (Mono-Repo):** Vollständiges Layout mit `backend/` (Api/Domain/Infrastructure + Tests), `frontend/` (lib/ nach Feature-Slices + test/ + integration_test/), `docs/feature-specs/`, `.squad/`. Verzeichnis-Ownership-Tabelle pro Agent.
+
+2. **CI/CD Pipelines (GitHub Actions):**
+   - `ci-backend.yml`: Build + Unit + Integration Tests (.NET 10, PostgreSQL via Service Container), Coverage-Upload zu Codecov
+   - `ci-frontend.yml`: Flutter 3.41.5 Build + flutter_test Coverage, Web Smoke Build
+   - `lint.yml`: `flutter analyze --fatal-infos` + `dart format --verify` + `dotnet format --verify-no-changes`
+   - `deploy-dev.yml`: Auto-Deploy zu Azure App Service + Static Web Apps nach erfolgreichem CI auf `main`
+
+3. **Code Conventions:**
+   - Dart: `analysis_options.yaml` mit `flutter_lints` + effective_dart-Regeln, vollständige Naming-Tabelle
+   - C#: `.editorconfig` mit `_camelCase` für private Felder, `PascalCase` für Methoden/Properties, Async-Suffix
+   - Git: Conventional Commits (feat/fix/docs/refactor/test/chore/perf/style/revert) mit Scope-Liste
+   - Branch: `squad/{issue}-{slug}` Pattern
+   - PR: 3-Reviewer Policy (Sonnet 4.6 / Opus 4.6 / GPT 5.4), UX-Review-Pflicht, Squash Merge
+
+4. **Development Environment:** Tool-Tabelle mit exakten Versionen, VS Code extensions.json + settings.json, vollständiges lokales Setup-Skript (Docker PostgreSQL + user-secrets + EF migrations)
+
+5. **Testing-Strategie:** 4-Ebenen-Pyramide (Unit → Widget → Integration → E2E), xUnit-Konventionen mit Testcontainers, flutter_test Widget-Test-Pattern, Coverage-Gates (Domain 80%, UI 60%), Naming-Konventionen pro Sprache
+
+6. **Deployment (MS1):** Local + Dev (Azure), kein Staging/Prod in MS1. Migrations-Workflow mit Naming-Konventionen (7 Patterns), Migrations-Regeln (nie editieren, 2-Schritt für destruktive Änderungen). Environment-Konfiguration: user-secrets lokal, Azure Key Vault in Cloud.
+
+**Architektur-Entscheidungen dokumentiert:**
+- Testcontainers für echte PostgreSQL-Integration (nicht in-memory)
+- Squash Merge auf main (keine Merge-Commits in History)
+- User Secrets lokal, nie Secrets im Code
+- Down-Methode in Migrations ist Pflicht
+
+
