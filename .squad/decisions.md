@@ -248,6 +248,83 @@ Reihenfolge ist PFLICHT: Reviews ERST, dann Lead-Entscheidung, dann Merge.
 
 ---
 
+### 2026-03-29T16:00Z: Fix Branch Merge Decisions
+**By:** Stark (Lead / Architect)  
+**Date:** 2026-03-29
+
+**Context:** 3 fix branches reviewed by 3 independent models (Sonnet 4.6, Opus 4.6, GPT 5.4). Decisions based on cross-referencing all reviews against project decisions and architecture.
+
+#### squad/88-auth-fix (Auth Backend)
+**VERDICT:** REJECT (with fixes)
+
+**FIX NOW (must resolve before merge):**
+1. **LoginAsync must enforce EmailVerified** — Add check in `LoginAsync`: if `!user.EmailVerified`, return error (not a token). Thomas explicitly decided "E-Mail-Bestätigung: Pflicht bei Registrierung." All 3 reviewers flagged this. Unauthenticated users must not receive JWTs.
+2. **Hash email verification tokens** — Store verification tokens hashed (SHA-256), same as refresh tokens. Thomas decided "Gehashte Tokens in der DB von Anfang an." Lookup via hash comparison, not plaintext column query.
+3. **Fix broken existing tests** — GPT flagged old constructor signatures and raw token lookups that break after the changes. Existing tests must compile and pass.
+4. **Remove unrelated IStorageService.cs** — Scope creep. This file has nothing to do with auth. Remove it from this branch; it belongs in a storage feature branch.
+
+**FOLLOW-UP (create issue, merge anyway):**
+- Rate limiting on `/verify-email` endpoint (abuse prevention)
+- EF Core migration for new Musiker columns (dev uses code-first auto-migration, not blocking)
+- Unit tests for verification flow and SHA-256 token hashing paths
+
+**SKIP:**
+- DevEmailService registered unconditionally — Only one reviewer flagged. Likely environment-gated or intentional for dev convenience. Not a production risk.
+
+**Assigned to:** Strange (Principal Backend)
+
+#### squad/93-auth-flutter-fix (Auth Flutter)
+**VERDICT:** REJECT (with fixes)
+
+**FIX NOW (must resolve before merge):**
+1. **Fix endpoint mismatch** — Flutter calls `POST /auth/email-verify/$token`, backend expects `POST /api/auth/verify-email` with JSON body `{ "token": "..." }`. App literally cannot verify emails. Align Flutter client to match backend API contract exactly.
+2. **Fix resendVerificationEmail endpoint** — Calls a nonexistent backend endpoint. Must match actual backend route.
+3. **Fix token refresh race condition** — Concurrent 401 responses trigger multiple simultaneous refresh calls. With refresh token family rotation, the second refresh attempt reuses an already-rotated token → reuse detection → force logout. Solution: queue/mutex on refresh — only one refresh in flight, others wait for result.
+4. **Fix completeOnboarding() Dio instance** — Uses a Dio instance without the auth interceptor → authenticated endpoint called without Bearer token → guaranteed 401. Must use the interceptor-equipped Dio.
+5. **Await async storage writes** — `onAuthError` and `markOnboardingCompleted` perform async writes that aren't awaited. This causes race conditions in the auth flow where subsequent reads see stale state.
+
+**FOLLOW-UP (create issue, merge anyway):**
+- `devAutoVerifyEmail = kDebugMode` should be an explicit opt-in flag, not automatic in all debug builds
+- Double-navigation risk in RegisterScreen (UX bug, not blocking)
+- Hardcoded `baseUrl` — extract to configuration/environment
+- Unit/widget tests for auth flows
+
+**SKIP:**
+- `.g.dart` placeholder files — Generated files, will be overwritten by build_runner
+- Imprecise path check in interceptor — Single reviewer, minor detail, not functionally broken
+
+**Assigned to:** Vision (Principal Frontend)
+
+#### squad/95-kapelle-fix (Kapelle Backend)
+**VERDICT:** REJECT (with fixes)
+
+**FIX NOW (must resolve before merge):**
+1. **Protect last admin from demotion** — `RolleAendernAsync` can demote the last admin to a regular member → zero admins → Kapelle permanently locked. Add guard: count admins, reject if `role != Admin && adminCount <= 1`.
+2. **Replace AuthException with domain exceptions** — `KapelleService` throws `AuthException` for domain errors (e.g., "invitation code invalid", "already a member"). The Flutter auth interceptor interprets 401/403 as "not authenticated" → triggers token refresh or logout. This is a cross-layer integration bug. Create `DomainException` or `KapelleException` that maps to 400/409, not 401/403.
+3. **Add StimmenOverride to MitgliedDto** — The DTO is missing this field, which means the API silently drops data that the backend stores. Clients can never read back what they wrote.
+
+**FOLLOW-UP (create issue, merge anyway):**
+- EF Core migration (code-first auto-migration works for dev)
+- TOCTOU race on invitation codes — add unique constraint on code column as belt-and-suspenders
+- Soft-delete for Kapelle (hard-delete is fine for MVP, soft-delete for production)
+- Unit tests for KapelleService flows
+
+**SKIP:**
+- Inconsistent query patterns — Style preference, not functional. Reviewers disagree on which pattern is "correct."
+- Namespace inconsistency — Cosmetic, single reviewer flag.
+
+**Assigned to:** Strange (Principal Backend)
+
+---
+
+**Priority order for fixes:** 88 → 93 → 95 (auth backend first — Flutter fix depends on correct backend contract; Kapelle is independent but lower risk).
+
+**Note to Strange:** You have two branches. Do 88-auth-fix first since 93-auth-flutter-fix (Vision) depends on the backend endpoints being correct. Then 95-kapelle-fix.
+
+**Note to Vision:** Wait for Strange to confirm 88-auth-fix endpoint contracts before fixing 93-auth-flutter-fix, so you align to the final API shape.
+
+---
+
 ## Governance
 
 - All meaningful changes require team consensus
