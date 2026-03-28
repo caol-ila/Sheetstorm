@@ -37,8 +37,10 @@ class RoleChip extends StatelessWidget {
           (const Color(0xFFF3E8FF), const Color(0xFF7C3AED)),
         BandRole.sheetMusicManager =>
           (const Color(0xFFDBEAFE), const Color(0xFF1A56DB)),
-        BandRole.registerfuehrer =>
+        BandRole.sectionLeader =>
           (const Color(0xFFFFF7ED), const Color(0xFFD97706)),
+        BandRole.sectionLeader =>
+          (const Color(0xFFDCFCE7), const Color(0xFF16A34A)),
         BandRole.musician =>
           (const Color(0xFFF3F4F6), const Color(0xFF6B7280)),
       };

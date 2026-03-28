@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of 'spielmodus_notifier.dart';
+part of 'performance_mode_notifier.dart';
 
 // **************************************************************************
 // RiverpodGenerator
@@ -11,7 +11,7 @@ part of 'spielmodus_notifier.dart';
 /// Family provider: one notifier instance per sheetId.
 
 @ProviderFor(PerformanceModeNotifier)
-final spielmodusProvider = PerformanceModeNotifierFamily._();
+final performanceModeProvider = PerformanceModeNotifierFamily._();
 
 /// Family provider: one notifier instance per sheetId.
 final class PerformanceModeNotifierProvider
@@ -22,7 +22,7 @@ final class PerformanceModeNotifierProvider
     required String super.argument,
   }) : super(
          retry: null,
-         name: r'spielmodusProvider',
+         name: r'performanceModeProvider',
          isAutoDispose: true,
          dependencies: null,
          $allTransitiveDependencies: null,
@@ -33,7 +33,7 @@ final class PerformanceModeNotifierProvider
 
   @override
   String toString() {
-    return r'spielmodusProvider'
+    return r'performanceModeProvider'
         ''
         '($argument)';
   }
@@ -52,7 +52,8 @@ final class PerformanceModeNotifierProvider
 
   @override
   bool operator ==(Object other) {
-    return other is PerformanceModeNotifierProvider && other.argument == argument;
+    return other is PerformanceModeNotifierProvider &&
+        other.argument == argument;
   }
 
   @override
@@ -62,7 +63,7 @@ final class PerformanceModeNotifierProvider
 }
 
 String _$performanceModeNotifierHash() =>
-    r'3ffbbd6fd28a8ba3169bd5e046b6a3b2dee45668';
+    r'97736aec815bb17c94cb00fa67fcffd0b797bd8b';
 
 /// Family provider: one notifier instance per sheetId.
 
@@ -78,7 +79,7 @@ final class PerformanceModeNotifierFamily extends $Family
   PerformanceModeNotifierFamily._()
     : super(
         retry: null,
-        name: r'spielmodusProvider',
+        name: r'performanceModeProvider',
         dependencies: null,
         $allTransitiveDependencies: null,
         isAutoDispose: true,
@@ -90,12 +91,13 @@ final class PerformanceModeNotifierFamily extends $Family
       PerformanceModeNotifierProvider._(argument: sheetId, from: this);
 
   @override
-  String toString() => r'spielmodusProvider';
+  String toString() => r'performanceModeProvider';
 }
 
 /// Family provider: one notifier instance per sheetId.
 
-abstract class _$PerformanceModeNotifier extends $Notifier<PerformanceModeState> {
+abstract class _$PerformanceModeNotifier
+    extends $Notifier<PerformanceModeState> {
   late final _$args = ref.$arg as String;
   String get sheetId => _$args;
 

@@ -1,29 +1,56 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-// ignore_for_file: type=lint
-// coverage:ignore-file
-
 part of 'config_repository.dart';
 
 // **************************************************************************
 // RiverpodGenerator
 // **************************************************************************
 
-String _$configRepositoryHash() => r'placeholder_hash_run_build_runner';
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: type=lint, type=warning
 
-/// See also [configRepository].
 @ProviderFor(configRepository)
-final configRepositoryProvider = Provider<ConfigRepository>.internal(
-  configRepository,
-  name: r'configRepositoryProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$configRepositoryHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
+final configRepositoryProvider = ConfigRepositoryProvider._();
 
-@Deprecated('Will be removed in 3.0. Use Ref instead')
-typedef ConfigRepositoryRef = ProviderRef<ConfigRepository>;
-// ignore_for_file: type=lint
-// ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package
+final class ConfigRepositoryProvider
+    extends
+        $FunctionalProvider<
+          ConfigRepository,
+          ConfigRepository,
+          ConfigRepository
+        >
+    with $Provider<ConfigRepository> {
+  ConfigRepositoryProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'configRepositoryProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$configRepositoryHash();
+
+  @$internal
+  @override
+  $ProviderElement<ConfigRepository> $createElement($ProviderPointer pointer) =>
+      $ProviderElement(pointer);
+
+  @override
+  ConfigRepository create(Ref ref) {
+    return configRepository(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(ConfigRepository value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<ConfigRepository>(value),
+    );
+  }
+}
+
+String _$configRepositoryHash() => r'9e7be2bc884caaac29f5aa8191e25107ce1097fb';

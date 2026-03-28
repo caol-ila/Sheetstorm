@@ -6,7 +6,7 @@ import 'package:sheetstorm/core/theme/app_tokens.dart';
 import 'package:sheetstorm/features/band/application/members_notifier.dart';
 import 'package:sheetstorm/features/band/data/models/band_models.dart';
 import 'package:sheetstorm/features/band/application/band_notifier.dart';
-import 'package:sheetstorm/features/band/presentation/widgets/mitglied_list_tile.dart';
+import 'package:sheetstorm/features/band/presentation/widgets/member_list_tile.dart';
 
 class MembersScreen extends ConsumerWidget {
   const MembersScreen({super.key, required this.bandId});
@@ -15,7 +15,7 @@ class MembersScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final membersState = ref.watch(mitgliederProvider(bandId));
+    final membersState = ref.watch(membersProvider(bandId));
     final isAdmin = _isAdmin(ref);
     final theme = Theme.of(context);
 
@@ -39,7 +39,7 @@ class MembersScreen extends ConsumerWidget {
               const SizedBox(height: AppSpacing.sm),
               FilledButton(
                 onPressed: () => ref
-                    .read(mitgliederProvider(bandId).notifier)
+                    .read(membersProvider(bandId).notifier)
                     .refresh(),
                 child: const Text('Erneut versuchen'),
               ),
@@ -68,7 +68,7 @@ class MembersScreen extends ConsumerWidget {
           }
           return RefreshIndicator(
             onRefresh: () => ref
-                .read(mitgliederProvider(bandId).notifier)
+                .read(membersProvider(bandId).notifier)
                 .refresh(),
             child: ListView.separated(
               itemCount: members.length,
@@ -76,7 +76,7 @@ class MembersScreen extends ConsumerWidget {
               itemBuilder: (context, index) {
                 final member = members[index];
                 return MemberListTile(
-                  mitglied: member,
+                  member: member,
                   isAdmin: isAdmin,
                   onEditRoles: isAdmin
                       ? () => _showRoleEditSheet(context, ref, member)
@@ -109,7 +109,7 @@ class MembersScreen extends ConsumerWidget {
   Future<void> _showRoleEditSheet(
     BuildContext context,
     WidgetRef ref,
-    Mitglied member,
+    Member member,
   ) async {
     final selectedRoles = <BandRole>{...member.roles};
 
@@ -147,7 +147,7 @@ class MembersScreen extends ConsumerWidget {
                     Navigator.of(ctx).pop();
                     final success = await ref
                         .read(
-                            mitgliederProvider(bandId).notifier)
+                            membersProvider(bandId).notifier)
                         .updateRoles(
                           member.musicianId,
                           selectedRoles.toList(),
@@ -179,7 +179,7 @@ class MembersScreen extends ConsumerWidget {
   Future<void> _confirmRemove(
     BuildContext context,
     WidgetRef ref,
-    Mitglied member,
+    Member member,
   ) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -208,7 +208,7 @@ class MembersScreen extends ConsumerWidget {
     if (!context.mounted) return;
 
     final success = await ref
-        .read(mitgliederProvider(bandId).notifier)
+        .read(membersProvider(bandId).notifier)
         .removeMember(member.musicianId);
 
     if (!context.mounted) return;

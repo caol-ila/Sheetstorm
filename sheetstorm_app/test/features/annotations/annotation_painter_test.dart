@@ -144,7 +144,7 @@ void main() {
       final painter = AnnotationPainter(
         annotations: [_annot(level: AnnotationLevel.private)],
         layerVisibility:
-            const LayerVisibility(privat: false, stimme: true, orchester: true),
+            const LayerVisibility(isPrivate: false, isVoice: true, isOrchestra: true),
       );
       expect(() => _paintOnCanvas(painter), returnsNormally);
     });

@@ -17,7 +17,7 @@ class BandSettingsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final configState = ref.watch(configNotifierProvider);
+    final configState = ref.watch(configProvider);
     final grouped = ConfigKeys.groupedByCategory(ConfigLevel.band);
     final theme = Theme.of(context);
 
@@ -92,7 +92,7 @@ class BandSettingsScreen extends ConsumerWidget {
           _PoliciesSection(
             policies: configState.policies,
             onToggle: (key, value) {
-              ref.read(configNotifierProvider.notifier).togglePolicy(key, value);
+              ref.read(configProvider.notifier).togglePolicy(key, value);
             },
           ),
         ],
@@ -123,7 +123,7 @@ class BandSettingsScreen extends ConsumerWidget {
           resolved: resolved,
           viewLevel: ConfigLevel.band,
           onChanged: (value) {
-            ref.read(configNotifierProvider.notifier).updateConfig(
+            ref.read(configProvider.notifier).updateConfig(
                   keyDef.key,
                   value,
                   level: ConfigLevel.band,
@@ -132,7 +132,7 @@ class BandSettingsScreen extends ConsumerWidget {
           onReset: resolved.source == ConfigLevel.band
               ? () {
                   ref
-                      .read(configNotifierProvider.notifier)
+                      .read(configProvider.notifier)
                       .resetToParent(keyDef.key, ConfigLevel.band);
                 }
               : null,
@@ -225,7 +225,7 @@ class _PoliciesSection extends StatelessWidget {
           const SizedBox(height: AppSpacing.sm),
           for (final entry in policies.entries)
             _PolicyTile(
-              key: entry.key,
+              settingKey: entry.key,
               policy: entry.value,
               onToggle: (value) => onToggle(entry.key, value),
             ),
@@ -237,19 +237,19 @@ class _PoliciesSection extends StatelessWidget {
 
 class _PolicyTile extends StatelessWidget {
   const _PolicyTile({
-    required this.key,
+    required this.settingKey,
     required this.policy,
     required this.onToggle,
   });
 
-  final String key;
+  final String settingKey;
   final ConfigPolicy policy;
   final ValueChanged<dynamic> onToggle;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final keyDef = ConfigKeys.lookup(key);
+    final keyDef = ConfigKeys.lookup(settingKey);
     final isActive = policy.value == true;
 
     return Card(
@@ -259,7 +259,7 @@ class _PolicyTile extends StatelessWidget {
           isActive ? Icons.lock : Icons.lock_open,
           color: isActive ? AppColors.warning : theme.colorScheme.onSurfaceVariant,
         ),
-        title: Text(keyDef?.label ?? key),
+        title: Text(keyDef?.label ?? settingKey),
         subtitle: keyDef?.description != null
             ? Text(keyDef!.description!)
             : null,

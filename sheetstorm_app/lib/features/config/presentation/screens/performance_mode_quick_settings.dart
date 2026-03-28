@@ -69,7 +69,7 @@ class _PerformanceModeQuickSettingsState
 
   @override
   Widget build(BuildContext context) {
-    final configState = ref.watch(configNotifierProvider);
+    final configState = ref.watch(configProvider);
     final theme = Theme.of(context);
 
     return FadeTransition(
@@ -145,7 +145,7 @@ class _PerformanceModeQuickSettingsState
                             onChanged: (v) {
                               _onInteraction();
                               ref
-                                  .read(configNotifierProvider.notifier)
+                                  .read(configProvider.notifier)
                                   .updateConfig(
                                     'user.theme',
                                     v ? 'dark' : 'light',
@@ -168,7 +168,7 @@ class _PerformanceModeQuickSettingsState
                             onChanged: (v) {
                               _onInteraction();
                               ref
-                                  .read(configNotifierProvider.notifier)
+                                  .read(configProvider.notifier)
                                   .updateConfig(
                                     'user.performance_mode.half_page_turn',
                                     v,
@@ -203,7 +203,7 @@ class _PerformanceModeQuickSettingsState
                             onChanged: (v) {
                               _onInteraction();
                               ref
-                                  .read(configNotifierProvider.notifier)
+                                  .read(configProvider.notifier)
                                   .updateConfig(
                                     'device.display.font_size',
                                     v,
@@ -242,7 +242,7 @@ class _PerformanceModeQuickSettingsState
                             onChanged: (v) {
                               _onInteraction();
                               ref
-                                  .read(configNotifierProvider.notifier)
+                                  .read(configProvider.notifier)
                                   .updateConfig(
                                     'device.display.brightness',
                                     v,

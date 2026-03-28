@@ -12,7 +12,7 @@ class BandSectionScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final registerState = ref.watch(registerProvider(bandId));
+    final registerState = ref.watch(sectionProvider(bandId));
     final canManage = _canManage(ref);
     final theme = Theme.of(context);
 
@@ -35,7 +35,7 @@ class BandSectionScreen extends ConsumerWidget {
               const SizedBox(height: AppSpacing.sm),
               FilledButton(
                 onPressed: () => ref
-                    .read(registerProvider(bandId).notifier)
+                    .read(sectionProvider(bandId).notifier)
                     .refresh(),
                 child: const Text('Erneut versuchen'),
               ),
@@ -71,7 +71,7 @@ class BandSectionScreen extends ConsumerWidget {
           }
           return RefreshIndicator(
             onRefresh: () => ref
-                .read(registerProvider(bandId).notifier)
+                .read(sectionProvider(bandId).notifier)
                 .refresh(),
             child: ListView.separated(
               padding: const EdgeInsets.all(AppSpacing.md),
@@ -172,7 +172,7 @@ class BandSectionScreen extends ConsumerWidget {
     farbeController.dispose();
 
     final result =
-        await ref.read(registerProvider(bandId).notifier).create(
+        await ref.read(sectionProvider(bandId).notifier).create(
               name: name,
               description: description.isNotEmpty ? description : null,
               color: color.isNotEmpty ? color : null,
@@ -191,7 +191,7 @@ class BandSectionScreen extends ConsumerWidget {
   Future<void> _showEditDialog(
     BuildContext context,
     WidgetRef ref,
-    Register sections,
+    Section sections,
   ) async {
     final nameController = TextEditingController(text: sections.name);
     final descriptionController =
@@ -255,7 +255,7 @@ class BandSectionScreen extends ConsumerWidget {
     farbeController.dispose();
 
     final success =
-        await ref.read(registerProvider(bandId).notifier).updateSection(
+        await ref.read(sectionProvider(bandId).notifier).updateSection(
               registerId: sections.id,
               name: name,
               description: description.isNotEmpty ? description : null,
@@ -275,7 +275,7 @@ class BandSectionScreen extends ConsumerWidget {
   Future<void> _confirmDelete(
     BuildContext context,
     WidgetRef ref,
-    Register sections,
+    Section sections,
   ) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -304,7 +304,7 @@ class BandSectionScreen extends ConsumerWidget {
     if (!context.mounted) return;
 
     final success = await ref
-        .read(registerProvider(bandId).notifier)
+        .read(sectionProvider(bandId).notifier)
         .delete(sections.id);
 
     if (!context.mounted) return;
@@ -326,7 +326,7 @@ class _RegisterCard extends StatelessWidget {
     this.onDelete,
   });
 
-  final Register sections;
+  final Section sections;
   final bool canManage;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;

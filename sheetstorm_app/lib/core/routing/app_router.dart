@@ -7,7 +7,7 @@ import 'package:sheetstorm/features/auth/presentation/screens/email_verification
 import 'package:sheetstorm/features/auth/presentation/screens/forgot_password_screen.dart';
 import 'package:sheetstorm/features/auth/presentation/screens/login_screen.dart';
 import 'package:sheetstorm/features/auth/presentation/screens/onboarding_screen.dart';
-import 'package:sheetstorm/features/auth/presentation/screens/sections_screen.dart';
+import 'package:sheetstorm/features/auth/presentation/screens/register_screen.dart';
 import 'package:sheetstorm/features/config/presentation/screens/settings_screen.dart';
 import 'package:sheetstorm/features/band/presentation/screens/create_band_screen.dart';
 import 'package:sheetstorm/features/band/presentation/screens/invite_screen.dart';
@@ -15,7 +15,7 @@ import 'package:sheetstorm/features/band/presentation/screens/join_band_screen.d
 import 'package:sheetstorm/features/band/presentation/screens/band_detail_screen.dart';
 import 'package:sheetstorm/features/band/presentation/screens/band_screen.dart';
 import 'package:sheetstorm/features/band/presentation/screens/members_screen.dart';
-import 'package:sheetstorm/features/band/presentation/screens/sections_screen.dart';
+import 'package:sheetstorm/features/band/presentation/screens/section_screen.dart';
 import 'package:sheetstorm/features/sheet_music/presentation/screens/library_screen.dart';
 import 'package:sheetstorm/features/sheet_music/presentation/screens/import_screen.dart';
 import 'package:sheetstorm/features/sheet_music/presentation/screens/import_summary_screen.dart';

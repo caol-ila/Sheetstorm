@@ -17,7 +17,7 @@ class DeviceSettingsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final configState = ref.watch(configNotifierProvider);
+    final configState = ref.watch(configProvider);
     final grouped = ConfigKeys.groupedByCategory(ConfigLevel.device);
     final theme = Theme.of(context);
 
@@ -114,7 +114,7 @@ class DeviceSettingsScreen extends ConsumerWidget {
           resolved: resolved,
           viewLevel: ConfigLevel.device,
           onChanged: (value) {
-            ref.read(configNotifierProvider.notifier).updateConfig(
+            ref.read(configProvider.notifier).updateConfig(
                   keyDef.key,
                   value,
                   level: ConfigLevel.device,
@@ -123,7 +123,7 @@ class DeviceSettingsScreen extends ConsumerWidget {
           onOverride: resolved.source != ConfigLevel.device &&
                   !resolved.isLocked
               ? () {
-                  ref.read(configNotifierProvider.notifier).overrideAtLevel(
+                  ref.read(configProvider.notifier).overrideAtLevel(
                         keyDef.key,
                         resolved.value,
                         ConfigLevel.device,
@@ -133,7 +133,7 @@ class DeviceSettingsScreen extends ConsumerWidget {
           onReset: resolved.source == ConfigLevel.device
               ? () {
                   ref
-                      .read(configNotifierProvider.notifier)
+                      .read(configProvider.notifier)
                       .resetToParent(keyDef.key, ConfigLevel.device);
                 }
               : null,

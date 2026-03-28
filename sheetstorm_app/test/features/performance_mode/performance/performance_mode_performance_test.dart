@@ -12,9 +12,9 @@ import 'package:sheetstorm/features/performance_mode/data/services/page_cache_se
 Future<(ProviderContainer, PerformanceModeNotifier)> _makePerf(String id) async {
   final container = ProviderContainer();
   addTearDown(container.dispose);
-  final sub = container.listen(spielmodusProvider(id), (_, __) {});
+  final sub = container.listen(performanceModeProvider(id), (_, __) {});
   addTearDown(sub.close);
-  final notifier = container.read(spielmodusProvider(id).notifier);
+  final notifier = container.read(performanceModeProvider(id).notifier);
   await Future<void>.delayed(const Duration(milliseconds: 200));
   return (container, notifier);
 }

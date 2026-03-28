@@ -447,7 +447,7 @@ class ImportNotifier extends _$ImportNotifier {
       case 'time_signature':
         value = v.timeSignature?.value;
       case 'stimme':
-        value = v.stimme?.value;
+        value = v.voice?.value;
       default:
         return;
     }

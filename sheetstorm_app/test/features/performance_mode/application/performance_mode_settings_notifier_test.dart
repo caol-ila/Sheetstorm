@@ -12,17 +12,17 @@ Future<(ProviderContainer, PerformanceModeSettingsNotifier)> _makeNotifier({
   final container = ProviderContainer();
   addTearDown(container.dispose);
   // Listen to keep the autoDispose provider alive
-  final sub = container.listen(spielmodusSettingsProvider, (_, __) {});
+  final sub = container.listen(performanceModeSettingsProvider, (_, __) {});
   addTearDown(sub.close);
   final notifier =
-      container.read(spielmodusSettingsProvider.notifier);
+      container.read(performanceModeSettingsProvider.notifier);
   // Wait for async _loadFromPrefs
   await Future<void>.delayed(const Duration(milliseconds: 50));
   return (container, notifier);
 }
 
 PerformanceModeSettings _state(ProviderContainer c) =>
-    c.read(spielmodusSettingsProvider);
+    c.read(performanceModeSettingsProvider);
 
 void main() {
   group('PerformanceModeSettingsNotifier — defaults', () {

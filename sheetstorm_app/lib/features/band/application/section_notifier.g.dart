@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of 'register_notifier.dart';
+part of 'section_notifier.dart';
 
 // **************************************************************************
 // RiverpodGenerator
@@ -10,7 +10,7 @@ part of 'register_notifier.dart';
 // ignore_for_file: type=lint, type=warning
 
 @ProviderFor(SectionNotifier)
-final registerProvider = SectionNotifierFamily._();
+final sectionProvider = SectionNotifierFamily._();
 
 final class SectionNotifierProvider
     extends $AsyncNotifierProvider<SectionNotifier, List<Section>> {
@@ -19,7 +19,7 @@ final class SectionNotifierProvider
     required String super.argument,
   }) : super(
          retry: null,
-         name: r'registerProvider',
+         name: r'sectionProvider',
          isAutoDispose: true,
          dependencies: null,
          $allTransitiveDependencies: null,
@@ -30,7 +30,7 @@ final class SectionNotifierProvider
 
   @override
   String toString() {
-    return r'registerProvider'
+    return r'sectionProvider'
         ''
         '($argument)';
   }
@@ -50,7 +50,7 @@ final class SectionNotifierProvider
   }
 }
 
-String _$sectionNotifierHash() => r'4ffa60414894b7fd18c6ddeef8bb308fbdddf8d2';
+String _$sectionNotifierHash() => r'ca2aee85d6f78d7666ff62288711bc2ef1881c8d';
 
 final class SectionNotifierFamily extends $Family
     with
@@ -64,7 +64,7 @@ final class SectionNotifierFamily extends $Family
   SectionNotifierFamily._()
     : super(
         retry: null,
-        name: r'registerProvider',
+        name: r'sectionProvider',
         dependencies: null,
         $allTransitiveDependencies: null,
         isAutoDispose: true,
@@ -74,7 +74,7 @@ final class SectionNotifierFamily extends $Family
       SectionNotifierProvider._(argument: bandId, from: this);
 
   @override
-  String toString() => r'registerProvider';
+  String toString() => r'sectionProvider';
 }
 
 abstract class _$SectionNotifier extends $AsyncNotifier<List<Section>> {

@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sheetstorm/core/constants/app_constants.dart';
 import 'package:sheetstorm/core/theme/app_colors.dart';
@@ -34,11 +36,11 @@ void main() {
 
   group('AppColors — Design Tokens', () {
     test('Primary-Farbe stimmt mit ux-design.md überein', () {
-      expect(AppColors.primary.value, equals(const Color(0xFF1A56DB).value));
+      expect(AppColors.primary, equals(const Color(0xFF1A56DB)));
     });
 
     test('Dark-Background ist schwarz (Spielmodus)', () {
-      expect(AppColors.darkBackground.value, equals(const Color(0xFF000000).value));
+      expect(AppColors.darkBackground, equals(const Color(0xFF000000)));
     });
   });
 }

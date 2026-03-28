@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of 'mitglieder_notifier.dart';
+part of 'members_notifier.dart';
 
 // **************************************************************************
 // RiverpodGenerator
@@ -10,7 +10,7 @@ part of 'mitglieder_notifier.dart';
 // ignore_for_file: type=lint, type=warning
 
 @ProviderFor(MembersNotifier)
-final mitgliederProvider = MembersNotifierFamily._();
+final membersProvider = MembersNotifierFamily._();
 
 final class MembersNotifierProvider
     extends $AsyncNotifierProvider<MembersNotifier, List<Member>> {
@@ -19,7 +19,7 @@ final class MembersNotifierProvider
     required String super.argument,
   }) : super(
          retry: null,
-         name: r'mitgliederProvider',
+         name: r'membersProvider',
          isAutoDispose: true,
          dependencies: null,
          $allTransitiveDependencies: null,
@@ -30,7 +30,7 @@ final class MembersNotifierProvider
 
   @override
   String toString() {
-    return r'mitgliederProvider'
+    return r'membersProvider'
         ''
         '($argument)';
   }
@@ -50,8 +50,7 @@ final class MembersNotifierProvider
   }
 }
 
-String _$membersNotifierHash() =>
-    r'c1b175f7f5a7a8fe3859a4bf87daec0abf4ba056';
+String _$membersNotifierHash() => r'1dfc878475920271486883307e05d254f593c992';
 
 final class MembersNotifierFamily extends $Family
     with
@@ -65,7 +64,7 @@ final class MembersNotifierFamily extends $Family
   MembersNotifierFamily._()
     : super(
         retry: null,
-        name: r'mitgliederProvider',
+        name: r'membersProvider',
         dependencies: null,
         $allTransitiveDependencies: null,
         isAutoDispose: true,
@@ -75,7 +74,7 @@ final class MembersNotifierFamily extends $Family
       MembersNotifierProvider._(argument: bandId, from: this);
 
   @override
-  String toString() => r'mitgliederProvider';
+  String toString() => r'membersProvider';
 }
 
 abstract class _$MembersNotifier extends $AsyncNotifier<List<Member>> {
