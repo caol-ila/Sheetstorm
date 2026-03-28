@@ -33,6 +33,7 @@ public record UserDto(
     string DisplayName,
     string? Instrument,
     bool OnboardingCompleted,
+    bool EmailVerified,
     DateTime CreatedAt
 );
 
@@ -59,6 +60,10 @@ public record ResetPasswordResponse(
     string RefreshToken,
     string TokenType,
     int ExpiresIn
+);
+
+public record VerifyEmailRequest(
+    [Required] string Token
 );
 
 public record ErrorResponse(string Error, string Message);
