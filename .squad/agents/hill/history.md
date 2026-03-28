@@ -54,3 +54,31 @@ Epic-Issues (#3, #4, #5) verlinken alle Child-Issues.
 - User-Enumeration bei "Passwort vergessen" verhindert (immer 200 OK)
 - Refresh Token Reuse Detection: bei Wiederverwendung alle Sessions invalidieren
 - `onboardingCompleted = true` auch wenn alle Schritte übersprungen
+
+### 2026-03-28: Feature-Spec Kapellenverwaltung (#15) erstellt
+
+**Aufgabe:** Vollständige Feature-Spezifikation für Kapellenverwaltung auf Basis von Wandas UX-Design (docs/ux-design.md §3.5, §4.3 — vollständige UX-Spec #14 noch ausstehend).
+
+**Ergebnis:** `docs/feature-specs/kapellenverwaltung-spec.md` erstellt (Branch `squad/15-kapelle-spec`):
+
+1. **Feature-Überblick** — Scope MS1 klar abgegrenzt (8 In-Scope, 8 Out-of-Scope-Items); Alleinstellungsmerkmal Multi-Kapellen und Registerführer-Rolle dokumentiert
+2. **5 INVEST-konforme User Stories:**
+   - US-01: Kapelle erstellen (Name, Beschreibung, Ort, Logo optional)
+   - US-02: Mitglieder einladen (E-Mail + Einladungslink, 7-Tage-Default, konfigurierbar)
+   - US-03: Rollen zuweisen (5 Rollen: Admin/Dirigent/Notenwart/Registerführer/Musiker; mehrere Rollen pro Mitglied)
+   - US-04: Multi-Kapelle — Kapellen-Wechsel (max. 20 Kapellen, State wird gespeichert)
+   - US-05: Instrument-Register verwalten (Vorlagen, Drag & Drop, Registerführer-Zuweisung)
+3. **10 testbare Akzeptanzkriterien** — von E2E-Timing bis Cross-Kapellen-Isolation
+4. **API-Contract (5 Endpunkt-Gruppen):** CRUD Kapelle, Mitglieder, Rollen, Einladungen, Register — vollständige Request/Response-Beispiele
+5. **Datenmodell (6 Tabellen):** kapellen, mitgliedschaften, mitgliedschaft_rollen (Enum-Typ), einladungen (256-bit Token), register, audit_log — inkl. Indexes und Constraints
+6. **Berechtigungsmatrix:** 5 Rollen × alle Aktionen, Server-side Enforcement als Kernprinzip
+7. **8 Edge Cases:** Letzter Admin verlässt Kapelle (verwaist-Status, 90-Tage-Frist), doppelte Einladung (zwei Szenarien), Token-Kollision, abgelaufene Einladung, Mitglied online entfernt, Register mit Mitgliedern löschen
+8. **Definition of Done:** 25 Checkboxen über Funktional/Qualität/UX/Technisch/Deployment
+
+**Wichtigste Entscheidungen in der Spec:**
+- Kein Auto-Promote zum Admin — explizite Entscheidung, keine stillen System-Aktionen
+- Verwaiste Kapelle (letzter Admin löscht Account): 90-Tage-Frist, kein sofortiger Hard-Delete
+- Doppelte Einladung ersetzt nie automatisch — Admin muss explizit bestätigen
+- Server-side Enforcement als nicht-verhandelbar (Frontend blendet aus, Server erzwingt)
+- Abgelaufener Einladungslink → 410 Gone (nicht 404, semantisch korrekt)
+- Mitglied-Removal: Offline-Daten bleiben bis nächsten Sync — kein Hard-Delete vom Gerät
