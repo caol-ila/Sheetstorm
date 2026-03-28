@@ -186,7 +186,22 @@
 - Versions-Referenz-Tabelle mit Spalte "Verifiziert via" für Audit-Trail
 - SQLite 3.52.0-Rückzug dokumentiert
 - Impeller 2.0 in Flutter 3.41 als Key-Feature ergänzt
-```
+
+### 2026-03-28: Final Merge — 3 Fix Branches (#88, #93, #95)
+
+**Anlass:** Thomas requested final merge decision after re-review round (3 reviewers × 3 branches).
+
+**Entscheidungen:**
+- **squad/88-auth-fix → MERGE.** Sonnet's rejection was factually wrong (claimed IStorageService not removed, but Opus verified removal in commit ed44824). Secondary concerns (dev token logging, registration tokens, rate limiting) are valid follow-ups, not blockers.
+- **squad/93-auth-flutter-fix → MERGE.** Unanimous 3/3 approval. Follow-ups: interceptor path guard, base URL duplication, JSON key format verification.
+- **squad/95-kapelle-fix → MERGE.** GPT's rejection was incorrect. Verified `MitgliedEntfernenAsync`: admin A removing admin B is safe because A must be admin → at least 1 admin remains. Self-removal guard counts ALL admins correctly. Follow-ups: AuthException coupling, `VorgeseheRolle` typo.
+
+**Merge-Konflikt:** `DependencyInjection.cs` — #88 added `IEmailService`, #95 added `IKapelleService`. Resolved by keeping both registrations.
+
+**Learnings:**
+- Reviewer disagreements require code verification, not just vote counting. Both Sonnet (#88) and GPT (#95) made factually incorrect claims that would have blocked valid merges.
+- The 3-reviewer policy works: diverse models catch different issues, but each reviewer's claims must be independently verified when they contradict others.
+- Merge order matters: merging #88 before #95 created a predictable conflict in DI registration. Sequential merge with conflict resolution is cleaner than attempting parallel merges.
 
 ### 2026-03-28: Issue #7 — ASP.NET Core 10 Backend Scaffolding
 
