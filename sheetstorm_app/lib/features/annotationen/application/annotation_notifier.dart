@@ -69,8 +69,9 @@ class AnnotationState {
 
 /// Manages annotation state for a single Stück (piece).
 /// Provider uses `family` to scope per stuckId.
-class AnnotationNotifier extends StateNotifier<AnnotationState> {
-  AnnotationNotifier() : super(const AnnotationState());
+class AnnotationNotifier extends Notifier<AnnotationState> {
+  @override
+  AnnotationState build() => const AnnotationState();
 
   /// Annotationsmodus ein-/ausschalten
   void toggleAnnotationMode() {
@@ -318,7 +319,7 @@ class AnnotationNotifier extends StateNotifier<AnnotationState> {
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
 /// Scoped per stuckId (Stück-ID)
-final annotationProvider = StateNotifierProvider.family<
+final annotationProvider = NotifierProvider.family<
     AnnotationNotifier, AnnotationState, String>(
-  (ref, stuckId) => AnnotationNotifier(),
+  (_) => AnnotationNotifier(),
 );
