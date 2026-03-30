@@ -242,3 +242,28 @@
 - Model-Validation-Tests: reflection-basiert via PropertyInfo.GetCustomAttribute<StringLengthAttribute>() — korrekte Methode für positional records.
 
 **Test-Pattern:** Service-Tests mit InMemoryDatabase bleiben das Standard-Muster. Controller-Tests mit NSubstitute für Service-Mocking.
+
+### 2026-03-30 — #110: PostService Soft-Delete Inkonsistenz
+
+**Problem:** Posts wurden immer hard-deleted (`db.Remove()`), Comments dagegen soft-deleted (`IsDeleted` flag) — inkonsistente Strategie mit Risiko von Orphan-Records.
+
+**Lösung: Conditional Delete — abhängig von Child-Comments:**
+- Post **mit aktiven Comments** → Soft-Delete: `IsDeleted = true`, `DeletedAt = UtcNow`, Title/Content → `"[Gelöscht]"`, unpin. Shell bleibt erhalten, Comment-Thread bleibt navigierbar.
+- Post **ohne Comments** → Hard-Delete (kein Orphan-Risiko).
+- Bereits soft-gelöschter Post → `NOT_FOUND` (404) — verhindert Doppel-Delete.
+
+**Entity-Änderungen:** `Post` bekommt `IsDeleted` (bool, default false) + `DeletedAt` (DateTime?). Migration `20260330215615_PostSoftDelete` erstellt.
+
+**Query-Strategie:**
+- `GetAllAsync`: filtert `!p.IsDeleted` — gelöschte Posts erscheinen nicht in Listings.
+- `GetByIdAsync`: **kein Filter** — soft-deleted Posts sind weiter lesbar (Comment-Thread).
+- Alle Mutations (Update, Pin, Unpin, AddComment, AddReaction): `&& !p.IsDeleted` Guard.
+
+**TDD:** 4 neue Tests — `DeleteAsync_WithComments_SoftDeletes`, `DeleteAsync_WithoutComments_HardDeletes`, `GetAllAsync_ExcludesSoftDeletedPosts`, `DeleteAsync_AlreadyDeleted_ThrowsNotFound`. RED→GREEN→858/858 bestanden.
+
+**Key Files:**
+- `src/Sheetstorm.Domain/Entities/Post.cs` — neue Felder
+- `src/Sheetstorm.Infrastructure/Communication/PostService.cs` — DeleteAsync + Query-Guards
+- `src/Sheetstorm.Infrastructure/Persistence/Configurations/PostConfiguration.cs` — EF-Config
+- `src/Sheetstorm.Infrastructure/Migrations/20260330215615_PostSoftDelete.cs` — Migration
+- `tests/Sheetstorm.Tests/Communication/PostServiceTests.cs` — 4 neue Tests
