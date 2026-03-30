@@ -35,6 +35,8 @@ class BroadcastState {
   bool get isConductor => mode == BroadcastMode.broadcasting;
   bool get isMusician => mode == BroadcastMode.receiving;
 
+  static const _sentinel = Object();
+
   BroadcastState copyWith({
     BroadcastMode? mode,
     BroadcastSession? session,
@@ -42,7 +44,7 @@ class BroadcastState {
     SongChangedPayload? currentSong,
     SignalRConnectionState? connectionState,
     int? connectedCount,
-    String? error,
+    Object? error = _sentinel,
   }) =>
       BroadcastState(
         mode: mode ?? this.mode,
@@ -51,7 +53,7 @@ class BroadcastState {
         currentSong: currentSong ?? this.currentSong,
         connectionState: connectionState ?? this.connectionState,
         connectedCount: connectedCount ?? this.connectedCount,
-        error: error ?? this.error,
+        error: error == _sentinel ? this.error : error as String?,
       );
 }
 

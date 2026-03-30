@@ -39,7 +39,7 @@ class SetlistPlayerState {
   int get totalPlayable => playableItems.length;
 
   bool get isFirst => currentIndex <= 0;
-  bool get isLast => currentIndex >= totalPlayable - 1;
+  bool get isLast => totalPlayable > 0 && currentIndex >= totalPlayable - 1;
 
   /// Progress string like "Stück 3/12".
   String get progressLabel {
