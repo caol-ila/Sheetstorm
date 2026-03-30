@@ -19,7 +19,7 @@ abstract final class CommunicationRoutes {
 /// DO NOT modify app_router.dart — add these routes via shell branch
 final communicationRoutes = [
   GoRoute(
-    path: '/board',
+    path: '/app/board',
     builder: (context, state) => const BoardScreen(),
     routes: [
       GoRoute(
@@ -30,16 +30,16 @@ final communicationRoutes = [
         ),
       ),
       GoRoute(
+        path: ':bandId/polls/create',
+        builder: (context, state) => CreatePollScreen(
+          bandId: state.pathParameters['bandId']!,
+        ),
+      ),
+      GoRoute(
         path: ':bandId/polls/:pollId',
         builder: (context, state) => PollDetailScreen(
           bandId: state.pathParameters['bandId']!,
           pollId: state.pathParameters['pollId']!,
-        ),
-      ),
-      GoRoute(
-        path: ':bandId/polls/create',
-        builder: (context, state) => CreatePollScreen(
-          bandId: state.pathParameters['bandId']!,
         ),
       ),
     ],

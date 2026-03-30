@@ -25,23 +25,27 @@ class AttendanceDashboardState {
     this.error,
   });
 
+  static const _sentinel = Object();
+
   AttendanceDashboardState copyWith({
-    AttendanceStats? stats,
-    AttendanceTrend? trend,
-    DateTime? startDate,
-    DateTime? endDate,
-    String? eventType,
+    Object? stats = _sentinel,
+    Object? trend = _sentinel,
+    Object? startDate = _sentinel,
+    Object? endDate = _sentinel,
+    Object? eventType = _sentinel,
     bool? isLoading,
-    String? error,
+    Object? error = _sentinel,
   }) =>
       AttendanceDashboardState(
-        stats: stats ?? this.stats,
-        trend: trend ?? this.trend,
-        startDate: startDate ?? this.startDate,
-        endDate: endDate ?? this.endDate,
-        eventType: eventType ?? this.eventType,
+        stats: stats == _sentinel ? this.stats : stats as AttendanceStats?,
+        trend: trend == _sentinel ? this.trend : trend as AttendanceTrend?,
+        startDate:
+            startDate == _sentinel ? this.startDate : startDate as DateTime?,
+        endDate: endDate == _sentinel ? this.endDate : endDate as DateTime?,
+        eventType:
+            eventType == _sentinel ? this.eventType : eventType as String?,
         isLoading: isLoading ?? this.isLoading,
-        error: error ?? this.error,
+        error: error == _sentinel ? this.error : error as String?,
       );
 }
 
