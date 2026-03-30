@@ -10,6 +10,43 @@
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
+### 2026-03-30 — Cloud-Sync Backend (MS3)
+
+**Feature:** Cloud-Sync (Persönliche Sammlung) — Delta-Sync-Protokoll für `Meine Musik`
+
+**Entitäten:**
+- `SyncVersion` (`src/Sheetstorm.Domain/Entities/SyncVersion.cs`) — PK = `MusicianId` (kein `BaseEntity`-Id). Monoton steigender `CurrentVersion`-Counter + `LastSyncAt`.
+- `SyncChangelog` (`src/Sheetstorm.Domain/Entities/SyncChangelog.cs`) — Pro-Änderung-Log-Eintrag mit `EntityType`, `EntityId`, `Operation`, `FieldName`, `NewValue`, `ChangedAt`, `Version`.
+- `Band.IsPersonal` (`src/Sheetstorm.Domain/Entities/Band.cs`) — Kennzeichnet die persönliche `Meine Musik`-Kapelle (gemäß Team-Entscheidung 2026-03-28).
+
+**DTOs:** `src/Sheetstorm.Domain/Sync/SyncDtos.cs` — records für SyncState, Pull, Push, Resolve.
+
+**Service:** `ISyncService` / `SyncService` in `src/Sheetstorm.Infrastructure/Sync/` — 4 Methoden.
+
+**LWW-Logik:** Im `PushAsync`: Für `Update`-Operationen wird `SyncChangelog` per `(EntityId, FieldName)` geprüft. Ist `existingChange.ChangedAt > change.ChangedAt` → ServerWins (Konflikt). Sonst → akzeptieren, Version inkrementieren.
+
+**API:** `SyncController` unter `/api/sync/{state|pull|push|resolve}` (kein Version-Segment, kein `meine-musik`-Pfad — Protokoll-Spec verwendet diese vereinfachten Routen).
+
+**EF-Konfiguration:**
+- Index auf `(MusicianId, Version)` → effizient für Pull-Queries
+- Index auf `(MusicianId, EntityId, FieldName)` → effizient für LWW-Konflikterkennung
+
+**Build-Problem (Worktree-spezifisch):** Paralleles `dotnet test` auf dem Solution-Level schlägt oft fehl mit MSB3492-Cache-Race-Condition. Workaround: Erst `dotnet build` in jedem Projekt-Verzeichnis separat (Domain → Infrastructure → Api → Tests), dann `dotnet test --no-build` im Test-Verzeichnis.
+
+**Tests:** 22 neue Tests (SyncServiceTests + SyncControllerTests), alle grün. Baseline: 25→48 passing, 1 pre-existing Auth-Fail unverändert.
+
+**Key Files:**
+- `src/Sheetstorm.Domain/Entities/SyncVersion.cs`
+- `src/Sheetstorm.Domain/Entities/SyncChangelog.cs`
+- `src/Sheetstorm.Domain/Sync/SyncDtos.cs`
+- `src/Sheetstorm.Infrastructure/Sync/ISyncService.cs`
+- `src/Sheetstorm.Infrastructure/Sync/SyncService.cs`
+- `src/Sheetstorm.Api/Controllers/SyncController.cs`
+- `src/Sheetstorm.Tests/Sync/SyncServiceTests.cs`
+- `src/Sheetstorm.Tests/Sync/SyncControllerTests.cs`
+
+
+
 ### 2026-03-29 — Demo-Account-Seeder & Auth-System-Details
 
 **Auth-System:** Kein ASP.NET Identity — Custom AuthService mit BCrypt.Net-Next 4.1.0 für Passwort-Hashing, SHA-256 für Token-Hashing (Refresh + Email-Verifikation), JWT für Access Tokens.
