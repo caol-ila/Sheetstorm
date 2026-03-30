@@ -1,20 +1,23 @@
-docs(squad): Orchestration log & session log — Hill spec-update (Meine Musik + approval flow)
+Scribe: MS3 Phase 2 orchestration & decision merge
 
-- Add orchestration-log/2026-03-28T22-10-25Z-hill.md (task completion, team coordination)
-- Add log/2026-03-28T22-10-25Z-spec-update-meine-musik.md (session summary)
-- Merge inbox decisions → decisions.md (Hill's "Meine Musik" + approval decisions)
-- Delete merged inbox files (2 files)
-- Update team history files (Stark, Banner, Romanoff, Wanda, Parker) with spec change notices
-  - Stark: data model changes (ist_persoenlich, beitrittsanfragen table)
-  - Banner: 3 new endpoints (POST /beitreten, GET /anfragen, PUT /anfragen/{id})
-  - Romanoff: 3 new screens (Kapellen-Auswahl, join-request, request-list)
-  - Wanda: entry point logic, "Meine Musik" UI, approval flows
-  - Parker: 13 edge cases, approval workflow testing
+Completed agents:
+- Banner: Tasks Backend (39 tests), Cloud-Sync Backend (22 tests), Metronom Backend (63 tests)
+- Romanoff: Tasks Frontend (41 tests), Cloud-Sync Frontend (86 tests)
+- Vision: Auto-Scroll (70+ tests)
 
-Specs affected:
-- docs/feature-specs/kapellenverwaltung-spec.md (US-00, US-02 rewritten, US-06 new)
-- docs/feature-specs/auth-onboarding-spec.md (entry point post-onboarding)
+Artifacts:
+- 6 orchestration-log entries (ISO 8601 timestamps, cross-team handoff notes)
+- 1 session log entry (MS3 Phase 2 batch completion, 321 new tests, quality metrics)
+- Merged 9 inbox decision files into decisions.md (no duplicates, organized by agent/date)
+- Deleted merged inbox files
 
-Team impact: 5→7 user stories, 10→15 ACs, 8→13 test cases
+Cross-team coordination:
+- API alignment (Banner/Romanoff Tasks — camelCase vs German keys TBD)
+- Entity-mutations handling (Cloud-Sync backend decision impact)
+- Metronom integration dependencies (Vision Auto-Scroll awaits BPM endpoint)
+- Multicast address confirmation pending (Stark)
+- Redis for SessionState TBD for prod deployment
+
+All decisions documented with impact analysis and follow-up items.
 
 Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
