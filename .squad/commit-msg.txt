@@ -1,0 +1,22 @@
+.squad: BLE broadcast implementation orchestration & decision logs
+
+Scribe session log for 2026-03-30 BLE broadcast squad session:
+- Created 3 orchestration logs (Strange backend, Romanoff Flutter core, Parker tests)
+- Created session log consolidating all BLE work (specs, backend, Flutter, tests)
+- Merged decision inbox into decisions.md (3 BLE-related decisions)
+- Appended BLE learnings to romanoff/history.md and parker/history.md
+- Deleted inbox files (parker-ble-test-strategy.md, strange-backend-ble-key.md, strange-ble-security-spec.md)
+
+BLE Broadcast Session Summary:
+- Backend: 837 tests passing (8 new BLE security tests)
+- Flutter: 112 tests passing (codec, security, models, transport widgets)
+- Artifacts: 5 backend files + 7 Flutter core files + 4 test files
+- Key achievement: Transport abstraction enables testing without BLE hardware
+- Bug discovered & fixed: MTU payload limit (490 bytes) in codec
+
+Decisions documented:
+- Decision 7: BLE Broadcast Implementation (architecture, security, test coverage)
+- Decision 8: BLE Test Strategy (pure logic first, hardware last)
+- Updated Decisions 1-6 numbering to accommodate new decisions
+
+Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>

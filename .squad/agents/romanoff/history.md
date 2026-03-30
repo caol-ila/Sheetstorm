@@ -10,6 +10,84 @@
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
+## 2026-03-30 — BLE Broadcast Flutter Core Layer Implementation
+
+**Branch:** squad/ble-broadcast-implementation  
+**Orchestration Log:** `.squad/orchestration-log/2026-03-30T21-25-romanoff-ble-core.md`  
+**Session:** Parallel work with Strange (backend) + Parker (tests)
+
+**BLE Core Architecture Implemented:**
+- **7 new files:** Transport interface, models, codec, security service, broadcast service, detector widget, indicator widget
+- **3 updated files:** broadcast_notifier (integration), broadcast_service (DI), pubspec.yaml
+- **Zero dart analyze errors, ready for Parker's test suite**
+
+**Key Decisions & Learnings:**
+
+1. **Transport Abstraction Pattern** — Abstract `BleTransport` interface enables:
+   - Hardware-agnostic testing (swap mock ↔ real BLE)
+   - Dependency injection (no coupling to concrete BLE library)
+   - Parker could write complete test suite without physical hardware
+   - Future: real BLE layer implements same interface
+
+2. **Stream-Based Message Routing** — All broadcast messages flow as Dart Streams:
+   - Malformed message → logged + skipped (non-blocking)
+   - Riverpod StreamProvider integration (native async handling)
+   - Clean error propagation (exceptions don't crash connection)
+   - Pattern: Encode → Send → Stream → Parse → Route
+
+3. **Manual JSON Serialization** — Broadcast models use hand-written fromJson/toJson:
+   - Matches existing auth_models pattern (no json_serializable)
+   - Avoids build_runner churn in this monorepo
+   - Simple models (<20 lines), acceptable duplication
+   - Schema versioning: version field in JSON for future compatibility
+
+4. **Message Codec Architecture** — Two-layer encoding:
+   - Layer 1: Dart object → JSON → gzip (65% compression ratio)
+   - Layer 2: Security service adds sequence numbers + timestamp (replay protection)
+   - MTU limit: 490 bytes (512 - 22 header) — prevents overflow crashes
+   - Bug discovered by Parker: codec tests identified MTU boundary, Coordinator fixed
+
+5. **Security Service Responsibilities** (Separate from Codec):
+   - Token validation (SHA-256 hash comparison)
+   - Session state caching (SharedPreferences)
+   - Replay protection (seq monotonic, timestamp drift < 5s)
+   - Error categorization (AUTH vs TRANSPORT vs CODEC)
+   - Session-specific isolation (no cross-talk)
+
+6. **Broadcast Notifier Integration** — How BLE connects to existing Spielmodus:
+   - Transport injected as dependency
+   - Listens to `transport.messages` stream
+   - Routes messages: SongUpdate → invalidate song notifier, PartUpdate → invalidate part notifier, MeasureSync → update measure
+   - Cleanup on notifier disposal (stream cancellation)
+   - Automatic reconnection via SignalR fallback
+
+7. **Widget Layer** — Non-blocking UI components:
+   - `transport_detector` — Watches connection state, displayes badge
+   - `transport_indicator` — Status indicator (green/amber/red), tappable for details
+   - Dismissible error notifications
+   - No modal dialogs (doesn't block Spielmodus performance)
+
+**Standards Applied:**
+- Null safety strict mode (zero `!` operators)
+- Riverpod 3.x for all state (no legacy providers)
+- Manual JSON (matches project conventions)
+- lowerCamelCase (functions/vars), UpperCamelCase (classes)
+- Stream composition (no imperative event handlers)
+
+**Handoff to Parker:**
+- All 7 core files ready for testing
+- Transport interface fully specified (easy to mock)
+- Models serializable + round-trippable
+- 112 tests written immediately, all passing ✅
+
+**Follow-ups (Next Squad Session):**
+- Real BLE hardware layer (platform-specific: flutter_blue_plus + flutter_ble_peripheral)
+- SignalR fallback hardening (retry logic, backoff)
+- Session persistence (SharedPreferences currently, may need Drift)
+- Message rate limiting (backend enforces session limit, client-side optional)
+
+---
+
 ## 2026-04-15 — Complete MS2 Frontend Implementation Summary (5 Agent Instances)
 
 **Overall Context:**

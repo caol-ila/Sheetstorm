@@ -247,7 +247,157 @@ All three branches merged to main and pushed to origin.
 
 ---
 
-## Decision 7: MS2 Backend Architecture — Feature-First Structure
+## Decision 7: BLE Broadcast Implementation — Architecture & Security
+
+**By:** Strange (Principal Backend Engineer), Romanoff (Principal Frontend Engineer), Parker (QA Engineer)  
+**Date:** 2026-03-30  
+**Branch:** squad/ble-broadcast-implementation  
+**Status:** Implemented — All 837 backend tests + 112 Flutter tests passing, 0 dart analyze errors
+
+### Scope Completed
+
+#### 1. BLE Broadcast Specification
+- **Document:** `docs/specs/2026-03-30-ble-broadcast-dirigent.md`
+- Architecture: Conductor → SignalR Hub → BLE Broadcast → Musicians
+- Session security: 32-byte random tokens, SHA-256 hash storage
+- Message format: JSON serialization, gzip compression (65% ratio)
+- Device discovery: Session code + QR fallback
+- Timeout: 2-hour session expiry
+
+#### 2. Backend Session Key Generation
+- **Controller:** `POST /api/broadcast/session` creates broadcast session
+- Token generation: `RandomNumberGenerator.GetBytes(32)`, Base64Url-encoded
+- Storage: SHA-256 hash only (never raw token)
+- Hub: `SongBroadcastHub.cs` with `ConcurrentDictionary` state (no DB)
+- Tests: 8 security tests (unique tokens, hash correctness, session validation, replay protection, concurrency, auth, expiry, rate limiting)
+- All 837 backend tests passing ✅
+
+#### 3. Flutter BLE Core Layer
+- **7 new files:** Transport interface, models, codec, security service, broadcast service, detector, indicator widget
+- **3 updated files:** broadcast_notifier, broadcast_service, pubspec.yaml
+- Transport abstraction (testable, swappable BLE ↔ mock)
+- Stream-based message routing (Riverpod integration)
+- Codec: JSON + gzip, MTU limit 490 bytes
+- Security: Token validation, replay protection (seq + timestamp), error categorization
+- Widget integration: transport_detector, transport_indicator
+- 0 dart analyze errors ✅
+
+#### 4. Flutter Test Suite
+- **4 test files, 112 total tests:** All passing ✅
+  - `broadcast_codec_test.dart` (32 tests) — Encoding, decoding, compression, performance
+  - `ble_security_service_test.dart` (28 tests) — Token validation, replay protection, session state
+  - `broadcast_models_test.dart` (18 tests) — Serialization, SessionCode value object, union types
+  - `transport_widget_test.dart` (34 tests) — Detector, indicator, state updates, accessibility
+- Coverage: 94.7%
+- MTU bug discovered & fixed by Coordinator ✅
+
+### Key Decisions Made
+
+#### 1. Session Security Model
+**Random 32-byte tokens, SHA-256 hash storage, sequence number + timestamp replay protection**
+- Rationale: Ephemeral sessions, no JWT overhead, follows password reset pattern
+
+#### 2. In-Memory Session State (No DB)
+**ConcurrentDictionary for broadcast sessions**
+- Rationale: Sessions <2 hours (ephemeral), low-latency requirement, server restart acceptable
+
+#### 3. Transport Abstraction
+**Abstract BleTransport interface**
+- Rationale: Hardware-agnostic, test-friendly, dependency injection ready
+
+#### 4. Stream-Based Message Routing
+**Dart Streams, Riverpod StreamProvider integration**
+- Rationale: Non-blocking errors, clean async patterns, malformed messages don't crash connection
+
+#### 5. Manual JSON Serialization
+**No json_serializable, manual fromJson/toJson**
+- Rationale: Consistent with auth_models pattern, simple models, avoids build_runner
+
+#### 6. Message Codec with Compression
+**JSON → gzip (490-byte MTU limit)**
+- Rationale: 65% compression ratio, prevents MTU overflow, bandwidth savings
+
+#### 7. Two-Hour Session Expiry
+**Sessions auto-expire, cleanup via ConcurrentDictionary**
+- Rationale: Typical rehearsal duration, stateless server restart
+
+#### 8. Conductor-Only Broadcast
+**Only Conductor/Admin role can initiate, musicians receive-only**
+- Rationale: Clear authority model, matches existing band permission pattern
+
+### Test Results
+
+| Category | Target | Actual | Status |
+|----------|--------|--------|--------|
+| Backend tests | 837 | 837 | ✅ Passing |
+| Flutter tests | 100+ | 112 | ✅ Passing |
+| Dart analyze errors | 0 | 0 | ✅ Clean |
+| Code coverage | >90% | 94.7% | ✅ Excellent |
+
+### Known Gaps / Follow-ups
+
+1. **Rate limiting config** — Hardcoded to 10/min, move to appsettings.json
+2. **SignalR connection config** — Hub URL hardcoded, use env variables
+3. **QR code generation** — Deferred to separate feature
+4. **Actual BLE hardware** — Physical layer after core validation
+5. **Session audit trail** — In-memory cleanup, consider background job
+6. **Offline message queue** — Not implemented, may be needed for flight mode
+
+### Artifacts
+
+**Backend:** 5 files (spec + controller + models + hub + security tests)  
+**Flutter:** 11 files (7 new + 3 updated + pubspec.yaml)  
+**Tests:** 4 test files with 112 tests  
+
+### Follow-up Work (Next Squad Session)
+
+1. Database persistence for session audit trail
+2. Actual BLE hardware layer (follow same abstraction pattern)
+3. End-to-end integration test (backend + Flutter)
+4. Optional: Message encryption layer (depends on threat model)
+
+---
+
+## Decision 8: BLE Test Strategy — Pure Logic First, Hardware Last
+
+**By:** Parker (QA Engineer)  
+**Date:** 2026-03-30  
+**Branch:** squad/ble-broadcast-implementation  
+**Status:** Implemented — 112 tests all passing
+
+### Test Coverage
+
+| File | Tests | Focus |
+|------|-------|-------|
+| Codec tests | 32 | Encoding, decoding, compression, performance, MTU handling |
+| Security tests | 28 | Token validation, replay protection, session state, error categorization |
+| Models tests | 18 | Serialization, value objects, union types |
+| Widget tests | 34 | Transport detector, indicator, state updates, accessibility |
+| **Total** | **112** | |
+
+### Key Decisions
+
+1. **Pure logic first** — No BLE hardware, no device pairing, no permissions testing
+2. **Transport abstraction enables testing** — Function injection callbacks (no mocktail)
+3. **TDD red-phase** — Tests written before implementation (expected compilation failures)
+4. **Validation result enum** — `BleValidationResult` instead of bool/throws (reason discrimination)
+5. **Binary codec contract** — Unsigned bytes + separate signing (codec-agnostic to security)
+
+### What Not Tested (Why)
+
+| Area | Reason |
+|------|--------|
+| BleBroadcastService (Central/Peripheral) | Requires physical devices |
+| flutter_ble_peripheral advertising | Platform-specific, hardware-dependent |
+| GATT characteristic R/W | Hardware-dependent |
+| MTU negotiation | Hardware-dependent |
+| Reconnect timing (<2s) | Integration test scope |
+
+These are deferred to manual QA / E2E tests on physical devices.
+
+---
+
+## Decision 9: MS2 Backend Architecture — Feature-First Structure
 
 **By:** Banner (Backend Developer)  
 **Date:** 2026-03-28  
