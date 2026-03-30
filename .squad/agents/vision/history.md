@@ -67,3 +67,14 @@ Parallel orchestration completed. Vision implemented 2 modules (Setlist + Song B
 - `features/song_broadcast/data/services/broadcast_service.dart` — REST + SignalR services
 - `features/song_broadcast/application/broadcast_notifier.dart` — Broadcast state management
 - `pubspec.yaml` — Added `web_socket_channel: ^3.0.2` dependency
+
+### 2026-04-16: Routing + copyWith Fixes (Lockout Fix for Romanoff's Code)
+
+**Context:** Stark's meta-review flagged 3 bugs in Romanoff's MS2 modules. Vision fixed as lockout reviewer.
+
+**Fixes Applied:**
+1. **Communication route path mismatch:** `/board` → `/app/board` — route must be absolute and match `AppRoutes.board` since `communicationRoutes` is spread at top level in app_router profile shell branch
+2. **Poll route ordering:** Moved `:bandId/polls/create` before `:bandId/polls/:pollId` — GoRouter matches in declaration order, so literal paths must precede parameter routes
+3. **AttendanceDashboardState.copyWith sentinel pattern:** Replaced `field ?? this.field` with `Object? field = _sentinel` pattern for all nullable fields (`stats`, `trend`, `startDate`, `endDate`, `eventType`, `error`). `isLoading` kept as `bool?` since it's non-nullable with default.
+
+**Key Insight:** `copyWith(error: null)` with `error ?? this.error` silently keeps the old value — a pervasive pattern bug across many MS2 models. Sentinel pattern is the correct Dart idiom for nullable field resets.
