@@ -500,4 +500,66 @@ public class PostServiceTests : IDisposable
 
         await _sut.RemoveReactionAsync(bandId, postId, musicianId, CancellationToken.None);
     }
+
+    // ── DeleteAsync: soft vs hard delete ─────────────────────────────────────
+
+    [Fact]
+    public async Task DeleteAsync_WithComments_SoftDeletes()
+    {
+        var (musicianId, bandId, postId) = await SeedPostAsync();
+        var comment = new PostComment { PostId = postId, AuthorMusicianId = musicianId, Content = "A comment" };
+        _db.PostComments.Add(comment);
+        await _db.SaveChangesAsync();
+
+        await _sut.DeleteAsync(bandId, postId, musicianId, CancellationToken.None);
+
+        var post = await _db.Posts.FindAsync(postId);
+        Assert.NotNull(post);
+        Assert.True(post!.IsDeleted);
+        Assert.NotNull(post.DeletedAt);
+        Assert.Equal("[Gelöscht]", post.Title);
+        Assert.Equal("[Gelöscht]", post.Content);
+        Assert.False(post.IsPinned);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_WithoutComments_HardDeletes()
+    {
+        var (musicianId, bandId, postId) = await SeedPostAsync();
+
+        await _sut.DeleteAsync(bandId, postId, musicianId, CancellationToken.None);
+
+        var exists = await _db.Posts.AnyAsync(p => p.Id == postId);
+        Assert.False(exists);
+    }
+
+    [Fact]
+    public async Task GetAllAsync_ExcludesSoftDeletedPosts()
+    {
+        var (musicianId, bandId, postId) = await SeedPostAsync();
+        var post = await _db.Posts.FindAsync(postId);
+        post!.IsDeleted = true;
+        post.DeletedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+
+        var result = await _sut.GetAllAsync(bandId, musicianId, CancellationToken.None);
+
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_AlreadyDeleted_ThrowsNotFound()
+    {
+        var (musicianId, bandId, postId) = await SeedPostAsync();
+        var comment = new PostComment { PostId = postId, AuthorMusicianId = musicianId, Content = "A comment" };
+        _db.PostComments.Add(comment);
+        await _db.SaveChangesAsync();
+
+        await _sut.DeleteAsync(bandId, postId, musicianId, CancellationToken.None);
+
+        var ex = await Assert.ThrowsAsync<DomainException>(() =>
+            _sut.DeleteAsync(bandId, postId, musicianId, CancellationToken.None));
+        Assert.Equal("NOT_FOUND", ex.ErrorCode);
+        Assert.Equal(404, ex.StatusCode);
+    }
 }

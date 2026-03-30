@@ -16,7 +16,7 @@ public class PostService(AppDbContext db) : IPostService
             .Include(p => p.AuthorMusician)
             .Include(p => p.Comments.Where(c => !c.IsDeleted))
             .Include(p => p.Reactions)
-            .Where(p => p.BandId == bandId)
+            .Where(p => p.BandId == bandId && !p.IsDeleted)
             .OrderByDescending(p => p.IsPinned)
             .ThenByDescending(p => p.CreatedAt)
             .ToListAsync(ct);
@@ -117,7 +117,7 @@ public class PostService(AppDbContext db) : IPostService
             .Include(p => p.Comments.Where(c => !c.IsDeleted))
             .ThenInclude(c => c.AuthorMusician)
             .Include(p => p.Reactions)
-            .FirstOrDefaultAsync(p => p.Id == postId && p.BandId == bandId, ct)
+            .FirstOrDefaultAsync(p => p.Id == postId && p.BandId == bandId && !p.IsDeleted, ct)
             ?? throw new DomainException("NOT_FOUND", "Post not found.", 404);
 
         if (post.AuthorMusicianId != musicianId)
@@ -166,13 +166,28 @@ public class PostService(AppDbContext db) : IPostService
         var membership = await RequireMembershipAsync(bandId, musicianId, ct);
 
         var post = await db.Set<Post>()
-            .FirstOrDefaultAsync(p => p.Id == postId && p.BandId == bandId, ct)
+            .Include(p => p.Comments)
+            .FirstOrDefaultAsync(p => p.Id == postId && p.BandId == bandId && !p.IsDeleted, ct)
             ?? throw new DomainException("NOT_FOUND", "Post not found.", 404);
 
         if (post.AuthorMusicianId != musicianId && membership.Role != MemberRole.Administrator)
             throw new DomainException("FORBIDDEN", "You can only delete your own posts or be an admin.", 403);
 
-        db.Set<Post>().Remove(post);
+        var hasActiveComments = post.Comments.Any(c => !c.IsDeleted);
+        if (hasActiveComments)
+        {
+            post.IsDeleted = true;
+            post.DeletedAt = DateTime.UtcNow;
+            post.Title = "[Gelöscht]";
+            post.Content = "[Gelöscht]";
+            post.IsPinned = false;
+            post.PinnedAt = null;
+        }
+        else
+        {
+            db.Set<Post>().Remove(post);
+        }
+
         await db.SaveChangesAsync(ct);
     }
 
@@ -184,14 +199,14 @@ public class PostService(AppDbContext db) : IPostService
             throw new DomainException("FORBIDDEN", "Only admins and conductors can pin posts.", 403);
 
         var post = await db.Set<Post>()
-            .FirstOrDefaultAsync(p => p.Id == postId && p.BandId == bandId, ct)
+            .FirstOrDefaultAsync(p => p.Id == postId && p.BandId == bandId && !p.IsDeleted, ct)
             ?? throw new DomainException("NOT_FOUND", "Post not found.", 404);
 
         if (post.IsPinned)
             return;
 
         var pinnedCount = await db.Set<Post>()
-            .CountAsync(p => p.BandId == bandId && p.IsPinned, ct);
+            .CountAsync(p => p.BandId == bandId && p.IsPinned && !p.IsDeleted, ct);
 
         if (pinnedCount >= 3)
             throw new DomainException("CONFLICT", "Maximum of 3 posts can be pinned at once.", 409);
@@ -210,7 +225,7 @@ public class PostService(AppDbContext db) : IPostService
             throw new DomainException("FORBIDDEN", "Only admins and conductors can unpin posts.", 403);
 
         var post = await db.Set<Post>()
-            .FirstOrDefaultAsync(p => p.Id == postId && p.BandId == bandId, ct)
+            .FirstOrDefaultAsync(p => p.Id == postId && p.BandId == bandId && !p.IsDeleted, ct)
             ?? throw new DomainException("NOT_FOUND", "Post not found.", 404);
 
         post.IsPinned = false;
@@ -224,7 +239,7 @@ public class PostService(AppDbContext db) : IPostService
         await RequireMembershipAsync(bandId, musicianId, ct);
 
         var post = await db.Set<Post>()
-            .FirstOrDefaultAsync(p => p.Id == postId && p.BandId == bandId, ct)
+            .FirstOrDefaultAsync(p => p.Id == postId && p.BandId == bandId && !p.IsDeleted, ct)
             ?? throw new DomainException("NOT_FOUND", "Post not found.", 404);
 
         if (request.ParentCommentId.HasValue)
@@ -284,7 +299,7 @@ public class PostService(AppDbContext db) : IPostService
         await RequireMembershipAsync(bandId, musicianId, ct);
 
         var post = await db.Set<Post>()
-            .FirstOrDefaultAsync(p => p.Id == postId && p.BandId == bandId, ct)
+            .FirstOrDefaultAsync(p => p.Id == postId && p.BandId == bandId && !p.IsDeleted, ct)
             ?? throw new DomainException("NOT_FOUND", "Post not found.", 404);
 
         var existingReaction = await db.Set<PostReaction>()

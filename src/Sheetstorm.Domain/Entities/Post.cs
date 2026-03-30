@@ -18,6 +18,9 @@ public class Post : BaseEntity
     public DateTime? PinnedAt { get; set; }
     public string? Category { get; set; }
 
+    public bool IsDeleted { get; set; }
+    public DateTime? DeletedAt { get; set; }
+
     public ICollection<PostComment> Comments { get; set; } = [];
     public ICollection<PostReaction> Reactions { get; set; } = [];
 }
