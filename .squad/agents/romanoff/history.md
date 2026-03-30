@@ -10,6 +10,59 @@
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
+## 2026-03-31 — MS2 Nacharbeit P2: Issues #101 + #100 + #105
+
+**Tasks completed:**
+
+### Task 1 — copyWith Sentinel Pattern für nullable Felder (#101)
+
+**Problem:** Das klassische `??`-Pattern in `copyWith` verhindert das explizite Setzen auf `null`. Z.B. `copyWith(dirigentName: null)` gibt immer den alten Wert zurück, weil `null ?? this.dirigentName == this.dirigentName`.
+
+**Fix:** Sentinel-Pattern:
+```dart
+static const _sentinel = Object(); // innerhalb der Klasse, nicht auf File-Ebene
+
+String? copyWith({ Object? dirigentName = _sentinel }) =>
+  dirigentName == _sentinel ? this.dirigentName : dirigentName as String?
+```
+
+**Angewendet auf:**
+- `BroadcastSession.copyWith` — `dirigentName`, `aktiveStueckId`, `aktiveStueckTitel`
+- `Event.copyWith` — `endTime`, `location`, `meetingPoint`, `description`, `setlistId`, `setlistName`, `dressCode`, `rsvpDeadline`
+- `Setlist.copyWith` — `datum`, `startzeit`, `beschreibung`
+
+**TDD-Tests:** Neue Test-Dateien `broadcast_model_test.dart`, `setlist_model_test.dart`, erweitert `event_model_test.dart`
+
+### Task 2 — broadcastRoutes Refactoring (#100)
+
+**Problem:** `broadcast/routes.dart` verwendete einen absoluten Pfad und `GoRoute`-Typ. Im `app_router.dart` wurde dann `broadcastRoutes.builder!` force-unwrapped, was zu Laufzeitfehlern führen kann.
+
+**Fix:**
+- `broadcastRoutes` von `GoRoute` (Typ) zu `List<GoRoute>` geändert
+- Absoluter Pfad `/app/band/:bandId/broadcast` → relativer Pfad `'broadcast'`
+- `state.pathParameters['bandId']!` → null-safe `state.pathParameters['bandId'] ?? ''`
+- In `app_router.dart`: `GoRoute(path: 'broadcast', builder: broadcastRoutes.builder!, routes: broadcastRoutes.routes)` → `...broadcastRoutes` (Spread)
+
+**Pattern:** Features wie `attendanceRoutes`, `substituteRoutes`, `shiftRoutes` nutzen korrekt `List<GoRoute>` mit Spread. `setlistRoutes`, `eventRoutes` nutzen `GoRoute` direkt als single top-level Route. Broadcast war falsch (GoRoute-Typ aber Spread erwartet).
+
+### Task 3 — AttendanceNotifier zu AsyncNotifier (#105)
+
+**Problem:** `AttendanceNotifier extends Notifier<AttendanceDashboardState>` verwaltete `isLoading` und `error` manuell im State — dupliziert die bereits in Riverpod's `AsyncValue` enthaltene Funktionalität.
+
+**Fix:**
+- `Notifier<AttendanceDashboardState>` → `AsyncNotifier<AttendanceDashboardState>`
+- `build()` gibt `Future<AttendanceDashboardState>` zurück
+- `isLoading`, `error` aus `AttendanceDashboardState` entfernt
+- State-Mutationen: `state = const AsyncLoading()` dann `state = await AsyncValue.guard(...)`
+- Screen: `asyncState = ref.watch(attendanceProvider(bandId))` — nutzt `asyncState.isLoading / .hasError / .error / .value`
+- `build_runner build` ausgeführt für `.g.dart` Regeneration
+
+**Riverpod 3.x Lesson:** `valueOrNull` existiert NICHT in Riverpod 3.4.1 — stattdessen `.value` (gibt `T?` zurück, analog zu `valueOrNull`).
+
+**Test-Isolation:** Tests die `unawaited()` HTTP-Calls feuern, können spätere Tests durch uncaught exceptions kaputtmachen. Lösung: Alle State-Tests synchron halten — nur `asyncState.isLoading == true` auf initial build prüfen (immer `AsyncLoading` durch `build()` Future).
+
+---
+
 ## 2026-03-30 — MS2 Nacharbeit: CR#3 + Issues #103 + #104
 
 **Tasks completed:**

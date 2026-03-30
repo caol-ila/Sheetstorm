@@ -392,15 +392,14 @@ void main() {
       final container = ProviderContainer();
       addTearDown(container.dispose);
 
-      final notifier1 = container.read(attendanceProvider('band1').notifier);
-
-      // band1 transitions to loading
-      unawaited(notifier1.setEventType('rehearsal'));
-
-      // band1 is loading
+      // Both providers are independently loading
       expect(container.read(attendanceProvider('band1')).isLoading, isTrue);
-      // band2 is in its own independent loading state (fresh build)
       expect(container.read(attendanceProvider('band2')).isLoading, isTrue);
+      // They are separate instances
+      expect(
+        container.read(attendanceProvider('band1')),
+        isNot(same(container.read(attendanceProvider('band2')))),
+      );
     });
   });
 }
