@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.IdentityModel.Tokens.Jwt;
+using System.Security.Cryptography;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
@@ -17,6 +18,9 @@ public class SongBroadcastHub(AppDbContext db) : Hub
 
     // bandId → set of connectionIds
     private static readonly ConcurrentDictionary<Guid, ConcurrentDictionary<string, Guid>> BandConnections = new();
+
+    // bandId → BLE session security info
+    private static readonly ConcurrentDictionary<Guid, BleSessionInfo> BleSessionKeys = new();
 
     private Guid? GetUserId()
     {
@@ -48,7 +52,7 @@ public class SongBroadcastHub(AppDbContext db) : Hub
     }
 
     /// <summary>Start a broadcast session for a band. Only conductors/admins.</summary>
-    public async Task StartBroadcast(Guid bandId)
+    public async Task<BleSessionInfo> StartBroadcast(Guid bandId)
     {
         var userId = GetUserId() ?? throw new HubException("User not authenticated.");
         var userName = GetUserName();
@@ -70,11 +74,16 @@ public class SongBroadcastHub(AppDbContext db) : Hub
 
         ActiveBroadcasts[bandId] = state;
 
+        var bleInfo = GenerateBleSessionInfo();
+        BleSessionKeys[bandId] = bleInfo;
+
         await Groups.AddToGroupAsync(Context.ConnectionId, BandGroup(bandId));
         TrackConnection(bandId, Context.ConnectionId, userId);
 
         await Clients.Group(BandGroup(bandId)).SendAsync("OnBroadcastStarted",
             new BroadcastStartedMessage(bandId, userId, userName, DateTime.UtcNow));
+
+        return bleInfo;
     }
 
     /// <summary>Stop the broadcast session for a band.</summary>
@@ -87,6 +96,8 @@ public class SongBroadcastHub(AppDbContext db) : Hub
 
         if (!ActiveBroadcasts.TryRemove(bandId, out _))
             throw new HubException("No active broadcast for this band.");
+
+        BleSessionKeys.TryRemove(bandId, out _);
 
         await Clients.Group(BandGroup(bandId)).SendAsync("OnBroadcastStopped",
             new BroadcastStoppedMessage(bandId, userId, userName, DateTime.UtcNow));
@@ -126,7 +137,7 @@ public class SongBroadcastHub(AppDbContext db) : Hub
     }
 
     /// <summary>Join a band's broadcast group as a participant.</summary>
-    public async Task<BroadcastState?> JoinBroadcast(Guid bandId)
+    public async Task<BroadcastStateWithBle?> JoinBroadcast(Guid bandId)
     {
         var userId = GetUserId() ?? throw new HubException("User not authenticated.");
 
@@ -144,9 +155,31 @@ public class SongBroadcastHub(AppDbContext db) : Hub
 
             await Clients.Group(BandGroup(bandId)).SendAsync("OnParticipantCountChanged",
                 new ParticipantCountChangedMessage(bandId, count));
+
+            BleSessionKeys.TryGetValue(bandId, out var bleInfo);
+
+            return new BroadcastStateWithBle(
+                state.BandId,
+                state.ConductorId,
+                state.ConductorName,
+                state.IsActive,
+                state.CurrentSong,
+                count,
+                state.StartedAt,
+                bleInfo
+            );
         }
 
-        return state;
+        return null;
+    }
+
+    /// <summary>Retrieve BLE session info for an active broadcast. Requires band membership.</summary>
+    public async Task<BleSessionInfo?> GetBleSessionInfo(Guid bandId)
+    {
+        var userId = GetUserId() ?? throw new HubException("User not authenticated.");
+        await RequireMembershipAsync(bandId, userId);
+
+        return BleSessionKeys.TryGetValue(bandId, out var bleInfo) ? bleInfo : null;
     }
 
     /// <summary>Leave a band's broadcast group.</summary>
@@ -189,6 +222,7 @@ public class SongBroadcastHub(AppDbContext db) : Hub
                     {
                         // Conductor disconnected — auto-end the broadcast
                         ActiveBroadcasts.TryRemove(bandId, out _);
+                        BleSessionKeys.TryRemove(bandId, out _);
 
                         await Clients.Group(BandGroup(bandId)).SendAsync("OnBroadcastStopped",
                             new BroadcastStoppedMessage(bandId, disconnectedUserId, state.ConductorName, DateTime.UtcNow));
@@ -227,5 +261,21 @@ public class SongBroadcastHub(AppDbContext db) : Hub
     private static int GetParticipantCount(Guid bandId)
     {
         return BandConnections.TryGetValue(bandId, out var connections) ? connections.Count : 0;
+    }
+
+    private static BleSessionInfo GenerateBleSessionInfo()
+    {
+        var keyBytes = RandomNumberGenerator.GetBytes(32);
+        return new BleSessionInfo(
+            SessionKey: Convert.ToBase64String(keyBytes),
+            LeaderDeviceId: Guid.NewGuid().ToString(),
+            ExpiresAt: DateTime.UtcNow.AddHours(4)
+        );
+    }
+
+    /// <summary>Look up BLE session info by band ID (used by REST controller).</summary>
+    internal static BleSessionInfo? GetBleSessionInfoForBand(Guid bandId)
+    {
+        return BleSessionKeys.TryGetValue(bandId, out var info) ? info : null;
     }
 }

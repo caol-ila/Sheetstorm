@@ -18,6 +18,27 @@ public record BroadcastState(
     DateTime StartedAt
 );
 
+// ── BLE Security ─────────────────────────────────────────────────────────────
+
+/// <summary>BLE session key info for HMAC-SHA256 message signing.</summary>
+public record BleSessionInfo(
+    string SessionKey,      // Base64-encoded 256-bit key
+    string LeaderDeviceId,  // Device ID of the conductor
+    DateTime ExpiresAt      // Key expiration (max 4 hours)
+);
+
+/// <summary>Extended broadcast state with BLE security info.</summary>
+public record BroadcastStateWithBle(
+    Guid BandId,
+    Guid ConductorId,
+    string ConductorName,
+    bool IsActive,
+    CurrentSongInfo? CurrentSong,
+    int ParticipantCount,
+    DateTime StartedAt,
+    BleSessionInfo? BleSession
+);
+
 // ── Hub Messages (Server → Client) ───────────────────────────────────────────
 
 public record BroadcastStartedMessage(

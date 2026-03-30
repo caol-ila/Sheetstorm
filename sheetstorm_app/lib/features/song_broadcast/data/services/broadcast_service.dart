@@ -6,7 +6,9 @@ import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:sheetstorm/core/config/app_config.dart';
 import 'package:sheetstorm/features/auth/data/services/token_storage.dart';
+import 'package:sheetstorm/features/song_broadcast/data/models/ble_models.dart';
 import 'package:sheetstorm/features/song_broadcast/data/models/broadcast_models.dart';
+import 'package:sheetstorm/features/song_broadcast/data/services/broadcast_transport.dart';
 import 'package:sheetstorm/shared/services/api_client.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
@@ -88,19 +90,42 @@ class BroadcastRestService {
 
 /// Manages the SignalR WebSocket connection for real-time broadcast events.
 ///
-/// Implements the SignalR JSON protocol manually since no dedicated SignalR
-/// Dart package is available. The protocol uses JSON messages terminated
-/// by the record separator character (0x1E).
-class BroadcastSignalRService {
+/// Implements [IBroadcastTransport] and the SignalR JSON protocol manually
+/// since no dedicated SignalR Dart package is available. The protocol uses
+/// JSON messages terminated by the record separator character (0x1E).
+class BroadcastSignalRService implements IBroadcastTransport {
   final TokenStorage _tokenStorage;
 
   WebSocketChannel? _channel;
   StreamSubscription<dynamic>? _subscription;
   Timer? _heartbeatTimer;
 
-  /// Current connection state.
-  SignalRConnectionState _connectionState = SignalRConnectionState.disconnected;
-  SignalRConnectionState get connectionState => _connectionState;
+  /// Internal SignalR-specific connection state.
+  SignalRConnectionState _signalRState = SignalRConnectionState.disconnected;
+
+  /// SignalR-specific state (for consumers that need the original enum).
+  SignalRConnectionState get signalRConnectionState => _signalRState;
+
+  // ─── IBroadcastTransport ────────────────────────────────────────────────
+
+  @override
+  TransportType get transportType => TransportType.signalR;
+
+  @override
+  TransportConnectionState get connectionState =>
+      _mapSignalRState(_signalRState);
+
+  static TransportConnectionState _mapSignalRState(
+    SignalRConnectionState s,
+  ) =>
+      switch (s) {
+        SignalRConnectionState.disconnected =>
+          TransportConnectionState.disconnected,
+        SignalRConnectionState.connecting => TransportConnectionState.connecting,
+        SignalRConnectionState.connected => TransportConnectionState.connected,
+        SignalRConnectionState.reconnecting =>
+          TransportConnectionState.reconnecting,
+      };
 
   int _reconnectAttempts = 0;
   static const _maxReconnectAttempts = 5;
@@ -117,27 +142,61 @@ class BroadcastSignalRService {
       StreamController<SessionEndedPayload>.broadcast();
   final _connectionCountController =
       StreamController<ConnectionCountPayload>.broadcast();
-  final _connectionStateController =
+  final _signalRStateController =
       StreamController<SignalRConnectionState>.broadcast();
+  final _transportStateController =
+      StreamController<TransportConnectionState>.broadcast();
+
+  // Unused IBroadcastTransport streams (SignalR doesn't receive these)
+  final _metronomeController =
+      StreamController<MetronomeBeatPayload>.broadcast();
+  final _annotationController =
+      StreamController<AnnotationInvalidationPayload>.broadcast();
+  final _sessionControlController =
+      StreamController<SessionControlPayload>.broadcast();
 
   Stream<SessionStartedPayload> get onSessionStarted =>
       _sessionStartedController.stream;
+
+  @override
   Stream<SongChangedPayload> get onSongChanged =>
       _songChangedController.stream;
+
   Stream<SessionEndedPayload> get onSessionEnded =>
       _sessionEndedController.stream;
+
   Stream<ConnectionCountPayload> get onConnectionCountUpdated =>
       _connectionCountController.stream;
-  Stream<SignalRConnectionState> get onConnectionStateChanged =>
-      _connectionStateController.stream;
+
+  /// SignalR-specific connection state stream (uses [SignalRConnectionState]).
+  Stream<SignalRConnectionState> get onSignalRConnectionStateChanged =>
+      _signalRStateController.stream;
+
+  @override
+  Stream<TransportConnectionState> get onConnectionStateChanged =>
+      _transportStateController.stream;
+
+  @override
+  Stream<MetronomeBeatPayload> get onMetronomeBeat =>
+      _metronomeController.stream;
+
+  @override
+  Stream<AnnotationInvalidationPayload> get onAnnotationInvalidated =>
+      _annotationController.stream;
+
+  @override
+  Stream<SessionControlPayload> get onSessionControl =>
+      _sessionControlController.stream;
 
   BroadcastSignalRService({required TokenStorage tokenStorage})
       : _tokenStorage = tokenStorage;
 
   /// Connect to the SignalR broadcast hub.
-  Future<void> connect() async {
-    if (_connectionState == SignalRConnectionState.connected ||
-        _connectionState == SignalRConnectionState.connecting) {
+  /// The [sessionInfo] parameter is ignored for SignalR (uses JWT instead).
+  @override
+  Future<void> connect([BleSessionInfo? sessionInfo]) async {
+    if (_signalRState == SignalRConnectionState.connected ||
+        _signalRState == SignalRConnectionState.connecting) {
       return;
     }
 
@@ -177,6 +236,7 @@ class BroadcastSignalRService {
   }
 
   /// Disconnect from the broadcast hub.
+  @override
   Future<void> disconnect() async {
     _reconnectAttempts = _maxReconnectAttempts; // Prevent reconnect
     _heartbeatTimer?.cancel();
@@ -242,8 +302,32 @@ class BroadcastSignalRService {
     _songChangedController.close();
     _sessionEndedController.close();
     _connectionCountController.close();
-    _connectionStateController.close();
+    _signalRStateController.close();
+    _transportStateController.close();
+    _metronomeController.close();
+    _annotationController.close();
+    _sessionControlController.close();
   }
+
+  // ─── IBroadcastTransport conductor actions (not supported over SignalR) ──
+
+  /// Not applicable for SignalR — song changes go through the REST API.
+  @override
+  Future<void> sendSongChanged(String stueckId, String stueckTitel) async {}
+
+  /// Not applicable for SignalR — metronome is BLE-only.
+  @override
+  Future<void> sendMetronomeBeat(MetronomeBeatPayload beat) async {}
+
+  /// Not applicable for SignalR transport.
+  @override
+  Future<void> sendAnnotationInvalidation(
+    AnnotationInvalidationPayload payload,
+  ) async {}
+
+  /// Not applicable for SignalR transport.
+  @override
+  Future<void> sendSessionControl(SessionControlType type) async {}
 
   // ─── Private helpers ─────────────────────────────────────────────────────
 
@@ -318,7 +402,7 @@ class BroadcastSignalRService {
   }
 
   void _onDone() {
-    if (_connectionState != SignalRConnectionState.disconnected) {
+    if (_signalRState != SignalRConnectionState.disconnected) {
       _setConnectionState(SignalRConnectionState.reconnecting);
       _attemptReconnect();
     }
@@ -334,7 +418,7 @@ class BroadcastSignalRService {
     _reconnectAttempts++;
 
     Future.delayed(Duration(seconds: delay), () {
-      if (_connectionState == SignalRConnectionState.reconnecting) {
+      if (_signalRState == SignalRConnectionState.reconnecting) {
         connect();
       }
     });
@@ -343,16 +427,17 @@ class BroadcastSignalRService {
   void _startHeartbeat() {
     _heartbeatTimer?.cancel();
     _heartbeatTimer = Timer.periodic(_heartbeatInterval, (_) {
-      if (_connectionState == SignalRConnectionState.connected) {
+      if (_signalRState == SignalRConnectionState.connected) {
         _send({'type': 6}); // Ping
       }
     });
   }
 
   void _setConnectionState(SignalRConnectionState newState) {
-    if (_connectionState == newState) return;
-    _connectionState = newState;
-    _connectionStateController.add(newState);
+    if (_signalRState == newState) return;
+    _signalRState = newState;
+    _signalRStateController.add(newState);
+    _transportStateController.add(_mapSignalRState(newState));
   }
 }
 

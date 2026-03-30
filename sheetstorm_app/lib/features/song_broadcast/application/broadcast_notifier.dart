@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:sheetstorm/features/band/application/band_notifier.dart';
+import 'package:sheetstorm/features/song_broadcast/data/models/ble_models.dart';
 import 'package:sheetstorm/features/song_broadcast/data/models/broadcast_models.dart';
+import 'package:sheetstorm/features/song_broadcast/data/services/ble_broadcast_service.dart';
 import 'package:sheetstorm/features/song_broadcast/data/services/broadcast_service.dart';
 
 part 'broadcast_notifier.g.dart';
@@ -20,6 +22,12 @@ class BroadcastState {
   final int connectedCount;
   final String? error;
 
+  /// The currently active transport (BLE or SignalR).
+  final TransportType activeTransport;
+
+  /// BLE session info when connected via BLE.
+  final BleSessionInfo? bleSessionInfo;
+
   const BroadcastState({
     this.mode = BroadcastMode.idle,
     this.session,
@@ -28,12 +36,15 @@ class BroadcastState {
     this.connectionState = SignalRConnectionState.disconnected,
     this.connectedCount = 0,
     this.error,
+    this.activeTransport = TransportType.none,
+    this.bleSessionInfo,
   });
 
   bool get isActive =>
       mode == BroadcastMode.broadcasting || mode == BroadcastMode.receiving;
   bool get isConductor => mode == BroadcastMode.broadcasting;
   bool get isMusician => mode == BroadcastMode.receiving;
+  bool get isBle => activeTransport == TransportType.ble;
 
   static const _sentinel = Object();
 
@@ -45,6 +56,8 @@ class BroadcastState {
     SignalRConnectionState? connectionState,
     int? connectedCount,
     Object? error = _sentinel,
+    TransportType? activeTransport,
+    Object? bleSessionInfo = _sentinel,
   }) =>
       BroadcastState(
         mode: mode ?? this.mode,
@@ -54,6 +67,10 @@ class BroadcastState {
         connectionState: connectionState ?? this.connectionState,
         connectedCount: connectedCount ?? this.connectedCount,
         error: error == _sentinel ? this.error : error as String?,
+        activeTransport: activeTransport ?? this.activeTransport,
+        bleSessionInfo: bleSessionInfo == _sentinel
+            ? this.bleSessionInfo
+            : bleSessionInfo as BleSessionInfo?,
       );
 }
 
@@ -72,6 +89,7 @@ class BroadcastNotifier extends _$BroadcastNotifier {
   BroadcastRestService get _rest => ref.read(broadcastRestServiceProvider);
   BroadcastSignalRService get _signalR =>
       ref.read(broadcastSignalRServiceProvider);
+  BleBroadcastService get _ble => ref.read(bleBroadcastServiceProvider);
   String? get _bandId => ref.read(activeBandProvider);
 
   // ─── Conductor Actions ─────────────────────────────────────────────────
@@ -236,13 +254,93 @@ class BroadcastNotifier extends _$BroadcastNotifier {
       _signalR.onConnectionCountUpdated.listen((payload) {
         state = state.copyWith(connectedCount: payload.count);
       }),
-      _signalR.onConnectionStateChanged.listen((connectionState) {
+      _signalR.onSignalRConnectionStateChanged.listen((connectionState) {
         state = state.copyWith(connectionState: connectionState);
         if (connectionState == SignalRConnectionState.disconnected &&
             state.mode != BroadcastMode.idle) {
           state = state.copyWith(
             mode: BroadcastMode.error,
             error: 'Verbindung verloren',
+          );
+        }
+      }),
+    ]);
+  }
+
+  // ─── BLE Actions ───────────────────────────────────────────────────────
+
+  /// Connect to an existing BLE session as a musician.
+  Future<void> connectViaBle(BleSessionInfo sessionInfo) async {
+    state = state.copyWith(mode: BroadcastMode.connecting);
+
+    try {
+      await _ble.connect(sessionInfo);
+      _listenToBleEvents();
+
+      state = state.copyWith(
+        mode: BroadcastMode.receiving,
+        activeTransport: TransportType.ble,
+        bleSessionInfo: sessionInfo,
+        error: null,
+      );
+    } catch (e) {
+      state = state.copyWith(
+        mode: BroadcastMode.error,
+        error: 'BLE-Verbindung fehlgeschlagen: $e',
+      );
+    }
+  }
+
+  /// Start advertising as a BLE conductor (Peripheral mode).
+  Future<void> startBleSession(BleSessionInfo sessionInfo) async {
+    state = state.copyWith(mode: BroadcastMode.connecting);
+
+    try {
+      await _ble.startAsPeripheral(sessionInfo);
+      _listenToBleEvents();
+
+      state = state.copyWith(
+        mode: BroadcastMode.broadcasting,
+        activeTransport: TransportType.ble,
+        bleSessionInfo: sessionInfo,
+        error: null,
+      );
+    } catch (e) {
+      state = state.copyWith(
+        mode: BroadcastMode.error,
+        error: 'BLE-Session konnte nicht gestartet werden: $e',
+      );
+    }
+  }
+
+  /// Disconnect from the active BLE session.
+  Future<void> disconnectBle() async {
+    await _ble.disconnect();
+    state = state.copyWith(
+      mode: BroadcastMode.idle,
+      activeTransport: TransportType.none,
+      bleSessionInfo: null,
+      error: null,
+    );
+  }
+
+  void _listenToBleEvents() {
+    _subscriptions.addAll([
+      _ble.onSongChanged.listen((payload) {
+        state = state.copyWith(currentSong: payload);
+      }),
+      _ble.onSessionControl.listen((payload) {
+        if (payload.type == SessionControlType.stop) {
+          _ble.disconnect();
+          state = const BroadcastState();
+        }
+      }),
+      _ble.onConnectionStateChanged.listen((bleState) {
+        if (bleState == TransportConnectionState.disconnected &&
+            state.mode != BroadcastMode.idle) {
+          state = state.copyWith(
+            mode: BroadcastMode.error,
+            error: 'BLE-Verbindung verloren',
           );
         }
       }),
