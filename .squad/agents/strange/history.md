@@ -62,3 +62,27 @@
 **Test Updates:** Replaced `OnDisconnectedAsync_UpdatesParticipantCount` with conductor/non-conductor disconnect tests. Updated GEMA composer test assertion. All 827 tests pass.
 
 **Pattern Learned:** Voice entity has no `BandId` — must validate via `Voice.Piece.BandId` (requires `.Include(v => v.Piece)`).
+
+### 2026-03-31: #108 + CR#6 — IBandAuthorizationService DRY Refactoring
+
+**Problem:** `RequireMembershipAsync`, `RequireConductorOrAdminAsync`, `RequireAdminAsync` were duplicated as private helpers across 12 services + SongBroadcastHub. Each had minor variants (error codes, db access patterns, CancellationToken support).
+
+**Solution:** Extracted into shared `IBandAuthorizationService` → `BandAuthorizationService` (Scoped DI). Single source of truth for band-level authorization.
+
+**Files Created:**
+- `src/Sheetstorm.Infrastructure/Auth/IBandAuthorizationService.cs`
+- `src/Sheetstorm.Infrastructure/Auth/BandAuthorizationService.cs`
+- `tests/Sheetstorm.Tests/Auth/BandAuthorization/BandAuthorizationServiceTests.cs` (24 tests)
+
+**Services Refactored (13 total):** EventService, GemaService, ShiftService, SubstituteService, BandService, ConfigService, PostService, MediaLinkService, PollService, AttendanceService, SetlistService, ImportService, SongBroadcastHub.
+
+**Standardizations Applied:**
+- Error code: `"NOT_FOUND"` → `"BAND_NOT_FOUND"` for 4 services (Event, Gema, Shift, Substitute)
+- Exception type: `AuthException` → `DomainException` for admin checks (BandService, ConfigService)
+- Hub: `HubException` → `DomainException` for auth failures
+- All methods now support optional `CancellationToken`
+
+**Impact:** Net -145 lines production code. 882 tests pass. SongBroadcastHub no longer depends on `AppDbContext` directly.
+
+**Pattern Learned:** When extracting shared services from duplicated private helpers, standardize on the majority error code pattern and update the minority callers' tests. The middleware handles both `DomainException` and `AuthException` identically, so exception type changes are safe.
+
