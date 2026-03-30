@@ -99,6 +99,64 @@
 
 **Datei:** `docs/ux-specs/auth-onboarding.md` (Branch: `squad/9-auth-ux`)
 
+### 2026-03-29 — MS2 UX-Specs: GEMA, Media Links, Song-Broadcast
+
+**Durchgeführte Arbeit:** Drei vollständige UX-Spezifikationen für MS2-Features erstellt.
+
+**Dateien:**
+1. `docs/ux-specs/gema-compliance.md` — GEMA-Meldungen generieren, exportieren, AI-gestützte Werknummern-Suche
+2. `docs/ux-specs/media-links.md` — YouTube/Spotify-Links auf Stück-Ebene, Anhören-Button, AI-Vorschläge
+3. `docs/ux-specs/song-broadcast.md` — Echtzeit-Stück-Broadcasting Dirigent→Musiker, Live-Verbindungsstatus
+
+**Kernerkenntnisse:**
+
+1. **GEMA-Compliance ist UX für Nicht-Technik-Nutzer** — Verwertungsgesellschafts-Auswahl, Werknummern-Suche und Export müssen ohne Backend-Wissen nutzbar sein. Draft→Export→Read-Only-Workflow ist Pflicht für historische Konsistenz.
+
+2. **AI als Assistent, nicht Entscheider** — Sowohl bei GEMA-Werknummern-Suche als auch bei Media-Link-Vorschlägen: Confidence-Scores + manuelle Korrektur sind Pflicht. Keine stillen AI-Entscheidungen.
+
+3. **Song-Broadcast ist kritisches Live-Feature** — Vertrauen durch Transparenz: Dirigent sieht live, wie viele Musiker verbunden sind und ob alle das Stück empfangen haben. Reconnect <3s ist unsichtbar, >3s zeigt Status.
+
+4. **Musiker-Sicht ist passiv** — Stück-Wechsel passiert automatisch, Noten öffnen sich im Spielmodus. Keine Unterbrechung, Benachrichtigungen sind subtil.
+
+5. **Fehlende Stimme = Explicit Fallback** — Wenn Stimme fehlt, wird Musiker informiert (nicht stillschweigend ersetzt). Das gilt für Song-Broadcast genauso wie für normale Stimmenauswahl.
+
+6. **Media Links: Minimal & Fokussiert** — Ein Link = eine URL. Keine komplexen Playlists, keine Inline-Player (MS2). Deep-Link-First zu nativer App (YouTube/Spotify), Browser als Fallback.
+
+7. **Export-Formate: XML (Pflicht) + CSV/PDF (Optional)** — GEMA-XML ist gesetzlich erforderlich, CSV für Backup/Excel, PDF für Papierarchiv/Behörden.
+
+8. **oEmbed-Fallback** — Falls Metadaten-Abruf fehlschlägt (404, Timeout), Link trotzdem speichern (mit null Metadata). Link bleibt funktional.
+
+9. **Session-Kollision = Takeover-Dialog** — Falls Broadcast-Session läuft, kann neuer Dirigent übernehmen (mit Bestätigung). Alter Dirigent wird getrennt + Notification.
+
+10. **Latenz-Transparenz für Dirigent** — Live-Anzeige von Durchschnitts-Latenz + Pro-Musiker-Details. Warnung bei >1000ms, keine automatische Aktion — Dirigent entscheidet.
+
+**Wichtige UX-Patterns etabliert:**
+
+- **GEMA-Reminder = Nudge, nicht Nag:** Erinnerungen nach 7 Tagen, konfigurierbar, informativ
+- **Duplikat-Schutz:** Gleiche URL pro Stück nur einmal (Media Links)
+- **Auto-Discovery:** Musiker erkennen aktive Broadcast-Session automatisch via WebSocket
+- **Persistent Broadcast-Indicator:** Musiker bleiben verbunden, auch wenn sie zwischen Screens wechseln
+- **Confidence-Level-Farben:** >90% Grün, 70-89% Blau, 50-69% Orange, <50% Rot (konsistent mit bestehendem Design System)
+
+**Responsive Besonderheiten:**
+
+- **GEMA:** Split-View Tablet (Liste links, Detail rechts), Phone Scrollable
+- **Media Links:** Link-Karten 2-Spalten Grid (Tablet), 100% breit (Phone)
+- **Song-Broadcast:** Dirigent-View Split-View (Sidebar + Hauptbereich), Musiker-View Banner + Indicator
+
+**Accessibility-Highlights:**
+
+- Touch Targets min. 44×44px, Stück-Karten min. 56px hoch
+- Status-Badges immer Farbe + Icon (nie Farbe allein)
+- Screen Reader: Aria-Labels für Live-Regionen (AI-Suche-Progress, Export-Status, Broadcast-Status)
+- Keyboard Navigation: Shortcuts für GEMA-Export (Cmd+E), Broadcast-Start (Cmd+B)
+
+**Datei-Referenzen:**
+- Feature-Specs: `docs/feature-specs/gema-compliance-spec.md`, `media-links-spec.md`, `song-broadcast-spec.md`
+- Format-Vorlage: `docs/ux-specs/noten-import.md`, `spielmodus.md`
+- Design System: `docs/ux-design.md`
+- Konfiguration: `docs/ux-konfiguration.md`
+
 **Was erstellt wurde:**
 
 1. **Login-Flow** — E-Mail/Passwort, Google + Apple Social Login (plattformabhängig), Passwort-Vergessen-Flow (3 Schritte), Rate-Limiting UI nach 5 Fehlversuchen
@@ -274,6 +332,87 @@
 
 2. **„Senden"-Bestätigung für Orchester-Layer** ist eine wichtige UX-Entscheidung: Sofort-Sync (wie forScore/Newzik) vs. explizites Bestätigen (weniger Fehler, aber mehr Reibung). Muss Thomas entscheiden (Q3).
 
+### 2026-04-15 — MS2 UX-Specs: Anwesenheit, Aushilfen, Schichtplanung
+
+**Durchgeführte Arbeit:** Drei vollständige UX-Specs für MS2-Features erstellt.
+
+**Dateien:**
+1. `docs/ux-specs/anwesenheit.md` — Anwesenheits-Statistiken
+2. `docs/ux-specs/aushilfen.md` — Aushilfen-Zugang (Token/QR-Flow)
+3. `docs/ux-specs/schichtplanung.md` — Schichtplanung (Basic-Version)
+
+**Was erstellt wurde:**
+
+**1. Anwesenheit (`anwesenheit.md`):**
+- **3 Tabs:** Musiker-Liste, Register-Analyse, Trend-Ansicht (Charts)
+- **RBAC-Matrix:** Musiker sehen nur eigene Daten, Registerführer nur eigenes Register, Admin/Dirigent alles
+- **Filter:** Zeitraum (3/6/12 Monate), Termintyp (Probe/Konzert/Marsch) — Multi-Select
+- **Farb-Kodierung:** Grün >80%, Gelb 60-80%, Rot <60% (immer mit Text-Label)
+- **Drill-Down:** Register → Musiker-Liste (gefiltert)
+- **Export-Flow:** CSV/PDF als async Job, Download-Link 24h gültig
+- **Charts:** Line-Chart für Trends (Gesamt/Register/Personen), tappable Datenpunkte
+- **5 Error States:** Keine Termine, zu wenig Termine, keine Rückmeldungen, Export fehlgeschlagen, ungültiger Zeitraum
+- **ASCII Wireframes:** 6 Phone + 4 Tablet/Desktop
+
+**2. Aushilfen (`aushilfen.md`):**
+- **Token-basierter Zugang:** `ash_` + 43 Zeichen (256-bit), kein Login/Registrierung
+- **Flow:** Admin erstellt → Link/QR generiert → Aushilfe scannt/öffnet → direkt zu Noten
+- **QR-Code:** Client-seitig generiert (qr_flutter), 256×256px inline, 512×512px Download
+- **Read-Only Guest-View:** Nur zugewiesene Stimme, nur Termin-Setlist, keine Annotationen
+- **Verwaltung:** Liste aktiv/widerrufen/abgelaufen, Aktionen (Link kopieren, QR zeigen, verlängern, widerrufen)
+- **Offline-Support:** Service Worker cacht PDFs nach initialem Load
+- **Auth-State-Machine:** Token-Prüfung vor normalem Auth-Flow (Sonderfall)
+- **6 Error States:** Abgelaufen, widerrufen, ungültig, Netzwerkfehler, keine Aushilfen, volle Schicht
+- **ASCII Wireframes:** 8 Phone + 4 Tablet/Desktop
+
+**3. Schichtplanung (`schichtplanung.md`):**
+- **Basic-Version für MS2:** Schichtpläne für Events (Aufbau/Getränke/Abbau), Selbsteintragung + Admin-Zuweisung
+- **Plan erstellen:** Name, Datum, Beschreibung, optional mit Termin verknüpft
+- **Schichten definieren:** Name, Von/Bis (Time-Picker), Anzahl Personen (Stepper), Beschreibung
+- **Selbsteintragung:** „Ich bin dabei"-Button, First-Come-First-Served, Zeitkonflikt-Warnung (nicht blockierend)
+- **Admin-Zuweisung:** Modal (Phone) / Inline-Dropdown (Desktop), Such-Feld, Verfügbar/Zugewiesen-Sektionen
+- **Übersicht:** 2 Tabs (Meine Schichten / Verfügbar), Sortierung nach Dringlichkeit + Datum
+- **Kapazitäts-Anzeige:** Fortschritts-Dots (●●●○○), Farb-Kodierung (Grün=voll, Gelb=teilweise, Rot=leer)
+- **Push-Notifications:** Neuer Plan, neue Schicht, Admin-Zuweisung (pro Kapelle/Nutzer deaktivierbar)
+- **6 Error States:** Keine Pläne, keine Schichten, Schicht voll, bereits eingetragen, Zeitkonflikt, keine verfügbaren Schichten
+- **ASCII Wireframes:** 8 Phone + 4 Tablet/Desktop
+
+**Neue Erkenntnisse:**
+
+1. **Statistik-Drill-Down-Pattern:** Register → Musiker-Liste ist ein wiederkehrendes Pattern bei Vereins-Features. Breadcrumb „← Zurück zu Register-Übersicht" ist wichtig für Orientierung.
+
+2. **Aushilfen-Token als Auth-Sonderfall:** `sheetstorm://aushilfe/{token}` muss vor dem regulären Auth-State-Check abgefangen werden — bestätigt durch existierende `auth-onboarding.md`. Wichtig: Token-Flow ist komplett bypassend, kein Account-Requirement.
+
+3. **QR-Codes client-seitig generieren:** Server sendet nur Token, Frontend generiert QR → reduziert Server-Last und ermöglicht Offline-QR-Anzeige nach initialer Erstellung.
+
+4. **Schicht-Kapazitäts-Visualisierung:** Fortschritts-Dots (max 8, darüber Zahl) + Farb-Kodierung + Text-Label („3/5 Personen") = dreifache Redundanz für Accessibility.
+
+5. **Zeitkonflikt-Warnung, nicht Blockierung:** Bei Schichten können Nutzer Konflikte selbst einschätzen (z.B. kurze Überschneidung akzeptabel) — UX zeigt Warnung, blockiert aber nicht. Wichtig: Entscheidung beim Nutzer lassen.
+
+6. **Async Export-Jobs für Statistiken:** CSV/PDF-Export läuft im Hintergrund, Download-Link ist 24h gültig → verhindert Timeout bei großen Exporten und ermöglicht „Export starten + weiterarbeiten".
+
+7. **First-Come-First-Served für Schichten:** Keine Prioritäten, keine Wartelisten, keine Genehmigungen in MS2 — bewusst simpel gehalten. Tap auf „Ich bin dabei" = sofortige Zuweisung (mit Toast-Feedback).
+
+8. **Farb-Konsistenz über MS2-Features:** Grün/Gelb/Rot-Schema für Anwesenheit (Quote) und Schichtplanung (Kapazität) → konsistent mit Design-System `color-success/warning/error`.
+
+**Pattern-Erkenntnisse für zukünftige Features:**
+
+- **Dashboard-Widget-Pattern:** Anwesenheit + Schichtplanung könnten beide Widgets im Admin-Dashboard bekommen („Kritische Anwesenheit" / „Unfilled Shifts")
+- **Export-Pattern:** Async Job + 24h-Link ist wiederverwendbar für andere Reports (z.B. Mitgliederliste, Repertoire-Übersicht)
+- **Guest-Access-Pattern:** Token-Flow aus Aushilfen ist wiederverwendbar für andere temporäre Zugänge (z.B. externe Veranstalter, Presse)
+
+**Abhängigkeiten für Hill:**
+- Chart-Library: `fl_chart` oder Syncfusion für Flutter
+- QR-Library: `qr_flutter` (Dart)
+- Service Worker: PWA-Cache für Aushilfen-Offline-Support
+- Date-Range-Picker + Time-Picker: Material Design Picker
+- System-Share-Sheet: Native Share-API
+
+**Offene Fragen für Thomas:**
+- Anwesenheit: Automatische Reminder für niedrige Quoten (<60%)?
+- Aushilfen: Token-Gültigkeit standardmäßig 7 Tage oder konfigurierbar?
+- Schichtplanung: Automatische Konflikt-Erkennung mit Proben/Konzerten in späterem MS oder nie?
+
 3. **Stimmen-Annotationen bei Fallback-Stimme** ist ein ungelöster Grenzfall: Wenn Musiker Fallback-Stimme spielt — Stimmen-Layer der Fallback-Stimme oder eigentlichen Stimme? Relevant für Banner und Stark (Q6).
 
 4. **Toolbar verschiebbar auf Tablet** ist essenziell für Linkshänder und für Dirigenten mit einhändiger Bedienung (Taktstock in der anderen Hand).
@@ -286,3 +425,251 @@
 - Stimmen-Annotationen für andere Register sichtbar (ja/nein)?
 - Orchester-Annotation: sofort senden oder [Senden]-Button?
 - Kapellenweite Stamp-Sets für M1?
+
+### 2026-03-28 — UX-Spec: Kommunikation (MS2)
+
+**Durchgeführte Arbeit:** Vollständige UX-Spezifikation für das Kommunikations-Feature erstellt.
+
+**Datei:** `docs/ux-specs/kommunikation.md` (48 KB, sehr umfangreich)
+
+**Inhalt:**
+1. **Board-Feed:** Chronologischer Feed mit gepinnten Posts (max. 3), Post-Cards mit Reaktionen/Kommentaren
+2. **Post erstellen:** Titel, Inhalt (bis 5.000 Zeichen), bis 5 Anhänge (Bilder/PDFs), Register-Auswahl
+3. **Kommentare:** 1-Ebene-Kommentare (keine Verschachtelung), chronologisch sortiert, mit optionalem Bild-Anhang
+4. **Reaktionen:** 5 vordefinierte Emoji (👍 👏 ❤️ 😊 🎺), nur 1 pro Nutzer pro Post, Toggle-Verhalten
+5. **Pin-Funktion:** Bis zu 3 Posts oben fixieren, gelber Hintergrund, Pin-Badge, Dialog bei Limit-Überschreitung
+6. **Umfragen:** Editor mit 2-10 Optionen, Einzel-/Mehrfachauswahl, anonym/öffentlich, Ablaufdatum, Live-Ergebnisse
+7. **Abstimmungs-Ansicht:** Progress-Bars, Echtzeit-Updates, "Stimme ändern"-Button, Register-Filter
+8. **Notification-Einstellungen:** 3-Ebenen-Hierarchie (Global → Pro Kapelle → Pro Kategorie), Register-Filter
+9. **Navigation:** Board-Tab in Bottom-Navigation, Deep-Links für Push-Benachrichtigungen
+10. **Error States:** 7 verschiedene Fehlerzustände + Leerzustände
+11. **Interaction Patterns:** Pull-to-Refresh, Infinite Scroll, Optimistic Updates, Auto-Save
+12. **Accessibility:** Screen Reader, WCAG 2.1 AA, Touch-Targets 44×44px, Keyboard-Navigation
+
+**Kernerkenntnisse:**
+
+1. **Register-basierte Kommunikation ist das Differenzierungsmerkmal** — Posts/Umfragen können an bestimmte Register gerichtet sein (z.B. "Nur Trompeten"). Das muss visuell prominent sein: Badge mit 🎺 + Register-Name.
+
+2. **Pin-Funktion braucht klare Hierarchie** — Gepinnte Posts (max. 3) müssen visuell vom chronologischen Feed unterscheidbar sein: Gelber Hintergrund + 📌-Badge + separater Abschnitt oben.
+
+3. **Umfragen sind komplex** — Viele Konfigurationsoptionen (Einzelauswahl/Mehrfachauswahl, anonym/öffentlich, Ergebnisse sofort/nach Ablauf, Ablaufdatum). Aber: Defaults müssen intelligent sein ("Einzelauswahl, anonym, sofort, 7 Tage").
+
+4. **Live-Ergebnisse sind UX-kritisch** — Umfragen müssen Echtzeit-Updates zeigen (Progress-Bars), ohne dass Nutzer manuell neu laden müssen. Websocket oder Polling nötig.
+
+5. **Notification-Granularität ist Pflicht** — Nutzer müssen pro Kapelle UND pro Kategorie (Posts/Umfragen/Kommentare) steuern können. Sonst: Notification-Fatigue. Register-Filter: "Nur Benachrichtigungen für meine Register" ist wichtig für große Kapellen.
+
+6. **1-Ebene-Kommentare sind bewusste Vereinfachung** — Keine verschachtelten Threads (wie Reddit/Slack). Chronologische Sortierung (älteste zuerst) ist typisch für Diskussionen. Vereinfacht UI massiv.
+
+7. **Optimistic Updates für Kommentare** — Sofort anzeigen, grauer Hintergrund während "Wird gesendet", bei Fehler rot + Retry-Button. Bessere gefühlte Performance.
+
+8. **Split-View auf Desktop** — Post/Umfrage erstellen mit Live-Vorschau rechts ist sehr hilfreich. Nutzer sieht sofort, wie es aussehen wird.
+
+9. **Filter-Chips für Board-Feed** — [Alle] [Pinned] [Umfragen] [Register ▼] — Horizontal-Scroll, aktiver Filter farbig. Wichtig für große Kapellen mit vielen Posts.
+
+10. **Error States müssen konkret sein** — Nicht nur "Fehler", sondern "Anhang zu groß (15 MB, max. 10 MB)" mit Handlungsempfehlung.
+
+**Design-Pattern-Entscheidungen:**
+
+- **Card-basiertes Layout** für Posts/Umfragen (nicht Liste) — mehr Depth, klare Abgrenzung
+- **Bottom-Fixed Kommentar-Input** — bleibt beim Scrollen sichtbar, schneller Zugriff
+- **Tap auf Reaktionszahl → Nutzer-Liste** (bei öffentlichen Umfragen/Posts)
+- **Collapsible Sections** für lange Nutzer-Listen ("…und 11 weitere")
+- **Master-Switches** für Benachrichtigungen (Global → Kapelle → Kategorie)
+
+**Key-Screens (12 ASCII-Wireframes):**
+1. Board-Feed (Phone + Tablet/Desktop)
+2. Post erstellen (Phone + Desktop Split-View)
+3. Post-Detail mit Kommentaren
+4. Kommentar schreiben (Expanded)
+5. Reaktions-Picker (Bottom Sheet)
+6. Umfrage erstellen (Phone + Desktop)
+7. Umfrage abstimmen (vor/nach Abstimmung, abgelaufen)
+8. Benachrichtigungs-Einstellungen (Phone + Desktop)
+9. Pin-Limit-Dialog
+10. Error States (7 verschiedene)
+
+**File-Paths für Hill:**
+- UX-Spec: `docs/ux-specs/kommunikation.md`
+- Feature-Spec: `docs/feature-specs/kommunikation-spec.md` (Hill muss beide lesen)
+- Design Tokens: `docs/ux-design.md` (Farben, Typografie, Spacing)
+- Konfiguration: `docs/ux-konfiguration.md` (für Notification-Settings)
+
+**Abhängigkeiten:**
+- Backend (Banner): Posts-API, Umfragen-API, Push-API (siehe Feature-Spec § 4)
+- MS1: Rollenmodell, Register-Daten, JWT-Auth
+- Flutter-Plugins: Image Picker, FCM/APNs, PDF-Preview
+
+### 2026-03-28 — MS2 UX-Specs: Setlist + Konzertplanung
+
+**Durchgeführte Arbeit:** 2 vollständige UX-Spezifikationen für MS2-Features erstellt, basierend auf Feature-Specs von Hill + bestehenden UX-Specs als Format-Vorlage.
+
+**Dateien erstellt:**
+1. **`docs/ux-specs/setlist.md`** (42 KB) — Setlist-Verwaltung
+2. **`docs/ux-specs/konzertplanung.md`** (48 KB) — Konzertplanung + Kalender
+
+**Setlist-Verwaltung — Kernerkenntnisse:**
+
+1. **Builder-UI = Kern-UX** — Das Zusammenstellen einer Setlist muss so einfach sein wie eine Playlist erstellen. Drag & Drop mit Long-Press (Mobile) + Mouse-Drag (Desktop) + Keyboard-Unterstützung (Tab + ↑/↓).
+
+2. **Platzhalter sind Business-Critical** — Blaskapellen digitalisieren schrittweise. Ohne Platzhalter (📌-Icon, kein Stück-Referenz) ist eine vollständige Programmplanung unmöglich. Platzhalter im Spielmodus = automatisch überspringen mit 4-Sekunden-Toast.
+
+3. **Timing-Ansicht = GEMA-Vorbereitung** — Startzeit (20:00) + geschätzte Dauern → automatische Berechnung von Start-/Endzeiten pro Stück. Wichtig für Veranstalter + GEMA-Meldung (separate Spec MS2).
+
+4. **Setlist-Player ≠ Normaler Spielmodus** — Erweitert MS1-Spielmodus um: Progress "Stück 3/12", ⏮/⏭-Buttons, Setlist-Schnellnavigation, Auto-Wechsel (optional), Preloading (<200ms Übergang).
+
+5. **Pause-Einträge sind Sonderfall** — 💤-Icon, nur für Timing (kein Stück), nicht anklickbar im Player. Use-Case: "15 Minuten Pause — Getränke im Foyer".
+
+6. **Drag-Feedback muss klar sein** — Element hebt sich ab (opacity 0.9), andere Einträge zeigen Drop-Zonen (gestrichelte Linien), Drop-Zone highlighted (blauer Rahmen), Smooth Animation (200ms).
+
+7. **Responsive: Tablet = Table-Layout** — Desktop zeigt Setlist als Wide-Table (Spalten: #, Titel, Komponist, Dauer, Timing) statt Cards. Effizienter für große Setlists (15+ Stücke).
+
+**Konzertplanung + Kalender — Kernerkenntnisse:**
+
+1. **1-Tap Zusage ist Pflicht** — Keine Formulare, keine Bestätigungen (außer bei Absage). Button [✓ Zusagen] → API-Call → Status ändert sich sofort → Toast "Zusage gespeichert".
+
+2. **Ersatzmusiker-Vorschlag = Alleinstellungsmerkmal** — Wenn Musiker absagt, analysiert System automatisch: Instrument, Stimme, Verfügbarkeit, letzte Aktivität. Output: Top 5 Match-Score-sortiert. Kein Wettbewerber bietet das.
+
+3. **Matching-Algorithmus muss transparent sein** — Score sichtbar machen: "🎺 Markus Bauer (Tenorhorn • 2. Stimme) • Match: 100 (exakt)". Konflikt-Kennzeichnung: "⚠️ Konflikt mit 'Probe (15. Mai)'".
+
+4. **Bidirektionale Kalender-Sync ist komplex** — OAuth2-Flow für Google/Apple/Outlook, pro Kapelle eigenes Kalender-Abo, Farbe pro Kapelle, Änderungen im externen Kalender → zurück zu Sheetstorm (nur Dirigent/Admin dürfen editieren).
+
+5. **3 Ansichten = 3 Use-Cases** — Monatsansicht (Überblick), Wochenansicht (detaillierte Wochenplanung, Timeline-Grid), Listenansicht (chronologische Durchsicht mit Filter + Suche).
+
+6. **Status-Badges müssen konsistent sein** — ✓ Zugesagt (grün), ✗ Abgesagt (rot), ? Unsicher (orange), ○ Offen (grau). Immer Icon + Farbe (nie nur Farbe = Accessibility).
+
+7. **Push-Benachrichtigungen = Notification-Fatigue-Risk** — Zusammenfassen: Zusage-Updates alle 30 Minuten (an Dirigent), keine Einzelbenachrichtigung pro Musiker. Pro-Kapelle-Deaktivierung wichtig (Multi-Kapellen-Nutzer).
+
+8. **Kurzfristige Absage (<2h) braucht Warnung** — "⚠️ Der Termin beginnt in 1 Stunde! Bitte kontaktiere den Dirigenten direkt per Telefon."
+
+9. **Anwesenheitsliste nur für Dirigent/Admin** — Musiker sehen nur Gesamtzahlen ("23 zugesagt • 2 abgesagt • 3 offen"), keine Namen. Privacy + Rollenmodell.
+
+10. **Responsive: Tablet = Timeline-Grid** — Wochenansicht auf Tablet zeigt 7 Spalten (Mo–So) + Timeline (18:00–21:00) mit Terminen als Blöcke. Desktop = Split-View (Kalender + Termin-Detail).
+
+**Format-Konsistenz mit bestehenden UX-Specs:**
+- Header mit Version, Status, Autorin, Datum, Meilenstein, Referenzen
+- Inhaltsverzeichnis (16 Sections)
+- ASCII-Wireframes (Phone + Tablet/Desktop)
+- User Flows mit Entscheidungsbäumen
+- Interaction Patterns
+- Responsive Breakpoints (Phone/Tablet/Desktop)
+- Error States & Leerzustände
+- Accessibility (Keyboard, Screen Reader, Touch-Targets, Kontrast)
+- Abhängigkeiten
+
+**Design-Patterns verwendet:**
+- **Auto-Save + Undo-Toast** (keine "Speichern"-Buttons)
+- **Long-Press Context Menu** (Mobile)
+- **Swipe-Geste** (iOS/Android: Swipe left/right für Quick-Actions)
+- **Pull-to-Refresh** (Kalender-Ansicht)
+- **Bottom Sheet** (Modals auf Mobile)
+- **Optimistic Updates** (sofort anzeigen, bei Fehler rückgängig)
+- **Progressive Disclosure** (Begründung bei Absage optional, nicht forced)
+
+**Key-Screens (30 ASCII-Wireframes):**
+
+**Setlist (15 Wireframes):**
+1. Setlist-Übersicht (Phone + Tablet)
+2. Setlist-Detail (Phone + Desktop)
+3. Noten-Picker (Stück hinzufügen)
+4. Platzhalter hinzufügen
+5. Setlist-Player (Phone + Tablet Querformat)
+6. Setlist-Schnellnavigation
+7. Drag & Drop (Feedback-States)
+8. Timing-Ansicht
+9. Pause hinzufügen
+10. Leerzustände
+
+**Konzertplanung (15 Wireframes):**
+1. Kalender-Übersicht: Monats-/Wochen-/Listenansicht (Phone + Tablet)
+2. Termin erstellen (Phone + Erweiterte Optionen)
+3. Termin-Detail (Phone + Desktop Split-View)
+4. Absage-Dialog (mit Begründung)
+5. Anwesenheitsliste (Dirigent)
+6. Ersatzmusiker-Vorschlag (mit Match-Score)
+7. Kalender-Sync-Settings (Phone + Desktop)
+8. Push-Benachrichtigungen
+9. Wochenansicht Timeline-Grid (Tablet)
+10. Leerzustände + Error States
+
+**Abhängigkeiten:**
+- MS1: Spielmodus, Stimmenauswahl, PDF-Rendering, Rollenmodell
+- MS2-parallel: Konzertplanung ↔ Setlist-Verknüpfung
+- Backend: `/api/v1/setlists`, `/api/v1/termine`, Kalender-Sync-API (OAuth2)
+- Externe Dienste: Google Calendar API v3, Microsoft Graph API, Apple iCloud CalDAV, FCM/APNs
+
+**Nicht committet** — Dateien nur angelegt, wie in Task gefordert.
+
+---
+
+### 2026-03-29 — MS2 UX-Specs: 9 Features definiert (parallel orchestration)
+
+**Durchgeführte Arbeit:** Parallel orchestration von 4 Wanda-UX-Agenten zur Erstellung von 9 kompletten MS2-Feature-UX-Spezifikationen (326.4 KB total output).
+
+**9 Spezifikationen erstellt:**
+
+1. **Setlist-Verwaltung** (`docs/ux-specs/setlist.md`) — Song-Collections, Sortierung, Metadaten, Versionierung, Timing-Ansichten, Drag-Drop-Reordering
+2. **Konzertplanung** (`docs/ux-specs/konzertplanung.md`) — Event-Scheduling, Musiker-Zuweisung, Kalender-Sync (Google/Apple/Outlook), Ersatzmusiker-Matching
+3. **Team-Kommunikation** (`docs/ux-specs/kommunikation.md`) — Messaging, Channels, Notifications, Inline-Collaboration
+4. **GEMA-Compliance** (`docs/ux-specs/gema-compliance.md`) — Rechte-Management-Reporting, AI-Werknummern-Suche (Confidence-Scoring), XML/CSV/PDF-Export
+5. **Media-Links** (`docs/ux-specs/media-links.md`) — YouTube/Spotify Deep-Links, oEmbed-Metadaten, AI-Vorschläge, Anhören-Button im Spielmodus
+6. **Song-Broadcasting** (`docs/ux-specs/song-broadcast.md`) — Echtzeit-Sync (SignalR), Transparente Status-Indikatoren, Latenz-Monitoring (>1000ms Warnung), Auto-Reconnect
+7. **Anwesenheits-Tracking** (`docs/ux-specs/anwesenheit.md`) — Musiker-Präsenz, Rollenbasierte Sichten, Abwesenheits-Benachrichtigungen
+8. **Aushilfen/Temporäre Mitglieder** (`docs/ux-specs/aushilfen.md`) — Ersatz-Workflows, Verfügbarkeit, Trainings-Status, One-Click-Zusage ohne Registrierung
+9. **Schichtplanung** (`docs/ux-specs/schichtplanung.md`) — Probe/Auftritt-Zuweisungen, Konflikt-Erkennung, Automatische Substitutions-Vorschläge
+
+**Parallelisierungsstrategie:**
+- wanda-ux-a: Setlist + Konzertplanung (2 verwandte, komplexe Features) — 586s
+- wanda-ux-b: Kommunikation (standalone) — 357s
+- wanda-ux-c: GEMA + Media + Broadcast (3 technisch komplexe Features mit Backend-Abhängigkeiten) — 740s
+- wanda-ux-d: Anwesenheit + Aushilfen + Schichtplanung (3 verwaltungs-fokussierte Features) — 639s
+
+**Gesamtdauer:** ~12m 20s (parallel efficiency = sehr gut)
+
+**Kernentscheidungen (dokumentiert in `.squad/decisions.md`):**
+
+**GEMA-Compliance:** Draft-first export-locked, AI-Confidence-Levels (≥90% grün, 70-89% blau, 50-69% orange, <50% none), Gemeinfrei-Checkbox optional
+
+**Media-Links:** Minimal-UI, Deep-Link-First, oEmbed-Fallback bei Metadaten-Fehler
+
+**Song-Broadcast:** Transparente Status-Indikatoren, Musiker-Sicht passiv, Reconnect-Schwellen (<3s no-feedback, 3-30s orange, >30s dialog)
+
+**UX-Pattern-Konsistenz:** Touch-Targets 44×64px, Icon+Farbe (kein Farbe-only), Screen Reader ARIA-Labels, Keyboard Shortcuts, Responsive Phone/Tablet/Desktop
+
+**Backend-Abhängigkeiten:** SignalR Hub, oEmbed-Service, Azure OpenAI (GEMA + Media-Links)
+
+**Status:** Ready for Review by Stark (Lead)
+
+---
+
+## Team Update: Kapellenverwaltung & Auth-Onboarding Spec-Update (2026-03-28T22:10Z)
+
+**From:** Hill (Product Manager)  
+**Action:** UX flows updated — new entry point + approval UI.
+
+**UX Changes Required:**
+1. **Kapellen-Auswahl as Entry Point (Post-Onboarding)**
+   - Smart routing: 1 Kapelle → skip to that Kapelle; Only "Meine Musik" → skip to "Meine Musik"
+   - "Meine Musik" always first (personal library, special treatment)
+   - Clean selector UI with band names, member counts, roles
+
+2. **"Meine Musik" Display**
+   - Visual distinction from regular Kapellen (icon, color, label)
+   - Read-only indicators (can't leave, can't invite, can't delete)
+   - Appears in all Kapelle selectors
+
+3. **Join Request Flow (New)**
+   - User with invitation → submits request
+   - Shows "Request Pending" status with spinner
+   - After approval: "Request Approved" with green checkmark
+   - After rejection: "Request Denied" with reason (if provided) + "Try Another Invite" button
+
+4. **Admin Approval UI (New)**
+   - Request list: name, email, requested role, "Approve" / "Reject" buttons
+   - Reject flow: optional "reason" text field for user feedback
+   - Confirmation dialogs before approving/rejecting
+
+**Specs Affected:**
+- docs/feature-specs/auth-onboarding-spec.md — US-02, US-04 (entry point logic)
+- docs/feature-specs/kapellenverwaltung-spec.md — §7 (UI patterns), edge cases
+
+**Next Step:** Mock designs for Kapellen-Auswahl + approval screens for team review

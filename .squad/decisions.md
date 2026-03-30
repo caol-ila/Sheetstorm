@@ -36,6 +36,43 @@
 ### 2026-03-28T11:26Z: Immer neueste Modellversionen
 **Decision:** Immer die neueste verfügbare Version jedes AI-Modells verwenden. Keine veralteten Versionen.
 
+### 2026-03-28T22:57Z: User Directive — "Meine Musik" & Kapellenverwaltung
+**By:** Thomas (via Copilot)  
+**Decision:** Jeder Nutzer erhält eine persönliche Bibliothek ("Meine Musik"), die wie eine Kapelle funktioniert — der Nutzer ist Admin. Bei einer Band/Kapelle gibt es einen oder mehrere Admins und andere Rollen. Nach dem Onboarding ist der Einstiegspunkt die Kapellen-/Band-Auswahl. Beitritt zu einer Kapelle/Band erfordert Einladungslink/Code UND Genehmigung durch Admin, Dirigent oder Registerführer.
+
+### 2026-03-28T22:10Z: „Meine Musik", Kapellen-Auswahl als Einstieg, Genehmigungs-Flow
+**By:** Hill (Product Manager)  
+**Date:** 2026-03-28
+
+**Entscheidungen:**
+
+1. **„Meine Musik" — Persönliche Bibliothek als Kapelle**
+   - Jeder Nutzer erhält bei der Registrierung automatisch eine „Meine Musik"-Kapelle (`ist_persoenlich = TRUE`)
+   - Nutzer ist alleiniger Admin, kann nicht löschen/verlassen/einladen
+   - Nutzt dieselbe Kapellen-Infrastruktur (kein separates System)
+   - Erscheint als erster Eintrag im Kapellen-Wechsel-Selector
+
+2. **Kapellen-/Band-Auswahl als Einstiegsscreen**
+   - Nach Login UND nach Onboarding: Einstiegspunkt ist die Kapellen-/Band-Auswahl (nicht die Bibliothek)
+   - Ausnahme: Nur eine Kapelle + „Meine Musik" → direkt zur zuletzt aktiven Kapelle
+   - Ausnahme: Nur „Meine Musik" → direkt in „Meine Musik"
+
+3. **Beitrittsflow mit Genehmigung (kein Auto-Join)**
+   - Einladungslink/E-Mail → Beitrittsanfrage wird erstellt → Genehmigung durch Admin, Dirigent ODER Registerführer
+   - Status-Flow: ausstehend → genehmigt | abgelehnt
+   - Abgelehnte Nutzer können über neuen Einladungslink erneut anfragen
+   - E-Mail-Einladung: Admin gibt E-Mail ein, Nutzer muss trotzdem genehmigt werden
+
+**Betroffene Specs:**
+- `docs/feature-specs/kapellenverwaltung-spec.md` — US-00, US-02 (Rewrite), US-06, §4.4, §5.1, §5.4, §6, §7.9–7.13, DoD
+- `docs/feature-specs/auth-onboarding-spec.md` — US-02, US-04, AC-05, AC-06, Grenzfälle
+
+**Betroffene Teams:**
+- **Stark** — Datenmodell-Änderungen: `ist_persoenlich` auf kapellen, neue `beitrittsanfragen`-Tabelle, `einladung_status` geändert
+- **Wanda** — UX-Flows: Kapellen-Auswahl als Einstieg, Genehmigungs-UI, „Meine Musik"-Darstellung
+- **Romanoff/Banner** — Implementierungs-Scope hat sich vergrößert (7 statt 5 User Stories, 15 statt 10 ACs)
+- **Parker** — Neue Testszenarien: Genehmigungs-Flow, „Meine Musik"-Schutz, 13 statt 8 Edge Cases
+
 ---
 
 ### Spezifikation & Meilensteinplanung
@@ -260,6 +297,334 @@ Reihenfolge ist PFLICHT: Reviews ERST, dann Lead-Entscheidung, dann Merge.
 **FIX NOW (must resolve before merge):**
 1. **LoginAsync must enforce EmailVerified** — Add check in `LoginAsync`: if `!user.EmailVerified`, return error (not a token). Thomas explicitly decided "E-Mail-Bestätigung: Pflicht bei Registrierung." All 3 reviewers flagged this. Unauthenticated users must not receive JWTs.
 2. **Hash email verification tokens** — Store verification tokens hashed (SHA-256), same as refresh tokens. Thomas decided "Gehashte Tokens in der DB von Anfang an." Lookup via hash comparison, not plaintext column query.
+
+---
+
+### 2026-03-29T21:31Z: MS2 UX-Specs — 9 Features Defined
+**By:** Wanda (UX Designer)  
+**Date:** 2026-03-29
+
+**Status:** Ready for Review
+
+Parallel creation of 9 comprehensive MS2 feature UX specifications:
+
+#### Features Documented
+1. **Setlist Management** (`docs/ux-specs/setlist.md`) — Song collections, ordering, metadata, versioning
+2. **Concert Planning** (`docs/ux-specs/konzertplanung.md`) — Event scheduling, musician assignment, performance timeline
+3. **Team Communication** (`docs/ux-specs/kommunikation.md`) — Messaging, notifications, collaboration patterns
+4. **GEMA Compliance** (`docs/ux-specs/gema-compliance.md`) — Rights management reporting with AI confidence scoring
+5. **Media Links** (`docs/ux-specs/media-links.md`) — YouTube/Spotify deep-links, oEmbed metadata, AI suggestions
+6. **Song Broadcasting** (`docs/ux-specs/song-broadcast.md`) — Real-time sync with SignalR, transparentstatus indicators
+7. **Attendance Tracking** (`docs/ux-specs/anwesenheit.md`) — Musician presence, role-based views, notifications
+8. **Relief/Temporary Members** (`docs/ux-specs/aushilfen.md`) — Substitute workflows, availability, training status
+9. **Shift Scheduling** (`docs/ux-specs/schichtplanung.md`) — Rehearsal/performance assignments, conflict detection
+
+#### Key UX Patterns
+- **Accessibility:** 44×64px touch targets, ARIA labels, screen reader support, keyboard navigation
+- **Responsive:** Phone/Tablet/Desktop layouts with grid systems
+- **Permissions:** Admin/Dirigent full control, Notenwart CRUD, Registerführer limited, Musiker read-only
+
+---
+
+## MS2 Frontend Implementation Decisions (2026-04-15)
+
+### Vision: Setlist + Song Broadcast Architecture
+
+**Date:** 2026-04-15  
+**By:** Vision (Principal Frontend Engineer)  
+**Status:** Implemented (21 files)
+
+#### 1. SignalR via WebSocket + JSON Protocol (Manual Implementation)
+**Decision:** No Dart SignalR package available → implemented SignalR JSON protocol manually over `web_socket_channel:^3.0.2`
+- Record separator (0x1E) delimited JSON messages
+- Handles invocation (type 1), ping/pong (type 6), close (type 7)
+- Exponential backoff reconnect (2s → 32s, 5 attempts max)
+
+**Impact:** Backend team aware that client implements raw SignalR JSON. Future Dart SignalR package adoption affects only `BroadcastSignalRService`.
+
+#### 2. Feature Routes in routes.dart (Not app_router.dart)
+**Decision:** Each feature exports GoRoute definitions in `routes.dart`. NOT integrated into `app_router.dart` per charter.
+- Avoids merge conflicts
+- Requires manual integration (separate PR)
+- Placeholder replacement for setlist routes in shell branch
+
+#### 3. German Identifier Normalization
+**Decision:** API spec uses `ü` in JSON field names (e.g., `aktivesStückId`). Dart source uses ASCII equivalents (`aktiveStueckId`) with JSON key mapping.
+**Reason:** Avoid encoding issues in Dart source files while matching API contract.
+
+#### 4. Player State Machine
+**Decision:** SetlistPlayer uses simple state machine: `idle → loading → playing ↔ paused → finished`
+- Auto-advance timer-based (30s default)
+- Real timing data from API overrides default
+
+---
+
+### Romanoff: Events/Calendar Feature Module
+
+**Date:** 2026-04-15  
+**By:** Romanoff (Frontend Developer)  
+**Status:** Implemented (13 files)
+
+#### 1. CalendarEntry vs Event Model Separation
+**Decision:** Separate `CalendarEntry` model for calendar views (minimal data) vs. full `Event` model for detail screens.
+**Rationale:**
+- Calendar views need only title, type, date, time, RSVP status
+- Event details include description, setlist, statistics, meeting point, dress code
+- Backend can optimize `/kalender` endpoint separately from `/termine`
+- Reduces network traffic and rendering time
+
+#### 2. RsvpStatus & EventType as Enums with Backend String Mapping
+**Decision:** Enums with `toJson()`/`fromJson()` methods mapping to German backend strings ("Probe", "Zugesagt").
+**Reason:** Backend sends German strings, Dart enums default to lowercase. Custom label property controls JSON serialization.
+
+#### 3. Riverpod Family for EventDetailNotifier
+**Decision:** `EventDetailNotifier` as Riverpod family (parameter: `eventId`).
+**Reason:** Each event has own state. Fine-grained caching. Only affected event reloads on RSVP change. Matches band_notifier pattern.
+
+#### 4. Material 3 SegmentedButton for View Switcher
+**Decision:** `SegmentedButton` instead of TabBar for Month/Week/List switching.
+**Reason:** No AppBar needed. Material 3 consistent. Better for mode selection (not hierarchical navigation).
+
+#### 5. RSVP Cancellation Dialog with Optional Reason
+**Decision:** Cancel opens dialog with optional reason text field.
+**Reason:** Progressive disclosure. Prevents accidental rejection. Follows UX spec.
+
+#### 6. CalendarMonthView with Colored Dots
+**Decision:** Month grid shows only colored dots (max 3) per day, not event titles.
+**Reason:** Space constraint on phone (40-50px per cell). UX spec requires dots. Tap day for full list.
+
+#### 7. Create/Edit Flows Deferred
+**Decision:** Create/Edit events NOT implemented. FAB shows placeholder snackbar.
+**Reason:** Focus on calendar views + detail + RSVP. Complex form deferred. Backend contract defined.
+
+---
+
+### Romanoff: GEMA Compliance + Media Links Implementation
+
+**Date:** 2026-04-15  
+**By:** Romanoff (Frontend Developer)  
+**Status:** Implemented (22 files)
+
+#### 1. Manual JSON Serialization (No json_serializable)
+**Decision:** Hand-written `fromJson`/`toJson` methods for all models.
+**Rationale:** Consistent with auth_models pattern. Avoids build_runner churn. Models simple without complex nesting.
+
+#### 2. Media Links as Widgets, Not Standalone Routes
+**Decision:** Media Links are reusable widgets (`MediaLinkList`, `MediaLinkEditor`) integrated into piece detail views.
+**Rationale:** Per UX spec, links primarily in piece detail/setlist views. Reduces navigation complexity. Contextual to specific pieces. Empty `routes.dart` as placeholder.
+
+#### 3. Stub .g.dart Files for Generated Providers
+**Decision:** Create stub files for Riverpod-generated providers until `build_runner` execution.
+**Rationale:** Flutter SDK unavailable on build agent. Stubs allow compilation. Real generation via `flutter pub run build_runner build`.
+
+#### 4. url_launcher for Deep Links
+**Decision:** Use `url_launcher:6.3.1` with `LaunchMode.externalApplication` for YouTube/Spotify links.
+**Rationale:** Cross-platform solution. Auto-selects app if installed, fallback to browser. No platform-specific code needed.
+
+#### 5. GEMA Report Status = Edit Permission Source
+**Decision:** Report status (`Entwurf` vs. `Exportiert`) is single source of truth for edit permissions.
+**Rationale:** Exported reports immutable (audit requirement). UI enforces via status checks. Backend must also enforce.
+
+#### 6. Family Notifiers for Parametrized State
+**Decision:** Use `@riverpod` family notifiers:
+- `GemaReportDetailNotifier(kapelleId, reportId)`
+- `MediaLinkNotifier(kapelleId, stueckId)`
+**Rationale:** Fine-grained cache invalidation. Best practice for parametrized Riverpod 3.x state.
+
+---
+
+### Romanoff: Communication Module (Posts + Polls)
+
+**Date:** 2026-04-15  
+**By:** Romanoff (Frontend Developer)  
+**Status:** Implemented (23 files)
+
+#### 1. Shared Author Model via Duplication
+**Decision:** Duplicate `Author` class in `post_models.dart` and `poll_models.dart`.
+**Rationale:**
+- No shared/models/ directory in current architecture
+- Avoids circular dependencies
+- Low maintenance cost for stable 4-field model
+- Acceptable DRY violation for feature scoping
+
+#### 2. Reaction Storage as Map<ReactionType, Reaction>
+**Decision:** Use `Map<ReactionType, Reaction>` instead of `List<Reaction>`.
+**Rationale:**
+- O(1) lookup for toggle logic
+- Matches backend JSON structure (object keys)
+- Type-safe enum keys
+- Efficient updates without list scanning
+
+#### 3. No Build Runner Generated Code (Stub .g.dart Files)
+**Decision:** Create `.g.dart` stub files instead of running build_runner during implementation.
+**Rationale:** Flutter SDK unavailable. Stubs enable compilation. Real providers generated post-install.
+
+#### 4. timeago Package for Relative Time
+**Decision:** Add `timeago:^3.7.0` for "vor 5 Minuten" formatting.
+**Rationale:** German locale support. Automatic unit selection. Standard pattern. Zero maintenance.
+
+#### 5. Board Screen = Unified Feed (Posts + Polls)
+**Decision:** Integrate polls into `board_screen.dart` via tabs (Alle/Pinned/Umfragen).
+**Rationale:** UX spec alignment. Single navigation destination. Simpler routing. Distinct card designs make mixing intuitive.
+
+#### 6. Routes in routes.dart (Not app_router.dart)
+**Decision:** Create `routes.dart` with GoRoute definitions. DO NOT modify app_router.dart.
+**Rationale:** Charter constraint. Clean separation. Easy integration. Future-proof for routing changes.
+
+#### 7. Optimistic UI for Reactions & Comments
+**Decision:** Update state immediately, rollback on error.
+**Rationale:** Perceived performance. UX best practice (Twitter/Facebook pattern). Low-risk operations. Riverpod AsyncValue auto-rollback.
+
+---
+
+### Romanoff: Attendance + Substitute + Shifts Implementation
+
+**Date:** 2026-04-15  
+**By:** Romanoff (Frontend Developer)  
+**Status:** Implemented (33 files)
+
+#### 1. Standard Feature Structure
+**Decision:** All 3 modules (Attendance, Substitute, Shifts) follow identical folder structure:
+```
+features/{feature_name}/
+├── data/models/       # Manual JSON serialization
+├── data/services/     # API service layers
+├── application/       # Riverpod notifiers
+├── presentation/
+│   ├── screens/
+│   └── widgets/
+└── routes.dart        # NOT in app_router.dart
+```
+**Reason:** Consistency, predictable navigation, separation of concerns.
+
+#### 2. Riverpod 3.x Codegen with @riverpod Annotations
+**Decision:** All notifiers use `@riverpod` codegen with part directives.
+- Type-safe code generation
+- Auto-dispose by default (keepAlive: true for persistent state)
+- Family notifiers for parametrized state
+- Consistent with band_notifier pattern
+
+#### 3. Manual JSON Serialization
+**Decision:** Hand-written fromJson/toJson (no build_runner generation yet).
+**Reason:** Matches auth_models pattern. Avoids build_runner churn. Simple models don't need generated serialization.
+
+#### 4. Color-Coded Status Indicators
+**Decision:** Use consistent color scheme for percentage-based statistics:
+- **Green (AppColors.success):** >80%
+- **Yellow/Orange (AppColors.warning):** 60-80%
+- **Red (AppColors.error):** <60%
+**Reason:** Accessibility (color + icon). Consistent with design tokens. Matches UX spec.
+
+#### 5. Routes as Separate Files (Not app_router.dart)
+**Decision:** Each feature has `routes.dart`. DO NOT modify app_router.dart.
+**Reason:** Avoids merge conflicts. Feature routes independent. Integration in separate PR.
+
+#### 6. Hardcoded German Strings (No i18n in MS2)
+**Decision:** All UI strings hardcoded in German.
+**Reason:** German-first implementation. i18n framework deferred to MS3. Faster development.
+
+#### 7. QR Code & Charts as Placeholders
+**Decision:** QR generation (`qr_flutter`) and charts (`fl_chart`) implemented as custom widgets with TODOs.
+**Reason:** Avoid dependencies before Flutter install. Structure ready. Packages added later.
+
+#### Attendance Feature Specifics
+- **Models:** 7 (AttendanceStats, MemberAttendance, RegisterAttendance, AttendanceTrend, TrendDataPoint, ExportData)
+- **Screens:** 1 dashboard with 3 tabs (Musiker, Register, Trends)
+- **Widgets:** 5 (Chart, StatCard, RegisterBreakdown, ExportButton, TrendGraph)
+- **API:** 5 endpoints (GET stats, register, trends; POST/GET export)
+- **State:** AttendanceNotifier with date range + event type filters
+
+#### Substitute Feature Specifics
+- **Models:** 3 (SubstituteAccess, SubstituteLink, SubstituteStatus enum)
+- **Screens:** 2 (Management list, Link display with QR)
+- **Widgets:** 3 (AccessLinkCard, QRCodeGenerator, StatusBadge)
+- **API:** 5 endpoints (CRUD + extend)
+- **State:** SubstituteListNotifier with active/expired filtering
+
+#### Shift Planning Feature Specifics
+- **Models:** 4 (ShiftPlan, Shift, ShiftAssignment, ShiftStatus enum)
+- **Screens:** 2 (Plan overview, Shift detail)
+- **Widgets:** 3 (ShiftSlot, ShiftAssignmentCard, OpenShiftsBadge)
+- **API:** 8 endpoints (Plans/Shifts CRUD, assignments)
+- **State:** ShiftPlanListNotifier, ShiftPlanNotifier family, myShifts, openShifts providers
+
+#### Code Style Conventions
+- **Imports:** Alphabetical (flutter → riverpod → sheetstorm → features → shared)
+- **const constructors** where possible
+- **Null-safety:** required without `?`, optional with `?`
+- **Provider naming:** `{feature}ServiceProvider`, `{feature}NotifierProvider`
+
+#### UI/UX Standards
+- Material 3 design
+- AppTokens spacing (xs/sm/md/lg/xl)
+- AppColors theme colors
+- Touch targets: min 44px
+- RefreshIndicator on all list screens
+- Empty states with helpful messages
+
+#### Error Handling Pattern
+- Try-catch in notifiers
+- AsyncValue.guard() for mutations
+- Return bool for success/failure
+- SnackBar feedback in UI
+
+---
+
+## Shared MS2 Frontend Decisions
+
+### Dependency Additions
+```yaml
+web_socket_channel: ^3.0.2        # SignalR WebSocket protocol
+url_launcher: ^6.3.1              # Deep linking for media
+timeago: ^3.7.0                   # German relative time formatting
+```
+
+**Placeholder Dependencies (post-Flutter install):**
+- `qr_flutter` — QR code generation
+- `fl_chart` or `syncfusion_flutter_charts` — Charts
+- `share_plus` — Link sharing
+
+### Common Patterns Across All Modules
+1. **Clean Architecture:** data/application/presentation separation
+2. **Riverpod 3.x:** Family notifiers, auto-dispose, codegen
+3. **Manual JSON:** No json_serializable (avoids build_runner churn)
+4. **Material 3:** Consistent design across all features
+5. **Accessibility:** 44px touch targets, color + icon indicators
+6. **German-First:** Hardcoded strings (i18n deferred to MS3)
+7. **Routes.dart:** Feature routes NOT integrated into app_router.dart
+
+### Post-Implementation Tasks
+1. **Route Integration:** Wire feature routes into app_router.dart (requires Lead approval)
+2. **build_runner:** Run after Flutter SDK installed
+3. **Add Placeholder Dependencies:** qr_flutter, fl_chart, share_plus
+4. **Create Post Screen:** Higher priority than polls
+5. **Backend Validation:** Ensure endpoint contracts match specs
+6. **Infinite Scroll:** Implement once backend supports pagination
+7. **Unit & Widget Tests:** For all notifiers and key screens
+
+### Key Learnings for Team
+- SignalR manual implementation enables flexibility; upgrade path clear if Dart package becomes available
+- Family notifiers essential for fine-grained state management in multi-list applications
+- Separate CalendarEntry vs Event models optimize network traffic and rendering
+- Optimistic UI patterns (reactions/comments) improve perceived performance significantly
+- Color-coded status (with icon fallback) maintains accessibility while improving visual feedback
+- **Real-time:** SignalR integration for Broadcast, status transparency
+- **AI Integration:** GEMA work-number search, media-link suggestions (Azure OpenAI)
+
+#### Critical Decisions
+- **GEMA:** Draft-first, export-locked model preserves historical consistency
+- **Media Links:** Minimal UI, deep-link-first, oEmbed fallback for missing metadata
+- **Broadcast:** Transparent latency monitoring (>1000ms warning, >30s reconnect dialog)
+
+#### Backend Dependencies
+- SignalR Hub for real-time Broadcasting
+- oEmbed service for media metadata
+- Azure OpenAI for GEMA + media-link AI features
+
+#### Next Steps
+- Stark (Lead) review & approval
+- Implementation sprint assignment (Romanoff frontend, Banner backend)
+- API design for Broadcast (Stark)
 3. **Fix broken existing tests** — GPT flagged old constructor signatures and raw token lookups that break after the changes. Existing tests must compile and pass.
 4. **Remove unrelated IStorageService.cs** — Scope creep. This file has nothing to do with auth. Remove it from this branch; it belongs in a storage feature branch.
 
@@ -322,6 +687,34 @@ Reihenfolge ist PFLICHT: Reviews ERST, dann Lead-Entscheidung, dann Merge.
 **Note to Strange:** You have two branches. Do 88-auth-fix first since 93-auth-flutter-fix (Vision) depends on the backend endpoints being correct. Then 95-kapelle-fix.
 
 **Note to Vision:** Wait for Strange to confirm 88-auth-fix endpoint contracts before fixing 93-auth-flutter-fix, so you align to the final API shape.
+
+---
+
+### 2026-03-28T18:00Z: Setlist-Verwaltung — Platzhalter als First-Class-Citizen
+**By:** Hill (Product Manager)  
+**Context:** Feature-Spec Setlist-Verwaltung (MS2)
+
+**Decision:** Setlist-Einträge haben drei Typen: Stück (Referenz auf piece_id), Platzhalter (ohne Stück-Referenz, mit Titel/Komponist/Notizen), und Pause (für Timing-Kalkulation). Platzhalter sind First-Class-Citizens im Datenmodell — Kapellen können vollständige Programme planen, bevor alle Noten digitalisiert sind. Im Spielmodus werden Platzhalter automatisch übersprungen mit Toast. GEMA-Export enthält Platzhalter. Keine automatische Ersetzung — explizite Umwandlung ist sicherer.
+
+### 2026-03-29T00:00Z: Dev-Mode Password-Policy Lockerung
+**By:** Banner (Backend Developer)
+
+**Decision:** Passwort-Policy wird im Development-Modus deaktiviert via `IHostEnvironment.IsDevelopment()`. Im Dev-Modus: beliebig einfache Passwörter über API. In Produktion: Policy bleibt aktiv (8+ Zeichen, Großbuchstabe, Zahl/Sonderzeichen). Demo-Account: `demo@test.local` / `demo` (E-Mail verifiziert, automatisch erstellt).
+
+### 2026-03-29T01:00Z: Backend Startup Performance — Port Fix
+**By:** Banner (Backend Developer)
+
+**Decision:** `start.ps1` Health-Check hatte Port-Mismatch (erwartete 5001, launchSettings.json nutzt 5273). Fix: Port auf 5273 korrigiert, Build/Run getrennt (`dotnet build` vorab, dann `dotnet run --no-build`), Health-Check von 30×2s auf 15×1s gestrafft. Falls Ports in `launchSettings.json` ändern → `start.ps1` synchron anpassen.
+
+### 2026-03-29T02:00Z: Loading-Screen-Hang — Router Redirect Fix
+**By:** Romanoff (Senior Frontend)
+
+**Decision:** `/loading` wurde aus `_publicRoutes` entfernt (war nur während `AuthLoading` gültig). `_redirect` behandelt `/loading` nach Auth-Auflösung: Redirect zu `/login` (unauthenticated) oder `/app/library` (authenticated). API Base URL (`AppConfig.apiBaseUrl`) zentralisiert — Debug: `http://localhost:5273`, Release: `https://api.sheetstorm.app/v1`. Konvention: `/loading`-Route darf NIE in `_publicRoutes` stehen.
+
+### 2026-03-29T03:00Z: JSON-Key-Konvention Backend ↔ Flutter
+**By:** Romanoff (Senior Frontend)
+
+**Decision:** camelCase ist die Konvention für alle JSON-Keys in der API (ASP.NET Core Default). Backend: keine Änderung nötig. Frontend: Alle neuen `fromJson`-Factories müssen camelCase-Keys verwenden. Generell: Error Handler sollten Exceptions nicht verschlucken — mindestens im Debug-Mode loggen.
 
 ---
 

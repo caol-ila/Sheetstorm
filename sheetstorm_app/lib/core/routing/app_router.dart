@@ -22,6 +22,13 @@ import 'package:sheetstorm/features/sheet_music/presentation/screens/import_summ
 import 'package:sheetstorm/features/sheet_music/presentation/screens/labeling_screen.dart';
 import 'package:sheetstorm/features/sheet_music/presentation/screens/metadata_editor_screen.dart';
 import 'package:sheetstorm/features/performance_mode/presentation/screens/performance_mode_screen.dart';
+import 'package:sheetstorm/features/setlist/routes.dart';
+import 'package:sheetstorm/features/events/routes.dart';
+import 'package:sheetstorm/features/song_broadcast/routes.dart';
+import 'package:sheetstorm/features/communication/routes.dart';
+import 'package:sheetstorm/features/attendance/routes.dart';
+import 'package:sheetstorm/features/substitute/routes.dart';
+import 'package:sheetstorm/features/shifts/routes.dart';
 import 'package:sheetstorm/shared/widgets/app_shell.dart';
 
 part 'app_router.g.dart';
@@ -41,6 +48,8 @@ abstract final class AppRoutes {
   static const String library = '/app/library';
   static const String setlists = '/app/setlists';
   static const String calendar = '/app/calendar';
+  static const String events = '/app/events';
+  static const String board = '/app/board';
   static const String profile = '/app/profile';
   static const String performanceMode = '/app/performance-mode/:sheetId';
   static const String band = '/app/band';
@@ -53,6 +62,16 @@ abstract final class AppRoutes {
       '/app/band/$bandId/invite';
   static String bandSections({required String bandId}) =>
       '/app/band/$bandId/sections';
+  static String bandBroadcast({required String bandId}) =>
+      '/app/band/$bandId/broadcast';
+  static String bandBroadcastJoin({required String bandId}) =>
+      '/app/band/$bandId/broadcast/join';
+  static String bandAttendance({required String bandId}) =>
+      '/app/band/$bandId/attendance?bandId=$bandId';
+  static String bandSubstitutes({required String bandId}) =>
+      '/app/band/$bandId/substitutes?bandId=$bandId';
+  static String bandShifts({required String bandId, String? planId}) =>
+      '/app/band/$bandId/shifts?bandId=$bandId${planId != null ? '&planId=$planId' : ''}';
 
   // ── Import routes ──────────────────────────────────────────────────────────
   static const String importStart = '/app/import';
@@ -72,11 +91,18 @@ abstract final class AppRoutes {
       '/app/import/$uploadId/metadata/$pieceIndex';
   static String importSummary(String uploadId) =>
       '/app/import/$uploadId/summary';
+  static String setlistDetail(String setlistId) => '/app/setlists/$setlistId';
+  static String setlistEdit(String setlistId) =>
+      '/app/setlists/$setlistId/edit';
+  static String setlistPlay(String setlistId) => '/app/setlists/$setlistId/play';
+  static String eventDetail(String eventId) => '/app/events/$eventId';
+  static String eventRsvp(String eventId) => '/app/events/$eventId/rsvps';
 }
 
 /// Routes that do not require authentication.
+/// Note: `/loading` is intentionally NOT here — it is only valid while
+/// auth state is [AuthLoading]. Once resolved, users must leave it.
 const _publicRoutes = {
-  AppRoutes.loading,
   AppRoutes.login,
   AppRoutes.sections,
   AppRoutes.forgotPassword,
@@ -192,21 +218,11 @@ GoRouter appRouter(Ref ref) {
           ),
           StatefulShellBranch(
             routes: [
-              GoRoute(
-                path: AppRoutes.setlists,
-                builder: (context, state) =>
-                    const _PlaceholderScreen(title: 'Setlists'),
-              ),
+              setlistRoutes,
             ],
           ),
           StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: AppRoutes.calendar,
-                builder: (context, state) =>
-                    const _PlaceholderScreen(title: 'Kalender'),
-              ),
-            ],
+            routes: eventRoutes,
           ),
           StatefulShellBranch(
             routes: [
@@ -251,10 +267,22 @@ GoRouter appRouter(Ref ref) {
                           bandId: state.pathParameters['bandId']!,
                         ),
                       ),
+                      // Song broadcast routes (nested under band)
+                      GoRoute(
+                        path: 'broadcast',
+                        builder: (context, state) => broadcastRoutes.builder!(context, state),
+                        routes: broadcastRoutes.routes,
+                      ),
+                      // Attendance, Substitute, Shifts routes
+                      ...attendanceRoutes,
+                      ...substituteRoutes,
+                      ...shiftRoutes,
                     ],
                   ),
                 ],
               ),
+              // Communication board routes (top-level in profile shell)
+              ...communicationRoutes,
               GoRoute(
                 path: AppRoutes.settings,
                 builder: (context, state) => const SettingsScreen(),
@@ -281,28 +309,31 @@ String? _redirect(Ref ref, GoRouterState state) {
     return loc == AppRoutes.loading ? null : AppRoutes.loading;
   }
 
+  // Auth resolved — /loading is no longer valid, redirect away
+  final isOnLoading = loc == AppRoutes.loading;
   final isPublic = _publicRoutes.contains(loc);
   final isAushilfe = loc.startsWith('/aushilfe/');
   final isEmailVerifyDeepLink = loc.startsWith('/email-verify/');
 
   if (authState is AuthEmailPendingVerification) {
-    // Allow email-verify routes and deep-links; block everything else
     if (loc == AppRoutes.emailVerify || isEmailVerifyDeepLink) return null;
     return AppRoutes.emailVerify;
   }
 
   if (authState is AuthAuthenticated) {
     final user = authState.user;
-    // First-time users → onboarding (unless already there or at a public route)
     if (!user.onboardingCompleted && loc != AppRoutes.onboarding) {
       return AppRoutes.onboarding;
     }
-    // Redirect authenticated users away from auth/verify screens
-    if (isPublic || isEmailVerifyDeepLink) return AppRoutes.library;
+    // Redirect authenticated users away from auth/loading/verify screens
+    if (isPublic || isOnLoading || isEmailVerifyDeepLink) {
+      return AppRoutes.library;
+    }
     return null;
   }
 
-  // Unauthenticated
+  // Unauthenticated — redirect /loading to /login, allow public + aushilfe
+  if (isOnLoading) return AppRoutes.login;
   if (isPublic || isAushilfe || isEmailVerifyDeepLink) return null;
   return AppRoutes.login;
 }

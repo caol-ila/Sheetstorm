@@ -18,18 +18,24 @@ Die Kapellenverwaltung ist das **organisatorische Herzstück** von Sheetstorm. S
 
 Ein Vereinsvorstand (Admin) soll eine Kapelle anlegen, Mitglieder einladen, Rollen vergeben und Register verwalten können — sodass alle anderen Features (Noten, Setlists, Termine) auf einer klar strukturierten Organisationsebene aufsetzen. Musiker können mehreren Kapellen gleichzeitig angehören und nahtlos zwischen ihnen wechseln.
 
+Zusätzlich erhält jeder Nutzer bei der Registrierung automatisch eine persönliche Bibliothek — **„Meine Musik"** — die wie eine Kapelle funktioniert, in der der Nutzer alleiniger Admin ist. „Meine Musik" bietet dieselben Features wie eine reguläre Kapelle (Noten, Setlists etc.), ist aber rein persönlich: Andere Nutzer können nicht eingeladen werden.
+
+Der **Einstiegsscreen** nach Login und Onboarding ist die **Kapellen-/Band-Auswahl** — der Nutzer wählt zuerst „Meine Musik" oder eine seiner Kapellen, dann sieht er alles im gewählten Kontext. Beitritte zu Kapellen erfordern eine **Genehmigung** durch berechtigte Personen (kein Auto-Join).
+
 ### 1.2 Scope MS1
 
 | Im Scope | Außerhalb Scope (MS2+) |
 |----------|------------------------|
-| Kapelle erstellen & bearbeiten | GEMA-Konfiguration |
-| Mitglieder einladen (E-Mail + Link) | Anwesenheitsstatistiken |
-| Rollen zuweisen (5 Rollen) | Nachrichten-Board / Pinnwand |
-| Multi-Kapellen-Wechsel | Aufgabenverwaltung |
-| Instrument-Register verwalten | Dirigenten-Mastersteuerung |
-| Mitglied entfernen / verlassen | Inventarverwaltung |
-| Einladung widerrufen | Externe Kalender-Sync |
-| Kapellen-Dashboard (Übersicht) | Umfragen / Abstimmungen |
+| „Meine Musik" — Persönliche Bibliothek als Kapelle | GEMA-Konfiguration |
+| Kapelle erstellen & bearbeiten | Anwesenheitsstatistiken |
+| Mitglieder einladen (E-Mail + Link) | Nachrichten-Board / Pinnwand |
+| Beitrittsanfrage mit Genehmigung (kein Auto-Join) | Aufgabenverwaltung |
+| Rollen zuweisen (5 Rollen) | Dirigenten-Mastersteuerung |
+| Multi-Kapellen-Wechsel + Kapellen-Auswahl als Einstieg | Inventarverwaltung |
+| Instrument-Register verwalten | Externe Kalender-Sync |
+| Mitglied entfernen / verlassen | Umfragen / Abstimmungen |
+| Einladung widerrufen | |
+| Kapellen-Dashboard (Übersicht) | |
 
 ### 1.3 Kontext & Marktdifferenzierung
 
@@ -40,6 +46,33 @@ Ein Vereinsvorstand (Admin) soll eine Kapelle anlegen, Mitglieder einladen, Roll
 ---
 
 ## 2. User Stories
+
+### US-00: „Meine Musik" — Persönliche Bibliothek
+
+> *Als Musiker möchte ich eine persönliche Bibliothek „Meine Musik" haben, die wie eine Kapelle funktioniert, damit ich meine privaten Noten, Setlists und Stücke unabhängig von Kapellen verwalten kann.*
+
+**Kriterien (INVEST):**
+- **I**ndependent: Existiert unabhängig von jeder Kapellen-Mitgliedschaft
+- **N**egotiable: Features gleich wie Kapelle, aber Einladungs-/Mitglieder-Flow entfällt
+- **V**aluable: Nutzer hat sofort nach Registrierung einen nutzbaren Kontext
+- **E**stimatable: ~0.5 Sprints (Logik leitet sich von Kapelle ab)
+- **S**mall: Kein separates System — nutzt Kapellen-Infrastruktur mit Sonder-Flag
+- **T**estable: ✅ Nach Registrierung existiert „Meine Musik" mit Nutzer als Admin
+
+**Akzeptanzkriterien:**
+1. „Meine Musik" wird bei der Registrierung **automatisch** erstellt — der Nutzer muss nichts tun
+2. Der Nutzer ist automatisch **alleiniger Admin** seiner „Meine Musik"-Kapelle
+3. „Meine Musik" bietet dieselben Features wie eine reguläre Kapelle: Noten, Setlists, Stücke, Annotationen
+4. „Meine Musik" kann **nicht gelöscht** werden — weder vom Nutzer noch von Admins
+5. Der Nutzer kann „Meine Musik" **nicht verlassen** — die Mitgliedschaft ist permanent
+6. Andere Nutzer können **nicht** in „Meine Musik" eingeladen werden — kein Einladungsflow verfügbar
+7. „Meine Musik" erscheint immer als **erster Eintrag** im Kapellen-Wechsel-Selector
+8. „Meine Musik" hat einen visuell unterscheidbaren Eintrag (eigenes Icon, kein reguläres Kapellen-Logo)
+9. Register-Verwaltung entfällt für „Meine Musik" (kein sinnvoller Anwendungsfall)
+10. **Fehlerfall:** Versuch „Meine Musik" zu löschen → `403 Forbidden` mit Meldung „Die persönliche Bibliothek kann nicht gelöscht werden"
+11. **Fehlerfall:** Versuch jemanden in „Meine Musik" einzuladen → `403 Forbidden` mit Meldung „In die persönliche Bibliothek können keine Mitglieder eingeladen werden"
+
+---
 
 ### US-01: Kapelle erstellen
 
@@ -68,28 +101,31 @@ Ein Vereinsvorstand (Admin) soll eine Kapelle anlegen, Mitglieder einladen, Roll
 
 ### US-02: Mitglieder einladen
 
-> *Als Admin möchte ich neue Mitglieder in meine Kapelle einladen, damit sie auf die Noten und Funktionen der Kapelle zugreifen können.*
+> *Als Admin möchte ich neue Mitglieder in meine Kapelle einladen, damit sie eine Beitrittsanfrage stellen und nach Genehmigung auf die Noten und Funktionen der Kapelle zugreifen können.*
 
 **Kriterien (INVEST):**
 - **I**ndependent: Läuft unabhängig von Noten-Import oder Setlist-Features
 - **N**egotiable: SMS-Einladung ist Out of Scope; E-Mail + Linkteilen genügt für MS1
 - **V**aluable: Ohne Einladungsflow kann keine Kapelle wachsen
-- **E**stimatable: ~1 Sprint (inkl. E-Mail-Versand)
-- **S**mall: Fokus auf Einladen — Beitritts-Flow ist separate Concern
-- **T**estable: ✅ Eingeladene Person erhält E-Mail / besitzt gültigen Link
+- **E**stimatable: ~1.5 Sprints (inkl. E-Mail-Versand + Genehmigungs-Flow)
+- **S**mall: Fokus auf Einladen + Beitrittsanfrage — Genehmigung ist US-06
+- **T**estable: ✅ Eingeladene Person erhält E-Mail / besitzt gültigen Link → Beitrittsanfrage wird erstellt
+
+**Wichtig:** Es gibt **keinen Auto-Join**. Jeder Beitritt erfordert eine Genehmigung durch berechtigte Personen (Admin, Dirigent oder Registerführer). Siehe US-06.
 
 **Akzeptanzkriterien:**
-1. Admin kann auf "+ Einladen" tippen (Mitglieder-Liste)
-2. **Variante A — E-Mail:** Admin gibt E-Mail-Adresse ein + wählt initiale Rolle (Default: Musiker). Einladungs-E-Mail wird versendet.
-3. **Variante B — Einladungslink:** Admin kopiert einen generierten Einladungslink. Jeder mit dem Link kann beitreten (bis Ablauf oder Widerruf).
-4. Einladungslinks sind standardmäßig **7 Tage** gültig; konfigurierbar durch Admin (1, 7, 14, 30 Tage oder "kein Ablauf")
-5. Eingeladene Person mit bestehendem Account: Erhält Benachrichtigung + "Einladung annehmen"-Button
-6. Eingeladene Person ohne Account: Link führt zu Registrierungsseite → nach Registrierung automatisch der Kapelle beigetreten
-7. **Mehrfach-Einladung:** Wenn eine E-Mail bereits Mitglied ist → Fehlermeldung "bereits Mitglied"
-8. **Mehrfach-Einladung:** Wenn eine E-Mail bereits eine ausstehende Einladung hat → Fehlermeldung "Einladung bereits ausstehend" mit Option "Neue Einladung senden" (ersetzt die alte)
+1. Admin kann auf „+ Einladen" tippen (Mitglieder-Liste)
+2. **Variante A — E-Mail-Einladung:** Admin gibt E-Mail-Adresse ein + wählt vorgeschlagene Rolle (Default: Musiker). Einladungs-E-Mail wird versendet. Der eingeladene Nutzer muss trotzdem genehmigt werden (**kein Auto-Join**).
+3. **Variante B — Einladungslink:** Admin generiert einen Einladungslink. Jeder mit dem Link kann eine **Beitrittsanfrage** stellen (bis Ablauf oder Widerruf).
+4. Einladungslinks sind standardmäßig **7 Tage** gültig; konfigurierbar durch Admin (1, 7, 14, 30 Tage oder „kein Ablauf")
+5. Eingeladene Person mit bestehendem Account: Klickt auf Link/E-Mail → **Beitrittsanfrage** wird erstellt → Status „ausstehend"
+6. Eingeladene Person ohne Account: Link führt zu Registrierungsseite → nach Registrierung wird automatisch eine **Beitrittsanfrage** für die Kapelle erstellt → Status „ausstehend"
+7. **Mehrfach-Einladung:** Wenn eine E-Mail bereits Mitglied ist → Fehlermeldung „bereits Mitglied"
+8. **Mehrfach-Einladung:** Wenn eine E-Mail bereits eine ausstehende Einladung hat → Fehlermeldung „Einladung bereits ausstehend" mit Option „Neue Einladung senden" (ersetzt die alte)
 9. Admin kann ausstehende Einladungen in einer Liste sehen und einzeln widerrufen
-10. Nach Annahme: Neues Mitglied erscheint sofort in der Mitglieder-Liste mit Rolle "Musiker" (oder der zugewiesenen Rolle)
-11. Optionaler Einladungstext (max. 200 Zeichen) kann mitgesendet werden
+10. Optionaler Einladungstext (max. 200 Zeichen) kann mitgesendet werden
+11. **Mehrfach-Beitrittsanfrage:** Wenn der Nutzer bereits eine ausstehende Beitrittsanfrage hat → Fehlermeldung „Beitrittsanfrage bereits gestellt"
+12. **Fehlerfall:** „Meine Musik"-Kapellen haben keinen Einladungsflow — Button „+ Einladen" ist nicht sichtbar
 
 ---
 
@@ -147,10 +183,11 @@ Ein Vereinsvorstand (Admin) soll eine Kapelle anlegen, Mitglieder einladen, Roll
 4. Aktuell aktive Kapelle ist visuell markiert (✓ oder Highlight)
 5. Liste enthält am Ende: "+ Kapelle beitreten", "+ Neue Kapelle erstellen"
 6. Wechsel erfolgt sofort — alle angezeigten Inhalte (Bibliothek, Setlists, Termine) aktualisieren sich auf die neue Kapelle
-7. Letzter aktiver Kapellen-Kontext wird gespeichert (per Gerät) und beim App-Start wiederhergestellt
-8. Persönliche Sammlung erscheint als separater Eintrag "Persönlich" in der Liste
-9. **Maximal-Kapellen:** Ein Nutzer kann Mitglied in bis zu 20 Kapellen sein (technische Grenze, konfigurierbar)
+7. **Einstiegsscreen nach Login:** Die Kapellen-/Band-Auswahl ist der Einstiegspunkt nach jedem Login — der Nutzer wählt „Meine Musik" oder eine Kapelle, dann sieht er alle Inhalte im Kontext dieser Auswahl. Letzter aktiver Kapellen-Kontext wird gespeichert (per Gerät).
+8. „Meine Musik" erscheint immer als **erster Eintrag** im Kapellen-Wechsel-Selector — visuell unterscheidbar (eigenes Icon)
+9. **Maximal-Kapellen:** Ein Nutzer kann Mitglied in bis zu 20 Kapellen sein (technische Grenze, konfigurierbar) — „Meine Musik" zählt nicht gegen dieses Limit
 10. **Fehlerfall:** Wenn ein Nutzer aus einer Kapelle entfernt wurde und noch in deren Kontext ist → Redirect zur Kapellen-Auswahl mit Hinweis "Du bist nicht mehr Mitglied von [Kapellenname]"
+11. **Ausnahme Kapellen-Auswahl:** Wenn der Nutzer nur Mitglied einer Kapelle + „Meine Musik" ist, kann direkt zur zuletzt aktiven Kapelle navigiert werden (kein Auswahl-Screen nötig)
 
 ---
 
@@ -190,6 +227,34 @@ Ein Vereinsvorstand (Admin) soll eine Kapelle anlegen, Mitglieder einladen, Roll
 
 ---
 
+### US-06: Beitrittsanfrage genehmigen / ablehnen
+
+> *Als Admin, Dirigent oder Registerführer möchte ich Beitrittsanfragen von Musikern genehmigen oder ablehnen, damit ich kontrollieren kann, wer meiner Kapelle beitritt.*
+
+**Kriterien (INVEST):**
+- **I**ndependent: Setzt US-02 (Einladung) voraus, aber Genehmigungs-Flow ist eigenständig
+- **N**egotiable: Auto-Approve für bestimmte Einladungen als spätere Erweiterung denkbar
+- **V**aluable: Verhindert unkontrollierte Beitritte — Admin behält Kontrolle
+- **E**stimatable: ~1 Sprint (inkl. Benachrichtigungen)
+- **S**mall: Nur Genehmigung/Ablehnung — kein Einladungsflow (US-02)
+- **T**estable: ✅ Beitrittsanfrage kann genehmigt/abgelehnt werden, Ergebnis ist sichtbar
+
+**Akzeptanzkriterien:**
+1. Berechtigte Personen (Admin, Dirigent, Registerführer) sehen eine Liste ausstehender Beitrittsanfragen
+2. Jede Beitrittsanfrage zeigt: Name, E-Mail, Datum der Anfrage, vorgeschlagene Rolle (aus Einladung)
+3. Berechtigte Person kann jede Anfrage **genehmigen** oder **ablehnen**
+4. **Bei Genehmigung:** Neues Mitglied erscheint sofort in der Mitglieder-Liste mit der vorgeschlagenen Rolle (Default: Musiker)
+5. **Bei Genehmigung:** Der Nutzer erhält eine Benachrichtigung „Du wurdest in [Kapellenname] aufgenommen"
+6. **Bei Ablehnung:** Der Nutzer erhält eine Benachrichtigung „Deine Beitrittsanfrage für [Kapellenname] wurde abgelehnt"
+7. **Bei Ablehnung:** Der Nutzer kann über einen **neuen** Einladungslink erneut eine Beitrittsanfrage stellen
+8. Berechtigte Personen (Admin, Dirigent, Registerführer) erhalten eine **Benachrichtigung** wenn eine neue Beitrittsanfrage eingeht
+9. Beitrittsanfragen haben drei Status: `ausstehend` → `genehmigt` | `abgelehnt`
+10. **Fehlerfall:** Beitrittsanfrage genehmigen für Nutzer der bereits Mitglied ist → `409 Conflict` mit Meldung „Nutzer ist bereits Mitglied"
+11. **Fehlerfall:** Beitrittsanfrage ablehnen die bereits bearbeitet wurde → `409 Conflict` mit Meldung „Diese Anfrage wurde bereits bearbeitet"
+12. Audit-Log-Eintrag bei jeder Genehmigung/Ablehnung (Wer hat wann entschieden)
+
+---
+
 ## 3. Akzeptanzkriterien (Feature-Level)
 
 Diese Kriterien gelten übergreifend für das gesamte Kapellenverwaltungs-Feature:
@@ -206,6 +271,11 @@ Diese Kriterien gelten übergreifend für das gesamte Kapellenverwaltungs-Featur
 | AC-08 | Alle sicherheitsrelevanten Aktionen werden im Audit-Log erfasst | DB-Test: Insert prüfen nach Admin-Aktionen |
 | AC-09 | DSGVO: Nutzer kann beim Kapellenverlassen seine Mitgliedschaftsdaten exportieren | E2E-Test: Export vor Austritt |
 | AC-10 | Wanda-UX-Flows aus `docs/ux-design.md` §3.5 und §4.3 sind vollständig implementiert | UX-Review durch Wanda (#14) |
+| AC-11 | „Meine Musik" wird bei der Registrierung automatisch erstellt und ist sofort verfügbar | Integration-Test: Register → Check „Meine Musik" existiert |
+| AC-12 | „Meine Musik" kann nicht gelöscht, verlassen oder geteilt werden | API-Test: DELETE/POST verlassen/einladen → 403 |
+| AC-13 | Beitrittsanfrage erfordert Genehmigung — kein Auto-Join bei Einladungslink oder E-Mail-Einladung | E2E-Test: Link klicken → Anfrage ausstehend (nicht Mitglied) |
+| AC-14 | Berechtigte Personen (Admin, Dirigent, Registerführer) werden über neue Beitrittsanfragen benachrichtigt | Integration-Test: Benachrichtigung nach Anfrage prüfen |
+| AC-15 | Abgelehnte Nutzer können über neuen Einladungslink erneut anfragen | E2E-Test: Ablehnung → neuer Link → neue Anfrage |
 
 ---
 
@@ -327,14 +397,16 @@ PUT    /api/v1/kapellen/{id}/mitglieder/{musiker_id}/rollen → Rollen setzen (A
 
 ---
 
-### 4.4 Einladungs-API
+### 4.4 Einladungs- & Beitrittsanfrage-API
 
 ```
-POST   /api/v1/kapellen/{id}/einladungen              → Einladung erstellen (Admin)
-GET    /api/v1/kapellen/{id}/einladungen              → Ausstehende Einladungen (Admin)
-DELETE /api/v1/kapellen/{id}/einladungen/{einladung_id} → Einladung widerrufen (Admin)
-POST   /api/v1/einladungen/{token}/annehmen           → Einladung annehmen (eingeloggter User)
-GET    /api/v1/einladungen/{token}                    → Einladungsdetails (öffentlich, für Beitrittsseite)
+POST   /api/v1/kapellen/{id}/einladungen                        → Einladung erstellen (Admin)
+GET    /api/v1/kapellen/{id}/einladungen                        → Ausstehende Einladungen (Admin)
+DELETE /api/v1/kapellen/{id}/einladungen/{einladung_id}         → Einladung widerrufen (Admin)
+GET    /api/v1/einladungen/{token}                              → Einladungsdetails (öffentlich, für Beitrittsseite)
+POST   /api/v1/einladungen/{token}/beitrittsanfrage             → Beitrittsanfrage stellen (eingeloggter User)
+GET    /api/v1/kapellen/{id}/beitrittsanfragen                  → Ausstehende Beitrittsanfragen (Admin/Dirigent/Registerführer)
+PUT    /api/v1/kapellen/{id}/beitrittsanfragen/{anfrage_id}     → Genehmigen/Ablehnen (Admin/Dirigent/Registerführer)
 ```
 
 **POST /api/v1/kapellen/{id}/einladungen — Request:**
@@ -342,7 +414,7 @@ GET    /api/v1/einladungen/{token}                    → Einladungsdetails (öf
 {
   "typ": "email",
   "email": "neu@example.com",
-  "rolle": "Musiker",
+  "vorgeschlagene_rolle": "Musiker",
   "ablauf_tage": 7,
   "nachricht": "Herzlich willkommen bei unserer Kapelle!"
 }
@@ -357,15 +429,92 @@ GET    /api/v1/einladungen/{token}                    → Einladungsdetails (öf
   "typ": "link",
   "token": "abc123xyz...",
   "link": "https://app.sheetstorm.com/einladung/abc123xyz",
-  "rolle": "Musiker",
+  "vorgeschlagene_rolle": "Musiker",
   "ablauf_am": "2026-04-04T12:00:00Z",
   "erstellt_am": "2026-03-28T12:00:00Z",
   "status": "ausstehend"
 }
 ```
 
+**POST /api/v1/einladungen/{token}/beitrittsanfrage — Request:**
+```json
+{
+  "nachricht": "Ich spiele 2. Klarinette und möchte gerne beitreten."
+}
+```
+
+*Das `nachricht`-Feld ist optional (max. 500 Zeichen).*
+
+**POST /api/v1/einladungen/{token}/beitrittsanfrage — Response 201:**
+```json
+{
+  "id": "uuid",
+  "kapelle_id": "uuid",
+  "kapelle_name": "Musikkapelle Beispiel",
+  "vorgeschlagene_rolle": "Musiker",
+  "status": "ausstehend",
+  "erstellt_am": "2026-03-28T14:00:00Z"
+}
+```
+
+**GET /api/v1/kapellen/{id}/beitrittsanfragen — Response 200:**
+```json
+{
+  "items": [
+    {
+      "id": "uuid",
+      "musiker_id": "uuid",
+      "name": "Max Mustermann",
+      "email": "max@example.com",
+      "vorgeschlagene_rolle": "Musiker",
+      "nachricht": "Ich spiele 2. Klarinette und möchte gerne beitreten.",
+      "einladung_id": "uuid",
+      "status": "ausstehend",
+      "erstellt_am": "2026-03-28T14:00:00Z"
+    }
+  ],
+  "gesamt": 3
+}
+```
+
+**PUT /api/v1/kapellen/{id}/beitrittsanfragen/{anfrage_id} — Request:**
+```json
+{
+  "entscheidung": "genehmigt",
+  "rolle": "Musiker",
+  "begruendung": "Willkommen!"
+}
+```
+
+*Mögliche Werte für `entscheidung`: `genehmigt`, `abgelehnt`. Das Feld `rolle` erlaubt es, die endgültige Rolle bei Genehmigung anzupassen (Default: vorgeschlagene Rolle aus Einladung). `begruendung` ist optional (max. 500 Zeichen).*
+
+**PUT — Response 200 (Genehmigung):**
+```json
+{
+  "id": "uuid",
+  "status": "genehmigt",
+  "entschieden_von": "uuid",
+  "entschieden_am": "2026-03-28T15:00:00Z",
+  "mitgliedschaft_id": "uuid"
+}
+```
+
+**PUT — Response 200 (Ablehnung):**
+```json
+{
+  "id": "uuid",
+  "status": "abgelehnt",
+  "entschieden_von": "uuid",
+  "entschieden_am": "2026-03-28T15:00:00Z",
+  "begruendung": "Leider kein Platz im Register."
+}
+```
+
 **Fehlercodes:**
-- `409` — E-Mail ist bereits Mitglied oder hat ausstehende Einladung
+- `403` — Nicht berechtigt (kein Admin/Dirigent/Registerführer) oder „Meine Musik"-Kapelle
+- `404` — Beitrittsanfrage nicht gefunden
+- `409` — E-Mail bereits Mitglied, ausstehende Einladung, ausstehende Beitrittsanfrage, oder Anfrage bereits bearbeitet
+- `410` — Einladungslink abgelaufen
 
 ---
 
@@ -402,13 +551,17 @@ CREATE TABLE kapellen (
     beschreibung    VARCHAR(500),
     ort             VARCHAR(100),
     logo_url        TEXT,
+    ist_persoenlich BOOLEAN      NOT NULL DEFAULT FALSE,  -- TRUE für "Meine Musik"
     erstellt_am     TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     aktualisiert_am TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-    geloescht_am    TIMESTAMPTZ,          -- Soft-Delete
+    geloescht_am    TIMESTAMPTZ,          -- Soft-Delete (nicht möglich bei ist_persoenlich = TRUE)
     erstellt_von    UUID         NOT NULL REFERENCES musiker(id)
 );
 
 CREATE INDEX idx_kapellen_name ON kapellen(name) WHERE geloescht_am IS NULL;
+
+-- Nur eine "Meine Musik"-Kapelle pro Nutzer
+CREATE UNIQUE INDEX idx_kapellen_persoenlich ON kapellen(erstellt_von) WHERE ist_persoenlich = TRUE AND geloescht_am IS NULL;
 ```
 
 ### 5.2 Mitgliedschaft
@@ -445,31 +598,57 @@ CREATE TABLE mitgliedschaft_rollen (
 );
 ```
 
-### 5.4 Einladung
+### 5.4 Einladung & Beitrittsanfrage
 
 ```sql
 CREATE TYPE einladung_typ    AS ENUM ('email', 'link');
-CREATE TYPE einladung_status AS ENUM ('ausstehend', 'angenommen', 'widerrufen', 'abgelaufen');
+CREATE TYPE einladung_status AS ENUM ('ausstehend', 'verwendet', 'widerrufen', 'abgelaufen');
 
 CREATE TABLE einladungen (
-    id              UUID                PRIMARY KEY DEFAULT gen_random_uuid(),
-    kapelle_id      UUID                NOT NULL REFERENCES kapellen(id) ON DELETE CASCADE,
-    typ             einladung_typ       NOT NULL,
-    token           VARCHAR(64)         NOT NULL UNIQUE,  -- kryptographisch sicher, 256-bit
-    email           VARCHAR(255),                        -- nur bei typ = 'email'
-    rolle           kapellen_rolle      NOT NULL DEFAULT 'Musiker',
-    nachricht       VARCHAR(200),
-    ablauf_am       TIMESTAMPTZ         NOT NULL,
-    erstellt_am     TIMESTAMPTZ         NOT NULL DEFAULT NOW(),
-    erstellt_von    UUID                NOT NULL REFERENCES musiker(id),
-    status          einladung_status    NOT NULL DEFAULT 'ausstehend',
-    angenommen_von  UUID                REFERENCES musiker(id),
-    angenommen_am   TIMESTAMPTZ
+    id                   UUID                PRIMARY KEY DEFAULT gen_random_uuid(),
+    kapelle_id           UUID                NOT NULL REFERENCES kapellen(id) ON DELETE CASCADE,
+    typ                  einladung_typ       NOT NULL,
+    token                VARCHAR(64)         NOT NULL UNIQUE,  -- kryptographisch sicher, 256-bit
+    email                VARCHAR(255),                        -- nur bei typ = 'email'
+    vorgeschlagene_rolle kapellen_rolle      NOT NULL DEFAULT 'Musiker',
+    nachricht            VARCHAR(200),
+    ablauf_am            TIMESTAMPTZ         NOT NULL,
+    erstellt_am          TIMESTAMPTZ         NOT NULL DEFAULT NOW(),
+    erstellt_von         UUID                NOT NULL REFERENCES musiker(id),
+    status               einladung_status    NOT NULL DEFAULT 'ausstehend'
 );
 
 CREATE INDEX idx_einladungen_token     ON einladungen(token) WHERE status = 'ausstehend';
 CREATE INDEX idx_einladungen_kapelle   ON einladungen(kapelle_id) WHERE status = 'ausstehend';
 CREATE INDEX idx_einladungen_email     ON einladungen(email, kapelle_id) WHERE status = 'ausstehend';
+```
+
+> **Hinweis:** Die Einladung enthält kein `angenommen_von`/`angenommen_am` mehr — das Annehmen einer Einladung erstellt jetzt eine **Beitrittsanfrage**, die separat genehmigt werden muss. Bei E-Mail-Einladungen wechselt der Status zu `verwendet` sobald der Nutzer eine Beitrittsanfrage stellt. Bei Link-Einladungen bleibt der Status `ausstehend` (mehrere Nutzer können über denselben Link anfragen).
+
+```sql
+CREATE TYPE beitrittsanfrage_status AS ENUM ('ausstehend', 'genehmigt', 'abgelehnt', 'zurueckgezogen');
+
+CREATE TABLE beitrittsanfragen (
+    id                   UUID                        PRIMARY KEY DEFAULT gen_random_uuid(),
+    kapelle_id           UUID                        NOT NULL REFERENCES kapellen(id) ON DELETE CASCADE,
+    musiker_id           UUID                        NOT NULL REFERENCES musiker(id)  ON DELETE CASCADE,
+    einladung_id         UUID                        REFERENCES einladungen(id),
+    vorgeschlagene_rolle kapellen_rolle              NOT NULL DEFAULT 'Musiker',
+    nachricht            VARCHAR(500),
+    status               beitrittsanfrage_status     NOT NULL DEFAULT 'ausstehend',
+    entschieden_von      UUID                        REFERENCES musiker(id),
+    entschieden_am       TIMESTAMPTZ,
+    begruendung          VARCHAR(500),
+    erstellt_am          TIMESTAMPTZ                 NOT NULL DEFAULT NOW()
+);
+
+-- Nur eine ausstehende Anfrage pro Kapelle/Nutzer
+CREATE UNIQUE INDEX idx_beitrittsanfragen_unique_ausstehend
+    ON beitrittsanfragen(kapelle_id, musiker_id)
+    WHERE status = 'ausstehend';
+
+CREATE INDEX idx_beitrittsanfragen_kapelle ON beitrittsanfragen(kapelle_id) WHERE status = 'ausstehend';
+CREATE INDEX idx_beitrittsanfragen_musiker ON beitrittsanfragen(musiker_id) WHERE status = 'ausstehend';
 ```
 
 ### 5.5 Register
@@ -532,6 +711,10 @@ CREATE INDEX idx_audit_musiker   ON audit_log(musiker_id, zeitstempel DESC);
 | Mitgliederliste sehen | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Eigenes Profil bearbeiten | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Kapelle verlassen | ✅¹ | ✅ | ✅ | ✅ | ✅ |
+| **Beitrittsanfragen** | | | | | |
+| Beitrittsanfragen sehen | ✅ | ✅ | ❌ | ✅ | ❌ |
+| Beitrittsanfrage genehmigen | ✅ | ✅ | ❌ | ✅ | ❌ |
+| Beitrittsanfrage ablehnen | ✅ | ✅ | ❌ | ✅ | ❌ |
 | **Rollen** | | | | | |
 | Rollen zuweisen/ändern | ✅ | ❌ | ❌ | ❌ | ❌ |
 | Eigene Rollen sehen | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -574,9 +757,10 @@ CREATE INDEX idx_audit_musiker   ON audit_log(musiker_id, zeitstempel DESC);
 - Admin kann die bestehende Einladung widerrufen und eine neue senden — das geschieht nie automatisch
 - Frontend zeigt Dialog: "Eine Einladung ist bereits ausstehend (läuft ab am DD.MM.YYYY). Möchtest du sie durch eine neue ersetzen?"
 
-**Szenario C: Nutzer versucht, über zwei Links derselben Kapelle beizutreten**
-- Beim zweiten Annahme-Versuch: `409 Conflict` — `{ "fehler": "BEREITS_MITGLIED" }`
-- Kein zweifacher Eintrag in `mitgliedschaften`
+**Szenario C: Nutzer versucht, über zwei Links derselben Kapelle eine Beitrittsanfrage zu stellen**
+- Beim zweiten Versuch: `409 Conflict` — `{ "fehler": "ANFRAGE_AUSSTEHEND" }`
+- Wenn bereits Mitglied: `409 Conflict` — `{ "fehler": "BEREITS_MITGLIED" }`
+- Kein zweifacher Eintrag in `beitrittsanfragen` oder `mitgliedschaften`
 
 ---
 
@@ -636,21 +820,79 @@ CREATE INDEX idx_audit_musiker   ON audit_log(musiker_id, zeitstempel DESC);
 
 ---
 
+### 7.9 „Meine Musik" — Schutz vor Manipulation
+
+**Szenario A: Nutzer versucht „Meine Musik" zu löschen**
+- `DELETE /api/v1/kapellen/{id}` → `403 Forbidden`
+- Response: `{ "fehler": "PERSOENLICHE_BIBLIOTHEK", "nachricht": "Die persönliche Bibliothek kann nicht gelöscht werden." }`
+
+**Szenario B: Nutzer versucht „Meine Musik" zu verlassen**
+- `POST /api/v1/kapellen/{id}/verlassen` → `403 Forbidden`
+- Response: `{ "fehler": "PERSOENLICHE_BIBLIOTHEK", "nachricht": "Die persönliche Bibliothek kann nicht verlassen werden." }`
+
+**Szenario C: Nutzer versucht jemanden in „Meine Musik" einzuladen**
+- `POST /api/v1/kapellen/{id}/einladungen` → `403 Forbidden`
+- Response: `{ "fehler": "PERSOENLICHE_BIBLIOTHEK", "nachricht": "In die persönliche Bibliothek können keine Mitglieder eingeladen werden." }`
+
+**Szenario D: Nutzer versucht seine Admin-Rolle in „Meine Musik" abzugeben**
+- `PUT /api/v1/kapellen/{id}/mitglieder/{musiker_id}/rollen` → `403 Forbidden`
+- Rollen in „Meine Musik" sind nicht änderbar
+
+---
+
+### 7.10 Beitrittsanfrage nach Ablehnung
+
+**Szenario:** Nutzer wurde abgelehnt und möchte erneut anfragen.
+- Der abgelehnte Nutzer kann über einen **neuen** Einladungslink eine neue Beitrittsanfrage stellen
+- Der alte Einladungslink funktioniert nicht erneut für denselben Nutzer (Anfrage existiert bereits als „abgelehnt" für diesen Link)
+- Bei neuem Link: Neue Beitrittsanfrage wird erstellt (neue ID, neuer Status „ausstehend")
+- Admin/Dirigent/Registerführer sieht die Historie der Anfragen
+
+---
+
+### 7.11 Doppelte Beitrittsanfrage
+
+**Szenario:** Nutzer stellt eine Beitrittsanfrage, obwohl bereits eine ausstehende Anfrage existiert.
+- `POST /api/v1/einladungen/{token}/beitrittsanfrage` → `409 Conflict`
+- Response: `{ "fehler": "ANFRAGE_AUSSTEHEND", "nachricht": "Du hast bereits eine ausstehende Beitrittsanfrage für diese Kapelle." }`
+- Frontend zeigt Hinweis mit Status der bestehenden Anfrage
+
+---
+
+### 7.12 Gleichzeitige Genehmigung durch mehrere Berechtigte
+
+**Szenario:** Admin und Dirigent versuchen gleichzeitig, dieselbe Beitrittsanfrage zu genehmigen.
+- Optimistic Locking: Erster Request gewinnt, zweiter erhält `409 Conflict`
+- Response: `{ "fehler": "ANFRAGE_BEREITS_BEARBEITET", "nachricht": "Diese Anfrage wurde bereits bearbeitet." }`
+- Kein doppelter Eintrag in `mitgliedschaften`
+
+---
+
+### 7.13 Beitrittsanfrage bei Account-Löschung
+
+**Szenario:** Nutzer löscht seinen Account, während eine Beitrittsanfrage aussteht.
+- Ausstehende Beitrittsanfragen werden automatisch auf Status „zurueckgezogen" gesetzt (ON DELETE CASCADE auf `musiker_id` oder Application-Logic)
+- Admins sehen die Anfrage nicht mehr in der aktiven Liste
+
+---
+
 ## 8. Definition of Done
 
 Eine Kapellenverwaltungs-Implementierung gilt als **Done**, wenn alle folgenden Kriterien erfüllt sind:
 
 ### Funktional
-- [ ] Alle 5 User Stories (US-01 bis US-05) vollständig implementiert
-- [ ] Alle Akzeptanzkriterien (AC-01 bis AC-10) durch Tests abgedeckt
-- [ ] Alle Edge Cases (7.1–7.8) implementiert und getestet
+- [ ] Alle 7 User Stories (US-00 bis US-06) vollständig implementiert
+- [ ] Alle Akzeptanzkriterien (AC-01 bis AC-15) durch Tests abgedeckt
+- [ ] Alle Edge Cases (7.1–7.13) implementiert und getestet
 - [ ] API-Contract vollständig implementiert (alle Endpunkte aus §4)
 - [ ] Berechtigungsmatrix (§6) server-seitig durchgesetzt
 
 ### Qualität
 - [ ] Unit-Test-Coverage ≥ 80% für Kapellenverwaltungs-Logik
 - [ ] Integration-Tests für alle API-Endpunkte (Happypath + Fehlerfälle)
-- [ ] E2E-Test für vollständigen Flow: Erstellen → Einladen → Annehmen → Rolle zuweisen → Wechseln
+- [ ] E2E-Test für vollständigen Flow: Erstellen → Einladen → Beitrittsanfrage → Genehmigung → Rolle zuweisen → Wechseln
+- [ ] E2E-Test: „Meine Musik" wird bei Registrierung erstellt und ist sofort nutzbar
+- [ ] E2E-Test: Beitrittsanfrage ablehnen → Nutzer kann über neuen Link erneut anfragen
 - [ ] Performance: Kapellen-Wechsel < 500ms (gemessen in Staging)
 - [ ] Performance: Mitglieder-Liste mit 100 Mitgliedern in < 200ms (API 95. Pz.)
 - [ ] Keine bekannten Security-Issues (OWASP Top 10 geprüft)
@@ -661,6 +903,7 @@ Eine Kapellenverwaltungs-Implementierung gilt als **Done**, wenn alle folgenden 
 - [ ] Fehlermeldungen sind verständlich und handlungsleitend (kein technischer Jargon)
 - [ ] WCAG 2.1 AA: Farbe ist nie alleiniger Indikator (Rollen z.B. immer Text + Farbe)
 - [ ] Kapellen-Wechsel funktioniert auch wenn Nutzer nur Mitglied einer Kapelle ist
+- [ ] Kapellen-Auswahl als Einstiegsscreen nach Login funktioniert korrekt (inkl. Ausnahme bei nur einer Kapelle + „Meine Musik")
 
 ### Technisch
 - [ ] Audit-Log für alle Admin-Aktionen (Rollenzuweisung, Einladung, Entfernung)

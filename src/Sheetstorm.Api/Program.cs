@@ -3,10 +3,11 @@ using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
+using Sheetstorm.Api.Hubs;
+using Sheetstorm.Api.Middleware;
 using Sheetstorm.Infrastructure;
 using Sheetstorm.Infrastructure.Persistence;
 using Sheetstorm.Infrastructure.Seeding;
-using Sheetstorm.Api.Middleware;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -118,7 +119,8 @@ app.UseAuthorization();
 app.MapControllers();
 app.MapHealthChecks("/health");
 
-// SignalR hubs (registered here; implementations follow in later issues)
+// SignalR hubs
+app.MapHub<SongBroadcastHub>("/hubs/song-broadcast");
 // app.MapHub<MetronomeHub>("/hubs/metronome");
 // app.MapHub<AnnotationHub>("/hubs/annotations");
 

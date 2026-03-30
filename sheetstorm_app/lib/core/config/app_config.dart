@@ -9,4 +9,10 @@ abstract final class AppConfig {
   /// Ermöglicht schnelle Test-Registrierungen ohne E-Mail-Zugang.
   /// In Release-Builds immer `false`.
   static const bool devAutoVerifyEmail = kDebugMode;
+
+  /// Backend API base URL.
+  /// Debug → lokaler Dev-Server; Release → Produktion.
+  static const String apiBaseUrl = kDebugMode
+      ? 'http://localhost:5273'
+      : 'https://api.sheetstorm.app/v1';
 }

@@ -21,6 +21,24 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<ConfigAudit> ConfigAudit => Set<ConfigAudit>();
     public DbSet<UserInstrument> UserInstruments => Set<UserInstrument>();
     public DbSet<VoicePreselection> VoicePreselections => Set<VoicePreselection>();
+    public DbSet<Setlist> Setlists => Set<Setlist>();
+    public DbSet<SetlistEntry> SetlistEntries => Set<SetlistEntry>();
+    public DbSet<MediaLink> MediaLinks => Set<MediaLink>();
+    public DbSet<Post> Posts => Set<Post>();
+    public DbSet<PostComment> PostComments => Set<PostComment>();
+    public DbSet<PostReaction> PostReactions => Set<PostReaction>();
+    public DbSet<Poll> Polls => Set<Poll>();
+    public DbSet<PollOption> PollOptions => Set<PollOption>();
+    public DbSet<PollVote> PollVotes => Set<PollVote>();
+    public DbSet<AttendanceRecord> AttendanceRecords => Set<AttendanceRecord>();
+    public DbSet<Event> Events => Set<Event>();
+    public DbSet<EventRsvp> EventRsvps => Set<EventRsvp>();
+    public DbSet<GemaReport> GemaReports => Set<GemaReport>();
+    public DbSet<GemaReportEntry> GemaReportEntries => Set<GemaReportEntry>();
+    public DbSet<SubstituteAccess> SubstituteAccesses => Set<SubstituteAccess>();
+    public DbSet<ShiftPlan> ShiftPlans => Set<ShiftPlan>();
+    public DbSet<Shift> Shifts => Set<Shift>();
+    public DbSet<ShiftAssignment> ShiftAssignments => Set<ShiftAssignment>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

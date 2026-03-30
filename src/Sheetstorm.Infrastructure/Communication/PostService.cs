@@ -1,0 +1,356 @@
+using Microsoft.EntityFrameworkCore;
+using Sheetstorm.Domain.Communication;
+using Sheetstorm.Domain.Entities;
+using Sheetstorm.Domain.Exceptions;
+using Sheetstorm.Infrastructure.Persistence;
+
+namespace Sheetstorm.Infrastructure.Communication;
+
+public class PostService(AppDbContext db) : IPostService
+{
+    public async Task<IReadOnlyList<PostDto>> GetAllAsync(Guid bandId, Guid musicianId, CancellationToken ct)
+    {
+        await RequireMembershipAsync(bandId, musicianId, ct);
+
+        var posts = await db.Set<Post>()
+            .Include(p => p.AuthorMusician)
+            .Include(p => p.Comments.Where(c => !c.IsDeleted))
+            .Include(p => p.Reactions)
+            .Where(p => p.BandId == bandId)
+            .OrderByDescending(p => p.IsPinned)
+            .ThenByDescending(p => p.CreatedAt)
+            .ToListAsync(ct);
+
+        return posts.Select(p => MapToDto(p, musicianId)).ToList();
+    }
+
+    public async Task<PostDetailDto> GetByIdAsync(Guid bandId, Guid postId, Guid musicianId, CancellationToken ct)
+    {
+        await RequireMembershipAsync(bandId, musicianId, ct);
+
+        var post = await db.Set<Post>()
+            .Include(p => p.AuthorMusician)
+            .Include(p => p.Comments.Where(c => !c.IsDeleted))
+            .ThenInclude(c => c.AuthorMusician)
+            .Include(p => p.Reactions)
+            .ThenInclude(r => r.Musician)
+            .FirstOrDefaultAsync(p => p.Id == postId && p.BandId == bandId, ct)
+            ?? throw new DomainException("NOT_FOUND", "Post not found.", 404);
+
+        var comments = post.Comments
+            .Where(c => !c.IsDeleted)
+            .OrderBy(c => c.CreatedAt)
+            .Select(c => new PostCommentDto(
+                c.Id,
+                c.Content,
+                c.AuthorMusicianId,
+                c.AuthorMusician.Name,
+                c.ParentCommentId,
+                c.IsDeleted,
+                c.CreatedAt
+            ))
+            .ToList();
+
+        var reactions = GetReactionSummaries(post.Reactions, musicianId);
+
+        return new PostDetailDto(
+            post.Id,
+            post.Title,
+            post.Content,
+            post.Category,
+            post.AuthorMusicianId,
+            post.AuthorMusician.Name,
+            post.IsPinned,
+            post.PinnedAt,
+            comments,
+            reactions,
+            post.CreatedAt,
+            post.UpdatedAt
+        );
+    }
+
+    public async Task<PostDetailDto> CreateAsync(Guid bandId, CreatePostRequest request, Guid musicianId, CancellationToken ct)
+    {
+        var membership = await RequireMembershipAsync(bandId, musicianId, ct);
+
+        if (membership.Role != MemberRole.Administrator && 
+            membership.Role != MemberRole.Conductor && 
+            membership.Role != MemberRole.SectionLeader)
+            throw new DomainException("FORBIDDEN", "Only admins, conductors, and section leaders can create posts.", 403);
+
+        var post = new Post
+        {
+            BandId = bandId,
+            AuthorMusicianId = musicianId,
+            Title = request.Title.Trim(),
+            Content = request.Content.Trim(),
+            Category = request.Category?.Trim()
+        };
+
+        db.Set<Post>().Add(post);
+        await db.SaveChangesAsync(ct);
+
+        var musician = await db.Set<Musician>().FindAsync(new object[] { musicianId }, ct);
+
+        return new PostDetailDto(
+            post.Id,
+            post.Title,
+            post.Content,
+            post.Category,
+            musicianId,
+            musician!.Name,
+            false,
+            null,
+            Array.Empty<PostCommentDto>(),
+            Array.Empty<ReactionSummaryDto>(),
+            post.CreatedAt,
+            post.UpdatedAt
+        );
+    }
+
+    public async Task<PostDetailDto> UpdateAsync(Guid bandId, Guid postId, UpdatePostRequest request, Guid musicianId, CancellationToken ct)
+    {
+        await RequireMembershipAsync(bandId, musicianId, ct);
+
+        var post = await db.Set<Post>()
+            .Include(p => p.AuthorMusician)
+            .Include(p => p.Comments.Where(c => !c.IsDeleted))
+            .ThenInclude(c => c.AuthorMusician)
+            .Include(p => p.Reactions)
+            .FirstOrDefaultAsync(p => p.Id == postId && p.BandId == bandId, ct)
+            ?? throw new DomainException("NOT_FOUND", "Post not found.", 404);
+
+        if (post.AuthorMusicianId != musicianId)
+            throw new DomainException("FORBIDDEN", "You can only edit your own posts.", 403);
+
+        post.Title = request.Title.Trim();
+        post.Content = request.Content.Trim();
+        post.Category = request.Category?.Trim();
+
+        await db.SaveChangesAsync(ct);
+
+        var comments = post.Comments
+            .Where(c => !c.IsDeleted)
+            .OrderBy(c => c.CreatedAt)
+            .Select(c => new PostCommentDto(
+                c.Id,
+                c.Content,
+                c.AuthorMusicianId,
+                c.AuthorMusician.Name,
+                c.ParentCommentId,
+                c.IsDeleted,
+                c.CreatedAt
+            ))
+            .ToList();
+
+        var reactions = GetReactionSummaries(post.Reactions, musicianId);
+
+        return new PostDetailDto(
+            post.Id,
+            post.Title,
+            post.Content,
+            post.Category,
+            post.AuthorMusicianId,
+            post.AuthorMusician.Name,
+            post.IsPinned,
+            post.PinnedAt,
+            comments,
+            reactions,
+            post.CreatedAt,
+            post.UpdatedAt
+        );
+    }
+
+    public async Task DeleteAsync(Guid bandId, Guid postId, Guid musicianId, CancellationToken ct)
+    {
+        var membership = await RequireMembershipAsync(bandId, musicianId, ct);
+
+        var post = await db.Set<Post>()
+            .FirstOrDefaultAsync(p => p.Id == postId && p.BandId == bandId, ct)
+            ?? throw new DomainException("NOT_FOUND", "Post not found.", 404);
+
+        if (post.AuthorMusicianId != musicianId && membership.Role != MemberRole.Administrator)
+            throw new DomainException("FORBIDDEN", "You can only delete your own posts or be an admin.", 403);
+
+        db.Set<Post>().Remove(post);
+        await db.SaveChangesAsync(ct);
+    }
+
+    public async Task PinAsync(Guid bandId, Guid postId, Guid musicianId, CancellationToken ct)
+    {
+        var membership = await RequireMembershipAsync(bandId, musicianId, ct);
+
+        if (membership.Role != MemberRole.Administrator && membership.Role != MemberRole.Conductor)
+            throw new DomainException("FORBIDDEN", "Only admins and conductors can pin posts.", 403);
+
+        var post = await db.Set<Post>()
+            .FirstOrDefaultAsync(p => p.Id == postId && p.BandId == bandId, ct)
+            ?? throw new DomainException("NOT_FOUND", "Post not found.", 404);
+
+        if (post.IsPinned)
+            return;
+
+        var pinnedCount = await db.Set<Post>()
+            .CountAsync(p => p.BandId == bandId && p.IsPinned, ct);
+
+        if (pinnedCount >= 3)
+            throw new DomainException("CONFLICT", "Maximum of 3 posts can be pinned at once.", 409);
+
+        post.IsPinned = true;
+        post.PinnedAt = DateTime.UtcNow;
+
+        await db.SaveChangesAsync(ct);
+    }
+
+    public async Task UnpinAsync(Guid bandId, Guid postId, Guid musicianId, CancellationToken ct)
+    {
+        var membership = await RequireMembershipAsync(bandId, musicianId, ct);
+
+        if (membership.Role != MemberRole.Administrator && membership.Role != MemberRole.Conductor)
+            throw new DomainException("FORBIDDEN", "Only admins and conductors can unpin posts.", 403);
+
+        var post = await db.Set<Post>()
+            .FirstOrDefaultAsync(p => p.Id == postId && p.BandId == bandId, ct)
+            ?? throw new DomainException("NOT_FOUND", "Post not found.", 404);
+
+        post.IsPinned = false;
+        post.PinnedAt = null;
+
+        await db.SaveChangesAsync(ct);
+    }
+
+    public async Task<PostCommentDto> AddCommentAsync(Guid bandId, Guid postId, CreatePostCommentRequest request, Guid musicianId, CancellationToken ct)
+    {
+        await RequireMembershipAsync(bandId, musicianId, ct);
+
+        var post = await db.Set<Post>()
+            .FirstOrDefaultAsync(p => p.Id == postId && p.BandId == bandId, ct)
+            ?? throw new DomainException("NOT_FOUND", "Post not found.", 404);
+
+        var comment = new PostComment
+        {
+            PostId = postId,
+            AuthorMusicianId = musicianId,
+            Content = request.Content.Trim(),
+            ParentCommentId = request.ParentCommentId
+        };
+
+        db.Set<PostComment>().Add(comment);
+        await db.SaveChangesAsync(ct);
+
+        var musician = await db.Set<Musician>().FindAsync(new object[] { musicianId }, ct);
+
+        return new PostCommentDto(
+            comment.Id,
+            comment.Content,
+            musicianId,
+            musician!.Name,
+            comment.ParentCommentId,
+            false,
+            comment.CreatedAt
+        );
+    }
+
+    public async Task DeleteCommentAsync(Guid bandId, Guid postId, Guid commentId, Guid musicianId, CancellationToken ct)
+    {
+        var membership = await RequireMembershipAsync(bandId, musicianId, ct);
+
+        var comment = await db.Set<PostComment>()
+            .Include(c => c.Post)
+            .FirstOrDefaultAsync(c => c.Id == commentId && c.PostId == postId && c.Post.BandId == bandId, ct)
+            ?? throw new DomainException("NOT_FOUND", "Comment not found.", 404);
+
+        if (comment.AuthorMusicianId != musicianId && membership.Role != MemberRole.Administrator)
+            throw new DomainException("FORBIDDEN", "You can only delete your own comments or be an admin.", 403);
+
+        comment.IsDeleted = true;
+        comment.Content = "[Deleted]";
+
+        await db.SaveChangesAsync(ct);
+    }
+
+    public async Task AddReactionAsync(Guid bandId, Guid postId, AddPostReactionRequest request, Guid musicianId, CancellationToken ct)
+    {
+        await RequireMembershipAsync(bandId, musicianId, ct);
+
+        var post = await db.Set<Post>()
+            .FirstOrDefaultAsync(p => p.Id == postId && p.BandId == bandId, ct)
+            ?? throw new DomainException("NOT_FOUND", "Post not found.", 404);
+
+        var existingReaction = await db.Set<PostReaction>()
+            .FirstOrDefaultAsync(r => r.PostId == postId && r.MusicianId == musicianId, ct);
+
+        if (existingReaction != null)
+        {
+            existingReaction.ReactionType = request.ReactionType.Trim();
+        }
+        else
+        {
+            var reaction = new PostReaction
+            {
+                PostId = postId,
+                MusicianId = musicianId,
+                ReactionType = request.ReactionType.Trim()
+            };
+            db.Set<PostReaction>().Add(reaction);
+        }
+
+        await db.SaveChangesAsync(ct);
+    }
+
+    public async Task RemoveReactionAsync(Guid bandId, Guid postId, Guid musicianId, CancellationToken ct)
+    {
+        await RequireMembershipAsync(bandId, musicianId, ct);
+
+        var reaction = await db.Set<PostReaction>()
+            .Include(r => r.Post)
+            .FirstOrDefaultAsync(r => r.PostId == postId && r.MusicianId == musicianId && r.Post.BandId == bandId, ct);
+
+        if (reaction != null)
+        {
+            db.Set<PostReaction>().Remove(reaction);
+            await db.SaveChangesAsync(ct);
+        }
+    }
+
+    private async Task<Membership> RequireMembershipAsync(Guid bandId, Guid musicianId, CancellationToken ct)
+    {
+        var m = await db.Set<Membership>()
+            .FirstOrDefaultAsync(m => m.BandId == bandId && m.MusicianId == musicianId && m.IsActive, ct);
+
+        return m ?? throw new DomainException("BAND_NOT_FOUND", "Band not found or no access.", 404);
+    }
+
+    private static PostDto MapToDto(Post post, Guid currentMusicianId)
+    {
+        var reactions = GetReactionSummaries(post.Reactions, currentMusicianId);
+        var commentCount = post.Comments.Count(c => !c.IsDeleted);
+
+        return new PostDto(
+            post.Id,
+            post.Title,
+            post.Content,
+            post.Category,
+            post.AuthorMusicianId,
+            post.AuthorMusician.Name,
+            post.IsPinned,
+            post.PinnedAt,
+            commentCount,
+            reactions,
+            post.CreatedAt,
+            post.UpdatedAt
+        );
+    }
+
+    private static IReadOnlyList<ReactionSummaryDto> GetReactionSummaries(ICollection<PostReaction> reactions, Guid currentMusicianId)
+    {
+        return reactions
+            .GroupBy(r => r.ReactionType)
+            .Select(g => new ReactionSummaryDto(
+                g.Key,
+                g.Count(),
+                g.Any(r => r.MusicianId == currentMusicianId)
+            ))
+            .ToList();
+    }
+}

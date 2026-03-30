@@ -10,6 +10,55 @@
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
+### 2026-03-29 — Demo-Account-Seeder & Auth-System-Details
+
+**Auth-System:** Kein ASP.NET Identity — Custom AuthService mit BCrypt.Net-Next 4.1.0 für Passwort-Hashing, SHA-256 für Token-Hashing (Refresh + Email-Verifikation), JWT für Access Tokens.
+
+**Passwort-Policy:** `ValidatePasswordStrength()` in `AuthService.cs` — 8+ Zeichen, Großbuchstabe, Zahl/Sonderzeichen. Im Development-Modus komplett deaktiviert via `IHostEnvironment.IsDevelopment()`.
+
+**Demo-Seeder:** `DemoDataSeeder` in `Sheetstorm.Infrastructure.Seeding` — erstellt User `demo@test.local` / `demo` beim Startup (nur Development). Bypass: Direkt BCrypt-Hash in DB, keine Service-Layer-Validierung. Idempotent (prüft ob User existiert).
+
+**Registrierung in Program.cs:** `DemoDataSeeder` als `Scoped` registriert, `SeedAsync()` wird in `IsDevelopment()`-Block mit eigener Service-Scope ausgeführt.
+
+**Flutter-Bug:** `auth_service.dart` hatte Methode `sections()` die `POST /api/auth/sections` aufrief — Backend erwartet `/api/auth/register`. Gefixt: Methode → `register()`, URL → `/api/auth/register`. Aufrufer in `auth_notifier.dart` und `register_screen.dart` mitangepasst.
+
+**Key Files:**
+- `src/Sheetstorm.Infrastructure/Seeding/DemoDataSeeder.cs` — Demo-User-Seeder
+- `src/Sheetstorm.Infrastructure/Auth/AuthService.cs` — Auth-Service (BCrypt, JWT, Password-Policy)
+- `src/Sheetstorm.Api/Program.cs` — Seeder-Registrierung im Startup
+- `sheetstorm_app/lib/features/auth/data/services/auth_service.dart` — Flutter Auth-HTTP-Layer
+
+### 2026-03-29 — Backend Startup Performance Analyse
+
+**Problem:** Backend-Start über `start.ps1` dauerte ~60 Sekunden.
+
+**Root Cause (Hauptgrund):** Port-Mismatch in `start.ps1`:
+- Script prüfte Health-Check auf `https://localhost:5001`
+- Backend lauscht tatsächlich auf `http://localhost:5273` (launchSettings.json "http" Profil) bzw. `https://localhost:7034` ("https" Profil)
+- Health-Check lief 30 × 2s = 60 Sekunden ins Leere → immer Timeout
+
+**Weitere Faktoren:**
+- `dotnet run` ohne `--no-build` → bei jedem Start erneuter Build (~1.7s)
+- Health-Check Intervall 2s mit 30 Versuchen war unnötig lang
+
+**Fix angewendet (in `start.ps1`):**
+1. `$BackendUrl` korrigiert auf `http://localhost:5273` (passend zum Default-Profil)
+2. Build vorab (`dotnet build`), dann `dotnet run --no-build` → Build-Feedback sofort sichtbar, Server startet schneller
+3. Health-Check optimiert: 15 × 1s statt 30 × 2s (15s statt 60s Timeout)
+
+**Backend-Code selbst ist performant:**
+- DI: Alle Services sind `Scoped` (lazy), kein eager init
+- EF Core: 15 Konfigurationen, `ApplyConfigurationsFromAssembly` — normal, kein Problem
+- S3 Client: Singleton, aber Constructor ist leichtgewichtig
+- Keine DB-Migration bei Startup (nur manuell via setup.ps1)
+- Middleware-Pipeline: 2 Custom-Middlewares, beide leichtgewichtig
+
+**Key Files:**
+- `start.ps1` — Dev-Start-Script (Hauptursache des Problems)
+- `src/Sheetstorm.Api/Properties/launchSettings.json` — Port-Definitionen
+- `src/Sheetstorm.Api/Program.cs` — Backend-Startup-Code
+- `src/Sheetstorm.Infrastructure/DependencyInjection.cs` — Service-Registrierungen
+
 ### 2026-03-28 — Issue #11: Auth Backend (JWT, Refresh, Reset)
 
 **Branch:** `squad/11-auth-backend`  
@@ -58,6 +107,65 @@
 - Rollenprüfungen in Service-Schicht, nicht via ASP.NET Core Policies — Rollen sind in der DB, kein JWT-Claim, flexibler für Multi-Kapellen-Szenario
 - `AuthException` wird auch für Kapelle-Fehler genutzt (Middleware fängt sie bereits ab)
 - `POST /api/kapellen/beitreten` im `KapelleController` statt im `MitgliederController`, da kein `{kapelleId}` vorhanden und Antwort ein `KapelleDto` ist
+
+---
+
+### 2026-03-28 — MS2 Backend Implementation (5 Features)
+
+**Features implementiert:**
+1. **Setlists** — Konzert-/Proben-/Template-Setlists mit Entries (Piece-Referenzen oder Platzhalter)
+2. **Media Links** — YouTube/Spotify/SoundCloud-Links zu Pieces
+3. **Communication** — Posts mit Comments und Reactions (Board-Feature)
+4. **Polls** — Abstimmungen mit Single-/Multi-Choice und Anonymität
+5. **Attendance** — Anwesenheitsverwaltung mit Statistics
+
+**Domain Layer (13 Entities + 3 Enums + 5 DTOs):**
+- Entities: `Setlist`, `SetlistEntry`, `MediaLink`, `Post`, `PostComment`, `PostReaction`, `Poll`, `PollOption`, `PollVote`, `AttendanceRecord`
+- Enums: `SetlistType`, `MediaLinkType`, `AttendanceStatus`
+- DTOs: `Sheetstorm.Domain.Setlists`, `Sheetstorm.Domain.MediaLinks`, `Sheetstorm.Domain.Communication`, `Sheetstorm.Domain.Polls`, `Sheetstorm.Domain.Attendance`
+
+**Infrastructure Layer (10 EF Configurations + 10 Services):**
+- EF Configurations für alle 13 Entities mit Relationships, Indizes, Constraints
+- Services: `SetlistService`, `MediaLinkService`, `PostService`, `PollService`, `AttendanceService` (je mit Interface)
+- Alle Services implementieren Membership-Check, Role-Based Access Control über `MemberRole` Enum
+- Pattern: `RequireMembershipAsync()` Helper für Band-Zugriffskontrolle in jedem Service
+
+**API Layer (5 Controllers):**
+- `SetlistController` — CRUD + Entries hinzufügen/reordern/löschen + Duplicate
+- `MediaLinkController` — CRUD für Links zu Pieces
+- `PostController` — CRUD + Pin/Unpin + Comments + Reactions
+- `PollController` — CRUD + Vote + Close
+- `AttendanceController` — CRUD + Stats (Band-weit + per Musician)
+
+**Access Control Matrix:**
+- **Admin/Conductor:** Volle Rechte für Setlists, Posts, Polls, Attendance
+- **SectionLeader:** Posts/Polls erstellen, Attendance eintragen
+- **SheetMusicManager:** Media Links verwalten
+- **Musician:** Lesen, Kommentieren, Reagieren, Voten, eigene Attendance sehen
+
+**Key Patterns etabliert:**
+- Enum → String Conversion in EF (`HasConversion<string>()` + `HasMaxLength(30)`)
+- DTOs in `Domain/{Feature}/{Feature}Models.cs` mit Request/Response Records
+- Service Helper Pattern: `RequireMembershipAsync()` wirft `DomainException("BAND_NOT_FOUND", ..., 404)` bei fehlender Membership
+- Controller Pattern: `CurrentUserId` Property via JWT Sub-Claim, alle Methoden async mit `CancellationToken ct`
+- ErrorResponse via `Sheetstorm.Domain.Auth.ErrorResponse` für konsistente Fehlerstruktur
+
+**Wichtige Details:**
+- Setlist Entries: Position-basiert, Reorder via `ReorderEntriesRequest` mit ID-Liste
+- MediaLink Type Detection: Auto-Erkennung von YouTube/Spotify/SoundCloud via URL-Pattern
+- Post Reactions: 1 Reaction pro User, Toggle-Mechanismus (Add überschreibt, Remove löscht)
+- Poll Votes: Single-/Multi-Choice je nach `IsMultipleChoice`, alte Votes werden beim Vote überschrieben
+- Attendance Stats: Aggregation über DateOnly-Range, `AttendanceRate = Present / Total * 100`
+
+**Nicht modifiziert (wie gefordert):**
+- `AppDbContext.cs` — DbSets werden von Follow-up Agent hinzugefügt
+- `DependencyInjection.cs` — Service-Registrierungen erfolgen später
+- `Program.cs` — Keine Änderungen, bleibt intakt
+
+**Key Files:**
+- Domain: `src/Sheetstorm.Domain/Entities/{Entity}.cs`, `src/Sheetstorm.Domain/Enums/{Enum}.cs`, `src/Sheetstorm.Domain/{Feature}/{Feature}Models.cs`
+- Infrastructure: `src/Sheetstorm.Infrastructure/Persistence/Configurations/{Entity}Configuration.cs`, `src/Sheetstorm.Infrastructure/{Feature}/{Feature}Service.cs`
+- API: `src/Sheetstorm.Api/Controllers/{Feature}Controller.cs`
 ## Session Log
 
 ### 2026-03-28 — PR #93 Auth Flutter Fix (Lockout: Romanoff → Banner)
@@ -90,3 +198,31 @@
 
 **Note:** PR comment could not be posted automatically (no GitHub write token available in environment). Comment should be posted manually on PR #93 referencing branch `squad/93-auth-flutter-fix`.
 
+
+---
+
+## Team Update: Kapellenverwaltung & Auth-Onboarding Spec-Update (2026-03-28T22:10Z)
+
+**From:** Hill (Product Manager)  
+**Action:** Backend scope expanded for approval workflow.
+
+**New Endpoints Required:**
+- POST /api/kapellen/beitreten — Create join request (user submits via invitation)
+- GET /api/kapellen/{id}/anfragen — List pending join requests (admin/conductor only)
+- PUT /api/kapellen/{id}/anfragen/{requestId} — Approve/reject request
+
+**Service Changes:**
+- Extend KapelleService with RequestJoinAsync(), GetJoinRequestsAsync(), ApproveRequestAsync(), RejectRequestAsync()
+- Add BeitrittsanfrageRepository interface + EF implementation
+- Permission checks: Admin/Conductor/SectionLeader can approve (service layer)
+- Rejection sends email notification
+
+**Affected User Stories:**
+- US-00: "Meine Musik" auto-created (add ist_persoenlich flag to Kapelle creation)
+- US-02: Entry point selection (POST /kapellen/select endpoint exists?)
+- US-06: New approval workflow (3 new endpoints)
+
+**Testing:**
+- 13 edge cases including: double-requests, rejection+reapply, "Meine Musik" immutability, last-admin protection
+
+**Status:** Estimate expansion needed for new endpoints + service methods

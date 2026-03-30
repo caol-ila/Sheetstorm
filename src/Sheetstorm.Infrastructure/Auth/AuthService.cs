@@ -151,14 +151,15 @@ public class AuthService(AppDbContext db, IConfiguration configuration, IEmailSe
             (DateTime.UtcNow - Musician.PasswordResetRequestedAt.Value).TotalSeconds < ResetCooldownSeconds)
             return new MessageResponse("Wenn diese E-Mail registriert ist, wurde ein Reset-Link gesendet.");
 
-        Musician.PasswordResetToken = GenerateSecureToken("reset_");
+        var resetToken = GenerateSecureToken("reset_");
+        Musician.PasswordResetToken = HashToken(resetToken);
         Musician.PasswordResetTokenExpiresAt = DateTime.UtcNow.AddMinutes(ResetTokenExpiryMinutes);
         Musician.PasswordResetRequestedAt = DateTime.UtcNow;
 
         await db.SaveChangesAsync();
 
         // TODO: Send email via email service (not in scope for this issue)
-        // Email would contain: /api/auth/reset-password?token={Musician.PasswordResetToken}
+        // Email would contain: /api/auth/reset-password?token={resetToken}
 
         return new MessageResponse("Wenn diese E-Mail registriert ist, wurde ein Reset-Link gesendet.");
     }
@@ -169,7 +170,7 @@ public class AuthService(AppDbContext db, IConfiguration configuration, IEmailSe
     {
         ValidatePasswordStrength(request.NewPassword);
 
-        var Musician = await db.Musicians.FirstOrDefaultAsync(m => m.PasswordResetToken == request.Token);
+        var Musician = await db.Musicians.FirstOrDefaultAsync(m => m.PasswordResetToken == HashToken(request.Token));
 
         if (Musician is null ||
             Musician.PasswordResetTokenExpiresAt is null ||

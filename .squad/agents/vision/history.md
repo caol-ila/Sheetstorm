@@ -9,3 +9,72 @@
 ## Learnings
 
 <!-- Append new learnings below. -->
+
+### 2026-04-15: MS2 Frontend Orchestration Summary — Setlist + Song Broadcast + 7 Romanoff Modules
+
+**Overall Context:**
+Parallel orchestration completed. Vision implemented 2 modules (Setlist + Song Broadcast). Romanoff completed 5 separate feature modules (Events, GEMA, Media Links, Communication, Attendance+Substitute+Shifts). Total: 9 modules, 112 files, ~50 minutes wall-clock time.
+
+**Cross-Agent Decisions:** All architecture patterns, dependencies, and design decisions consolidated in `.squad/decisions.md` under "MS2 Frontend Implementation Decisions" section.
+
+**Related Orchestration Logs:**
+- `.squad/orchestration-log/2026-04-15T0000Z-vision-setlist-broadcast.md` — This agent's output
+- `.squad/orchestration-log/2026-04-15T0017Z-romanoff-events-calendar.md`
+- `.squad/orchestration-log/2026-04-15T0024Z-romanoff-gema-media.md`
+- `.squad/orchestration-log/2026-04-15T0031Z-romanoff-communication.md`
+- `.squad/orchestration-log/2026-04-15T0040Z-romanoff-attendance-subs-shifts.md`
+
+**Session Log:** `.squad/log/2026-04-15T0040Z-ms2-frontend-implementation.md` — Full summary of all 9 modules, dependencies, next steps.
+
+**Key Shared Learnings:**
+1. **SignalR Manual Implementation (Vision):** Enables flexibility and clear upgrade path. If Dart SignalR package becomes available, only `BroadcastSignalRService` changes.
+2. **Family Notifiers Essential:** Fine-grained state management crucial for multi-list applications. CalendarEntry + Event separation optimizes network traffic.
+3. **Routes.dart Pattern:** Modular, conflict-free. Requires manual integration in app_router.dart (separate PR task).
+4. **Stub .g.dart Files:** Successful compilation without build_runner. Real generation documented for post-Flutter-install.
+5. **Optimistic UI Patterns:** Reactions/comments with rollback significantly improve perceived performance (no spinners).
+6. **Color + Icon Accessibility:** Status indicators (green/yellow/red) with icons maintain accessibility while providing visual feedback.
+
+---
+
+### 2026-03-28: Setlist + Song Broadcast Feature Modules (MS2)
+
+**Architecture Decisions:**
+- Both features follow the established `features/{name}/` structure: `application/`, `data/models/`, `data/services/`, `presentation/screens/`, `presentation/widgets/`
+- Riverpod 3.x codegen pattern: `@Riverpod(keepAlive: true)` for services/global state, `@riverpod` for transient/family providers
+- Each feature exports a `routes.dart` with GoRoute definitions — NOT modifying `app_router.dart`
+- German field names with 'ü' mapped to 'ue' in Dart identifiers (e.g., `stueckId`, `aktiveStueckId`) while JSON keys match the API contract
+
+**Setlist Feature (`features/setlist/`):**
+- Models: `Setlist`, `SetlistEntry`, `SetlistEntryType` (stueck/platzhalter/pause), `PieceInfo`, `PlatzhalterInfo`, `PauseInfo`, `SpielmodusData`
+- Service: Full CRUD, entry management, reorder via PATCH, duplicate, spielmodus endpoint
+- Notifiers: `SetlistListNotifier` (keepAlive, global list), `SetlistDetailNotifier` (family by setlistId), `SetlistPlayerNotifier` (family, player state machine)
+- Player: Immersive fullscreen, overlay-based controls, auto-advance timer, navigation sheet
+- Base API path: `/api/v1/kapellen/{bandId}/setlists`
+
+**Song Broadcast Feature (`features/song_broadcast/`):**
+- SignalR WebSocket implementation: Manual JSON protocol over `web_socket_channel` (no dedicated SignalR Dart package)
+- Protocol: JSON messages separated by record separator (0x1E), message types 1 (invocation), 6 (ping/pong), 7 (close)
+- Reconnect: Exponential backoff (2s, 4s, 8s, 16s, 32s), max 5 attempts
+- BroadcastNotifier: keepAlive, manages conductor (broadcasting) and musician (receiving) modes
+- REST endpoints at `/api/v1/broadcast/sessions` for session lifecycle
+- SignalR hub at `/hubs/broadcast` for real-time events
+
+**Key File Paths:**
+- `features/setlist/data/models/setlist_models.dart` — All setlist domain models
+- `features/setlist/data/services/setlist_service.dart` — REST API wrapper
+- `features/setlist/application/setlist_notifier.dart` — List + Detail notifiers
+- `features/setlist/application/setlist_player_notifier.dart` — Player state machine
+- `features/song_broadcast/data/services/broadcast_service.dart` — REST + SignalR services
+- `features/song_broadcast/application/broadcast_notifier.dart` — Broadcast state management
+- `pubspec.yaml` — Added `web_socket_channel: ^3.0.2` dependency
+
+### 2026-04-16: Routing + copyWith Fixes (Lockout Fix for Romanoff's Code)
+
+**Context:** Stark's meta-review flagged 3 bugs in Romanoff's MS2 modules. Vision fixed as lockout reviewer.
+
+**Fixes Applied:**
+1. **Communication route path mismatch:** `/board` → `/app/board` — route must be absolute and match `AppRoutes.board` since `communicationRoutes` is spread at top level in app_router profile shell branch
+2. **Poll route ordering:** Moved `:bandId/polls/create` before `:bandId/polls/:pollId` — GoRouter matches in declaration order, so literal paths must precede parameter routes
+3. **AttendanceDashboardState.copyWith sentinel pattern:** Replaced `field ?? this.field` with `Object? field = _sentinel` pattern for all nullable fields (`stats`, `trend`, `startDate`, `endDate`, `eventType`, `error`). `isLoading` kept as `bool?` since it's non-nullable with default.
+
+**Key Insight:** `copyWith(error: null)` with `error ?? this.error` silently keeps the old value — a pervasive pattern bug across many MS2 models. Sentinel pattern is the correct Dart idiom for nullable field resets.
