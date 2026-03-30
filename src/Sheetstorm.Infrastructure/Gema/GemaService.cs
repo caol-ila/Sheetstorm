@@ -216,6 +216,11 @@ public class GemaService(AppDbContext db) : IGemaService
     {
         await RequireMembershipAsync(bandId, musicianId, ct);
 
+        // Validate format before any DB mutation
+        var normalizedFormat = format.ToLowerInvariant();
+        if (normalizedFormat is not ("csv" or "xml"))
+            throw new DomainException("VALIDATION_ERROR", $"Unsupported export format: {format}.", 400);
+
         var report = await db.Set<GemaReport>()
             .Include(r => r.Entries.OrderBy(e => e.Position))
             .Include(r => r.GeneratedByMusician)
@@ -226,11 +231,10 @@ public class GemaService(AppDbContext db) : IGemaService
         report.ExportFormat = format;
         await db.SaveChangesAsync(ct);
 
-        return format.ToLowerInvariant() switch
+        return normalizedFormat switch
         {
             "csv" => GenerateCsvExport(report),
-            "xml" => GenerateXmlExport(report),
-            _ => throw new DomainException("VALIDATION_ERROR", $"Unsupported export format: {format}.", 400)
+            _ => GenerateXmlExport(report)
         };
     }
 
@@ -268,7 +272,7 @@ public class GemaService(AppDbContext db) : IGemaService
                 GemaReportId = report.Id,
                 PieceId = entry.PieceId,
                 Title = entry.Piece!.Title,
-                Composer = entry.Piece.Composer ?? "Unknown",
+                Composer = entry.Piece.Composer ?? "Komponist unbekannt",
                 Arranger = entry.Piece.Arranger,
                 DurationSeconds = entry.DurationSeconds,
                 Position = position++

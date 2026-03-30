@@ -16,6 +16,14 @@ public class EventService(AppDbContext db) : IEventService
         if (request.EndDate.HasValue && request.EndDate < request.StartDate)
             throw new DomainException("VALIDATION_ERROR", "End date must be after start date.", 400);
 
+        if (request.SetlistId.HasValue)
+        {
+            var setlist = await db.Set<Setlist>()
+                .FirstOrDefaultAsync(s => s.Id == request.SetlistId.Value && s.BandId == bandId, ct);
+            if (setlist == null)
+                throw new DomainException("VALIDATION_ERROR", "Setlist does not belong to this band.", 400);
+        }
+
         var ev = new Event
         {
             BandId = bandId,
@@ -95,6 +103,14 @@ public class EventService(AppDbContext db) : IEventService
 
         if (request.EndDate.HasValue && request.EndDate < request.StartDate)
             throw new DomainException("VALIDATION_ERROR", "End date must be after start date.", 400);
+
+        if (request.SetlistId.HasValue)
+        {
+            var setlist = await db.Set<Setlist>()
+                .FirstOrDefaultAsync(s => s.Id == request.SetlistId.Value && s.BandId == bandId, ct);
+            if (setlist == null)
+                throw new DomainException("VALIDATION_ERROR", "Setlist does not belong to this band.", 400);
+        }
 
         ev.Title = request.Title.Trim();
         ev.Description = request.Description?.Trim();

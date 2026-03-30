@@ -85,6 +85,14 @@ public class AttendanceService(AppDbContext db) : IAttendanceService
             .FirstOrDefaultAsync(m => m.BandId == bandId && m.MusicianId == request.MusicianId && m.IsActive, ct)
             ?? throw new DomainException("NOT_FOUND", "Musician not found in this band.", 404);
 
+        if (request.EventId.HasValue)
+        {
+            var ev = await db.Set<Event>()
+                .FirstOrDefaultAsync(e => e.Id == request.EventId.Value && e.BandId == bandId, ct);
+            if (ev == null)
+                throw new DomainException("VALIDATION_ERROR", "Event does not belong to this band.", 400);
+        }
+
         var existingRecord = await db.Set<AttendanceRecord>()
             .FirstOrDefaultAsync(a => a.BandId == bandId && a.MusicianId == request.MusicianId && a.Date == request.Date, ct);
 

@@ -803,6 +803,6 @@ public class GemaServiceTests : IDisposable
         var request = new CreateGemaReportRequest("Report", null, DateTime.UtcNow, setlist.Id);
         var result = await _sut.GenerateFromSetlistAsync(bandId, setlist.Id, request, musicianId, CancellationToken.None);
 
-        Assert.Equal("Unknown", result.Entries[0].Composer);
+        Assert.Equal("Komponist unbekannt", result.Entries[0].Composer);
     }
 }

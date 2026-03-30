@@ -315,12 +315,34 @@ public class SongBroadcastHubTests : IDisposable
     }
 
     [Fact]
-    public async Task OnDisconnectedAsync_UpdatesParticipantCount()
+    public async Task OnDisconnectedAsync_ConductorDisconnect_EndsBroadcast()
     {
         await _sut.StartBroadcast(_bandId);
         await _sut.JoinBroadcast(_bandId);
 
         await _sut.OnDisconnectedAsync(null);
+
+        await _mockClientProxy.Received().SendCoreAsync(
+            "OnBroadcastStopped",
+            Arg.Is<object[]>(args => args.Length == 1 && args[0] is BroadcastStoppedMessage),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task OnDisconnectedAsync_NonConductorDisconnect_UpdatesParticipantCount()
+    {
+        await _sut.StartBroadcast(_bandId);
+
+        var otherUserId = SeedMember(_bandId);
+        var otherHub = new SongBroadcastHub(_db)
+        {
+            Clients = _mockClients,
+            Groups = _mockGroups,
+            Context = CreateMockContext(otherUserId, "other-connection")
+        };
+
+        await otherHub.JoinBroadcast(_bandId);
+        await otherHub.OnDisconnectedAsync(null);
 
         await _mockClientProxy.Received().SendCoreAsync(
             "OnParticipantCountChanged",

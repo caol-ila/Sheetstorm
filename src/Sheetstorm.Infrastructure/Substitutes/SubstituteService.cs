@@ -21,6 +21,24 @@ public class SubstituteService(AppDbContext db) : ISubstituteService
         // Store only the SHA-256 hash
         var tokenHash = HashToken(rawToken);
 
+        // Validate FK references belong to this band
+        if (request.VoiceId.HasValue)
+        {
+            var voice = await db.Set<Voice>()
+                .Include(v => v.Piece)
+                .FirstOrDefaultAsync(v => v.Id == request.VoiceId.Value && v.Piece.BandId == bandId, ct);
+            if (voice == null)
+                throw new DomainException("VALIDATION_ERROR", "Voice does not belong to this band.", 400);
+        }
+
+        if (request.EventId.HasValue)
+        {
+            var ev = await db.Set<Event>()
+                .FirstOrDefaultAsync(e => e.Id == request.EventId.Value && e.BandId == bandId, ct);
+            if (ev == null)
+                throw new DomainException("VALIDATION_ERROR", "Event does not belong to this band.", 400);
+        }
+
         var expiresAt = request.ExpiresAt ?? DateTime.UtcNow.AddDays(2);
         if (expiresAt <= DateTime.UtcNow)
             throw new DomainException("VALIDATION_ERROR", "Expiry date must be in the future.", 400);

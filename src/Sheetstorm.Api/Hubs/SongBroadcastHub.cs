@@ -178,18 +178,29 @@ public class SongBroadcastHub(AppDbContext db) : Hub
         // Remove from all band groups
         foreach (var kvp in BandConnections)
         {
-            if (kvp.Value.TryRemove(Context.ConnectionId, out _))
+            if (kvp.Value.TryRemove(Context.ConnectionId, out var disconnectedUserId))
             {
                 var bandId = kvp.Key;
                 await Groups.RemoveFromGroupAsync(Context.ConnectionId, BandGroup(bandId));
 
                 if (ActiveBroadcasts.TryGetValue(bandId, out var state))
                 {
-                    var count = GetParticipantCount(bandId);
-                    ActiveBroadcasts[bandId] = state with { ParticipantCount = count };
+                    if (state.ConductorId == disconnectedUserId)
+                    {
+                        // Conductor disconnected — auto-end the broadcast
+                        ActiveBroadcasts.TryRemove(bandId, out _);
 
-                    await Clients.Group(BandGroup(bandId)).SendAsync("OnParticipantCountChanged",
-                        new ParticipantCountChangedMessage(bandId, count));
+                        await Clients.Group(BandGroup(bandId)).SendAsync("OnBroadcastStopped",
+                            new BroadcastStoppedMessage(bandId, disconnectedUserId, state.ConductorName, DateTime.UtcNow));
+                    }
+                    else
+                    {
+                        var count = GetParticipantCount(bandId);
+                        ActiveBroadcasts[bandId] = state with { ParticipantCount = count };
+
+                        await Clients.Group(BandGroup(bandId)).SendAsync("OnParticipantCountChanged",
+                            new ParticipantCountChangedMessage(bandId, count));
+                    }
                 }
             }
         }
