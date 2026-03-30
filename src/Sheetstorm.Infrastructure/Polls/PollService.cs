@@ -77,6 +77,9 @@ public class PollService(AppDbContext db) : IPollService
         if (request.Options.Count < 2)
             throw new DomainException("VALIDATION_ERROR", "Poll must have at least 2 options.", 400);
 
+        if (request.Options.Any(o => o.Length > 200))
+            throw new DomainException("VALIDATION_ERROR", "Poll option text must not exceed 200 characters.", 400);
+
         var poll = new Poll
         {
             BandId = bandId,

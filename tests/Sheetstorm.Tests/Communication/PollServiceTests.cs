@@ -207,6 +207,20 @@ public class PollServiceTests : IDisposable
         Assert.Equal(400, ex.StatusCode);
     }
 
+    [Fact]
+    public async Task CreateAsync_OversizedOptionText_ThrowsValidationError()
+    {
+        var (musicianId, bandId, _) = await SeedPollAsync(MemberRole.Administrator);
+        var oversizedOption = new string('a', 201);
+
+        var request = new CreatePollRequest("Question?", new[] { oversizedOption, "B" }, false, false, null);
+        var ex = await Assert.ThrowsAsync<DomainException>(() =>
+            _sut.CreateAsync(bandId, request, musicianId, CancellationToken.None));
+
+        Assert.Equal("VALIDATION_ERROR", ex.ErrorCode);
+        Assert.Equal(400, ex.StatusCode);
+    }
+
     // ── DeleteAsync ───────────────────────────────────────────────────────────
 
     [Fact]
