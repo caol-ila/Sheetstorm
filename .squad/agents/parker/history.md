@@ -106,6 +106,56 @@
 
 **Next Step:** Test plan document for detailed step-by-step scenarios
 
+---
+
+### 2026-03-31 — Issues #115, #117, #118: PostService + Setlist-Tests Nacharbeit
+
+**Branch:** `squad/ms2-nacharbeit`  
+**Commit:** `23087ed`  
+**Worktree:** `C:\Source\music-ms2-nacharbeit`
+
+**Was ich getan habe:**
+
+**#115 — Post-Reply auf fremden Parent:**
+- Tests bereits durch vorherigen Batch committet — alle 3 Testfälle existierten bereits in `tests\Sheetstorm.Tests\Communication\PostServiceTests.cs`:
+  - `AddCommentAsync_WithParent_CreatesThreaded` (Happy Path)
+  - `AddCommentAsync_WithNonExistentParent_ThrowsNotFound` (404)
+  - `AddCommentAsync_WithParentFromDifferentPost_ThrowsBadRequest` (400)
+- Alle 35 PostService-Tests bestehen
+
+**#118 — expect(true, isTrue) durch echte Assertions ersetzt:**
+- `setlist_player_notifier_test.dart`: 6 Assertions ersetzt
+  - `togglePause()` → `expect(state.status, PlayerStatus.idle)` (kein Effekt bei idle)
+  - `next()` → `expect(state.currentIndex, 1)` (isLast=false bei leerer Liste → Index erhöht sich)
+  - `previous()` → `expect(state.currentIndex, 0)` (isFirst=true → kein Rücksprung)
+  - `jumpTo(0/−1/999)` → `expect(state.currentIndex, 0)` (außerhalb Bereich → no-op)
+- `setlist_notifier_test.dart`: 19 Assertions ersetzt
+  - ListNotifier-Methoden (search/filter/refresh) → `hasError == false`
+  - DetailNotifier-Methoden (alle void) → `isNotNull` (Zustand bleibt gültig)
+- **SharedPreferences-Fix:** `setUp(() { SharedPreferences.setMockInitialValues({}); })` in beiden Dateien — behebt `MissingPluginException` die jeden Test nach Abschluss zum Scheitern brachte
+
+**#117 — Empty-State Edge Cases:**
+- `setlist_player_notifier_test.dart`: 4 neue Tests in Gruppe "Leere Liste":
+  - `SetlistWithZeroItems_IsLast_ReturnsFalse`
+  - `SetlistNavigation_EmptyList_DoesNotCrash`
+  - `SetlistWithZeroItems_ProgressLabel_IsEmpty`
+  - `SetlistWithZeroItems_CurrentStueck_IsNull`
+- `setlist_notifier_test.dart`: 4 neue Tests in Gruppe "Leere Einträge":
+  - `SetlistReorder_EmptyList_NoOp`
+  - `SetlistRemoveFromEmpty_ThrowsOrNoOp`
+  - `SetlistReorder_EmptyList_PreservesState`
+  - `SetlistDetailNotifier_NoBand_AllMutationsAreNoOp`
+
+**Ergebnis:** 54/54 Flutter-Tests grün, 35/35 Backend-Tests grün
+
+**Stack-Wissen:**
+- **SharedPreferences in Flutter-Tests**: `ActiveBandNotifier.build()` ruft `SharedPreferences.getInstance()` auf — in Tests immer `SharedPreferences.setMockInitialValues({})` in `setUp()` aufrufen, sonst `MissingPluginException` nach Test-Ende ("This test failed after it had already completed")
+- **EF Core InMemory + Identity Cache**: Bei Tests mit separaten Add-SaveChanges-Zyklen kann `Include(p => p.Comments)` den gecachten Entity aus dem Identity Map zurückgeben, dessen Navigation-Collection noch leer ist. Fix: Direkte Abfrage statt Include verwenden (`AnyAsync(c => c.PostId == id)`).
+- **Riverpod Async Build Timing**: `container.read(asyncProvider.notifier)` startet den Build, aber der State ist zunächst `AsyncLoading`. Vor State-Vergleichen `await Future.microtask(() {})` aufrufen, um den Build abzuschließen.
+- **`expect(true, isTrue)` Anti-Pattern**: Solche Tests bestehen immer — sie testen nichts. Für void-Methoden ist `expect(result, isNotNull)` auf dem Provider-State besser. Für Methoden mit Rückgabewert: konkreten Wert prüfen (z.B. `expect(result, isNull)` wenn kein Band konfiguriert).
+- **isLast bei leerer Setlist**: `SetlistPlayerState.isLast = totalPlayable > 0 && currentIndex >= totalPlayable - 1` — gibt `false` zurück wenn keine Elemente vorhanden (nicht `true`).
+
+
 ### 2026-05-30 — Issues #113 + #114: Flutter Provider Overrides + GEMA Export Tests
 
 **Branch:** `squad/ms2-nacharbeit`
