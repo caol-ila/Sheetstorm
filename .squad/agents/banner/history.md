@@ -226,3 +226,39 @@
 - 13 edge cases including: double-requests, rejection+reapply, "Meine Musik" immutability, last-admin protection
 
 **Status:** Estimate expansion needed for new endpoints + service methods
+
+### 2026-03-30 — Aufgabenverwaltung (Task Management) — Backend
+
+**Branch:** `squad/ms3-implementation`
+**Worktree:** `C:\Source\music-ms3`
+
+**Was gebaut (TDD: RED → GREEN → REFACTOR → COMMIT):**
+- `BandTask` Entity (Title, Description, BandTaskStatus, TaskPriority, DueDate, EventId, CreatedByMusicianId)
+- `BandTaskAssignment` Entity — N:M Musiker-zu-Aufgabe Zuweisung
+- `BandTaskStatus` Enum: Open, InProgress, Done (Rückwärts-Übergänge erlaubt)
+- `TaskPriority` Enum: Low, Medium, High
+- `TaskModels.cs` in `Sheetstorm.Domain.Tasks`: alle Request/Response-Records
+- `ITaskService` + `TaskService` in `Sheetstorm.Infrastructure.Tasks`
+- `TaskController` bei `/api/bands/{bandId}/tasks` (GET list, GET detail, POST, PUT, DELETE, PATCH status, PUT assignees)
+- EF-Konfiguration: `BandTaskConfiguration` + `BandTaskAssignmentConfiguration` (Cascade, Unique-Index)
+- 39 neue Tests (25 Service + 14 Controller), alle 866 Tests bestanden
+
+**Autorisierung:**
+- Aufgaben erstellen/bearbeiten/löschen: Conductor, Admin, SectionLeader
+- Status ändern: Ersteller ODER zugewiesene Mitglieder
+- Aufgaben lesen: alle Bandmitglieder
+
+**Architektur-Entscheidungen:**
+- DTOs in `Sheetstorm.Domain.Tasks` (konsistent mit Events-Pattern)
+- Service gibt 403 bei fehlender Mitgliedschaft (nicht 404), um Band-Existenz nicht zu leaken
+- `AssignTaskAsync` ersetzt alle bestehenden Zuweisungen (replace-all Semantik)
+- Filterung via `TaskQueryParams` record (Status, AssigneeId, SortBy, SortDir)
+
+**Key Files:**
+- `src/Sheetstorm.Domain/Entities/BandTask.cs`
+- `src/Sheetstorm.Domain/Entities/BandTaskAssignment.cs`
+- `src/Sheetstorm.Domain/Tasks/TaskModels.cs`
+- `src/Sheetstorm.Infrastructure/Tasks/TaskService.cs`
+- `src/Sheetstorm.Api/Controllers/TaskController.cs`
+- `tests/Sheetstorm.Tests/Tasks/TaskServiceTests.cs`
+- `tests/Sheetstorm.Tests/Tasks/TaskControllerTests.cs`
