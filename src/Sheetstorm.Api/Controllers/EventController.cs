@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Sheetstorm.Domain.Auth;
 using Sheetstorm.Domain.Events;
+using Sheetstorm.Domain.Pagination;
 using Sheetstorm.Infrastructure.Events;
 
 namespace Sheetstorm.Api.Controllers;
@@ -18,10 +19,16 @@ public class EventController(IEventService eventService) : ControllerBase
 
     // GET /api/bands/{bandId}/events
     [HttpGet]
-    [ProducesResponseType(typeof(IReadOnlyList<EventDto>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetEvents(Guid bandId, CancellationToken ct)
+    [ProducesResponseType(typeof(PagedResult<EventDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetEvents(
+        Guid bandId,
+        [FromQuery] string? cursor = null,
+        [FromQuery] int pageSize = 20,
+        CancellationToken ct = default)
     {
-        var result = await eventService.GetEventsAsync(bandId, CurrentUserId, ct);
+        var request = new PaginationRequest(cursor, pageSize);
+        var result = await eventService.GetEventsPaginatedAsync(bandId, CurrentUserId, request, ct);
         return Ok(result);
     }
 

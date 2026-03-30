@@ -3,7 +3,9 @@ using Sheetstorm.Domain.Entities;
 using Sheetstorm.Domain.Enums;
 using Sheetstorm.Domain.Events;
 using Sheetstorm.Domain.Exceptions;
+using Sheetstorm.Domain.Pagination;
 using Sheetstorm.Infrastructure.Auth;
+using Sheetstorm.Infrastructure.Pagination;
 using Sheetstorm.Infrastructure.Persistence;
 
 namespace Sheetstorm.Infrastructure.Events;
@@ -79,6 +81,39 @@ public class EventService(AppDbContext db, IBandAuthorizationService bandAuth) :
             .ToListAsync(ct);
 
         return events.Select(MapToDto).ToList();
+    }
+
+    public async Task<PagedResult<EventDto>> GetEventsPaginatedAsync(
+        Guid bandId, Guid musicianId, PaginationRequest pagination, CancellationToken ct)
+    {
+        await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
+
+        var pageSize = pagination.EffectivePageSize;
+
+        var query = db.Set<Event>()
+            .Where(e => e.BandId == bandId)
+            .Include(e => e.CreatedByMusician)
+            .Include(e => e.Rsvps);
+
+        IQueryable<Event> filtered = query;
+
+        if (pagination.Cursor is not null)
+        {
+            var (cursorDate, cursorId) = CursorHelper.Decode(pagination.Cursor);
+            filtered = filtered.Where(e =>
+                e.CreatedAt < cursorDate ||
+                (e.CreatedAt == cursorDate && e.Id.CompareTo(cursorId) < 0));
+        }
+
+        return await filtered
+            .OrderByDescending(e => e.CreatedAt)
+            .ThenByDescending(e => e.Id)
+            .ToPaginatedAsync(
+                pageSize,
+                MapToDto,
+                e => e.CreatedAt,
+                e => e.Id,
+                ct);
     }
 
     public async Task<EventDto> GetEventAsync(Guid bandId, Guid eventId, Guid musicianId, CancellationToken ct)

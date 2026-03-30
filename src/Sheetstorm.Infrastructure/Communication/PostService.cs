@@ -2,7 +2,9 @@ using Microsoft.EntityFrameworkCore;
 using Sheetstorm.Domain.Communication;
 using Sheetstorm.Domain.Entities;
 using Sheetstorm.Domain.Exceptions;
+using Sheetstorm.Domain.Pagination;
 using Sheetstorm.Infrastructure.Auth;
+using Sheetstorm.Infrastructure.Pagination;
 using Sheetstorm.Infrastructure.Persistence;
 
 namespace Sheetstorm.Infrastructure.Communication;
@@ -23,6 +25,38 @@ public class PostService(AppDbContext db, IBandAuthorizationService bandAuth) : 
             .ToListAsync(ct);
 
         return posts.Select(p => MapToDto(p, musicianId)).ToList();
+    }
+
+    public async Task<PagedResult<PostDto>> GetAllPaginatedAsync(
+        Guid bandId, Guid musicianId, PaginationRequest pagination, CancellationToken ct)
+    {
+        await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
+
+        var pageSize = pagination.EffectivePageSize;
+
+        var query = db.Set<Post>()
+            .Include(p => p.AuthorMusician)
+            .Include(p => p.Comments.Where(c => !c.IsDeleted))
+            .Include(p => p.Reactions)
+            .Where(p => p.BandId == bandId && !p.IsDeleted);
+
+        if (pagination.Cursor is not null)
+        {
+            var (cursorDate, cursorId) = CursorHelper.Decode(pagination.Cursor);
+            query = query.Where(p =>
+                p.CreatedAt < cursorDate ||
+                (p.CreatedAt == cursorDate && p.Id.CompareTo(cursorId) < 0));
+        }
+
+        return await query
+            .OrderByDescending(p => p.CreatedAt)
+            .ThenByDescending(p => p.Id)
+            .ToPaginatedAsync(
+                pageSize,
+                p => MapToDto(p, musicianId),
+                p => p.CreatedAt,
+                p => p.Id,
+                ct);
     }
 
     public async Task<PostDetailDto> GetByIdAsync(Guid bandId, Guid postId, Guid musicianId, CancellationToken ct)
@@ -275,6 +309,49 @@ public class PostService(AppDbContext db, IBandAuthorizationService bandAuth) : 
             false,
             comment.CreatedAt
         );
+    }
+
+    public async Task<PagedResult<PostCommentDto>> GetCommentsPaginatedAsync(
+        Guid bandId, Guid postId, Guid musicianId, PaginationRequest pagination, CancellationToken ct)
+    {
+        await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
+
+        var postExists = await db.Set<Post>()
+            .AnyAsync(p => p.Id == postId && p.BandId == bandId && !p.IsDeleted, ct);
+        if (!postExists)
+            throw new DomainException("NOT_FOUND", "Post not found.", 404);
+
+        var pageSize = pagination.EffectivePageSize;
+
+        var query = db.Set<PostComment>()
+            .Include(c => c.AuthorMusician)
+            .Where(c => c.PostId == postId && !c.IsDeleted);
+
+        if (pagination.Cursor is not null)
+        {
+            var (cursorDate, cursorId) = CursorHelper.Decode(pagination.Cursor);
+            query = query.Where(c =>
+                c.CreatedAt > cursorDate ||
+                (c.CreatedAt == cursorDate && c.Id.CompareTo(cursorId) > 0));
+        }
+
+        // Comments ordered oldest first (ascending) for chronological reading
+        return await query
+            .OrderBy(c => c.CreatedAt)
+            .ThenBy(c => c.Id)
+            .ToPaginatedAsync(
+                pageSize,
+                c => new PostCommentDto(
+                    c.Id,
+                    c.Content,
+                    c.AuthorMusicianId,
+                    c.AuthorMusician.Name,
+                    c.ParentCommentId,
+                    c.IsDeleted,
+                    c.CreatedAt),
+                c => c.CreatedAt,
+                c => c.Id,
+                ct);
     }
 
     public async Task DeleteCommentAsync(Guid bandId, Guid postId, Guid commentId, Guid musicianId, CancellationToken ct)
