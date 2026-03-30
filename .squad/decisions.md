@@ -548,6 +548,49 @@ features/{feature_name}/
 - **API:** 8 endpoints (Plans/Shifts CRUD, assignments)
 - **State:** ShiftPlanListNotifier, ShiftPlanNotifier family, myShifts, openShifts providers
 
+---
+
+### 2026-03-30T21:12:40Z: Annotations-Sync Transport — BLE Notification + REST Data
+
+**By:** Thomas (via Copilot directive)  
+**Decision:** Annotations-Sync über BLE nutzt ein Hybrid-Modell:
+- **BLE-Transport:** Nur Invalidation-Signal (nicht die Annotations-Daten selbst)
+  - Signal enthält: Song GUID + Voice/Part identifier
+  - Informiert über Updates, ohne große Payloads zu übertragen
+- **REST-API:** Lädt eigentliche Annotationsdaten nach BLE-Signal
+  - Asynchrone Fetch auf Client
+  - Unbegrenzte Payload-Größe (SVG, Markups, etc.)
+
+**Begründung:** BLE MTU zu klein für komplexe Annotationen. Notification-Pattern spart Bandbreite, REST-API bietet Skalierbarkeit.
+
+---
+
+### 2026-03-31T00:00:00Z: MS3 Architecture — BLE-First Metronome + Op-Log Annotations
+
+**By:** Stark (Lead/Architect) with Thomas alignment  
+**Decision:** MS3 Metronome-Transport wird von UDP-Multicast auf BLE-GATT umgestellt:
+
+#### Metronome Transport: UDP → BLE-GATT-Broadcast
+- **Primär:** BLE-GATT Broadcast (Dirigent → Musiker, P2P)
+- **Fallback:** SignalR WebSocket
+- **Auth:** HMAC-SHA256 Session Keys + Challenge-Response
+- **Latenz-Ziel:** < 20ms (realistisch für BLE)
+- **Server-Dependency:** Nein für lokale Proben (offline-fähig)
+- **Wiederverwendung:** BLE-Infrastruktur aus MS2 Dirigenten-Broadcast
+
+**Betroffene Issues:** #68-#72 (Metronom specs)  
+**Unverändert:** #64-#67 (Tuner), #73-#77 (Cloud-Sync), #78-#82 (Annotationen)
+
+#### Annotations Sync: Op-Log + Last-Writer-Wins
+- **Konfliktauflösung:** Op-Log + LWW statt CRDT/OT
+- **Begründung:** Simplizität vs. Komplexität; relaxed Konsistenz akzeptabel für Annotations
+- **Persistierung:** PostgreSQL (Server), Drift (Client)
+
+**Betroffene Specs:** 
+- `docs/specs/2026-03-30-metronome-protocol.md`
+- `docs/specs/2026-03-30-annotation-sync.md`
+- `docs/specs/2026-03-30-ms3-architecture.md`
+
 #### Code Style Conventions
 - **Imports:** Alphabetical (flutter → riverpod → sheetstorm → features → shared)
 - **const constructors** where possible

@@ -373,3 +373,27 @@ DE→EN translation merged — backend (98 files) + frontend (115 files)
 **Specs Affected:**
 - docs/feature-specs/kapellenverwaltung-spec.md — 7 US total, 15 ACs, 13 edge cases
 - docs/feature-specs/auth-onboarding-spec.md — Entry point logic updated
+
+### 2026-03-31: MS3-Issue-Alignment nach MS2-Merge (BLE-Broadcast)
+
+**Anlass:** Thomas hat bemerkt, dass MS3-Issues (#64-#82) teilweise veraltet sind — Echtzeit-Metronom referenzierte "UDP+WebSocket", sollte aber BLE nutzen (Entscheidung 2026-03-28T12:44Z). Strange hat ein BLE-Broadcast-Konzept entworfen (GATT, HMAC-SHA256, Challenge-Response, Hybrid SignalR/BLE).
+
+**Aktualisierte Issues (5 von 19):**
+- #68 (UX Metronom): Body — "UDP verbunden" → "BLE verbunden" in Netzwerk-Status
+- #69 (Spec Metronom): Titel + Body komplett — "UDP + WebSocket" → "BLE-Broadcast + SignalR-Fallback"
+- #70 (Dev Backend Metronom): Titel + Body — UDP-Server entfällt, nur SignalR-Hub + Session-API
+- #71 (Dev Frontend Metronom): Titel + Body — UDP-Client → BLE-Client (flutter_blue_plus + flutter_ble_peripheral)
+- #72 (Test Metronom): Titel + Body — UDP-Tests → BLE-Tests, HMAC/Challenge-Response Tests hinzugefügt
+
+**Unveränderte Issues (14 von 19):**
+- #64-#67 (Tuner): Rein lokale Audio-Verarbeitung, kein Netzwerk-Bezug
+- #73-#77 (Cloud-Sync): REST-basiert, keine Echtzeit-Transport-Abhängigkeit
+- #78-#82 (Annotationen-Sync): SignalR bleibt richtig (Server-Persistierung, Gruppen-Management, relaxed Latenz)
+
+**Architektur-Learnings:**
+- BLE-Broadcast macht Backend-UDP-Server überflüssig → Metronom funktioniert P2P ohne Server (offline-fähig)
+- Latenz-Ziel angepasst: UDP <5ms → BLE <20ms (realistisch, ausreichend für visuelles Metronom)
+- Annotationen-Sync über BLE wäre kontraproduktiv: Server-Persistierung nötig, SVG-Payloads zu groß für BLE MTU, Many-to-Many statt 1-to-Many
+- technologie-entscheidung.md enthält noch "Warum nicht BLE" — sollte aktualisiert werden
+
+**Alle 19 Issues haben Review-Kommentar erhalten (Audit-Trail).**
