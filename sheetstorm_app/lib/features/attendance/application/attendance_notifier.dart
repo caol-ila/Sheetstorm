@@ -123,6 +123,12 @@ class AttendanceNotifier extends _$AttendanceNotifier {
     );
   }
 
+  /// Clears all active filters and reloads data without any filter constraints.
+  Future<void> resetFilter() async {
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(() => _loadData());
+  }
+
   Future<ExportData?> exportData(String format) async {
     final cur = state.value;
     try {
