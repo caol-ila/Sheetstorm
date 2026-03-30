@@ -78,7 +78,7 @@ void main() {
     registerFallbackValue(TaskPriority.mittel);
     registerFallbackValue(DateTime(2025, 1, 1));
     registerFallbackValue(
-      CreateTaskRequest(title: 'fallback', bandId: 'band1'),
+      const CreateTaskRequest(title: 'fallback', bandId: 'band1'),
     );
   });
 
@@ -204,7 +204,7 @@ void main() {
   group('TaskDetailNotifier — Details laden', () {
     test('Aufgaben-Details werden geladen', () async {
       final task = _task(id: 'task1', title: 'Detail Aufgabe');
-      final (c, _, __) = _setupDetail('task1', initialTask: task);
+      final (c, _notifier, _service) = _setupDetail('task1', initialTask: task);
 
       await c.read(taskDetailProvider('task1').future);
 
@@ -222,10 +222,10 @@ void main() {
       );
       addTearDown(container.dispose);
 
-      await expectLater(
-        container.read(taskDetailProvider('task1').future),
-        throwsA(isA<Exception>()),
-      );
+      // Listen to prevent auto-dispose during load
+      container.listen(taskDetailProvider('task1'), (_, __) {});
+
+      await Future<void>.delayed(const Duration(milliseconds: 50));
 
       expect(container.read(taskDetailProvider('task1')).hasError, isTrue);
     });

@@ -1,4 +1,4 @@
-/// Domain models for Aufgabenverwaltung (Task Management) — MS3
+// Domain models for Aufgabenverwaltung (Task Management) — MS3
 
 // ─── TaskStatus ───────────────────────────────────────────────────────────────
 

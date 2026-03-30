@@ -234,7 +234,7 @@ void main() {
 
   group('CreateTaskRequest — toJson', () {
     test('Pflichtfelder werden serialisiert', () {
-      final req = CreateTaskRequest(
+      final req = const CreateTaskRequest(
         title: 'Neue Aufgabe',
         bandId: 'band1',
       );
@@ -258,7 +258,7 @@ void main() {
     });
 
     test('Nicht gesetzte optionale Felder fehlen im JSON', () {
-      final req = CreateTaskRequest(
+      final req = const CreateTaskRequest(
         title: 'Minimal',
         bandId: 'band1',
       );
