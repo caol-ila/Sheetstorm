@@ -43,6 +43,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<BandTaskAssignment> BandTaskAssignments => Set<BandTaskAssignment>();
     public DbSet<SyncVersion> SyncVersions => Set<SyncVersion>();
     public DbSet<SyncChangelog> SyncChangelogs => Set<SyncChangelog>();
+    public DbSet<Annotation> Annotations => Set<Annotation>();
+    public DbSet<AnnotationElement> AnnotationElements => Set<AnnotationElement>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
