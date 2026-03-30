@@ -10,6 +10,40 @@
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
+## 2026-03-30 — MS2 Nacharbeit: CR#3 + Issues #103 + #104
+
+**Tasks completed:**
+
+### Task 1 — musikerId aus Auth-State (CR#3)
+
+**Problem:** 3x hardcoded `musikerId: ''` in `broadcast_receiver_screen.dart` — joinSession/leaveSession wurden mit leerem String aufgerufen, Broadcast-Feature komplett kaputt.
+
+**Fix:**
+- `BroadcastNotifier`: Privater Getter `_musikerId` liest `User.id` aus `authProvider`. Services (`_rest`, `_signalR`) jetzt als `late final` in `build()` gecacht — **wichtig für Riverpod 3.x**: `ref.read()` darf NICHT in `onDispose`-Callbacks aufgerufen werden (Assertion-Fehler).
+- `joinSession()` und `leaveSession()` benötigen keinen `musikerId`-Parameter mehr — Notifier löst ihn intern auf.
+- Fehlerfall: unauthentifizierter Nutzer → BroadcastMode.error mit "Nicht angemeldet".
+
+**Riverpod 3.x Lesson:** `ref.read()` in `ref.onDispose()` wirft AssertionError `"Cannot use Ref inside life-cycles/selectors"`. Services die in Cleanup-Methoden benötigt werden, müssen in `build()` gecacht werden.
+
+### Task 2 — Event.fromJson Null-Sicherheit (#104)
+
+**Fix:** `event_models.dart`:
+- `erstellt_von` null-safe: `(json['erstellt_von'] as Map<String, dynamic>?)?['name'] as String? ?? ''`
+- `statistik` null-safe: `json['statistik'] as Map<String, dynamic>? ?? const {}`
+
+**Pattern:** Alle MS2-Modelle, die Backend-Antworten parsen, sollten optionale Felder mit `as T?` + `?? default` behandeln — nie mit nicht-null Cast wenn das Feld fehlen kann.
+
+### Task 3 — bandId aus Pfadparametern (#103)
+
+**Fix:** `attendance/routes.dart`, `substitute/routes.dart`, `shifts/routes.dart` verwenden jetzt `state.pathParameters['bandId']` statt `state.uri.queryParameters['bandId']`. GoRouter füllt Pfadparameter in verschachtelten Routen automatisch aus dem übergeordneten `:bandId` Segment.
+
+**AppRoutes cleanup:** `bandAttendance`, `bandSubstitutes`, `bandShifts` URL-Generatoren enthalten kein redundantes `?bandId=$bandId` mehr. `planId` bleibt als Query-Parameter da es kein Pfadparameter ist.
+
+**New test files:**
+- `test/features/events/data/models/event_model_test.dart` — Event.fromJson null-safety
+- `test/features/routing/band_id_route_param_test.dart` — Route bandId extraction
+
+
 ## 2026-04-15 — Complete MS2 Frontend Implementation Summary (5 Agent Instances)
 
 **Overall Context:**
