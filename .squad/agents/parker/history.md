@@ -176,3 +176,38 @@
 - **`await refresh()` + `isLoading: true`**: Nach `await notifier.refresh()` ist State AsyncData (nicht AsyncLoading). Korrekte Assertion: `hasValue: true`. 
 - **Pre-existing Flutter test failures (73)**: attendance, poll, gema, setlist, shift, media_link, song_broadcast - alle wegen fehlenden Provider-Overrides oder Riverpod-Bugs (ref.mounted fehlt). Nicht meine Änderungen.
 - **Bekannter Bug**: `PostCommentsNotifier.refresh()` und `PostListNotifier.createPost` fehlt `ref.mounted`-Check nach `await` → "Ref disposed" Fehler wenn Container während async-Op disposed.
+
+
+### 2026-05-30 — Issues #116 + CR#10: Attendance Filter-Reset + Integration-Tests User-Journeys
+
+**Branch:** `squad/ms2-nacharbeit`
+**Commits:** `ad328ad` (#116), `b762893` (CR#10)
+**Worktree:** `C:\Source\music-ms2-nacharbeit`
+
+**Task 1 (#116 — Attendance Filter-Reset Tests):**
+- `resetFilter()` Methode zu `AttendanceNotifier` hinzugefügt (TDD: Test-First)
+  - Löscht alle Filter (startDate, endDate, eventType) → null
+  - Ruft `_loadData()` ohne Argumente auf
+- `MockAttendanceService` in Attendance-Test-Datei ergänzt
+- 4 neue Tests in Gruppe `AttendanceNotifier — Filter-Reset (#116)` grün:
+  - `resetFilter_ClearsAllFields`: Alle Filter nach Reset auf null
+  - `filterByStatus_ThenReset_ShowsAll`: EventType-Filter + Reset → ungefiltert
+  - `filterByDateRange_ThenReset_ClearsRange`: Datum-Reset korrekt
+  - `copyWith_NullableField_CanBeSetToNull`: Sentinel-Pattern erlaubt null-Zuweisung
+- Gesamt: 35/35 Attendance-Tests grün
+
+**Task 2 (CR#10 — Integration-Tests User-Journeys):**
+- Neue Datei: `test/integration/user_journeys_test.dart`
+- 3 Notifier-Level-Integrationstests (real Notifiers + Mock Services):
+  1. `eventRsvpJourney_ZusageThenAbsage_UpdatesState` — EventListNotifier + EventDetailNotifier gemeinsam; RSVP Zusage → Absage
+  2. `postCommentJourney_CreateAndReply_BuildsThread` — PostListNotifier + PostCommentsNotifier; Post + Thread
+  3. `setlistBroadcastJourney_StartNavigateStop_FullCycle` — BroadcastNotifier; Session Start → Stück-Navigation → Stop
+- Alle 3/3 grün, 694 Passing Total (31 Pre-existing Failures unverändert)
+
+**Stack-Wissen:**
+- **Sentinel-Pattern in Tests**: `AttendanceDashboardState.copyWith()` mit `_sentinel = Object()` — Tests müssen `copyWith(field: null)` explizit prüfen, nicht nur `copyWith()` ohne Args.
+- **`thenAnswer((_) async => {})` mit `Future<Rsvp>`**: COMPILE ERROR! `{}` ist `Map<dynamic, dynamic>`, nicht `Rsvp`. Stets ein passendes Objekt zurückgeben oder eine Helper-Funktion verwenden.
+- **`MockEventService.submitRsvp` Return**: `invocation.namedArguments[#status]` in `thenAnswer` um den übergebenen Status zurückzuliefern.
+- **`_FixedActiveBandNotifier`**: Im `broadcast_notifier_test.dart` etabliertes Muster — `extends ActiveBandNotifier` mit fixem `build()` für Integrationstests.
+- **Integration-Tests in `test/integration/`**: Neue Konvention im Projekt. Notifier-übergreifende User-Journey-Tests landen dort.
+- **Pre-existing failures**: 31 Test-Fehler (attendance, shift, poll, gema, media_link) sind bekannte Pre-Existing Failures, nicht durch neue Tests verursacht.
