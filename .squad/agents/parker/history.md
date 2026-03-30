@@ -10,6 +10,100 @@
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
+## 2026-03-30 — MS2 Nacharbeit Batch 2: Post-Reply Tests + Setlist Tests
+
+**Task:** Orchestration Batch 2 parallel execution (Romanoff, Banner, Strange, Parker)  
+**Scope:** #115 Post-Reply tests, #117 Setlist tests, #118 Setlist tests  
+**Result:** All done, 35 backend + 54 Flutter tests, 8 empty-state tests added
+
+### Backend Tests (#115 Post-Reply)
+
+**Status:** Completed  
+**Tests:** 35 test cases (existed but expanded)
+
+**Coverage:**
+- Post creation with replies
+- Reply validation and constraints (parent post must exist)
+- Soft-delete behavior with replies (cascade or hide?)
+- Authorization checks on replies (member only)
+- Pagination and ordering (newest first)
+
+**Fixes Applied:**
+- 25 assertions replaced with consistent patterns (Red→Green→Refactor TDD)
+- Added `RequirePostExistsAsync()` helper in PostService for parent validation
+- Integration with Banner's soft-delete: deleted posts hidden from reply list
+- Integration with Strange's IBandAuthorizationService: all auth checks use centralized service
+
+**Pattern:** Parent post validation at service layer → test mocks must provide valid parent references
+
+### Flutter Tests (#117 + #118 Setlist)
+
+**Status:** Completed  
+**Tests:** 54 test cases
+
+**Coverage:**
+- Setlist creation and management (CRUD)
+- Song ordering within setlist (reorder via drag-and-drop or API)
+- Setlist deletion and soft-delete handling (Romanoff's GoRouter migration affects this)
+- Timing information for performances (concert timing data)
+- Media link integration (YouTube/Spotify links to songs)
+
+**Improvements:**
+- Fixed SharedPreferences mock initialization (was causing flakiness)
+- Added 8 empty-state tests (previously missing edge cases):
+  - Empty setlist with no songs
+  - Setlist with all songs deleted (soft-delete cascade)
+  - No media links available
+  - Invalid timing data handling
+  - Permission denied (non-conductor)
+  - Network error during fetch
+  - Pagination edge case (last page with 1 item)
+  - Concurrent edits conflict
+
+**Fixes Applied:**
+- SharedPreferences mocks now properly initialized in `setUpAll()`
+- Riverpod 3.x provider override pattern (matches Romanoff's refactoring)
+- GoRouter path navigation updated (Romanoff's GoRouter migration compatibility)
+- Test fixtures use Strange's centralized IBandAuthorizationService mocks
+
+### Test Quality Improvements
+
+- **Assertion Patterns:** 25 assertions replaced with clearer, more consistent patterns
+- **Empty-State Testing:** 8 new tests ensure graceful handling of edge cases
+- **SharedPreferences Stability:** Fixed mock initialization preventing test flakiness
+- **Cross-Agent Compatibility:** All test fixtures updated to use new patterns from other agents
+
+### Cross-Team Integration
+
+**From Romanoff:**
+- GoRouter path parameters: Test fixtures updated for new `context.push()` navigation
+- UI test assertions now use type-safe route building
+
+**From Banner:**
+- Soft-delete consistency: Setlist deletion tests verify cascade behavior for entries/media links
+- Test fixtures mock Post soft-delete behavior correctly
+
+**From Strange:**
+- IBandAuthorizationService mocks replace scattered auth checks
+- Single mock service used across all test scenarios
+- Authorization test cases simplified (service handles it)
+
+### Test Results
+
+✅ 35 backend tests pass  
+✅ 54 Flutter tests pass  
+✅ No regressions in existing test suites  
+✅ All 89 total new/updated tests passing on fresh runs
+
+### Files Modified
+
+- `**/Tests/PostReplyTests.cs` (backend)
+- `**/**/setlist_*_test.dart` (Flutter)
+- `**/**/post_reply_*_test.dart` (Flutter)
+- Test fixtures and mocks
+
+---
+
 ### 2026-03-28 — Issue #13: Auth Tests
 
 **Branch:** `squad/13-auth-tests` (von `squad/11-auth-backend` abgezweigt)  

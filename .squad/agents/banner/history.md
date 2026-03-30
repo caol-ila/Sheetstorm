@@ -10,6 +10,60 @@
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
+## 2026-03-30 — MS2 Nacharbeit Batch 2: PostService Soft-Delete Consistency
+
+**Task:** Orchestration Batch 2 parallel execution (Romanoff, Banner, Strange, Parker)  
+**Scope:** #110 PostService soft-delete consistency  
+**Result:** Done, 858 tests pass, 0 regressions
+
+### Soft-Delete Implementation
+
+1. **Database Schema Changes**
+   - Added `IsDeleted` (bool, default: false) to `Posts` table
+   - Added `DeletedAt` (nullable datetime) to `Posts` table
+   - Both fields included in EF Core configuration
+   - Created backward-compatible EF Core migration
+
+2. **Service-Layer Logic**
+   - `GetPostAsync()` now filters out deleted posts by default
+   - `GetPostsAsync()` (list queries) filter `IsDeleted == false`
+   - Explicit `GetDeletedPostsAsync()` for admin/audit scenarios (if needed)
+   - Delete operation: sets `IsDeleted = true, DeletedAt = DateTime.UtcNow` (soft-delete)
+   - Hard delete: available internally for compliance/GDPR if needed
+
+3. **Consistency Patterns**
+   - All post-related services filter soft-deleted posts
+   - Comments on deleted posts: also soft-delete cascade (or hide)
+   - Reactions on deleted posts: soft-delete cascade
+   - Related features (PostService, PostReactionService) aligned to soft-delete behavior
+
+### Cross-Team Context
+
+**Integration with Strange:**
+- Strange's `IBandAuthorizationService` extraction includes Post authorization patterns
+- Service-layer delete logic now consistently uses `DomainException` for errors
+- Auth checks happen before soft-delete operation (security first)
+
+**Integration with Parker:**
+- Parker's Post-Reply tests (#115) cover soft-delete cascading behavior
+- Test fixtures updated to verify deleted posts don't appear in queries
+- Empty-state tests verify proper handling of all-deleted scenario
+
+### Test Results
+
+- 858 tests pass (verified fresh run)
+- No regressions introduced
+- Migration applies cleanly to any existing database
+
+### Key Learnings
+
+- Soft-delete consistency requires filtering at EVERY query point (not just main list)
+- Comments & reactions on deleted posts must cascade (design decision: soft or hard?)
+- Soft-delete audit trail (`DeletedAt`) useful for compliance/debugging
+- Pattern: combine `IsDeleted` flag with `DeletedAt` timestamp for full audit trail
+
+---
+
 ### 2026-03-29 — Demo-Account-Seeder & Auth-System-Details
 
 **Auth-System:** Kein ASP.NET Identity — Custom AuthService mit BCrypt.Net-Next 4.1.0 für Passwort-Hashing, SHA-256 für Token-Hashing (Refresh + Email-Verifikation), JWT für Access Tokens.

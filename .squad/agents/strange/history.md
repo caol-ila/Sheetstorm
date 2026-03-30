@@ -10,6 +10,70 @@
 
 <!-- Append new learnings below. -->
 
+## 2026-03-30 — MS2 Nacharbeit Batch 2: IBandAuthorizationService DRY Extraction
+
+**Task:** Orchestration Batch 2 parallel execution (Romanoff, Banner, Strange, Parker)  
+**Scope:** #108+CR#6 DRY Auth extraction from 12 services  
+**Result:** Done, 882 tests pass, 145 lines duplication removed, 24 new tests
+
+### IBandAuthorizationService Extraction
+
+1. **Service Interface & Implementation**
+   - Created `IBandAuthorizationService` in `Sheetstorm.Infrastructure.Authorization`
+   - Centralized membership and role-based authorization logic
+   - Three core methods:
+     - `RequireMembershipAsync(bandId, userId)` — throws 404 if not member
+     - `RequireConductorOrAdminAsync(bandId, userId)` — throws 403 if not conductor/admin
+     - `RequireAdminAsync(bandId, userId)` — throws 403 if not admin
+
+2. **Services Refactored**
+   - Extracted duplicated auth checks from 12 services:
+     - EventService, GemaService, SubstituteService, ShiftService
+     - PostService, PollService, AttendanceService, SetlistService
+     - MediaLinkService, SongBroadcastHub
+     - (2 additional internal services)
+   - Each service now injects `IBandAuthorizationService`
+   - ~145 lines of duplicated auth code removed
+
+3. **Pattern Standardization**
+   - All services now use same auth interface (not scattered `RequireMembershipAsync` copies)
+   - Consistent error codes: 404 for not-found, 403 for forbidden
+   - DomainException layer properly separated from AuthException
+   - No more ad-hoc authorization scattered across codebase
+
+### Cross-Team Context
+
+**Integration with Banner:**
+- Banner's soft-delete consistency patterns now use centralized IBandAuthorizationService for auth checks
+- Service-layer delete validation secured by `RequireAdminAsync` before soft-delete
+- Eliminates auth boilerplate from Banner's service implementations
+
+**Integration with Romanoff:**
+- Frontend refactoring (GoRouter, Author DRY) can rely on consistent backend auth contracts
+- All frontend calls to protected endpoints get uniform 403 responses
+- Reduces frontend error-handling complexity
+
+**Integration with Parker:**
+- Test fixtures can mock single `IBandAuthorizationService` instead of per-service auth logic
+- 24 new tests cover extracted service in isolation
+- Parker's backend tests use mocked service for authorization scenarios
+
+### Test Coverage
+
+- 24 new tests for `IBandAuthorizationService` (isolation tests)
+- All 882 existing tests still pass (refactoring-only, no logic changes)
+- 1 pre-existing failure (unrelated to this work)
+- Pattern: "Extract Method, Extract Class" TDD applies to service-layer DRY
+
+### Key Learnings
+
+- Authorization as first-class service (not utility methods) = better testability
+- Centralizing cross-cutting concerns (auth) reduces bugs & inconsistency
+- DRY extraction in backend: 12 services → 1 service interface = 145 lines less code
+- Pattern: Principal engineer role = identify duplication, propose centralized interface
+
+---
+
 ### 2026-04-15: MS2 Backend — 5 Complex Features Implemented
 
 **Architecture Decisions:**

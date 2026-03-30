@@ -10,6 +10,122 @@
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
+## 2026-03-30 — MS2 Nacharbeit Batch 2: GoRouter Migration + Author DRY + markNeedsBuild
+
+**Task:** Orchestration Batch 2 parallel execution (Romanoff, Banner, Strange, Parker)  
+**Scope:** #102+CR#1 GoRouter, #107+CR#8 BroadcastSignalRService, CR#2 Author DRY, markNeedsBuild  
+**Result:** All done, 17 new tests, 0 regressions
+
+### Frontend Architecture Changes
+
+1. **GoRouter Migration Complete**
+   - Replaced `state.extra` → path parameters throughout app
+   - Replaced `Navigator.pushNamed()` → `context.push()` (GoRouter API)
+   - All route transitions now use GoRouter's type-safe URL construction
+   - Pattern: `context.push('/path?param=value')` vs old `Navigator.pushNamed(..., arguments: {...})`
+
+2. **SubstituteQrScreen Created**
+   - New screen for QR-code-based substitute access
+   - Integrated into GoRouter navigation flow
+   - Follows clean-arch pattern with notifier/service/model layers
+
+3. **BroadcastSignalRService Lifecycle Management**
+   - Added `ref.onDispose` cleanup pattern
+   - Ensures WebSocket connections properly closed when provider is disposed
+   - Prevents resource leaks in long-running app
+
+4. **Author Model → Shared Model (DRY)**
+   - Extracted `Author` from multiple feature models
+   - Created `shared/models/author.dart`
+   - All features now use same Author model, reducing duplication
+   - Pattern: Feature-specific models should not duplicate shared domain concepts
+
+5. **markNeedsBuild → StatefulBuilder Pattern**
+   - Replaced imperative `markNeedsBuild()` calls
+   - Refactored to use `StatefulBuilder` for cleaner state management
+   - More declarative, Flutter-idiomatic approach
+   - Improves widget testability
+
+### Cross-Team Context
+
+**Integration with Banner & Strange:**
+- Banner's soft-delete logic for Posts affects post-related screens (read filtering)
+- Strange's `IBandAuthorizationService` extraction reduces auth boilerplate in notifiers
+- Author DRY extraction benefits all communication features (Posts, Polls, etc.)
+
+**Integration with Parker:**
+- GoRouter path parameter changes affect widget test assertions (route building)
+- UI test fixtures must use new `context.push()` navigation pattern
+
+### Test Coverage
+
+- 17 new tests added (TDD: all Red→Green→Refactor)
+- Tests cover route navigation, service cleanup, model extraction
+- No regressions in existing 1,000+ Flutter tests
+
+---
+
+## 2026-04-16 — Cloud-Sync Flutter Frontend (MS3)
+
+**Task:** Implement Cloud-Sync (Persönliche Sammlung) Flutter frontend with full TDD.
+
+### Feature Implemented: `features/cloud_sync/`
+
+**Models (`data/models/sync_models.dart`):**
+- `SyncStatus` enum: idle/syncing/synced/conflict/offline/error
+- `SyncVersion`: vector-clock versioning (deviceId + timestamp + Map<String,int> vectorClock)
+- `SyncDelta`: change unit with entityType/entityId/operation ('create'|'update'|'delete')/version/payload
+- `SyncConflict`: LWW conflict record — localDelta, serverDelta, resolvedWith ('server'|'local')
+- `SyncState`: Equatable with copyWith, computed `hasConflicts`/`isOffline`/`isSyncing` getters
+- `SyncStateResponse`: DTO from GET /api/sync/state
+
+**Service (`data/services/sync_service.dart`):**
+- `getSyncState()`: GET /api/sync/state
+- `pull(since)`: GET /api/sync/pull?since=...
+- `push(deltas)`: POST /api/sync/push
+
+**State Management (`application/sync_notifier.dart`):**
+- `SyncNotifier` (Riverpod `Notifier<SyncState>`, `keepAlive: true`)
+- `sync()`: full cycle — getSyncState + pull. Deduped: skips if status == syncing
+- `push(deltas)`: push local deltas, decrement pendingChanges
+- `pull()`: pull remote deltas, update lastSyncAt
+- `resolveConflict(entityId)`: dismiss conflict, auto-transition to synced when list empty
+- `setOffline()` / `setOnline()`: connectivity state management
+- `addPendingChange()`: increment pending counter for local edits
+- Error handling: catch → SyncStatus.error + errorMessage
+
+**Widgets:**
+- `SyncStatusIndicator`: SizedBox-wrapped icon/spinner per status + `Semantics` label (a11y)
+- `SyncConflictDialog`: AlertDialog with LWW explanation, entityType display, 44px min touch target
+
+**Tests (86 passing, 0 regressions):**
+- 35 model tests, 31 notifier tests, 14 indicator tests, 6 dialog tests
+- All widget tests: plain `MaterialApp` wrap (no Riverpod needed — props-based widgets)
+
+### Key Learnings / Gotchas
+
+1. **Riverpod 3.x `ProviderContainer.updateOverrides()` is broken with 0-override containers**
+   - Error: `Tried to change the number of overrides. This is not allowed.`
+   - Fix: Pass overrides in constructor: `ProviderContainer(overrides: [serviceProvider.overrideWithValue(mock)])`
+   - The `updateOverrides()` pattern seen in older tests (events, etc.) causes failures in Riverpod 3.x
+   - **Always initialize with overrides in constructor for test containers**
+
+2. **routes.dart stub for widget-only features**
+   - Cloud sync UI is widget-based (no screens). Routes file is empty but present for consistency.
+
+3. **SyncNotifier as plain `Notifier<SyncState>` (not AsyncNotifier)**
+   - Sync state is synchronous; async operations are methods that update state manually
+   - Pattern: `state = state.copyWith(status: SyncStatus.syncing)` → await → `state = state.copyWith(status: SyncStatus.synced)`
+   - This gives fine-grained control over intermediate states (loading spinners etc.)
+
+4. **Conflict resolution is client-side dismiss**
+   - Server has already applied LWW. Client just removes conflict from local list.
+   - Auto-transition: last conflict resolved → status transitions from conflict to synced
+
+5. **Baseline test failures (103 pre-existing)**
+   - These are from `flutter_secure_storage` MissingPluginException in other features
+   - Not caused by cloud_sync changes — verified by stash/restore comparison
+
 ## 2026-04-15 — Complete MS2 Frontend Implementation Summary (5 Agent Instances)
 
 **Overall Context:**

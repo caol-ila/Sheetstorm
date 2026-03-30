@@ -144,7 +144,121 @@ All future services should follow this pattern. Any new domain error codes go th
 
 ---
 
-## Decision 5: Auth Flutter Client Alignment
+### 2026-03-30 — MS2 Nacharbeit Batch 2: Orchestration Completion
+
+**From:** Scribe  
+**Date:** 2026-03-30  
+**Type:** Session Summary & Orchestration Log  
+**Status:** Completed — All 4 agents done
+
+#### Batch Composition
+
+Four agents executed in parallel:
+1. **Romanoff** (Frontend): GoRouter migration, SubstituteQrScreen, BroadcastSignalRService, Author DRY, markNeedsBuild
+2. **Banner** (Backend): PostService soft-delete consistency
+3. **Strange** (Principal Backend): IBandAuthorizationService DRY extraction from 12 services
+4. **Parker** (QA): Post-Reply tests, Setlist tests, provider override migration
+
+#### Results Summary
+
+| Agent | Output | Tests | Status |
+|-------|--------|-------|--------|
+| Romanoff | 17 new tests, 0 regressions | Flutter | ✅ Complete |
+| Banner | PostService refactor, migration | 858 pass | ✅ Complete |
+| Strange | IBandAuthorizationService, 145 lines removed | 882 pass | ✅ Complete |
+| Parker | 35 backend + 54 Flutter, 8 empty-state | 89 new/updated | ✅ Complete |
+
+#### Cross-Agent Dependencies (All Resolved)
+
+- Romanoff's GoRouter paths → Parker's navigation assertions updated
+- Banner's soft-delete → Strange's authorization preserved at query time
+- Strange's IBandAuthorizationService → Parker's test mocks use centralized service
+- Romanoff's Author DRY → Parker's communication notifiers use shared model
+
+#### No Merge Conflicts
+
+All agents worked on independent subsystems (frontend UI patterns, backend soft-delete, auth service extraction, test coverage). Clean merge to main expected.
+
+---
+
+## Decision 10: Cloud-Sync Frontend — Architekturentscheidungen (MS3)
+
+**Von:** Romanoff (Frontend Engineer)  
+**Datum:** 2026-04-16  
+**Branch:** squad/ms3-implementation  
+**Feature:** Cloud-Sync (Persönliche Sammlung) Flutter Frontend  
+**Status:** Architecture locked; implementation complete
+
+### Entscheidungen
+
+#### 1. `Notifier<SyncState>` statt `AsyncNotifier`
+
+**Entscheidung:** `SyncNotifier` ist ein plain `Notifier<SyncState>` (nicht `AsyncNotifier<SyncState>`).
+
+**Begründung:**
+- Der Sync-State ist ein lokales Zustandsobjekt (Status, Timestamps, Konfliktliste)
+- Async-Methoden (`sync()`, `push()`, `pull()`) mutieren den State manuell mit `copyWith()`
+- Das gibt feinere Kontrolle über Zwischenzustände (z.B. `SyncStatus.syncing` während des API-Calls)
+- `AsyncNotifier` wäre falsch, weil der State selbst nicht async geladen wird
+
+**Auswirkung:** Alle anderen Teams (Banner, Stark) müssen `syncProvider` als `Notifier` referenzieren, nicht als `AsyncNotifier`.
+
+#### 2. Konflikt-Auflösung ist Client-seitiges Dismiss
+
+**Entscheidung:** `resolveConflict(entityId)` entfernt den Konflikt nur aus der lokalen Liste. Kein separater API-Call.
+
+**Begründung:**
+- LWW (Last-Write-Wins) wird bereits auf dem Server angewendet
+- Das Backend liefert Konflikte nur zur Information (was überschrieben wurde)
+- Der Client bestätigt das Lesen des Konflikts — kein State zu ändern
+
+**Wenn anders gewünscht:** Backend müsste `POST /api/sync/conflicts/{entityId}/ack` anbieten. Dann sollte `SyncService` eine `acknowledgeConflict()` Methode bekommen und `resolveConflict()` im Notifier sollte awaitable sein.
+
+#### 3. Widget-only Feature — keine Screens
+
+**Entscheidung:** Cloud-Sync hat keine eigenen Screens. Nur Widgets (`SyncStatusIndicator`, `SyncConflictDialog`) die in andere Features eingebettet werden.
+
+**Begründung:**
+- Per UX-Spec ist der Sync-Status contextual (AppBar Badge, Refresh-Trigger)
+- Kein eigenes Navigation-Destination nötig
+- `routes.dart` ist leer (stub für Konsistenz)
+
+**Integration:** Teams die `SyncStatusIndicator` einbinden:
+```dart
+import 'package:sheetstorm/features/cloud_sync/presentation/widgets/sync_status_indicator.dart';
+
+// Im AppBar actions:
+Consumer(builder: (context, ref, _) {
+  final syncState = ref.watch(syncProvider);
+  return SyncStatusIndicator(status: syncState.status);
+})
+```
+
+#### 4. Riverpod Test Pattern: `ProviderContainer(overrides: [...])`
+
+**Entscheidung:** In Tests immer Overrides im Konstruktor übergeben, nicht via `updateOverrides()`.
+
+**Begründung:**
+- Riverpod 3.x verbietet `updateOverrides()` wenn Container ohne initiale Overrides erstellt wurde
+- `updateOverrides()` darf nur bestehende Overrides aktualisieren (gleiches Objekt, neuer Wert)
+- Korrekte Variante: `ProviderContainer(overrides: [serviceProvider.overrideWithValue(mock)])`
+
+**Betroffene Teams:** Parker (Tests), alle die Riverpod-Tests schreiben
+
+#### 5. API-Endpunkte (camelCase, /api/ Prefix)
+
+**Entscheidung:** Sync-Endpunkte folgen dem etablierten Muster:
+- `GET /api/sync/state` → `SyncStateResponse`
+- `GET /api/sync/pull?since=<ISO8601>` → `{ deltas: SyncDelta[] }`
+- `POST /api/sync/push` → Body: `{ deltas: SyncDelta[] }`
+
+**JSON Keys:** camelCase (`lastSyncAt`, `pendingChanges`, `entityType`, `vectorClock`, etc.)
+
+**Betroffene Teams:** Stark (Backend-Implementierung), Banner (API-Integration)
+
+---
+
+## Decision 11: Auth Flutter Client Alignment
 
 **By:** Vision (Principal Frontend Engineer)  
 **Date:** 2026-03-29  
