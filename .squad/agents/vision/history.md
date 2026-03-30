@@ -78,3 +78,33 @@ Parallel orchestration completed. Vision implemented 2 modules (Setlist + Song B
 3. **AttendanceDashboardState.copyWith sentinel pattern:** Replaced `field ?? this.field` with `Object? field = _sentinel` pattern for all nullable fields (`stats`, `trend`, `startDate`, `endDate`, `eventType`, `error`). `isLoading` kept as `bool?` since it's non-nullable with default.
 
 **Key Insight:** `copyWith(error: null)` with `error ?? this.error` silently keeps the old value — a pervasive pattern bug across many MS2 models. Sentinel pattern is the correct Dart idiom for nullable field resets.
+
+### 2026-04-16: Auto-Scroll / Reflow Feature (MS3)
+
+**Context:** Implemented auto-scroll controls, settings persistence, and screen integration following strict TDD.
+
+**Architecture:**
+- `AutoScrollState` + `AutoScrollNotifier` (@riverpod): stateless scroll state machine — idle/playing/paused transitions, speed factor (0.5×–3×), BPM mode, bars-per-line, lead-in bars
+- `AutoScrollSettingsNotifier` (@riverpod): persistent defaults via SharedPreferences, same pattern as `PerformanceModeSettingsNotifier`
+- `AutoScrollControlBar` (ConsumerWidget): compact 48px bar with Stop/Play-Pause/Reset + speed stepper [−] label [+]
+- `AutoScrollWrapper` (existing, tested): Timer.periodic ~60fps scrolling with speed parameter
+- Screen integration: control bar appears at bottom when auto-scroll active, gesture layer wires `onUserInteraction()` to pause-on-touch
+
+**Key Files:**
+- `lib/features/performance_mode/application/auto_scroll_notifier.dart` — State + notifier
+- `lib/features/performance_mode/application/auto_scroll_settings_notifier.dart` — Persistent settings
+- `lib/features/performance_mode/presentation/widgets/auto_scroll_control_bar.dart` — Control bar widget
+- `lib/features/performance_mode/presentation/screens/performance_mode_screen.dart` — Integration
+
+**Speed Calculation:**
+- Manual: `speedFactor × (screenHeight / 10)` px/s
+- BPM: `lineHeight / lineDuration` where `lineDuration = (60/BPM) × barsPerLine`
+- All calculation tested with real-world values (120 BPM, 4 bars/line, A4 page)
+
+**TDD Stats:** 70+ new tests (48 notifier, 8 settings, 14 widget, 4 wrapper). 252 total performance_mode tests green.
+
+**Decisions:**
+1. Separate `AutoScrollNotifier` (runtime state) from `AutoScrollSettingsNotifier` (persistence) — clean separation, settings survive app restart
+2. Control bar uses `ConsumerWidget` not `StatefulWidget` — all state lives in Riverpod, no local state needed
+3. `overrideWithValue` doesn't work with Riverpod 3.x codegen notifier providers for widget tests — use `UncontrolledProviderScope` + real notifier instead
+
