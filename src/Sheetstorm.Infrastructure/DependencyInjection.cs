@@ -18,6 +18,7 @@ using Sheetstorm.Infrastructure.Polls;
 using Sheetstorm.Infrastructure.Setlists;
 using Sheetstorm.Infrastructure.Shifts;
 using Sheetstorm.Infrastructure.Substitutes;
+using Sheetstorm.Infrastructure.Tasks;
 using Sheetstorm.Infrastructure.Voices;
 
 namespace Sheetstorm.Infrastructure;
@@ -57,6 +58,7 @@ public static class DependencyInjection
         services.AddScoped<IGemaService, GemaService>();
         services.AddScoped<ISubstituteService, SubstituteService>();
         services.AddScoped<IShiftService, ShiftService>();
+        services.AddScoped<ITaskService, TaskService>();
 
         // Import pipeline
         services.AddScoped<IImportService, ImportService>();

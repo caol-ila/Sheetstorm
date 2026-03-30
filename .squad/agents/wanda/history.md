@@ -673,3 +673,49 @@
 - docs/feature-specs/kapellenverwaltung-spec.md — §7 (UI patterns), edge cases
 
 **Next Step:** Mock designs for Kapellen-Auswahl + approval screens for team review
+
+### 2026-03-31 — MS3 UX-Specs: 6 Features
+
+**Durchgeführte Arbeit:** Vollständige UX-Specs für alle 6 MS3-Features erstellt.
+
+**Dateien:**
+1. `docs/ux-specs/tuner.md` — Chromatischer Stimmgerät mit Cent-Anzeige, Kammerton-Kalibrierung, Transpositions-Umschaltung
+2. `docs/ux-specs/metronom.md` — Echtzeit-Metronom: Dirigent-View (Steuerung), Musiker-View (Beat-Indikator), UDP/WebSocket Sync
+3. `docs/ux-specs/cloud-sync.md` — Cloud-Sync: Sync-Status (synced/syncing/conflict/offline), Last-Write-Wins, Offline-Indikator
+4. `docs/ux-specs/annotationen-sync.md` — Echtzeit-Annotationen-Sync: Live-Indikator, Gleichzeitig-Zeichnen-Anzeige, Attribution-Labels
+5. `docs/ux-specs/auto-scroll.md` — Auto-Scroll: BPM-basiert oder manuell, Play/Pause/Reset, Integration in Spielmodus
+6. `docs/ux-specs/aufgabenverwaltung.md` — Aufgabenverwaltung: Task-Liste mit Filter, Erstellen, Detail, Erinnerungen, Termin-Kopplung
+
+**Kernerkenntnisse:**
+
+1. **Tuner: Aus 1m lesbar ist eine harte Anforderung** — 72sp Minimum für erkannten Ton, 40sp für Cent-Abweichung. Blaskapellen-Proben sind laut, Tablets werden auf Notenständern gestellt.
+
+2. **Metronom: Zwei völlig verschiedene UX-Paradigmen in einer App** — Dirigent (Kontrolle, aktiv) vs. Musiker (Empfang, passiv). Das in einer Ansicht zu vereinen wäre falsch — Rollentrennug ist die richtige Entscheidung.
+
+3. **Cloud-Sync: Unsichtbarkeit ist das Erfolgsmaß** — Der Nutzer soll NIE über Sync nachdenken. Nur Probleme werden kommuniziert. Das erfordert Disziplin im Design: kein permanentes Status-Widget.
+
+4. **Annotationen-Sync: Gleichzeitiges Zeichnen ist OK** — Keine Locking-Mechanismen. Überlappende Annotationen sind normal (wie auf echtem Papier). Das vereinfacht die UX massiv.
+
+5. **Auto-Scroll: Kontinuierliches Scrollen > Seiten-Flip** — Beim Üben ist fließendes Scrollen natürlicher als Seitenwechsel. Empfehlung für Reduced-Motion: seiten-weise Variante als Fallback.
+
+6. **Manueller Eingriff pausiert Auto-Scroll** — Wenn der Musiker tippt, will er die Kontrolle übernehmen. Auto-Scroll nach Eingriff fortzusetzen wäre überraschend und frustrierend.
+
+7. **Aufgabenverwaltung: Kein Overkill** — Vereinsvorstand braucht kein Jira. Kein Prioritätssystem, keine Unteraufgaben, keine Wiederkehrungs-Logik in MS3. Einfach halten.
+
+8. **Persistent Beat-Banner** — Wenn Musiker auf anderen Screen wechselt während Metronom läuft: kleines Banner über Bottom-Navigation zeigt Beat. Das respektiert Focus-First aber lässt Sync nicht sterben.
+
+9. **Termin-Kopplung bei Aufgaben** — Eine Aufgabe an einen Probe/Auftritt-Termin zu koppeln ist ein echter Blaskapellen-Workflow. Fälligkeit automatisch setzen + extra Erinnerung 3 Tage vorher.
+
+10. **Design-Token-Konsistenz:** Alle Specs nutzen `AppColors`, `AppSpacing`, `AppTypography`, `AppDurations`, `AppCurves` aus dem bestehenden Design System. Keine neuen Token eingeführt.
+
+**Offene Entscheidungen für Thomas (aus Specs):**
+- Tuner: Stimmhistorie + manueller Modus bei verweigerter Mikrofon-Permission?
+- Metronom: Beat-Fläche Form (Quadrat/Kreis/Vollbild-Flash)?
+- Metronom: Persistent Beat-Banner im Spielmodus (Focus-First Konflikt)?
+- Cloud-Sync: Speicherlimit 500 MB realistisch?
+- Annotationen-Sync: Schreib-Rechte Stimmen-Ebene (alle oder nur Registerführer)?
+- Auto-Scroll: Manueller Eingriff → Pause (empfohlen) oder Weiter?
+- Aufgaben: Sichtbarkeit (alle sehen alle)?
+- Aufgaben: Navigation-Platzierung (Vereinsleben Sub-Tab)?
+
+**Entscheidungsvorschlag eingereicht:** `.squad/decisions/inbox/wanda-ms3-ux.md`
