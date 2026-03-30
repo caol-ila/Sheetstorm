@@ -10,7 +10,55 @@
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
-## 2026-03-30 — MS2 Nacharbeit Batch 2: GoRouter Migration + Author DRY + markNeedsBuild
+### 2026-03-31 — MS3 Tuner Frontend: Architecture Decisions + MS2 Verification
+
+**Tasks:**
+- ✅ #101 copyWith sentinel (MS2 verification — already done)
+- ✅ #100 broadcastRoutes expansion (MS2 verification — already done)
+- ✅ #105 AttendanceNotifier AsyncValue (MS2 verification — already done)
+- 🟡 MS3 Tuner Feature (in progress)
+
+**Orchestration:** Parallel with Strange (CR#7 pagination) + Banner (CR#4/5/9)
+
+**MS3 Tuner Architecture Decisions:**
+
+1. **A-Based Piano Numbering (A0=1, A4=49)**
+   - Problem: Task spec had inconsistent note formula + C-based array
+   - Solution: Reindexed array to A-based: ['A','A#','B','C','C#','D','D#','E','F','F#','G','G#']
+   - Verification: All 78 tests pass (A4→A, C4→C, B4→B)
+   - Impact: Zero cross-team (localized to tuner)
+
+2. **Eb Transposition: +9 Semitones (not +3)**
+   - Problem: Spec §6.4 says "+3" but example shows +9 semitones
+   - Solution: Implemented +9 (musically correct)
+   - Rationale: Eb is major sixth LOWER → displayed note is major sixth HIGHER than concert pitch
+   - Example: Concert A4 → display F#5 ✓
+   - Action: Hill/Stark to update spec §6.4 from "+3" to "+9 semitones"
+
+3. **5th Navigation Tab "Werkzeuge" (Tools)**
+   - Problem: AppShell had 4 tabs; spec mentions tool tab for tuner + future tools
+   - Solution: Added 5th StatefulShellBranch with /app/tuner route
+   - AppShell: +1 NavigationDestination (Icons.tune, "Werkzeuge")
+   - Future: Wanda (UX) to define additional tools (Metronom? Stimmblatt-Generator?)
+
+4. **AudioAnalyzer Interface (No Platform Channel in MS3)**
+   - Problem: Platform channels complex, per-platform implementation
+   - Solution: Abstract AudioAnalyzer interface + MockAudioAnalyzer for tests
+   - Pattern: Riverpod override with MockAudioAnalyzer in tests
+   - Vision agent: Will implement PlatformAudioAnalyzer (MS3.5)
+
+**Files Created/Modified (MS3):**
+- lib/features/tuner/presentation/screens/tuner_screen.dart *(new)*
+- lib/features/tuner/application/tuner_notifier.dart *(new)*
+- lib/features/tuner/data/models/tuner_models.dart *(new)*
+- lib/features/tuner/data/services/audio_analyzer.dart *(new, interface)*
+- lib/core/routing/app_router.dart (5th shell branch)
+- lib/features/shared/components/app_shell.dart (5th nav tab)
+
+**Decision Document:** Moved to .squad/decisions/decisions.md (merged from inbox)
+
+**See:** .squad/orchestration-log/2026-03-31T00-54-17-romanoff.md
+
 
 **Task:** Orchestration Batch 2 parallel execution (Romanoff, Banner, Strange, Parker)  
 **Scope:** #102+CR#1 GoRouter, #107+CR#8 BroadcastSignalRService, CR#2 Author DRY, markNeedsBuild  
@@ -919,3 +967,71 @@ JSON-Felder: `kapelle_id`, `titel`, `typ`, `datum`, `start_uhrzeit`, `end_uhrzei
 - docs/feature-specs/kapellenverwaltung-spec.md — US-00, US-02, US-06, §7.9–7.13 (edge cases)
 
 **Status:** Request Wanda review of UX flows before implementation
+
+---
+
+## 2026-03-31 — MS3 Tuner Flutter Frontend
+
+**Task:** Implement Stimmgeraet (Tuner) Flutter frontend with full TDD.
+
+### Feature Implemented: `features/tuner/`
+
+**Models (`data/models/tuner_models.dart`):**
+- `TranspositionMode` enum: concert/bb/eb/f mit `semitones`-Extension (0/+2/+9/+7)
+- `TunerNote`: name, octave, frequency, centOffset — immutable, Equatable
+- `TunerState`: frequency?, note?, centDeviation, isListening, referenceFrequency, transposition, errorMessage
+  - Sentinel-Pattern fuer `copyWith` mit nullable Feldern (kein `clearNote: bool` noetiq)
+  - Helper: `isInTune` (<=5 Cent), `isClose` (<=15 Cent), `hasNote`
+
+**FrequencyConverter (`data/frequency_converter.dart`):**
+- A-basierte Piano-Schlüsselnummerierung (A0=1, A4=49)
+- Formel: `noteNumber = 12 * log2(f / ref) + 49`
+- Noten-Array: `['A','A#','B','C','C#','D','D#','E','F','F#','G','G#']`
+- Octave: `(nearestNote + 8) ~/ 12`
+- Positiver Modulo: `((note - 1) % 12 + 12) % 12` fuer Sicherheit bei Transposition
+- Transposition: nur Anzeige-Note verschoben, Cent-Abweichung ist immer Konzert-basiert
+- Bereich: C1 (32 Hz) bis C8 (4200 Hz), ausserhalb -> null
+
+**AudioAnalyzer (`data/audio_analyzer.dart`):**
+- Abstract class mit startListening/stopListening/frequencyStream/dispose
+- MockAudioAnalyzer: StreamController.broadcast(), emitFrequency() fuer Tests
+- Vision implementiert PlatformAudioAnalyzer (CoreAudio/Oboe/WASAPI)
+
+**TunerNotifier (`application/tuner_notifier.dart`):**
+- `@Riverpod(keepAlive: true)` — Zustand bleibt erhalten
+- `audioAnalyzerProvider` als ueberladbarer Provider (testbar via overrideWithValue)
+- Lifecycle: start() -> StreamSubscription, stop() -> cancel + stopListening
+- `_onFrequency`: FrequencyToNoteConverter.convert() + State-Update
+- `setReferenceFrequency`: clampt auf 430-450 Hz
+
+**Widgets:**
+- `TunerGauge`: CustomPainter mit Halbkreis-Zeiger, Gruen/Gelb/Rot-Zonen
+  - Verwendet `withValues(alpha: ...)` statt deprecated `withOpacity`
+  - Semantics-Label fuer Accessibility
+- `NoteDisplay`: 72sp Tonname (`AppTypography.fontSize3xl`), Oktave, Hz
+  - Zeigt `—` bei null-Note (kein Flackern)
+- `TunerControls`: ChoiceChips fuer Transposition, Slider fuer Kammerton, Start/Stop-ElevatedButton
+- `TunerScreen`: ConsumerStatefulWidget mit WidgetsBindingObserver
+  - Mikrofon startet automatisch in initState (addPostFrameCallback)
+  - Mikrofon stoppt in dispose() und bei AppLifecycleState.paused
+
+**Routing:**
+- `/app/tuner` Route als 5. StatefulShellBranch in AppShell
+- Neuer `Werkzeuge`-Tab (Icons.tune) in NavigationBar
+
+### Tests (78 neu, 0 Regressionen)
+- 13 Frequenz-Konvertierung (A4, A5, C4, Bb4, E4, Oktav-Grenzen, Cent-Genauigkeit)
+- 15 Transpositions (Bb/Eb/F je 2+ Testfaelle, Concert identity)
+- 22 TunerNotifier (Lifecycle start/stop, Kammerton-Clamping, Transposition live)
+- 6 TunerState Hilfsmethoden
+- 14 TunerGauge Widget (Zonenfaerbung per tuneColor, CustomPaint, Semantics)
+- 8 NoteDisplay Widget (null-Ton, Tonname, Hz-Anzeige, Schriftgroesse >=72sp)
+
+### Key Learnings
+1. **A-basierte Nummerierung**: A4=49 (nicht C4=49 wie man meinen koennte) — vermeidet Off-by-One in Noten-Array
+2. **Transposition verschiebt nur Anzeige**: centDeviation ist immer Konzert-basiert (Physik), nicht transponiert
+3. **Positiver Modulo wichtig**: `((x % 12) + 12) % 12` bei negativen Transpositionswerten
+4. **Sentinel-Pattern fuer nullable copyWith**: `Object _sentinel = Object()` eleganter als boolean clearFlags
+5. **MockAudioAnalyzer mit broadcast StreamController**: erlaubt mehrere Listener (ProviderContainer + Test-Assertions)
+6. **Flutter Color.value deprecated**: Nutze `.toARGB32()` fuer Farb-Vergleiche in Tests
+7. **withOpacity deprecated**: Nutze `.withValues(alpha: ...)` im neuen Flutter SDK

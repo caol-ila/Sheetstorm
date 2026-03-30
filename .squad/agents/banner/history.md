@@ -10,6 +10,62 @@
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
+### 2026-03-31 — MS2 Nacharbeit Batch 3: CR#4/5/9 Security Hardening (Orchestration Log)
+
+### 2026-03-31 — MS2 Nacharbeit Batch 3: CR#4/5/9 Security Hardening (Orchestration Log)
+
+**Tasks Resolved:**
+- **CR#4 — CORS configurable:** Replaced hardcoded AllowAnyOrigin with env-driven policy. appsettings.json has empty AllowedOrigins (prod must configure). appsettings.Development.json has ["*"]. CORS_ALLOWED_ORIGINS env var supported for container overrides. 3 integration tests added.
+- **CR#5 — Substitute token rate-limiting:** Added 'substitute-validate' FixedWindowRateLimiter (10/min per IP) in Program.cs. Applied [EnableRateLimiting] to ValidateToken endpoint. 2 integration tests (within/exceed limit).
+- **CR#9 — FORBIDDEN not 404 for non-members:** BandAuthorizationService.RequireMembershipAsync now throws DomainException("FORBIDDEN", 403) instead of BAND_NOT_FOUND/404. BandService.RemoveMemberAsync caller check aligned. 17+ downstream tests updated to expect 403.
+
+**Orchestration:** Parallel with Strange (CR#7 pagination) + Romanoff (MS3 tuner)
+
+**Key Patterns:**
+- UseSetting(key, value) is reliable for integration test config overrides; ConfigureAppConfiguration is NOT (applied too late for startup reads).
+- When doing global 404→403 batch replacements, must manually exclude legitimate resource-not-found 404s (MEMBER_NOT_FOUND, CONFIG_NOT_FOUND, PIECE_NOT_FOUND etc.).
+- WebApplicationFactory defaults to Development environment; override with builder.UseEnvironment("Production") in ConfigureWebHost.
+- Integration tests for rate limiting need isolated factory per test class (xUnit creates new instance per test by default — factory in constructor = fresh rate limiter state).
+
+**Test Results:** 914 tests passing (+32 new), 1 pre-existing failure unchanged (ResetPassword_ValidToken in src/Sheetstorm.Tests)
+
+**Key Files Changed:**
+- src/Sheetstorm.Api/Program.cs — CORS + rate-limit policy
+- src/Sheetstorm.Api/appsettings*.json — Cors section
+- src/Sheetstorm.Api/Controllers/SubstituteAccessController.cs — [EnableRateLimiting]
+- src/Sheetstorm.Infrastructure/Auth/BandAuthorizationService.cs — FORBIDDEN/403
+- src/Sheetstorm.Infrastructure/Band/BandService.cs — caller membership check
+- tests/Sheetstorm.Tests/TestWebApplicationFactory.cs *(new)*
+- tests/Sheetstorm.Tests/Api/CorsConfigurationTests.cs *(new)*
+- tests/Sheetstorm.Tests/Substitutes/SubstituteRateLimitTests.cs *(new)*
+
+**See:** `.squad/orchestration-log/2026-03-31T00-54-17-banner.md`
+
+### 2026-03-30 — MS2 Nacharbeit Batch 3: CR#4/5/9 Security Hardening
+
+**Tasks Resolved:**
+- **CR#4 — CORS configurable:** Replaced hardcoded AllowAnyOrigin with env-driven policy. appsettings.json has empty AllowedOrigins (prod must configure). appsettings.Development.json has ["*"]. CORS_ALLOWED_ORIGINS env var supported for container overrides. 3 integration tests added.
+- **CR#5 — Substitute token rate-limiting:** Added 'substitute-validate' FixedWindowRateLimiter (10/min per IP) in Program.cs. Applied [EnableRateLimiting] to ValidateToken endpoint. 2 integration tests (within/exceed limit).
+- **CR#9 — FORBIDDEN not 404 for non-members:** BandAuthorizationService.RequireMembershipAsync now throws DomainException("FORBIDDEN", 403) instead of BAND_NOT_FOUND/404. BandService.RemoveMemberAsync caller check aligned. 17+ downstream tests updated to expect 403.
+
+**Key Patterns:**
+- UseSetting(key, value) is reliable for integration test config overrides; ConfigureAppConfiguration is NOT (applied too late for startup reads).
+- When doing global 404→403 batch replacements, must manually exclude legitimate resource-not-found 404s (MEMBER_NOT_FOUND, CONFIG_NOT_FOUND, PIECE_NOT_FOUND etc.).
+- WebApplicationFactory defaults to Development environment; override with uilder.UseEnvironment("Production") in ConfigureWebHost.
+- Integration tests for rate limiting need isolated factory per test class (xUnit creates new instance per test by default — factory in constructor = fresh rate limiter state).
+
+**Test Results:** 914 tests passing (+32 new), 1 pre-existing failure unchanged (ResetPassword_ValidToken in src/Sheetstorm.Tests)
+
+**Key Files Changed:**
+- src/Sheetstorm.Api/Program.cs — CORS + rate-limit policy
+- src/Sheetstorm.Api/appsettings*.json — Cors section
+- src/Sheetstorm.Api/Controllers/SubstituteAccessController.cs — [EnableRateLimiting]
+- src/Sheetstorm.Infrastructure/Auth/BandAuthorizationService.cs — FORBIDDEN/403
+- src/Sheetstorm.Infrastructure/Band/BandService.cs — caller membership check
+- 	ests/Sheetstorm.Tests/TestWebApplicationFactory.cs *(new)*
+- 	ests/Sheetstorm.Tests/Api/CorsConfigurationTests.cs *(new)*
+- 	ests/Sheetstorm.Tests/Substitutes/SubstituteRateLimitTests.cs *(new)*
+
 ## 2026-03-30 — MS2 Nacharbeit Batch 2: PostService Soft-Delete Consistency
 
 **Task:** Orchestration Batch 2 parallel execution (Romanoff, Banner, Strange, Parker)  

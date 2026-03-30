@@ -126,3 +126,34 @@
 **Test Updates:** Replaced `OnDisconnectedAsync_UpdatesParticipantCount` with conductor/non-conductor disconnect tests. Updated GEMA composer test assertion. All 827 tests pass.
 
 **Pattern Learned:** Voice entity has no `BandId` — must validate via `Voice.Piece.BandId` (requires `.Include(v => v.Piece)`).
+
+---
+
+### 2026-03-31: MS2 Nacharbeit Batch 3 — CR#7 Cursor-Pagination Infrastructure
+
+**Orchestration:** Parallel with Banner (CR#4/5/9) + Romanoff (MS3 tuner)  
+**Task:** Implement pagination infrastructure for Posts and Events (TDD-driven)  
+**Result:** DONE ✅ — 904 tests passing (+26 new)
+
+**Deliverables:**
+- `PaginationModels` — CursorPaginationRequest/Response
+- `CursorHelper` — Base64 cursor encode/decode
+- `PaginationExtensions` — LINQ-to-EF pagination helper
+- PostService.GetPostsAsync() + EventService.GetEventsAsync() paginated
+- PostController + EventController pagination endpoints
+- 26 new TDD tests covering cursor logic, edge cases, empty results
+
+**Key Patterns:**
+- Cursor encoding: Base64(ID:timestamp) — reversible, URL-safe
+- Stable ordering: All queries sorted by (BandId, CreatedAt/StartsAt desc, Id)
+- Backward compatible: Non-paginated queries still work (return all results)
+- Next-page logic: If result count < pageSize, hasMore=false, nextCursor=null
+
+**Test Results:** 904 total passing
+
+**Cross-Team Integration:**
+- Pagination infrastructure ready for all future list endpoints
+- Compatible with Banner's rate-limiting on paginated endpoints
+- Romanoff (Flutter) can implement infinite-scroll pattern
+
+**See:** `.squad/orchestration-log/2026-03-31T00-54-17-strange.md`

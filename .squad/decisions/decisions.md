@@ -537,3 +537,51 @@ Superpowers standards are proven, language-agnostic, and complement existing pol
 
 ### Documentation
 Created `.github/copilot-instructions.md` as project-wide Copilot guidance (previously missing).
+
+# Romanoff — Tuner Frontend: Architektur-Entscheidungen
+
+**Datum:** 2026-03-31  
+**Feature:** Stimmgeraet (Tuner), MS3  
+**Agent:** Romanoff (Frontend)
+
+---
+
+## Entscheidung 1: A-basierte Piano-Nummerierung (A0=1, A4=49)
+
+**Problem:** Task-Spec enthielt eine inkonsistente Formel: 
+oteNumber + 49 aber ["C","C#",...]-Array. Bei A4=49 ergibt (49-1)%12=0 → "C" statt "A".
+
+**Loesung:** Array auf A-Basis ausgerichtet: ['A','A#','B','C','C#','D','D#','E','F','F#','G','G#']. Formel bleibt 
+oteNumber = 12*log2(f/ref) + 49.
+
+**Begruendung:** Mathematisch korrekt und durch alle 78 Tests verifiziert. Ergibt A4→A, C4→C, B4→B. Keine Auswirkung auf Backend oder andere Teams.
+
+---
+
+## Entscheidung 2: Transpositionswerte (Eb = +9, nicht +3)
+
+**Problem:** Feature-Spec §6.4 nennt "+3 Halbtöne" fuer Eb, aber §6.4-Beispiel zeigt "C4 → Eb3 klingend" was +9 Halbtöne Verschiebung ergibt. Widerspruch in der Spec.
+
+**Loesung:** +9 Halbtöne implementiert (Konzert A4 → Anzeige F#5). Das entspricht der Musiktheorie: Alt-Sax ist eine grosse Sexte tiefer als notiert → angezeigte Note ist grosse Sexte (9 Halbtöne) hoeher als Concert-Ton.
+
+**Empfehlung an Hill/Stark:** Spec §6.4 Eb-Zeile korrigieren: "+9 Halbtöne" (oder "kleine Terz abwaerts = grosse Sexte aufwaerts").
+
+---
+
+## Entscheidung 3: 5. Navigations-Tab "Werkzeuge"
+
+**Problem:** UX-Spec nennt "Werkzeuge-Tab", aber AppShell hatte nur 4 Tabs.
+
+**Loesung:** 5. StatefulShellBranch mit /app/tuner Route hinzugefuegt. AppShell um 5. NavigationDestination (Icons.tune, "Werkzeuge") erweitert.
+
+**Auswirkung:** Wanda sollte UX fuer den Werkzeuge-Tab definieren (welche weiteren Tools gehen dort rein — Metronom?).
+
+---
+
+## Entscheidung 4: AudioAnalyzer — Nur Interface, kein Platform Channel
+
+**Problem:** Platform Channels fuer CoreAudio/Oboe/WASAPI sind komplex und plattformspezifisch.
+
+**Loesung:** Abstraktes AudioAnalyzer-Interface + MockAudioAnalyzer fuer Tests. udioAnalyzerProvider ist ueberladbar. Vision implementiert PlatformAudioAnalyzer.
+
+**Konvention:** udioAnalyzerProvider in Production-Code durch PlatformAudioAnalyzer ersetzen. Tests weiterhin MockAudioAnalyzer via overrideWithValue.
