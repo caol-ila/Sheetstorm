@@ -47,6 +47,7 @@ class BleMessageCodec {
   static const int _headerSize = 4;
   static const int _timestampSize = 4;
   static const int _hmacSize = 32;
+  static const int _maxPayloadSize = 182;
   static const int _minMessageSize = _headerSize + _timestampSize + _hmacSize;
 
   /// Encodes a raw payload with standard header + current timestamp.
@@ -116,11 +117,26 @@ class BleMessageCodec {
     String stueckTitel,
     int seqNum,
   ) {
-    final idBytes = utf8.encode(stueckId);
-    final titleBytes = utf8.encode(stueckTitel);
+    var idBytes = utf8.encode(stueckId);
+    var titleBytes = utf8.encode(stueckTitel);
 
     // Format: [id_len(1), id(...), title_len(1), title(...)]
-    final payload = Uint8List(2 + idBytes.length + titleBytes.length);
+    // Enforce max payload of 182 bytes: 2 overhead + id + title
+    const overhead = 2; // 1 byte id_len + 1 byte title_len
+    final maxContentSize = _maxPayloadSize - overhead;
+
+    // ID gets priority — truncate title first
+    if (idBytes.length + titleBytes.length > maxContentSize) {
+      final remainingForTitle = maxContentSize - idBytes.length;
+      if (remainingForTitle <= 0) {
+        idBytes = idBytes.sublist(0, maxContentSize);
+        titleBytes = Uint8List(0);
+      } else {
+        titleBytes = titleBytes.sublist(0, remainingForTitle);
+      }
+    }
+
+    final payload = Uint8List(overhead + idBytes.length + titleBytes.length);
     var offset = 0;
     payload[offset++] = idBytes.length & 0xFF;
     payload.setRange(offset, offset + idBytes.length, idBytes);
