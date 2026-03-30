@@ -41,6 +41,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<ShiftAssignment> ShiftAssignments => Set<ShiftAssignment>();
     public DbSet<BandTask> BandTasks => Set<BandTask>();
     public DbSet<BandTaskAssignment> BandTaskAssignments => Set<BandTaskAssignment>();
+    public DbSet<SyncVersion> SyncVersions => Set<SyncVersion>();
+    public DbSet<SyncChangelog> SyncChangelogs => Set<SyncChangelog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
