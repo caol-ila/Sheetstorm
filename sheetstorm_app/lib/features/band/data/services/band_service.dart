@@ -20,14 +20,14 @@ class BandService {
   // ─── Kapellen CRUD ──────────────────────────────────────────────────────────
 
   Future<List<Band>> getBands() async {
-    final res = await _dio.get<List<dynamic>>('/api/v1/bands');
+    final res = await _dio.get<List<dynamic>>('/api/bands');
     return res.data!
         .map((e) => Band.fromJson(e as Map<String, dynamic>))
         .toList();
   }
 
   Future<Band> getBandDetail(String id) async {
-    final res = await _dio.get<Map<String, dynamic>>('/api/v1/bands/$id');
+    final res = await _dio.get<Map<String, dynamic>>('/api/bands/$id');
     return Band.fromJson(res.data!);
   }
 
@@ -37,7 +37,7 @@ class BandService {
     String? location,
   }) async {
     final res = await _dio.post<Map<String, dynamic>>(
-      '/api/v1/bands',
+      '/api/bands',
       data: {
         'name': name,
         if (description != null) 'description': description,
@@ -54,7 +54,7 @@ class BandService {
     String? location,
   }) async {
     final res = await _dio.put<Map<String, dynamic>>(
-      '/api/v1/bands/$id',
+      '/api/bands/$id',
       data: {
         if (name != null) 'name': name,
         if (description != null) 'description': description,
@@ -65,14 +65,14 @@ class BandService {
   }
 
   Future<void> deleteBand(String id) async {
-    await _dio.delete<void>('/api/v1/bands/$id');
+    await _dio.delete<void>('/api/bands/$id');
   }
 
   // ─── Mitglieder ─────────────────────────────────────────────────────────────
 
   Future<List<Member>> getMembers(String bandId) async {
     final res = await _dio
-        .get<List<dynamic>>('/api/v1/bands/$bandId/members');
+        .get<List<dynamic>>('/api/bands/$bandId/members');
     return res.data!
         .map((e) => Member.fromJson(e as Map<String, dynamic>))
         .toList();
@@ -84,7 +84,7 @@ class BandService {
     List<BandRole> roles,
   ) async {
     final res = await _dio.put<Map<String, dynamic>>(
-      '/api/v1/bands/$bandId/members/$musicianId/roles',
+      '/api/bands/$bandId/members/$musicianId/roles',
       data: {'roles': roles.map((r) => r.toJson()).toList()},
     );
     return Member.fromJson(res.data!);
@@ -92,18 +92,18 @@ class BandService {
 
   Future<void> removeMember(String bandId, String musicianId) async {
     await _dio
-        .delete<void>('/api/v1/bands/$bandId/members/$musicianId');
+        .delete<void>('/api/bands/$bandId/members/$musicianId');
   }
 
   Future<void> leaveBand(String bandId) async {
-    await _dio.post<void>('/api/v1/bands/$bandId/leave');
+    await _dio.post<void>('/api/bands/$bandId/leave');
   }
 
   // ─── Einladungen ────────────────────────────────────────────────────────────
 
   Future<List<Invitation>> getInvitations(String bandId) async {
     final res = await _dio
-        .get<List<dynamic>>('/api/v1/bands/$bandId/invitations');
+        .get<List<dynamic>>('/api/bands/$bandId/invitations');
     return res.data!
         .map((e) => Invitation.fromJson(e as Map<String, dynamic>))
         .toList();
@@ -117,7 +117,7 @@ class BandService {
     String? message,
   }) async {
     final res = await _dio.post<Map<String, dynamic>>(
-      '/api/v1/bands/$bandId/invitations',
+      '/api/bands/$bandId/invitations',
       data: {
         'typ': 'email',
         'email': email,
@@ -135,7 +135,7 @@ class BandService {
     int expiryDays = 7,
   }) async {
     final res = await _dio.post<Map<String, dynamic>>(
-      '/api/v1/bands/$bandId/invitations',
+      '/api/bands/$bandId/invitations',
       data: {
         'typ': 'link',
         'role': role.toJson(),
@@ -147,19 +147,19 @@ class BandService {
 
   Future<void> revokeInvitation(String bandId, String invitationId) async {
     await _dio.delete<void>(
-      '/api/v1/bands/$bandId/invitations/$invitationId',
+      '/api/bands/$bandId/invitations/$invitationId',
     );
   }
 
   Future<void> acceptInvitation(String token) async {
-    await _dio.post<void>('/api/v1/invitations/$token/accept');
+    await _dio.post<void>('/api/invitations/$token/accept');
   }
 
   // ─── Register ───────────────────────────────────────────────────────────────
 
   Future<List<Section>> getSection(String bandId) async {
     final res = await _dio
-        .get<List<dynamic>>('/api/v1/bands/$bandId/sections');
+        .get<List<dynamic>>('/api/bands/$bandId/sections');
     return res.data!
         .map((e) => Section.fromJson(e as Map<String, dynamic>))
         .toList();
@@ -172,7 +172,7 @@ class BandService {
     String? color,
   }) async {
     final res = await _dio.post<Map<String, dynamic>>(
-      '/api/v1/bands/$bandId/sections',
+      '/api/bands/$bandId/sections',
       data: {
         'name': name,
         if (description != null) 'description': description,
@@ -190,7 +190,7 @@ class BandService {
     String? color,
   }) async {
     final res = await _dio.put<Map<String, dynamic>>(
-      '/api/v1/bands/$bandId/sections/$registerId',
+      '/api/bands/$bandId/sections/$registerId',
       data: {
         'name': name,
         if (description != null) 'description': description,
@@ -202,6 +202,6 @@ class BandService {
 
   Future<void> deleteSection(String bandId, String registerId) async {
     await _dio
-        .delete<void>('/api/v1/bands/$bandId/sections/$registerId');
+        .delete<void>('/api/bands/$bandId/sections/$registerId');
   }
 }

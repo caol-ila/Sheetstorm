@@ -3,7 +3,7 @@ import 'package:sheetstorm/core/theme/app_tokens.dart';
 import 'package:sheetstorm/features/band/data/models/band_models.dart';
 import 'package:sheetstorm/features/band/presentation/widgets/role_chip.dart';
 
-/// List tile for a member, showing avatar, name, roles and optional admin actions.
+/// List tile for a member, showing avatar, name, role and optional admin actions.
 class MemberListTile extends StatelessWidget {
   const MemberListTile({
     super.key,
@@ -29,26 +29,21 @@ class MemberListTile extends StatelessWidget {
       leading: CircleAvatar(
         radius: 22,
         backgroundColor: theme.colorScheme.primaryContainer,
-        backgroundImage: member.avatarUrl != null
-            ? NetworkImage(member.avatarUrl!)
-            : null,
-        child: member.avatarUrl == null
-            ? Text(
-                member.name.isNotEmpty ? member.name[0].toUpperCase() : '?',
-                style: TextStyle(
-                  color: theme.colorScheme.onPrimaryContainer,
-                  fontWeight: FontWeight.w600,
-                ),
-              )
-            : null,
+        child: Text(
+          member.name.isNotEmpty ? member.name[0].toUpperCase() : '?',
+          style: TextStyle(
+            color: theme.colorScheme.onPrimaryContainer,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ),
       title: Text(member.name, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (member.sections.isNotEmpty)
+          if (member.instrument != null)
             Text(
-              member.sections.join(', '),
+              member.instrument!,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -56,13 +51,7 @@ class MemberListTile extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
           const SizedBox(height: AppSpacing.xs),
-          Wrap(
-            spacing: 4,
-            runSpacing: 4,
-            children: member.roles
-                .map((r) => RoleChip(role: r, small: true))
-                .toList(),
-          ),
+          RoleChip(role: member.role, small: true),
         ],
       ),
       trailing: isAdmin

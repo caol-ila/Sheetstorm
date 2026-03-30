@@ -111,7 +111,7 @@ class MembersScreen extends ConsumerWidget {
     WidgetRef ref,
     Member member,
   ) async {
-    final selectedRoles = <BandRole>{...member.roles};
+    final selectedRoles = <BandRole>{member.role};
 
     await showModalBottomSheet<void>(
       context: context,
@@ -149,7 +149,7 @@ class MembersScreen extends ConsumerWidget {
                         .read(
                             membersProvider(bandId).notifier)
                         .updateRoles(
-                          member.musicianId,
+                          member.userId,
                           selectedRoles.toList(),
                         );
                     if (!context.mounted) return;
@@ -209,7 +209,7 @@ class MembersScreen extends ConsumerWidget {
 
     final success = await ref
         .read(membersProvider(bandId).notifier)
-        .removeMember(member.musicianId);
+        .removeMember(member.userId);
 
     if (!context.mounted) return;
     if (!success) {

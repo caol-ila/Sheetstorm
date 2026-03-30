@@ -21,16 +21,16 @@ class MembersNotifier extends _$MembersNotifier {
   }
 
   Future<bool> updateRoles(
-    String musicianId,
+    String userId,
     List<BandRole> roles,
   ) async {
     final service = ref.read(bandServiceProvider);
     try {
       final updated =
-          await service.updateMemberRoles(bandId, musicianId, roles);
+          await service.updateMemberRoles(bandId, userId, roles);
       final current = state.value ?? [];
       state = AsyncData(
-        current.map((m) => m.musicianId == musicianId ? updated : m).toList(),
+        current.map((m) => m.userId == userId ? updated : m).toList(),
       );
       return true;
     } catch (e, st) {
@@ -39,13 +39,13 @@ class MembersNotifier extends _$MembersNotifier {
     }
   }
 
-  Future<bool> removeMember(String musicianId) async {
+  Future<bool> removeMember(String userId) async {
     final service = ref.read(bandServiceProvider);
     try {
-      await service.removeMember(bandId, musicianId);
+      await service.removeMember(bandId, userId);
       final current = state.value ?? [];
       state = AsyncData(
-        current.where((m) => m.musicianId != musicianId).toList(),
+        current.where((m) => m.userId != userId).toList(),
       );
       return true;
     } catch (e, st) {
