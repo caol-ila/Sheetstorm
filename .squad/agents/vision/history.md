@@ -108,3 +108,33 @@ Parallel orchestration completed. Vision implemented 2 modules (Setlist + Song B
 2. Control bar uses `ConsumerWidget` not `StatefulWidget` — all state lives in Riverpod, no local state needed
 3. `overrideWithValue` doesn't work with Riverpod 3.x codegen notifier providers for widget tests — use `UncontrolledProviderScope` + real notifier instead
 
+### 2026-04-16: Annotation Sync Frontend Layer (MS3)
+
+**Context:** Implemented the full real-time annotation sync frontend layer following strict TDD.
+
+**Architecture:**
+- `sync/annotation_op_model.dart` — Wire DTOs (AnnotationElementDto, BBoxDto, StrokePointDto), AnnotationOp with LWW conflict resolution, SyncVersion, ElementChangeNotification
+- `sync/annotation_sync_notifier.dart` — Riverpod Notifier managing 5 sync states (disconnected/connecting/connected/syncing/error), offline op queue, remote element tracking, active editors presence, conflict info
+- `sync/annotation_sync_service.dart` — Manual SignalR JSON protocol client (same pattern as BroadcastSignalRService), REST URL builders, server event parsing, reconnect with exponential backoff (1s/3s/10s/30s)
+- `sync/annotation_sync_converters.dart` — Bidirectional Annotation ↔ AnnotationElementDto conversion, level/tool string mapping, shouldSync() gate
+- `presentation/widgets/sync_status_indicator.dart` — ConsumerWidget showing connected/syncing/offline state with icon + pending-ops badge
+- `presentation/widgets/live_edit_indicator.dart` — Active editors banner ("Max zeichnet…") + LWW conflict banner ("Änderung von X wurde übernommen")
+
+**Key Decisions:**
+1. **No shared SignalR base class yet** — mirrors BroadcastSignalRService pattern directly. If a third feature needs SignalR, extract shared base.
+2. **Sentinel pattern for nullable copyWith fields** — `clearError: true` / `clearConflict: true` flags instead of `Object? = _sentinel` pattern (simpler for this state shape).
+3. **REST endpoints follow `/api/bands/{bandId}/annotations/...`** — no version segment, camelCase JSON keys per API convention.
+4. **Hub at `/hubs/annotation-sync`** — separate from broadcast hub.
+5. **Private annotations never synced** — `shouldSync()` returns false for `AnnotationLevel.private`.
+6. **Widget tests use `overrideWith(() => FakeNotifier)` pattern** — works cleanly with non-codegen NotifierProvider.
+
+**TDD Stats:** 108 new tests (31 model, 32 notifier, 19 service, 14 integration, 12 widget). 274 total annotation tests green. Zero analyzer issues.
+
+**Key Files:**
+- `lib/features/annotations/sync/annotation_op_model.dart`
+- `lib/features/annotations/sync/annotation_sync_notifier.dart`
+- `lib/features/annotations/sync/annotation_sync_service.dart`
+- `lib/features/annotations/sync/annotation_sync_converters.dart`
+- `lib/features/annotations/presentation/widgets/sync_status_indicator.dart`
+- `lib/features/annotations/presentation/widgets/live_edit_indicator.dart`
+
