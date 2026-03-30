@@ -366,6 +366,40 @@ public class PostServiceTests : IDisposable
         Assert.Equal(parent.Id, result.ParentCommentId);
     }
 
+    [Fact]
+    public async Task AddCommentAsync_WithNonExistentParent_ThrowsNotFound()
+    {
+        var (musicianId, bandId, postId) = await SeedPostAsync();
+        var nonExistentId = Guid.NewGuid();
+
+        var request = new CreatePostCommentRequest("Reply", nonExistentId);
+        var ex = await Assert.ThrowsAsync<DomainException>(() =>
+            _sut.AddCommentAsync(bandId, postId, request, musicianId, CancellationToken.None));
+
+        Assert.Equal("NOT_FOUND", ex.ErrorCode);
+        Assert.Equal(404, ex.StatusCode);
+    }
+
+    [Fact]
+    public async Task AddCommentAsync_WithParentFromDifferentPost_ThrowsBadRequest()
+    {
+        var (musicianId, bandId, postId) = await SeedPostAsync();
+        // Create a second post and a comment belonging to it
+        var otherPost = new Post { BandId = bandId, AuthorMusicianId = musicianId, Title = "Other Post", Content = "Other Content" };
+        _db.Posts.Add(otherPost);
+        await _db.SaveChangesAsync();
+        var otherComment = new PostComment { PostId = otherPost.Id, AuthorMusicianId = musicianId, Content = "Other comment" };
+        _db.PostComments.Add(otherComment);
+        await _db.SaveChangesAsync();
+
+        var request = new CreatePostCommentRequest("Reply", otherComment.Id);
+        var ex = await Assert.ThrowsAsync<DomainException>(() =>
+            _sut.AddCommentAsync(bandId, postId, request, musicianId, CancellationToken.None));
+
+        Assert.Equal("VALIDATION_ERROR", ex.ErrorCode);
+        Assert.Equal(400, ex.StatusCode);
+    }
+
     // ── DeleteCommentAsync ────────────────────────────────────────────────────
 
     [Fact]

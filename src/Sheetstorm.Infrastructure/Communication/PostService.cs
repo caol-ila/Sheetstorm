@@ -227,6 +227,16 @@ public class PostService(AppDbContext db) : IPostService
             .FirstOrDefaultAsync(p => p.Id == postId && p.BandId == bandId, ct)
             ?? throw new DomainException("NOT_FOUND", "Post not found.", 404);
 
+        if (request.ParentCommentId.HasValue)
+        {
+            var parent = await db.Set<PostComment>()
+                .FirstOrDefaultAsync(c => c.Id == request.ParentCommentId.Value && !c.IsDeleted, ct)
+                ?? throw new DomainException("NOT_FOUND", "Parent comment not found.", 404);
+
+            if (parent.PostId != postId)
+                throw new DomainException("VALIDATION_ERROR", "Parent comment does not belong to this post.", 400);
+        }
+
         var comment = new PostComment
         {
             PostId = postId,
