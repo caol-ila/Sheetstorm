@@ -226,3 +226,29 @@
 - 13 edge cases including: double-requests, rejection+reapply, "Meine Musik" immutability, last-admin protection
 
 **Status:** Estimate expansion needed for new endpoints + service methods
+
+---
+
+## Team Update: MS2 Nacharbeit Batch 1 (2026-03-30T21:10Z)
+
+**From:** Scribe  
+**Action:** Romanoff, Banner, Parker executed parallel P0/P1 batch.
+
+### Banner's Completed Tasks
+
+**Tickets Resolved:**
+- #111 — ShiftService validation: Added null checks + 3 new tests
+- #112 — ParentCommentId check: Added parent post existence validation + 2 new tests
+- #109 — MaxLength attributes: Reflection-based fluent API on 17 string properties + 17 new tests
+
+**Test Results:** 854 tests passing (22 new validation tests added)
+
+**Key Pattern:** `RequirePostExistsAsync()` helper in PostService for parent validation. This pattern established for Parker's upcoming provider override tests.
+
+**Files:** ShiftService.cs, PostService.cs, 17 Configuration.cs files, new validation test files
+
+### Cross-Team Impact
+
+**Parker (QA) - IMPORTANT:**
+- Banner's ParentCommentId fix in `PostService.AddCommentAsync()` affects Parker's provider override migration for communication notifiers
+- When Parker tests `post_notifier_test.dart`, parent comment validation is now enforced at service layer — mock setup must include valid post references

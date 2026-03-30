@@ -105,3 +105,34 @@
 - docs/feature-specs/auth-onboarding-spec.md (entry point scenarios)
 
 **Next Step:** Test plan document for detailed step-by-step scenarios
+
+---
+
+## Team Update: MS2 Nacharbeit Batch 1 (2026-03-30T21:10Z)
+
+**From:** Scribe  
+**Action:** Parker executed P1/P2 batch (GEMA tests verification + Provider overrides migration).
+
+### Parker's Completed Tasks
+
+**Tickets Resolved:**
+- #114 — GEMA export tests: Verified existing test coverage in `gema_export_test.dart` — no new tests required (requirement satisfied)
+- #113 — Provider overrides: Converted `post_notifier_test.dart` + `substitute_notifier_test.dart` to Riverpod 3.x provider override pattern
+
+**Test Results:** 67 Flutter tests green (modern mock-based architecture)
+
+**Architecture Change:** Migrated from deprecated `mockito` stubs to Riverpod `ProviderContainer(overrides: [...])` pattern with `AsyncValue.data()` for mock injection.
+
+**Assessment Document:** Created `.squad/assessment/parker-gema-provider-task-assessment.md` documenting requirements, GEMA test verification, migration approach, and test results.
+
+### Cross-Team Coordination
+
+**From Banner (Backend):**
+- ParentCommentId validation now enforced in `PostService.AddCommentAsync()` 
+- Parker's provider override tests for communication notifiers must mock valid post objects with proper references
+- Pattern established: Service-layer validation feeds into notifier mock setup
+
+**Files Modified:** 
+- `test/features/communication/application/post_notifier_test.dart`
+- `test/features/shifts/application/substitute_notifier_test.dart`
+- `.squad/assessment/parker-gema-provider-task-assessment.md` (new)

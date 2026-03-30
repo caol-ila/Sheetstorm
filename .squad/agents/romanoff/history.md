@@ -575,6 +575,35 @@ Vollständiges `features/communication/` Modul gemäß `docs/feature-specs/kommu
 - GoRoute definitions für alle screens (nested unter `/app/board`)
 - DO NOT modify app_router.dart — routes werden via shell branch injected (siehe Kommentar)
 
+---
+
+## Team Update: MS2 Nacharbeit Batch 1 (2026-03-30T21:10Z)
+
+**From:** Scribe  
+**Action:** Romanoff executed P0/P1 batch (musikerId injection, event crash fix, bandId validation).
+
+### Romanoff's Completed Tasks
+
+**Tickets Resolved:**
+- **CR#3** — musikerId injection: Integrated `authProvider` into EventNotifier, extract musikerId from JWT
+- **#104** — Event.fromJson crash: Made JSON deserialization null-safe with null-coalescing operators
+- **#103** — bandId validation: Extract bandId from GoRouter pathParameters, validate non-empty
+
+**Test Results:** 37 tests green
+- All event deserialization tests passing
+- All event fetching with musikerId tests passing
+- All route parameter validation tests passing
+
+**Architecture Pattern:** 
+- Riverpod `authProvider` injected into notifier via FutureProvider.family
+- Event model uses `??` and `?.` for safe field access
+- Route parameters extracted via GoRouter state
+
+**Files Modified:**
+- `lib/features/events/application/event_notifier.dart`
+- `lib/features/events/data/services/event_service.dart`
+- `lib/core/routing/app_router.dart`
+
 **Dependencies hinzugefügt:**
 - `timeago: ^3.7.0` — Relative time formatting ("vor 5 Minuten")
 
