@@ -10,6 +10,38 @@
 
 <!-- Append new learnings below. -->
 
+### 2026-07-01: Echtzeit-Metronom Frontend (MS3)
+
+**Context:** Implemented full metronome client with TDD: 106 tests, 21 files, 4012 LOC.
+
+**Architecture:**
+- `BeatCalculator` (pure math): given startTime + BPM + clockOffset → beat number, measure, downbeat. Called at ~60fps for animation.
+- `ClockSyncService` (NTP-like): sliding window of 10 measurements, median filter, 2σ outlier rejection. Quality: good (<5ms RTT), acceptable (5-20ms), poor (>20ms).
+- `MetronomeNotifier` (Riverpod keepAlive): orchestrates conductor/musician modes. Beat timer at 16ms. Only updates state when beat number changes.
+- `MetronomeSignalRService`: manual SignalR JSON protocol (same pattern as `BroadcastSignalRService`). Hub at `/hubs/metronome`.
+- `BeatIndicator` (CustomPainter): pulse animation via `AnimationController`, downbeat accent color.
+- Route: `/app/metronome?conductor=true` for role-based view.
+
+**Key Files:**
+- `lib/features/metronome/application/beat_calculator.dart` — Pure math, 100% testable
+- `lib/features/metronome/application/clock_sync_service.dart` — NTP offset calculation
+- `lib/features/metronome/application/metronome_notifier.dart` — Main state management
+- `lib/features/metronome/data/metronome_connection_service.dart` — SignalR service
+- `lib/features/metronome/data/models/metronome_models.dart` — All models
+- `lib/features/metronome/presentation/widgets/beat_indicator.dart` — Canvas beat display
+- `lib/features/metronome/presentation/widgets/conductor_controls.dart` — Full conductor UI
+- `lib/features/metronome/presentation/widgets/musician_view.dart` — Passive receiver UI
+- `lib/features/metronome/presentation/widgets/bpm_picker.dart` — BPM slider/stepper/tap-tempo
+
+**Decisions:**
+1. Sentinel pattern for `MetronomeState.copyWith` on nullable fields (session, currentBeat, error) — learned from MS2 copyWith bug
+2. `ClockSyncService` is plain Dart class (not a Riverpod notifier) — owned by `MetronomeNotifier`, no global state needed
+3. Widget tests for `MusicianView` use `overrideWithValue` — notifier access only in callbacks, not in build method
+4. `BeatCirclePainter.shouldRepaint` compares `isActive`, `isDownbeat`, `pulseScale`, `accentColor` — minimal repaints
+5. Tap-Tempo: removes taps older than 2s, needs ≥3 taps, averages intervals
+
+**TDD Stats:** 106 tests total (27 models, 21 beat calculator, 13 clock sync, 17 notifier, 7 beat indicator, 10 BPM picker, 8 conductor controls, 5 musician view). All green.
+
 ### 2026-04-15: MS2 Frontend Orchestration Summary — Setlist + Song Broadcast + 7 Romanoff Modules
 
 **Overall Context:**
