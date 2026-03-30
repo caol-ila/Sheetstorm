@@ -105,3 +105,24 @@
 - docs/feature-specs/auth-onboarding-spec.md (entry point scenarios)
 
 **Next Step:** Test plan document for detailed step-by-step scenarios
+
+### 2026-05-30 — Issues #113 + #114: Flutter Provider Overrides + GEMA Export Tests
+
+**Branch:** `squad/ms2-nacharbeit`
+**Commit:** `2006de2`
+
+**Task 1 (#114 GEMA Export Tests):**
+- Tests `ExportReport_NullFormat_Returns400`, `ExportReport_WhitespaceFormat_Returns400`, `ExportReport_InvalidFormat_ServiceRejects400`, `ExportReport_ValidFormat_ReturnsOk` waren bereits in HEAD (commit `1e42370`).
+- Baseline: `dotnet test --no-build` zeigte 55 (alte Binaries), nach Rebuild 59 — alle neu grün.
+
+**Task 2 (#113 Flutter Provider Overrides):**
+- `post_notifier_test.dart`: Vollständige Überarbeitung mit `MockPostService extends Mock implements PostService`. 27 Tests mit `ProviderContainer(overrides: [postServiceProvider.overrideWithValue(service)])`. Vorher: real HTTP calls → 22 Fehler. Nachher: 27/27 grün.
+- `substitute_notifier_test.dart`: `MockSubstituteService` hinzugefügt. Invocation-Capture für named params (`invocation.namedArguments[#expiresAt]`) um expiresAt/eventId/note in createAccess-Tests korrekt zurückzugeben. 40/40 grün.
+- Assessment-Dokument: `.squad/agents/parker/flutter-test-network-coupling-assessment.md`
+
+**Stack-Wissen:**
+- **mocktail invocation.namedArguments**: `invocation.namedArguments[#paramName] as Type?` in `thenAnswer` funktioniert zum Zurückgeben der tatsächlichen Input-Parameter.
+- **ProviderContainer(overrides: [...])** ist idiomatischer als `container.updateOverrides(...)` — aber beide funktionieren wenn Provider noch nicht gelesen wurde.
+- **`await refresh()` + `isLoading: true`**: Nach `await notifier.refresh()` ist State AsyncData (nicht AsyncLoading). Korrekte Assertion: `hasValue: true`. 
+- **Pre-existing Flutter test failures (73)**: attendance, poll, gema, setlist, shift, media_link, song_broadcast - alle wegen fehlenden Provider-Overrides oder Riverpod-Bugs (ref.mounted fehlt). Nicht meine Änderungen.
+- **Bekannter Bug**: `PostCommentsNotifier.refresh()` und `PostListNotifier.createPost` fehlt `ref.mounted`-Check nach `await` → "Ref disposed" Fehler wenn Container während async-Op disposed.
