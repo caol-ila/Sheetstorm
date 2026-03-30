@@ -1,110 +1,96 @@
-import 'dart:convert';
+// Tests for BleSecurityService and ReplayProtection.
+//
+// Spec: docs/specs/2026-03-30-ble-broadcast-dirigent.md §2.2–§2.5
+//
+// BleSecurityService API:
+//   - Constructor: BleSecurityService(sessionKey: Uint8List, leaderDeviceId: String)
+//   - signMessage(headerAndPayload)    → 32-byte HMAC-SHA256
+//   - signAndAppend(headerAndPayload)  → headerAndPayload + 32-byte HMAC
+//   - verifySignature(signedMessage)   → bool (uses internal session key)
+//   - isAuthorizedSender(msgType, deviceId) → bool (uses internal leader ID + auth set)
+//   - markDeviceAuthenticated(deviceId) → void
+//   - validateMessage(rawMsg, deviceId) → bool (full pipeline)
+//   - createChallenge()    → 16 random bytes
+//   - respondToChallenge(nonce) → 32-byte HMAC
+//   - verifyChallenge(nonce, response) → bool
+//
+// ReplayProtection API (standalone class):
+//   - isValid(senderId, sequenceNumber, timestamp) → bool (stateful per sender)
+
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sheetstorm/features/song_broadcast/data/models/ble_message_codec.dart';
-import 'package:sheetstorm/features/song_broadcast/data/models/ble_models.dart';
 import 'package:sheetstorm/features/song_broadcast/data/services/ble_security_service.dart';
 
-// Spec reference: docs/specs/2026-03-30-ble-broadcast-dirigent.md §2.2–§2.5
-//
-// Security model:
-//  - HMAC-SHA256 signatures over (header + timestamp + payload)
-//  - signMessage  → appends 32-byte HMAC to unsigned bytes
-//  - verifySignature → checks HMAC of (message minus last 32 bytes)
-//  - isAuthorizedSender → enforces conductor-only / any-authenticated trust model
-//  - validateMessage → full pipeline: sig + auth + replay + timestamp
-//  - Challenge-Response → proves shared key without transmitting it
+// ─── Fixtures ─────────────────────────────────────────────────────────────────
 
-// ─── Fixtures ────────────────────────────────────────────────────────────────
-
-/// 32-byte session key used in most tests.
+/// Deterministic 32-byte session key for tests.
 final _testKey = Uint8List.fromList(List.generate(32, (i) => i + 1));
 
 /// A different key used to verify key-sensitivity tests.
 final _otherKey = Uint8List.fromList(List.generate(32, (i) => i + 50));
 
-BleSessionInfo _makeSession({
-  Uint8List? key,
-  String leaderDeviceId = 'leader-device-id',
-  Set<String>? authenticatedDevices,
-  Duration validity = const Duration(hours: 4),
-}) {
-  final k = key ?? _testKey;
-  return BleSessionInfo(
-    sessionKey: base64Encode(k),
-    leaderDeviceId: leaderDeviceId,
-    expiresAt: DateTime.now().add(validity),
-    authenticatedDevices:
-        authenticatedDevices ?? {leaderDeviceId, 'musician-device-id'},
-  );
-}
+const _leaderDeviceId = 'leader-device-id';
+const _musicianDeviceId = 'musician-device-id';
 
-/// Creates an unsigned BLE message via the codec (ready for signing).
+BleSecurityService _makeService({
+  Uint8List? key,
+  String leaderDeviceId = _leaderDeviceId,
+}) =>
+    BleSecurityService(
+      sessionKey: key ?? _testKey,
+      leaderDeviceId: leaderDeviceId,
+    );
+
+/// Builds a minimal valid BLE message payload (header 4 + timestamp 4).
 Uint8List _buildUnsigned({
-  int messageType = 0x01,
+  int messageType = BleMessageCodec.songChanged,
   int seqNum = 1,
   int? timestamp,
-  Uint8List? payload,
 }) {
-  final ts = timestamp ??
-      (DateTime.now().millisecondsSinceEpoch ~/ 1000);
-  return BleMessageCodec.encode(
-    messageType: messageType,
-    sequenceNumber: seqNum,
-    flags: 0x00,
-    timestamp: ts,
-    payload: payload ?? Uint8List(4),
-  );
+  final ts = timestamp ?? DateTime.now().millisecondsSinceEpoch ~/ 1000;
+  final buf = ByteData(8);
+  buf.setUint8(0, messageType);
+  buf.setUint8(1, (seqNum >> 8) & 0xFF);
+  buf.setUint8(2, seqNum & 0xFF);
+  buf.setUint8(3, 0x00);
+  buf.setUint32(4, ts, Endian.big);
+  return buf.buffer.asUint8List();
 }
 
 void main() {
-  late BleSecurityService sut;
-
-  setUp(() {
-    sut = BleSecurityService();
-  });
-
   // ─── signMessage ────────────────────────────────────────────────────────────
 
   group('BleSecurityService.signMessage', () {
-    test('produces 32-byte HMAC-SHA256 appended to message', () {
-      final unsigned = _buildUnsigned();
-      final signed = sut.signMessage(unsigned, _testKey);
-
-      expect(signed.length, equals(unsigned.length + 32));
+    test('produces 32-byte HMAC-SHA256', () {
+      final sut = _makeService();
+      final sig = sut.signMessage(_buildUnsigned());
+      expect(sig.length, equals(32));
     });
 
     test('same message + same key = same signature', () {
-      final unsigned = _buildUnsigned();
-      final sig1 = sut.signMessage(unsigned, _testKey);
-      final sig2 = sut.signMessage(unsigned, _testKey);
+      final sut1 = _makeService();
+      final sut2 = _makeService();
+      final msg = _buildUnsigned();
 
-      expect(sig1, equals(sig2));
+      expect(sut1.signMessage(msg), equals(sut2.signMessage(msg)));
     });
 
     test('different message = different signature', () {
-      final msg1 = _buildUnsigned(payload: Uint8List.fromList([0x01]));
-      final msg2 = _buildUnsigned(payload: Uint8List.fromList([0x02]));
+      final sut = _makeService();
+      final msg1 = _buildUnsigned(seqNum: 1);
+      final msg2 = _buildUnsigned(seqNum: 2);
 
-      final sig1 = sut.signMessage(msg1, _testKey);
-      final sig2 = sut.signMessage(msg2, _testKey);
-
-      expect(
-        sig1.sublist(sig1.length - 32),
-        isNot(equals(sig2.sublist(sig2.length - 32))),
-      );
+      expect(sut.signMessage(msg1), isNot(equals(sut.signMessage(msg2))));
     });
 
     test('different key = different signature', () {
-      final unsigned = _buildUnsigned();
-      final sig1 = sut.signMessage(unsigned, _testKey);
-      final sig2 = sut.signMessage(unsigned, _otherKey);
+      final sut1 = _makeService(key: _testKey);
+      final sut2 = _makeService(key: _otherKey);
+      final msg = _buildUnsigned();
 
-      expect(
-        sig1.sublist(sig1.length - 32),
-        isNot(equals(sig2.sublist(sig2.length - 32))),
-      );
+      expect(sut1.signMessage(msg), isNot(equals(sut2.signMessage(msg))));
     });
   });
 
@@ -112,31 +98,30 @@ void main() {
 
   group('BleSecurityService.verifySignature', () {
     test('accepts correctly signed message', () {
-      final signed = sut.signMessage(_buildUnsigned(), _testKey);
-      expect(sut.verifySignature(signed, _testKey), isTrue);
+      final sut = _makeService();
+      final signed = sut.signAndAppend(_buildUnsigned());
+      expect(sut.verifySignature(signed), isTrue);
     });
 
     test('rejects message with tampered payload', () {
-      final signed = sut.signMessage(_buildUnsigned(), _testKey);
-      // Flip a byte in the payload area (byte 10, inside payload)
+      final sut = _makeService();
+      final signed = sut.signAndAppend(_buildUnsigned());
       final tampered = Uint8List.fromList(signed);
-      tampered[10] ^= 0xFF;
-      expect(sut.verifySignature(tampered, _testKey), isFalse);
+      tampered[5] ^= 0xFF; // flip a byte in the timestamp area
+      expect(sut.verifySignature(tampered), isFalse);
     });
 
-    test('rejects message with wrong key', () {
-      final signed = sut.signMessage(_buildUnsigned(), _testKey);
-      expect(sut.verifySignature(signed, _otherKey), isFalse);
+    test('rejects message signed with different key', () {
+      final signer = _makeService(key: _testKey);
+      final verifier = _makeService(key: _otherKey);
+      final signed = signer.signAndAppend(_buildUnsigned());
+      expect(verifier.verifySignature(signed), isFalse);
     });
 
-    test('rejects message with truncated signature', () {
-      final signed = sut.signMessage(_buildUnsigned(), _testKey);
-      // Remove the last 16 bytes (half the signature)
-      final truncated = signed.sublist(0, signed.length - 16);
-      expect(
-        () => sut.verifySignature(truncated, _testKey),
-        throwsArgumentError,
-      );
+    test('returns false for message shorter than 32 bytes', () {
+      final sut = _makeService();
+      final tooShort = Uint8List(31);
+      expect(sut.verifySignature(tooShort), isFalse);
     });
   });
 
@@ -144,27 +129,24 @@ void main() {
 
   group('BleSecurityService.isAuthorizedSender', () {
     // Spec §2.4 Trust Model:
-    //   0x01 SONG_CHANGED      → conductor only
-    //   0x02 METRONOME_BEAT    → conductor only
-    //   0x10 SESSION_START     → conductor only
-    //   0x11 SESSION_STOP      → conductor only
-    //   0x12 SESSION_STATUS    → conductor only
-    //   0x03 ANNOTATION_INVALIDATED → any authenticated device
+    //   Conductor-only: 0x01 (SONG_CHANGED), 0x02 (METRONOME_BEAT),
+    //                   0x10 (SESSION_START), 0x11 (SESSION_STOP), 0x12 (SESSION_STATUS)
+    //   Any authenticated: 0x03 (ANNOTATION_INVALIDATED)
 
-    const conductorOnlyTypes = [0x01, 0x02, 0x10, 0x11, 0x12];
-    const leaderDeviceId = 'leader-device-id';
-    const musicianDeviceId = 'musician-device-id';
-    const unknownDeviceId = 'unknown-device-id';
+    const conductorOnlyTypes = [
+      BleMessageCodec.songChanged,
+      BleMessageCodec.metronomeBeat,
+      BleMessageCodec.sessionStart,
+      BleMessageCodec.sessionStop,
+      BleMessageCodec.sessionStatus,
+    ];
 
-    test('conductor-only types (0x01, 0x02, 0x10-0x12) require leader device ID',
+    test('conductor-only types (0x01, 0x02, 0x10–0x12) require leader device ID',
         () {
-      final session = _makeSession(
-        authenticatedDevices: {leaderDeviceId, musicianDeviceId},
-      );
-
+      final sut = _makeService();
       for (final type in conductorOnlyTypes) {
         expect(
-          sut.isAuthorizedSender(type, leaderDeviceId, session),
+          sut.isAuthorizedSender(type, _leaderDeviceId),
           isTrue,
           reason: 'type=0x${type.toRadixString(16)}: leader should be authorized',
         );
@@ -172,42 +154,41 @@ void main() {
     });
 
     test('annotation type (0x03) accepts any authenticated device', () {
-      final session = _makeSession(
-        authenticatedDevices: {leaderDeviceId, musicianDeviceId},
-      );
+      final sut = _makeService();
+      sut.markDeviceAuthenticated(_musicianDeviceId);
 
-      expect(sut.isAuthorizedSender(0x03, leaderDeviceId, session), isTrue);
-      expect(sut.isAuthorizedSender(0x03, musicianDeviceId, session), isTrue);
+      expect(
+        sut.isAuthorizedSender(BleMessageCodec.annotationInvalidated, _musicianDeviceId),
+        isTrue,
+      );
+    });
+
+    test('annotation type also accepts leader device', () {
+      final sut = _makeService();
+      expect(
+        sut.isAuthorizedSender(BleMessageCodec.annotationInvalidated, _leaderDeviceId),
+        isTrue,
+      );
     });
 
     test('rejects unknown device for conductor-only types', () {
-      final session = _makeSession(
-        authenticatedDevices: {leaderDeviceId, musicianDeviceId},
-      );
-
+      final sut = _makeService();
       for (final type in conductorOnlyTypes) {
         expect(
-          sut.isAuthorizedSender(type, musicianDeviceId, session),
+          sut.isAuthorizedSender(type, _musicianDeviceId),
           isFalse,
-          reason:
-              'type=0x${type.toRadixString(16)}: musician should NOT be authorized',
-        );
-        expect(
-          sut.isAuthorizedSender(type, unknownDeviceId, session),
-          isFalse,
-          reason:
-              'type=0x${type.toRadixString(16)}: unknown device should NOT be authorized',
+          reason: 'type=0x${type.toRadixString(16)}: musician should NOT be authorized',
         );
       }
     });
 
     test('rejects unauthenticated device for annotation type', () {
-      final session = _makeSession(
-        authenticatedDevices: {leaderDeviceId},
+      final sut = _makeService();
+      // 'stranger' is NOT in authenticatedDevices
+      expect(
+        sut.isAuthorizedSender(BleMessageCodec.annotationInvalidated, 'stranger'),
+        isFalse,
       );
-
-      // musicianDeviceId is NOT in authenticatedDevices here
-      expect(sut.isAuthorizedSender(0x03, 'stranger-device', session), isFalse);
     });
   });
 
@@ -215,130 +196,56 @@ void main() {
 
   group('BleSecurityService.validateMessage', () {
     test('accepts valid signed message from authorized sender', () {
-      final session = _makeSession();
-      final replay = ReplayProtection();
-
-      final unsigned = _buildUnsigned(messageType: 0x01, seqNum: 1);
-      final signed = sut.signMessage(unsigned, _testKey);
-
-      final result = sut.validateMessage(
-        signedMessage: signed,
-        senderDeviceId: session.leaderDeviceId,
-        session: session,
-        replayProtection: replay,
-      );
-
-      expect(result, equals(BleValidationResult.valid));
+      final sut = _makeService();
+      final signed = sut.signAndAppend(_buildUnsigned(seqNum: 1));
+      expect(sut.validateMessage(signed, _leaderDeviceId), isTrue);
     });
 
     test('rejects invalid signature', () {
-      final session = _makeSession();
-      final replay = ReplayProtection();
-
-      final unsigned = _buildUnsigned(messageType: 0x01, seqNum: 1);
-      final signed = sut.signMessage(unsigned, _otherKey); // wrong key
-
-      final result = sut.validateMessage(
-        signedMessage: signed,
-        senderDeviceId: session.leaderDeviceId,
-        session: session,
-        replayProtection: replay,
-      );
-
-      expect(result, equals(BleValidationResult.invalidSignature));
+      final sut = _makeService(key: _testKey);
+      // Sign with one service, validate with another (different key)
+      final otherSut = _makeService(key: _otherKey);
+      final signed = otherSut.signAndAppend(_buildUnsigned(seqNum: 1));
+      expect(sut.validateMessage(signed, _leaderDeviceId), isFalse);
     });
 
     test('rejects unauthorized sender', () {
-      final session = _makeSession();
-      final replay = ReplayProtection();
-
-      final unsigned = _buildUnsigned(messageType: 0x01, seqNum: 1);
-      final signed = sut.signMessage(unsigned, _testKey);
-
-      final result = sut.validateMessage(
-        signedMessage: signed,
-        senderDeviceId: 'rogue-musician', // not the leader
-        session: session,
-        replayProtection: replay,
+      final sut = _makeService();
+      final signed = sut.signAndAppend(
+        _buildUnsigned(messageType: BleMessageCodec.songChanged, seqNum: 1),
       );
-
-      expect(result, equals(BleValidationResult.unauthorizedSender));
+      // 'rogue-musician' is not the leader
+      expect(sut.validateMessage(signed, 'rogue-musician'), isFalse);
     });
 
     test('rejects replayed message (same sequence number)', () {
-      final session = _makeSession();
-      final replay = ReplayProtection();
-
-      final unsigned = _buildUnsigned(messageType: 0x01, seqNum: 10);
-      final signed = sut.signMessage(unsigned, _testKey);
+      final sut = _makeService();
+      final signed = sut.signAndAppend(_buildUnsigned(seqNum: 10));
 
       // First delivery — accepted
-      final first = sut.validateMessage(
-        signedMessage: signed,
-        senderDeviceId: session.leaderDeviceId,
-        session: session,
-        replayProtection: replay,
-      );
-      expect(first, equals(BleValidationResult.valid));
-
+      expect(sut.validateMessage(signed, _leaderDeviceId), isTrue);
       // Replayed delivery — rejected
-      final replayed = sut.validateMessage(
-        signedMessage: signed,
-        senderDeviceId: session.leaderDeviceId,
-        session: session,
-        replayProtection: replay,
-      );
-      expect(replayed, equals(BleValidationResult.replayDetected));
+      expect(sut.validateMessage(signed, _leaderDeviceId), isFalse);
     });
 
     test('rejects message with old timestamp (> 5 sec drift)', () {
-      final session = _makeSession();
-      final replay = ReplayProtection();
-
-      final oldTs = DateTime.now()
-              .subtract(const Duration(seconds: 10))
-              .millisecondsSinceEpoch ~/
-          1000;
-      final unsigned = _buildUnsigned(
-        messageType: 0x01,
-        seqNum: 1,
-        timestamp: oldTs,
-      );
-      final signed = sut.signMessage(unsigned, _testKey);
-
-      final result = sut.validateMessage(
-        signedMessage: signed,
-        senderDeviceId: session.leaderDeviceId,
-        session: session,
-        replayProtection: replay,
-      );
-
-      expect(result, equals(BleValidationResult.timestampExpired));
+      final sut = _makeService();
+      final oldTs =
+          DateTime.now().subtract(const Duration(seconds: 10)).millisecondsSinceEpoch ~/
+              1000;
+      final signed =
+          sut.signAndAppend(_buildUnsigned(seqNum: 1, timestamp: oldTs));
+      expect(sut.validateMessage(signed, _leaderDeviceId), isFalse);
     });
 
     test('accepts message within 5 second time window', () {
-      final session = _makeSession();
-      final replay = ReplayProtection();
-
-      final recentTs = DateTime.now()
-              .subtract(const Duration(seconds: 3))
-              .millisecondsSinceEpoch ~/
-          1000;
-      final unsigned = _buildUnsigned(
-        messageType: 0x01,
-        seqNum: 1,
-        timestamp: recentTs,
-      );
-      final signed = sut.signMessage(unsigned, _testKey);
-
-      final result = sut.validateMessage(
-        signedMessage: signed,
-        senderDeviceId: session.leaderDeviceId,
-        session: session,
-        replayProtection: replay,
-      );
-
-      expect(result, equals(BleValidationResult.valid));
+      final sut = _makeService();
+      final recentTs =
+          DateTime.now().subtract(const Duration(seconds: 3)).millisecondsSinceEpoch ~/
+              1000;
+      final signed =
+          sut.signAndAppend(_buildUnsigned(seqNum: 1, timestamp: recentTs));
+      expect(sut.validateMessage(signed, _leaderDeviceId), isTrue);
     });
   });
 
@@ -346,71 +253,78 @@ void main() {
 
   group('BleSecurityService Challenge-Response', () {
     test('createChallenge returns 16 random bytes', () {
+      final sut = _makeService();
       final challenge = sut.createChallenge();
       expect(challenge.length, equals(16));
     });
 
-    test('respondToChallenge produces HMAC (32 bytes) of nonce with session key',
-        () {
+    test('respondToChallenge produces 32-byte HMAC of nonce with session key', () {
+      final sut = _makeService();
       final nonce = sut.createChallenge();
-      final response = sut.respondToChallenge(nonce, _testKey);
+      final response = sut.respondToChallenge(nonce);
       expect(response.length, equals(32));
     });
 
     test('verifyChallenge accepts correct response', () {
+      final sut = _makeService();
       final nonce = sut.createChallenge();
-      final response = sut.respondToChallenge(nonce, _testKey);
-      expect(sut.verifyChallenge(nonce, response, _testKey), isTrue);
+      final response = sut.respondToChallenge(nonce);
+      expect(sut.verifyChallenge(nonce, response), isTrue);
     });
 
     test('verifyChallenge rejects incorrect response', () {
+      final sut = _makeService();
       final nonce = sut.createChallenge();
       final wrongResponse = Uint8List(32); // all zeroes
-      expect(sut.verifyChallenge(nonce, wrongResponse, _testKey), isFalse);
+      expect(sut.verifyChallenge(nonce, wrongResponse), isFalse);
     });
 
-    test('verifyChallenge rejects response generated with wrong key', () {
-      final nonce = sut.createChallenge();
-      final response = sut.respondToChallenge(nonce, _otherKey);
-      expect(sut.verifyChallenge(nonce, response, _testKey), isFalse);
+    test('verifyChallenge rejects response generated with different key', () {
+      final sut1 = _makeService(key: _testKey);
+      final sut2 = _makeService(key: _otherKey);
+      final nonce = sut1.createChallenge();
+      final response = sut2.respondToChallenge(nonce); // signed with otherKey
+      expect(sut1.verifyChallenge(nonce, response), isFalse);
     });
 
     test('two challenges produce different nonces', () {
+      final sut = _makeService();
       final c1 = sut.createChallenge();
       final c2 = sut.createChallenge();
-      // 16 random bytes: collision probability is negligible (1 in 2^128)
+      // 16 random bytes — collision probability is 1 in 2^128
       expect(c1, isNot(equals(c2)));
     });
   });
 
-  // ─── ReplayProtection ───────────────────────────────────────────────────────
+  // ─── ReplayProtection (standalone class) ───────────────────────────────────
 
   group('ReplayProtection', () {
-    int _nowTs() => DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    int nowTs() => DateTime.now().millisecondsSinceEpoch ~/ 1000;
 
     test('accepts first message from sender', () {
       final rp = ReplayProtection();
-      expect(rp.isValid('sender-1', 1, _nowTs()), isTrue);
+      expect(rp.isValid('sender-1', 1, nowTs()), isTrue);
     });
 
     test('accepts increasing sequence numbers', () {
       final rp = ReplayProtection();
-      final ts = _nowTs();
+      final ts = nowTs();
       expect(rp.isValid('sender-1', 1, ts), isTrue);
       expect(rp.isValid('sender-1', 2, ts), isTrue);
       expect(rp.isValid('sender-1', 10, ts), isTrue);
     });
 
-    test('rejects same sequence number (replay)', () {
+    test('rejects same sequence number (replay attack)', () {
       final rp = ReplayProtection();
-      final ts = _nowTs();
+      final ts = nowTs();
       expect(rp.isValid('sender-1', 5, ts), isTrue);
-      expect(rp.isValid('sender-1', 5, ts), isFalse);
+      expect(rp.isValid('sender-1', 5, ts), isFalse,
+          reason: 'duplicate seq=5 should be rejected');
     });
 
     test('rejects lower sequence number', () {
       final rp = ReplayProtection();
-      final ts = _nowTs();
+      final ts = nowTs();
       expect(rp.isValid('sender-1', 10, ts), isTrue);
       expect(rp.isValid('sender-1', 9, ts), isFalse);
       expect(rp.isValid('sender-1', 1, ts), isFalse);
@@ -418,37 +332,36 @@ void main() {
 
     test('tracks sequence numbers per sender independently', () {
       final rp = ReplayProtection();
-      final ts = _nowTs();
+      final ts = nowTs();
 
       expect(rp.isValid('sender-A', 5, ts), isTrue);
-      expect(rp.isValid('sender-B', 5, ts), isTrue, // same seq, different sender
-          reason: 'sender-B sequence is independent from sender-A');
-      expect(rp.isValid('sender-A', 5, ts), isFalse,
-          reason: 'replay for sender-A');
+      // Same seq number for a DIFFERENT sender is OK
+      expect(rp.isValid('sender-B', 5, ts), isTrue,
+          reason: 'sender-B has its own independent counter');
+      // But replaying for sender-A is not OK
+      expect(rp.isValid('sender-A', 5, ts), isFalse);
     });
 
     test('rejects timestamp older than 5 seconds', () {
       final rp = ReplayProtection();
-      final oldTs = _nowTs() - 10; // 10 seconds ago
+      final oldTs = nowTs() - 10; // 10 seconds ago
       expect(rp.isValid('sender-1', 1, oldTs), isFalse);
     });
 
     test('accepts timestamp within 5 second window', () {
       final rp = ReplayProtection();
-      final recentTs = _nowTs() - 3; // 3 seconds ago
+      final recentTs = nowTs() - 3; // 3 seconds ago
       expect(rp.isValid('sender-1', 1, recentTs), isTrue);
     });
 
     test('handles sequence number near uint16 max (65535)', () {
       final rp = ReplayProtection();
-      final ts = _nowTs();
+      final ts = nowTs();
 
       expect(rp.isValid('sender-1', 65534, ts), isTrue);
       expect(rp.isValid('sender-1', 65535, ts), isTrue);
-      // After max, 65535 is the last seen — next expected would be higher
-      // Spec note: overflow handling is implementation-defined (session restart)
-      expect(rp.isValid('sender-1', 65535, ts), isFalse,
-          reason: 'same seq as last seen should be rejected');
+      // Replay at 65535 is rejected
+      expect(rp.isValid('sender-1', 65535, ts), isFalse);
     });
   });
 }

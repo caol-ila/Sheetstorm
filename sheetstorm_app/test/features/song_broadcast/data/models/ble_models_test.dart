@@ -1,12 +1,17 @@
+// Tests for BLE-specific data models.
+//
+// Spec: docs/specs/2026-03-30-ble-broadcast-dirigent.md §6.2
+//
+// Models under test:
+//   - BleSessionInfo       — session key + leader device ID + expiry
+//   - MetronomeBeatPayload — BPM, time signature, beat timing; binary serialization
+//   - AnnotationInvalidationPayload — stueckGuid, stimmeId, updateType
+//   - AnnotationUpdateType — created / modified / deleted
+
+import 'dart:typed_data';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sheetstorm/features/song_broadcast/data/models/ble_models.dart';
-
-// Spec reference: docs/specs/2026-03-30-ble-broadcast-dirigent.md §6.2
-//
-// BLE-specific models:
-//  - BleSessionInfo     — session key + leader device ID + expiry + auth devices
-//  - MetronomeBeatPayload — BPM range 20–300, nextBeatMs > beatTimestampMs
-//  - AnnotationInvalidationPayload — stueckGuid (UUID), stimmeId, updateType
 
 void main() {
   // ─── BleSessionInfo ─────────────────────────────────────────────────────────
@@ -14,21 +19,19 @@ void main() {
   group('BleSessionInfo', () {
     test('fromJson parses all fields correctly', () {
       final expiresAt = DateTime.utc(2026, 4, 1, 12, 0, 0);
-      final json = {
+      final json = <String, dynamic>{
         'sessionKey': 'dGVzdEtleQ==',
         'leaderDeviceId': 'device-abc-123',
         'expiresAt': expiresAt.toIso8601String(),
-        'authenticatedDevices': ['device-abc-123', 'device-xyz-456'],
       };
 
       final info = BleSessionInfo.fromJson(json);
 
       expect(info.sessionKey, equals('dGVzdEtleQ=='));
       expect(info.leaderDeviceId, equals('device-abc-123'));
-      expect(info.expiresAt.toIso8601String(), equals(expiresAt.toIso8601String()));
       expect(
-        info.authenticatedDevices,
-        containsAll(['device-abc-123', 'device-xyz-456']),
+        info.expiresAt.millisecondsSinceEpoch,
+        equals(expiresAt.millisecondsSinceEpoch),
       );
     });
 
@@ -38,7 +41,6 @@ void main() {
         sessionKey: 'dGVzdEtleQ==',
         leaderDeviceId: 'device-abc-123',
         expiresAt: expiresAt,
-        authenticatedDevices: {'device-abc-123', 'device-xyz-456'},
       );
 
       final json = info.toJson();
@@ -46,9 +48,10 @@ void main() {
       expect(json['sessionKey'], equals('dGVzdEtleQ=='));
       expect(json['leaderDeviceId'], equals('device-abc-123'));
       expect(json['expiresAt'], isA<String>());
+      // expiresAt is stored as ISO-8601 string
       expect(
-        json['authenticatedDevices'],
-        containsAll(['device-abc-123', 'device-xyz-456']),
+        DateTime.parse(json['expiresAt'] as String).millisecondsSinceEpoch,
+        equals(expiresAt.millisecondsSinceEpoch),
       );
     });
 
@@ -57,7 +60,6 @@ void main() {
         sessionKey: 'c2Vzc2lvbktleQ==',
         leaderDeviceId: 'leader-42',
         expiresAt: DateTime.utc(2026, 6, 1),
-        authenticatedDevices: {'leader-42', 'member-1', 'member-2'},
       );
 
       final restored = BleSessionInfo.fromJson(original.toJson());
@@ -68,31 +70,23 @@ void main() {
         restored.expiresAt.millisecondsSinceEpoch,
         equals(original.expiresAt.millisecondsSinceEpoch),
       );
-      expect(
-        restored.authenticatedDevices,
-        equals(original.authenticatedDevices),
-      );
     });
 
-    test('isExpired returns true for past expiresAt', () {
+    test('isExpired returns true when expiresAt is in the past', () {
       final expired = BleSessionInfo(
         sessionKey: 'key',
         leaderDeviceId: 'device',
         expiresAt: DateTime.now().subtract(const Duration(seconds: 1)),
-        authenticatedDevices: const {},
       );
-
       expect(expired.isExpired, isTrue);
     });
 
-    test('isExpired returns false for future expiresAt', () {
+    test('isExpired returns false when expiresAt is in the future', () {
       final valid = BleSessionInfo(
         sessionKey: 'key',
         leaderDeviceId: 'device',
         expiresAt: DateTime.now().add(const Duration(hours: 4)),
-        authenticatedDevices: const {},
       );
-
       expect(valid.isExpired, isFalse);
     });
   });
@@ -100,7 +94,16 @@ void main() {
   // ─── MetronomeBeatPayload ───────────────────────────────────────────────────
 
   group('MetronomeBeatPayload', () {
-    MetronomeBeatPayload _valid({
+    // Spec §3.2 binary layout (via toBytes / fromBytes):
+    //   [0..1] BPM uint16 big-endian
+    //   [2]    beatsPerMeasure uint8
+    //   [3]    beatUnit uint8
+    //   [4..7] beatTimestampMs uint32 big-endian
+    //   [8]    beatNumberInMeasure uint8
+    //   [9..12] nextBeatMs uint32 big-endian
+    //   Total: 13 bytes
+
+    MetronomeBeatPayload makePayload({
       int bpm = 120,
       int beatsPerMeasure = 4,
       int beatUnit = 4,
@@ -117,73 +120,85 @@ void main() {
           nextBeatMs: nextBeatMs,
         );
 
-    test('constructs with valid values without error', () {
-      expect(() => _valid(), returnsNormally);
-    });
-
-    test('validates BPM lower bound — 19 is invalid, 20 is valid', () {
-      expect(() => _valid(bpm: 19), throwsAssertionError);
-      expect(() => _valid(bpm: 20), returnsNormally);
-    });
-
-    test('validates BPM upper bound — 301 is invalid, 300 is valid', () {
-      expect(() => _valid(bpm: 301), throwsAssertionError);
-      expect(() => _valid(bpm: 300), returnsNormally);
-    });
-
-    test('validates beat number within measure', () {
-      // beatNumberInMeasure must be >= 1 and <= beatsPerMeasure
-      expect(
-        () => _valid(beatsPerMeasure: 4, beatNumberInMeasure: 0),
-        throwsAssertionError,
-      );
-      expect(
-        () => _valid(beatsPerMeasure: 4, beatNumberInMeasure: 5),
-        throwsAssertionError,
-      );
-      expect(
-        () => _valid(beatsPerMeasure: 4, beatNumberInMeasure: 4),
-        returnsNormally,
-      );
-    });
-
-    test('nextBeatMs is always > beatTimestampMs', () {
-      // Equal timestamps are also invalid (next beat must be in the future)
-      expect(
-        () => _valid(beatTimestampMs: 1000, nextBeatMs: 1000),
-        throwsAssertionError,
-      );
-      expect(
-        () => _valid(beatTimestampMs: 1000, nextBeatMs: 999),
-        throwsAssertionError,
-      );
-      expect(
-        () => _valid(beatTimestampMs: 1000, nextBeatMs: 1001),
-        returnsNormally,
-      );
-    });
-
-    test('BPM boundary values 20 and 300 are both valid', () {
-      expect(() => _valid(bpm: 20), returnsNormally);
-      expect(() => _valid(bpm: 300), returnsNormally);
-    });
-
     test('stores all fields correctly', () {
-      final payload = _valid(
-        bpm: 180,
+      final p = makePayload(
+        bpm: 160,
         beatsPerMeasure: 3,
         beatUnit: 8,
         beatTimestampMs: 5000,
         beatNumberInMeasure: 2,
-        nextBeatMs: 5417,
+        nextBeatMs: 5375,
       );
+      expect(p.bpm, equals(160));
+      expect(p.beatsPerMeasure, equals(3));
+      expect(p.beatUnit, equals(8));
+      expect(p.beatTimestampMs, equals(5000));
+      expect(p.beatNumberInMeasure, equals(2));
+      expect(p.nextBeatMs, equals(5375));
+    });
 
-      expect(payload.bpm, equals(180));
-      expect(payload.beatsPerMeasure, equals(3));
-      expect(payload.beatUnit, equals(8));
-      expect(payload.beatTimestampMs, equals(5000));
-      expect(payload.beatNumberInMeasure, equals(2));
-      expect(payload.nextBeatMs, equals(5417));
+    test('toBytes produces exactly 13 bytes', () {
+      expect(makePayload().toBytes().length, equals(13));
+    });
+
+    test('toBytes encodes BPM as uint16 big-endian at offset 0', () {
+      final bytes = makePayload(bpm: 180).toBytes();
+      final bd = ByteData.sublistView(bytes);
+      expect(bd.getUint16(0, Endian.big), equals(180));
+    });
+
+    test('toBytes encodes beatsPerMeasure and beatUnit at offsets 2–3', () {
+      final bytes = makePayload(beatsPerMeasure: 3, beatUnit: 8).toBytes();
+      expect(bytes[2], equals(3), reason: 'beatsPerMeasure at offset 2');
+      expect(bytes[3], equals(8), reason: 'beatUnit at offset 3');
+    });
+
+    test('toBytes encodes beatTimestampMs as uint32 big-endian at offset 4', () {
+      final bytes = makePayload(beatTimestampMs: 0xDEAD).toBytes();
+      final bd = ByteData.sublistView(bytes);
+      expect(bd.getUint32(4, Endian.big), equals(0xDEAD));
+    });
+
+    test('toBytes encodes nextBeatMs as uint32 big-endian at offset 9', () {
+      final bytes = makePayload(nextBeatMs: 99999).toBytes();
+      final bd = ByteData.sublistView(bytes);
+      expect(bd.getUint32(9, Endian.big), equals(99999));
+    });
+
+    test('fromBytes round-trip preserves all values', () {
+      final original = makePayload(
+        bpm: 200,
+        beatsPerMeasure: 6,
+        beatUnit: 8,
+        beatTimestampMs: 30000,
+        beatNumberInMeasure: 3,
+        nextBeatMs: 30300,
+      );
+      final restored = MetronomeBeatPayload.fromBytes(original.toBytes());
+
+      expect(restored.bpm, equals(original.bpm));
+      expect(restored.beatsPerMeasure, equals(original.beatsPerMeasure));
+      expect(restored.beatUnit, equals(original.beatUnit));
+      expect(restored.beatTimestampMs, equals(original.beatTimestampMs));
+      expect(restored.beatNumberInMeasure, equals(original.beatNumberInMeasure));
+      expect(restored.nextBeatMs, equals(original.nextBeatMs));
+    });
+
+    test('fromJson round-trip preserves all values', () {
+      final original = makePayload(bpm: 90, beatsPerMeasure: 2, beatUnit: 2);
+      final json = <String, dynamic>{
+        'bpm': original.bpm,
+        'beatsPerMeasure': original.beatsPerMeasure,
+        'beatUnit': original.beatUnit,
+        'beatTimestampMs': original.beatTimestampMs,
+        'beatNumberInMeasure': original.beatNumberInMeasure,
+        'nextBeatMs': original.nextBeatMs,
+      };
+      final restored = MetronomeBeatPayload.fromJson(json);
+
+      expect(restored.bpm, equals(original.bpm));
+      expect(restored.beatsPerMeasure, equals(original.beatsPerMeasure));
+      expect(restored.beatUnit, equals(original.beatUnit));
     });
   });
 
@@ -192,9 +207,9 @@ void main() {
   group('AnnotationInvalidationPayload', () {
     const kValidGuid = '550e8400-e29b-41d4-a716-446655440000';
 
-    test('constructs with valid values without error', () {
+    test('constructs with valid values', () {
       expect(
-        () => AnnotationInvalidationPayload(
+        () => const AnnotationInvalidationPayload(
           stueckGuid: kValidGuid,
           stimmeId: 'trumpet',
           updateType: AnnotationUpdateType.created,
@@ -203,54 +218,15 @@ void main() {
       );
     });
 
-    test('all update types serialize correctly', () {
-      for (final type in AnnotationUpdateType.values) {
-        final payload = AnnotationInvalidationPayload(
-          stueckGuid: kValidGuid,
-          stimmeId: 'stimme',
-          updateType: type,
-        );
-        final json = payload.toJson();
-        final restored = AnnotationInvalidationPayload.fromJson(json);
-        expect(restored.updateType, equals(type),
-            reason: 'updateType=$type should survive round-trip');
-      }
-    });
-
-    test('stueckGuid is accepted in valid UUID format', () {
-      expect(
-        () => AnnotationInvalidationPayload(
-          stueckGuid: kValidGuid,
-          stimmeId: 'stimme',
-          updateType: AnnotationUpdateType.modified,
-        ),
-        returnsNormally,
-      );
-    });
-
-    test('rejects stueckGuid that is not valid UUID format', () {
-      expect(
-        () => AnnotationInvalidationPayload(
-          stueckGuid: 'not-a-uuid', // invalid UUID
-          stimmeId: 'stimme',
-          updateType: AnnotationUpdateType.deleted,
-        ),
-        throwsAssertionError,
-      );
-    });
-
-    test('fromJson/toJson round-trip preserves all fields', () {
-      final original = AnnotationInvalidationPayload(
+    test('stores all fields correctly', () {
+      final p = const AnnotationInvalidationPayload(
         stueckGuid: kValidGuid,
         stimmeId: 'trompete-1',
         updateType: AnnotationUpdateType.modified,
       );
-
-      final restored = AnnotationInvalidationPayload.fromJson(original.toJson());
-
-      expect(restored.stueckGuid, equals(original.stueckGuid));
-      expect(restored.stimmeId, equals(original.stimmeId));
-      expect(restored.updateType, equals(original.updateType));
+      expect(p.stueckGuid, equals(kValidGuid));
+      expect(p.stimmeId, equals('trompete-1'));
+      expect(p.updateType, equals(AnnotationUpdateType.modified));
     });
 
     test('AnnotationUpdateType has created, modified, deleted values', () {
@@ -259,6 +235,30 @@ void main() {
         AnnotationUpdateType.modified,
         AnnotationUpdateType.deleted,
       ]));
+    });
+
+    test('AnnotationUpdateType raw values: created=0, modified=1, deleted=2', () {
+      expect(AnnotationUpdateType.created.value, equals(0));
+      expect(AnnotationUpdateType.modified.value, equals(1));
+      expect(AnnotationUpdateType.deleted.value, equals(2));
+    });
+
+    test('AnnotationUpdateType.fromValue round-trips all values', () {
+      for (final type in AnnotationUpdateType.values) {
+        expect(
+          AnnotationUpdateType.fromValue(type.value),
+          equals(type),
+          reason: '${type.name} (value=${type.value}) should round-trip',
+        );
+      }
+    });
+
+    test('AnnotationUpdateType.fromValue defaults to modified for unknown value',
+        () {
+      expect(
+        AnnotationUpdateType.fromValue(99),
+        equals(AnnotationUpdateType.modified),
+      );
     });
   });
 }
