@@ -62,3 +62,29 @@
 **Test Updates:** Replaced `OnDisconnectedAsync_UpdatesParticipantCount` with conductor/non-conductor disconnect tests. Updated GEMA composer test assertion. All 827 tests pass.
 
 **Pattern Learned:** Voice entity has no `BandId` — must validate via `Voice.Piece.BandId` (requires `.Include(v => v.Piece)`).
+
+### 2026-03-30: BLE-Broadcast-Spezifikation
+
+**Spec erstellt:** `docs/specs/2026-03-30-ble-broadcast-dirigent.md`
+
+**Architektur-Entscheidungen:**
+- BLE GATT: Dirigent = Peripheral (GATT Server), Musiker = Central (GATT Client)
+- Custom GATT Service UUID `0x5353-0001` mit 5 Characteristics (Song, Metronome, Annotation, Session, Security)
+- Kein OS-Level Pairing — Authentifizierung über anwendungseigenes Session-Key-Verfahren
+- Bibliotheken: `flutter_blue_plus` (Central) + `flutter_ble_peripheral` (Peripheral)
+
+**Sicherheitskonzept:**
+- Pre-Shared Session Key (256-Bit) via REST-API oder Offline QR/PIN
+- HMAC-SHA256 signierte BLE-Nachrichten (32 Byte Signatur pro Nachricht)
+- Challenge-Response Auth beim Verbindungsaufbau (beidseitiger Key-Beweis)
+- Trust-Modell: Dirigenten-exklusiv (Song, Metronom, Session) vs. alle Auth. (Annotations)
+- Replay-Protection: Sequenznummern (uint16) + Timestamp-Drift max 5s
+
+**Hybrid-Modus:**
+- BLE primär (< 20ms Latenz), SignalR als Fallback (Remote-Teilnehmer)
+- IBroadcastTransport Interface abstrahiert beide Transports
+- Dirigent agiert als Bridge im Mixed-Szenario (BLE + SignalR gleichzeitig)
+
+**File-Structure-Map:** 7 neue Dateien, 4 modifizierte, 2 Plattform-Configs definiert.
+
+**Decision geschrieben:** `.squad/decisions/inbox/strange-ble-security-spec.md` — 7 Sicherheitsentscheidungen zur Prüfung durch Thomas.
