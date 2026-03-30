@@ -5,23 +5,27 @@ import 'package:sheetstorm/features/events/presentation/screens/rsvp_screen.dart
 
 /// Event/Calendar routes for integration into app_router.dart
 ///
-/// DO NOT modify app_router.dart directly. Instead, export these routes
-/// and integrate them manually.
+/// Verschachtelt wie setlistRoutes: Eltern-Route mit verschachtelten
+/// Unter-Routen für korrekte StatefulShellBranch-Integration und Deep Links.
 final eventRoutes = [
   GoRoute(
     path: '/app/events',
     builder: (context, state) => const CalendarScreen(),
-  ),
-  GoRoute(
-    path: '/app/events/:eventId',
-    builder: (context, state) => EventDetailScreen(
-      eventId: state.pathParameters['eventId']!,
-    ),
-  ),
-  GoRoute(
-    path: '/app/events/:eventId/rsvps',
-    builder: (context, state) => RsvpScreen(
-      eventId: state.pathParameters['eventId']!,
-    ),
+    routes: [
+      GoRoute(
+        path: ':eventId',
+        builder: (context, state) => EventDetailScreen(
+          eventId: state.pathParameters['eventId']!,
+        ),
+        routes: [
+          GoRoute(
+            path: 'rsvps',
+            builder: (context, state) => RsvpScreen(
+              eventId: state.pathParameters['eventId']!,
+            ),
+          ),
+        ],
+      ),
+    ],
   ),
 ];

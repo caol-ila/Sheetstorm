@@ -103,4 +103,4 @@ final class BroadcastSignalRServiceProvider
 }
 
 String _$broadcastSignalRServiceHash() =>
-    r'a2f6f5c4914989bcf32d5e581cdcf94407ced0c8';
+    r'c44a140601b4578bf157bf72f67cde1f824163e8';

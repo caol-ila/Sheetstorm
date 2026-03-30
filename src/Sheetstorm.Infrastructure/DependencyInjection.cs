@@ -44,6 +44,7 @@ public static class DependencyInjection
         });
 
         services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<IBandAuthorizationService, BandAuthorizationService>();
         services.AddScoped<IEmailService, DevEmailService>();
         services.AddScoped<IBandService, BandService>();
         services.AddScoped<IConfigService, ConfigService>();

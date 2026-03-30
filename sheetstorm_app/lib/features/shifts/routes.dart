@@ -17,13 +17,15 @@ final shiftRoutes = [
     },
   ),
   GoRoute(
-    path: 'shift/detail',
+    path: 'shift/detail/:planId/:shiftId',
     builder: (context, state) {
-      final args = state.extra as Map<String, dynamic>;
+      final bandId = state.pathParameters['bandId'] ?? '';
+      final planId = state.pathParameters['planId'] ?? '';
+      final shiftId = state.pathParameters['shiftId'] ?? '';
       return ShiftDetailScreen(
-        bandId: args['bandId'] as String,
-        planId: args['planId'] as String,
-        shift: args['shift'],
+        bandId: bandId,
+        planId: planId,
+        shiftId: shiftId,
       );
     },
   ),

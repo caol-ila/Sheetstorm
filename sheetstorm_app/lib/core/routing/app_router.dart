@@ -72,6 +72,19 @@ abstract final class AppRoutes {
       '/app/band/$bandId/substitutes';
   static String bandShifts({required String bandId, String? planId}) =>
       '/app/band/$bandId/shifts${planId != null ? '?planId=$planId' : ''}';
+  static String bandSubstituteLink({required String bandId}) =>
+      '/app/band/$bandId/substitute/link';
+  static String bandSubstituteQr({
+    required String bandId,
+    required String accessId,
+  }) =>
+      '/app/band/$bandId/substitute/qr/$accessId';
+  static String bandShiftDetail({
+    required String bandId,
+    required String planId,
+    required String shiftId,
+  }) =>
+      '/app/band/$bandId/shift/detail/$planId/$shiftId';
 
   // ── Import routes ──────────────────────────────────────────────────────────
   static const String importStart = '/app/import';

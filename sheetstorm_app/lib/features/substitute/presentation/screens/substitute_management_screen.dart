@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:sheetstorm/core/theme/app_colors.dart';
 import 'package:sheetstorm/core/theme/app_tokens.dart';
+import 'package:sheetstorm/features/substitute/application/pending_substitute_link_provider.dart';
 import 'package:sheetstorm/features/substitute/application/substitute_notifier.dart';
 import 'package:sheetstorm/features/substitute/data/models/substitute_models.dart';
 import 'package:sheetstorm/features/substitute/presentation/widgets/access_link_card.dart';
@@ -134,110 +136,111 @@ class _SubstituteManagementScreenState
 
     await showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Aushilfe hinzufügen'),
-        content: Form(
-          key: formKey,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextFormField(
-                  decoration: const InputDecoration(labelText: 'Name *'),
-                  validator: (value) =>
-                      value?.isEmpty ?? true ? 'Pflichtfeld' : null,
-                  onSaved: (value) => name = value!,
-                ),
-                const SizedBox(height: AppSpacing.md),
-                TextFormField(
-                  decoration: const InputDecoration(labelText: 'Instrument *'),
-                  validator: (value) =>
-                      value?.isEmpty ?? true ? 'Pflichtfeld' : null,
-                  onSaved: (value) => instrument = value!,
-                ),
-                const SizedBox(height: AppSpacing.md),
-                TextFormField(
-                  decoration: const InputDecoration(labelText: 'Stimme *'),
-                  validator: (value) =>
-                      value?.isEmpty ?? true ? 'Pflichtfeld' : null,
-                  onSaved: (value) => voice = value!,
-                ),
-                const SizedBox(height: AppSpacing.md),
-                TextFormField(
-                  decoration: const InputDecoration(
-                    labelText: 'Notiz (optional)',
-                    hintText: 'z.B. Ersatz für...',
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Aushilfe hinzufügen'),
+          content: Form(
+            key: formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    decoration: const InputDecoration(labelText: 'Name *'),
+                    validator: (value) =>
+                        value?.isEmpty ?? true ? 'Pflichtfeld' : null,
+                    onSaved: (value) => name = value!,
                   ),
-                  maxLines: 2,
-                  onSaved: (value) => note = value?.isNotEmpty == true ? value : null,
-                ),
-                const SizedBox(height: AppSpacing.md),
-                ListTile(
-                  title: const Text('Gültig bis'),
-                  subtitle: Text(
-                    expiresAt != null
-                        ? _formatDate(expiresAt!)
-                        : '7 Tage (Standard)',
+                  const SizedBox(height: AppSpacing.md),
+                  TextFormField(
+                    decoration: const InputDecoration(labelText: 'Instrument *'),
+                    validator: (value) =>
+                        value?.isEmpty ?? true ? 'Pflichtfeld' : null,
+                    onSaved: (value) => instrument = value!,
                   ),
-                  trailing: const Icon(Icons.calendar_today),
-                  onTap: () async {
-                    final date = await showDatePicker(
-                      context: context,
-                      initialDate: DateTime.now().add(const Duration(days: 7)),
-                      firstDate: DateTime.now(),
-                      lastDate: DateTime.now().add(const Duration(days: 365)),
-                    );
-                    if (date != null) {
-                      expiresAt = date;
-                      (context as Element).markNeedsBuild();
-                    }
-                  },
-                ),
-              ],
+                  const SizedBox(height: AppSpacing.md),
+                  TextFormField(
+                    decoration: const InputDecoration(labelText: 'Stimme *'),
+                    validator: (value) =>
+                        value?.isEmpty ?? true ? 'Pflichtfeld' : null,
+                    onSaved: (value) => voice = value!,
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  TextFormField(
+                    decoration: const InputDecoration(
+                      labelText: 'Notiz (optional)',
+                      hintText: 'z.B. Ersatz für...',
+                    ),
+                    maxLines: 2,
+                    onSaved: (value) => note = value?.isNotEmpty == true ? value : null,
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  ListTile(
+                    title: const Text('Gültig bis'),
+                    subtitle: Text(
+                      expiresAt != null
+                          ? _formatDate(expiresAt!)
+                          : '7 Tage (Standard)',
+                    ),
+                    trailing: const Icon(Icons.calendar_today),
+                    onTap: () async {
+                      final date = await showDatePicker(
+                        context: context,
+                        initialDate: DateTime.now().add(const Duration(days: 7)),
+                        firstDate: DateTime.now(),
+                        lastDate: DateTime.now().add(const Duration(days: 365)),
+                      );
+                      if (date != null) {
+                        setDialogState(() {
+                          expiresAt = date;
+                        });
+                      }
+                    },
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Abbrechen'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (formKey.currentState!.validate()) {
-                formKey.currentState!.save();
-                Navigator.pop(context);
-                
-                final notifier = ref.read(
-                  substituteListProvider(widget.bandId).notifier,
-                );
-                
-                final link = await notifier.createAccess(
-                  name: name,
-                  instrument: instrument,
-                  voice: voice,
-                  expiresAt: expiresAt ?? DateTime.now().add(const Duration(days: 7)),
-                  note: note,
-                );
-                
-                if (link != null && mounted) {
-                  _showLinkDialog(link);
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Abbrechen'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (formKey.currentState!.validate()) {
+                  formKey.currentState!.save();
+                  Navigator.pop(context);
+                  
+                  final notifier = ref.read(
+                    substituteListProvider(widget.bandId).notifier,
+                  );
+                  
+                  final link = await notifier.createAccess(
+                    name: name,
+                    instrument: instrument,
+                    voice: voice,
+                    expiresAt: expiresAt ?? DateTime.now().add(const Duration(days: 7)),
+                    note: note,
+                  );
+                  
+                  if (link != null && mounted) {
+                    _showLinkDialog(link);
+                  }
                 }
-              }
-            },
-            child: const Text('Erstellen'),
-          ),
-        ],
+              },
+              child: const Text('Erstellen'),
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Future<void> _showLinkDialog(SubstituteLink link) async {
-    await Navigator.pushNamed(
-      context,
-      '/substitute/link',
-      arguments: link,
-    );
+    if (!mounted) return;
+    ref.read(pendingSubstituteLinkProvider.notifier).set(link);
+    context.push('/app/band/${widget.bandId}/substitute/link');
   }
 
   Future<void> _revokeAccess(String accessId) async {
@@ -356,11 +359,7 @@ class _SubstituteManagementScreenState
   }
 
   void _showQRCode(SubstituteAccess access) {
-    Navigator.pushNamed(
-      context,
-      '/substitute/qr',
-      arguments: access,
-    );
+    context.push('/app/band/${widget.bandId}/substitute/qr/${access.id}');
   }
 
   String _formatDate(DateTime date) {
