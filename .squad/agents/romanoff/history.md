@@ -808,3 +808,52 @@ JSON-Felder: `kapelle_id`, `titel`, `typ`, `datum`, `start_uhrzeit`, `end_uhrzei
 - docs/feature-specs/kapellenverwaltung-spec.md — US-00, US-02, US-06, §7.9–7.13 (edge cases)
 
 **Status:** Request Wanda review of UX flows before implementation
+
+## 2026-03-31 — MS2 Nacharbeit: GoRouter-Migration + StreamController-Dispose + Author-DRY
+
+**Commit:** 23087ed (zusammen mit Backend-Aenderungen commited)
+
+### Task 1 — GoRouter-Migration (#102 + CR#1)
+
+**Problem:** state.extra bricht Deep Links; Navigator.pushNamed umgeht Auth-Redirect; flache Event-Subrouten.
+
+**Fix:**
+- vents/routes.dart: Flache Routen → verschachtelte Struktur (wie setlistRoutes) für korrekte StatefulShellBranch-Integration
+- shifts/routes.dart: state.extra → Pfadparameter :planId/:shiftId
+- substitute/routes.dart: state.extra entfernt, /substitute/qr/:accessId Route hinzugefügt
+- ShiftDetailScreen: StatelessWidget → ConsumerWidget, liest Shift aus shiftPlanProvider
+- SubstituteQrScreen: neuer Screen für QR-Code-Anzeige per ccessId
+- shift_plan_screen.dart + substitute_management_screen.dart: Navigator.pushNamed → context.push()
+- PendingSubstituteLinkProvider: Riverpod Notifier hält transientes SubstituteLink für gorouter-navigation ohne state.extra
+- pp_router.dart: AppRoutes.bandSubstituteLink/Qr/ShiftDetail Helper ergänzt
+
+**Learning:** In Riverpod 3.x gibt es kein StateProvider mehr → @riverpod class XNotifier extends _ mit state = ... setzen. Für transiente Navigationsdaten immer einen eigenen Provider (separate .dart-Datei!) anlegen, nicht in codegen-Dateien mit part mischen.
+
+### Task 2 — BroadcastSignalRService.dispose() (#107 + CR#8)
+
+**Problem:** 5 StreamController wurden in dispose() zwar geschlossen, aber dispose() wurde nie aufgerufen, weil der Riverpod-Provider kein ef.onDispose() registriert hatte.
+
+**Fix:**
+- Provider: ef.onDispose(service.dispose) hinzugefügt
+- dispose() idempotent gemacht (guard: if (!controller.isClosed))
+- keepAlive: true beibehalten (WebSocket-Verbindung muss persistent sein)
+
+**Learning:** Immer ef.onDispose() für Services mit Ressourcen registrieren, auch bei keepAlive: true. Das keepAlive verhindert nur das automatische Verwerfen durch Riverpod, nicht das manuelle Dispose.
+
+### Task 3 — Author-DRY + markNeedsBuild (CR#2)
+
+**Problem:**
+- (a) Author-Klasse dupliziert in post_models.dart und poll_models.dart
+- (b) 3× (context as Element).markNeedsBuild() in Dialog-Callbacksv
+
+**Fix:**
+- lib/shared/models/author_model.dart: einzige kanonische Author-Klasse
+- post_models.dart + poll_models.dart: importieren + re-exportieren Author
+- markNeedsBuild × 3 → StatefulBuilder mit lokalem setDialogState()
+
+**Learning:** StatefulBuilder ist das korrekte Muster für lokalen State in Dialogen/AlertDialogs. (context as Element).markNeedsBuild() ist fragil (cast kann crashen) und nicht idiomatisch Flutter.
+
+**Tests hinzugefügt:**
+- 	est/shared/models/author_model_test.dart (4 Tests)
+- 	est/features/song_broadcast/.../broadcast_dispose_test.dart (7 Tests)
+- 	est/features/routing/gorouter_migration_test.dart (6 Tests)
