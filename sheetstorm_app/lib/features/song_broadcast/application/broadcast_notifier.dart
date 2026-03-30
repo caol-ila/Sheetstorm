@@ -64,15 +64,17 @@ class BroadcastState {
 class BroadcastNotifier extends _$BroadcastNotifier {
   final List<StreamSubscription<dynamic>> _subscriptions = [];
 
+  late BroadcastRestService _rest;
+  late BroadcastSignalRService _signalR;
+
   @override
   BroadcastState build() {
+    _rest = ref.read(broadcastRestServiceProvider);
+    _signalR = ref.read(broadcastSignalRServiceProvider);
     ref.onDispose(_cleanup);
     return const BroadcastState();
   }
 
-  BroadcastRestService get _rest => ref.read(broadcastRestServiceProvider);
-  BroadcastSignalRService get _signalR =>
-      ref.read(broadcastSignalRServiceProvider);
   String? get _bandId => ref.read(activeBandProvider);
   String? get _musikerId {
     final auth = ref.read(authProvider);
