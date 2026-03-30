@@ -2,6 +2,7 @@ using Amazon.S3;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Sheetstorm.Infrastructure.Attendance;
 using Sheetstorm.Infrastructure.Auth;
 using Sheetstorm.Infrastructure.BandManagement;
@@ -60,21 +61,35 @@ public static class DependencyInjection
         // Import pipeline
         services.AddScoped<IImportService, ImportService>();
         services.AddScoped<IAiMetadataService, StubAiMetadataService>();
-        services.AddScoped<IStorageService, MinioStorageService>();
 
-        // S3-compatible storage client (MinIO local, AWS S3 production)
-        var storageEndpoint = configuration["Storage:Endpoint"] ?? "http://localhost:9000";
-        var accessKey = configuration["Storage:AccessKey"] ?? "minioadmin";
-        var secretKey = configuration["Storage:SecretKey"] ?? "minioadmin";
-
-        services.AddSingleton<IAmazonS3>(_ => new AmazonS3Client(
-            accessKey,
-            secretKey,
-            new AmazonS3Config
+        // Storage: local filesystem in dev, MinIO/S3 in production
+        if (useInMemory)
+        {
+            services.AddScoped<IStorageService>(sp =>
             {
-                ServiceURL = storageEndpoint,
-                ForcePathStyle = true
-            }));
+                var storagePath = Path.Combine(AppContext.BaseDirectory, "storage");
+                var logger = sp.GetRequiredService<ILogger<LocalFileStorageService>>();
+                return new LocalFileStorageService(storagePath, logger);
+            });
+        }
+        else
+        {
+            services.AddScoped<IStorageService, MinioStorageService>();
+
+            // S3-compatible storage client (MinIO local, AWS S3 production)
+            var storageEndpoint = configuration["Storage:Endpoint"] ?? "http://localhost:9000";
+            var accessKey = configuration["Storage:AccessKey"] ?? "minioadmin";
+            var secretKey = configuration["Storage:SecretKey"] ?? "minioadmin";
+
+            services.AddSingleton<IAmazonS3>(_ => new AmazonS3Client(
+                accessKey,
+                secretKey,
+                new AmazonS3Config
+                {
+                    ServiceURL = storageEndpoint,
+                    ForcePathStyle = true
+                }));
+        }
 
         return services;
     }

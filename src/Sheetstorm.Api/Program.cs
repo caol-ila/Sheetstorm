@@ -28,6 +28,11 @@ var jwtKey = jwtSection["Key"] ?? throw new InvalidOperationException("JWT Key n
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
+        // CRITICAL: Prevent ASP.NET from remapping 'sub' to ClaimTypes.NameIdentifier.
+        // Without this, User.FindFirstValue(JwtRegisteredClaimNames.Sub) returns null
+        // and all authenticated endpoints crash with ArgumentNullException.
+        options.MapInboundClaims = false;
+
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
