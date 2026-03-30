@@ -914,3 +914,121 @@ Vollständige Feature-Spezifikationen erstellt für:
 - All meaningful changes require team consensus
 - Document architectural decisions here
 - Keep history focused on work, decisions focused on direction
+
+---
+
+## 2026-03-31: Strange — Annotation Sync Backend Architecture
+
+**By:** Strange (Principal Backend Engineer)  
+**Feature:** Annotationen-Sync (MS3)
+
+### REST Controller Design
+- Single \AnnotationController\ handles both band-scoped and personal annotation endpoints
+- Band-scoped routes: \pi/bands/{bandId}/annotations/...\
+- Personal routes: \pi/annotations/personal/...\
+- Sync endpoint: \POST .../sync?level=Voice&voiceId=...&sinceVersion=42\
+
+### Optimistic Concurrency via Version Field
+- Every \UpdateElement\ request must include the client's known \ersion\
+- Server returns 409 Conflict with current server data if version mismatch
+- Client must accept server version and retry (LWW = Last-Write-Wins)
+
+### Soft-Delete for Sync Consistency
+- \DeleteElement\ sets \IsDeleted = true\ instead of physical delete
+- Sync responses INCLUDE soft-deleted elements so clients can remove them locally
+- Regular \GetAnnotations\ EXCLUDES soft-deleted elements
+
+### Orchestra Annotations: Conductor/Admin Only for Create
+- \CreateElement\ with \Level = Orchestra\ requires Conductor or Admin role
+- All band members can READ orchestra annotations
+- Matches MS1 visibility rules
+
+### Hub Connection Tracking
+- \AnnotationSyncHub\ tracks connection → groups mapping in \ConcurrentDictionary\
+- \OnDisconnectedAsync\ cleans up all group memberships
+- No persistent presence data (ephemeral, per spec)
+
+### Open for Review
+- Retention job for old annotation operations (24h cleanup) — not yet implemented
+- Max elements per page limit (spec suggests 1000) — not enforced yet
+
+---
+
+## 2026-04-16: Vision — Annotation Sync Frontend Architecture
+
+**By:** Vision (Principal Frontend Engineer)  
+**Scope:** Frontend only — sync layer for shared annotations
+
+### Manual SignalR JSON Protocol (no shared base yet)
+Annotation sync uses the same manual WebSocket + SignalR JSON protocol as BroadcastSignalRService. No shared abstraction extracted yet. **When a 3rd feature needs SignalR, extract a base class.**
+
+### REST Endpoints
+- \/api/bands/{bandId}/annotations/...\
+- No version segment
+- camelCase JSON keys
+- Matches Stark's protocol spec
+
+### Hub URL & Auth
+- Hub: \/hubs/annotation-sync\
+- Separate from broadcast hub (\/hubs/broadcast\)
+- Auth via access_token query param
+
+### Private Annotations Never Synced
+- \shouldSync(AnnotationLevel.private)\ returns false
+- Only voice + orchestra level annotations flow through the sync layer
+
+### LWW Conflict Resolution Client-Side
+- \AnnotationOp.resolveConflict()\ picks newer timestamp, then higher version as tiebreaker
+- Conflict banner shows winner to inform user
+
+### Offline Queue in Riverpod State
+- Ops queued in \AnnotationSyncState.offlineQueue\ while disconnected
+- \dequeueOps()\ atomically returns and clears the queue for replay on reconnect
+
+### Integration Points for Other Agents
+- **Banner (Backend):** Expects \AnnotationSyncHub\ with \JoinAnnotationGroup\, \LeaveAnnotationGroup\, \NotifyElementChange\ methods and \OnElementAdded\/\OnElementUpdated\/\OnElementDeleted\ server events.
+- **Romanoff (if wiring UI):** Import \SyncStatusIndicator\ and \LiveEditIndicator\ widgets into the Spielmodus overlay.
+
+---
+
+## 2026-07-01: Vision — Metronom Frontend Architektur
+
+**Agent:** Vision (Principal Frontend Engineer)
+
+### Beat-Berechnung ist reine Mathematik (kein State)
+
+\BeatCalculator\ ist eine reine Dart-Klasse ohne Riverpod-State. Input: \startTimeUs\, \pm\, \clockOffsetUs\, \
+owUs\. Output: \eatNumber\, \measure\, \eatInMeasure\, \isDownbeat\, \microsecondsToNextBeat\.
+
+**Begründung:** Maximale Testbarkeit, kein Framework-Dependency für die Kern-Logik. 21 Unit-Tests decken alle Edge Cases ab (extreme BPM, negative offsets, etc.).
+
+### ClockSyncService gehört zum MetronomeNotifier (kein eigener Provider)
+
+\ClockSyncService\ wird als Instanzvariable im \MetronomeNotifier\ gehalten, nicht als globaler Riverpod-Provider.
+
+**Begründung:** Clock-Sync macht nur Sinn im Kontext einer aktiven Metronom-Session. Kein Grund für globalen Zustand. Vereinfacht Lifecycle-Management.
+
+### SignalR-Service folgt BroadcastSignalRService-Pattern
+
+Gleiche manuelle JSON-Protokoll-Implementierung: Handshake, Record Separator \\u001e\, Ping/Pong Typ 6, Invocation Typ 1. Gleiche Reconnect-Strategie (exponential backoff 2-32s, max 5 Versuche).
+
+**Hub:** \/hubs/metronome\  
+**Events:** \OnSessionStarted\, \OnSessionStopped\, \OnSessionUpdated\, \OnClockSyncResponse\, \OnParticipantCountChanged\
+
+### Sentinel-Pattern für nullable copyWith-Felder
+
+\MetronomeState.copyWith\ verwendet \static const _sentinel = Object()\ für nullable Felder (\session\, \currentBeat\, \rror\). Verhindert den \ield ?? this.field\-Bug, der in MS2 identifiziert wurde.
+
+### Route: \/app/metronome\ mit Query-Parameter für Rolle
+
+Statt separater Routen für Dirigent/Musiker: eine Route \/app/metronome?conductor=true\. Rollenprüfung erfolgt lokal (kein Server-Roundtrip), wie in UX-Spec §2 festgelegt.
+
+### API Convention: \/api/\ ohne Version
+
+Per Task-Anweisung verwendet der Frontend-Client \/api/bands/{bandId}/metronome/\ ohne Versionssegment. camelCase JSON Keys. **Hinweis:** Banner's Backend verwendet \/api/v1/bands/{bandId}/metronome/\ — muss abgestimmt werden.
+
+### Open Items für Banner (Backend)
+
+- SignalR Hub muss \OnSessionStarted\, \OnSessionStopped\, \OnSessionUpdated\, \OnClockSyncResponse\, \OnParticipantCountChanged\ senden
+- Client-Methoden: \StartSession\, \StopSession\, \UpdateSession\, \RequestClockSync\, \JoinSession\, \LeaveSession\
+- UDP Multicast (239.255.77.77:5100) ist für spätere Transport-Erkennung vorbereitet, aber nicht implementiert — Frontend nutzt derzeit nur WebSocket

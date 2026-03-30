@@ -16,15 +16,15 @@ final class SyncServiceProvider
     extends $FunctionalProvider<SyncService, SyncService, SyncService>
     with $Provider<SyncService> {
   SyncServiceProvider._()
-      : super(
-          from: null,
-          argument: null,
-          retry: null,
-          name: r'syncServiceProvider',
-          isAutoDispose: true,
-          dependencies: null,
-          $allTransitiveDependencies: null,
-        );
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'syncServiceProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
 
   @override
   String debugGetCreateSourceHash() => _$syncServiceHash();
@@ -48,4 +48,4 @@ final class SyncServiceProvider
   }
 }
 
-String _$syncServiceHash() => r'b7f3a9e12d45c8f0e6b1a9c3d0f2e5b8a4c7d1f3';
+String _$syncServiceHash() => r'a3c239a1e15e4be78f6281262afe72fec93278ec';

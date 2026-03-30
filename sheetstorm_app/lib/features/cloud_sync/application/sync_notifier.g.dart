@@ -15,15 +15,15 @@ final syncProvider = SyncNotifierProvider._();
 final class SyncNotifierProvider
     extends $NotifierProvider<SyncNotifier, SyncState> {
   SyncNotifierProvider._()
-      : super(
-          from: null,
-          argument: null,
-          retry: null,
-          name: r'syncProvider',
-          isAutoDispose: false,
-          dependencies: null,
-          $allTransitiveDependencies: null,
-        );
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'syncProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
 
   @override
   String debugGetCreateSourceHash() => _$syncNotifierHash();
@@ -41,11 +41,10 @@ final class SyncNotifierProvider
   }
 }
 
-String _$syncNotifierHash() => r'e4a8f1c3d6b9e2f5a0c4d7b1e8f3a6c9d2b5e0f7';
+String _$syncNotifierHash() => r'383a8819e878a967dfa40972598d882302339bd0';
 
 abstract class _$SyncNotifier extends $Notifier<SyncState> {
   SyncState build();
-
   @$mustCallSuper
   @override
   void runBuild() {
