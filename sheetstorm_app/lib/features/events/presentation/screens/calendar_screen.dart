@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:sheetstorm/core/date_utils.dart';
 import 'package:sheetstorm/core/theme/app_tokens.dart';
 import 'package:sheetstorm/core/theme/app_colors.dart';
 import 'package:sheetstorm/features/events/application/calendar_notifier.dart';
@@ -199,8 +200,7 @@ class _DateNavigationBar extends ConsumerWidget {
   }
 
   int _getWeekNumber(DateTime date) {
-    final dayOfYear = int.parse(DateFormat('D').format(date));
-    return ((dayOfYear - date.weekday + 10) / 7).floor();
+    return isoWeekNumber(date);
   }
 }
 
