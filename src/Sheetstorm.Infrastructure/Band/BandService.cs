@@ -268,7 +268,7 @@ public class BandService(AppDbContext db, IBandAuthorizationService bandAuth) : 
     {
         var requester = await db.Memberships
             .FirstOrDefaultAsync(m => m.BandId == bandId && m.MusicianId == musicianId && m.IsActive)
-            ?? throw new DomainException("BAND_NOT_FOUND", "Band not found or no access.", 404);
+            ?? throw new DomainException("FORBIDDEN", "Band not found or no access.", 403);
 
         // Only admins can remove others; any member can remove themselves (leave)
         if (userId != musicianId && requester.Role != MemberRole.Administrator)

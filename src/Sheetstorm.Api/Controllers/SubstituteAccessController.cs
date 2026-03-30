@@ -2,6 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Sheetstorm.Domain.Auth;
 using Sheetstorm.Domain.Substitutes;
 using Sheetstorm.Infrastructure.Substitutes;
@@ -76,6 +77,7 @@ public class SubstituteAccessController(ISubstituteService substituteService) : 
     // GET /api/substitute/{token} — Public endpoint (no auth)
     [HttpGet("/api/substitute/{token}")]
     [AllowAnonymous]
+    [EnableRateLimiting("substitute-validate")]
     [ProducesResponseType(typeof(SubstituteValidationDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]

@@ -102,7 +102,7 @@ public class MediaLinkServiceTests : IDisposable
         var ex = await Assert.ThrowsAsync<DomainException>(
             () => _sut.GetAllForPieceAsync(bandId, pieceId, Guid.NewGuid(), CancellationToken.None));
 
-        Assert.Equal("BAND_NOT_FOUND", ex.ErrorCode);
+        Assert.Equal("FORBIDDEN", ex.ErrorCode);
     }
 
     // ── CreateAsync ───────────────────────────────────────────────────────────

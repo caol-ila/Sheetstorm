@@ -322,13 +322,15 @@ class Setlist {
         'eintraege': eintraege.map((e) => e.toJson()).toList(),
       };
 
+  static const _sentinel = Object();
+
   Setlist copyWith({
     String? id,
     String? name,
     SetlistTyp? typ,
-    String? datum,
-    String? startzeit,
-    String? beschreibung,
+    Object? datum = _sentinel,
+    Object? startzeit = _sentinel,
+    Object? beschreibung = _sentinel,
     int? anzahlEintraege,
     int? gesamtdauerMinuten,
     SetlistCreator? erstelltVon,
@@ -340,9 +342,9 @@ class Setlist {
         id: id ?? this.id,
         name: name ?? this.name,
         typ: typ ?? this.typ,
-        datum: datum ?? this.datum,
-        startzeit: startzeit ?? this.startzeit,
-        beschreibung: beschreibung ?? this.beschreibung,
+        datum: datum == _sentinel ? this.datum : datum as String?,
+        startzeit: startzeit == _sentinel ? this.startzeit : startzeit as String?,
+        beschreibung: beschreibung == _sentinel ? this.beschreibung : beschreibung as String?,
         anzahlEintraege: anzahlEintraege ?? this.anzahlEintraege,
         gesamtdauerMinuten: gesamtdauerMinuten ?? this.gesamtdauerMinuten,
         erstelltVon: erstelltVon ?? this.erstelltVon,

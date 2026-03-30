@@ -281,11 +281,7 @@ GoRouter appRouter(Ref ref) {
                         ),
                       ),
                       // Song broadcast routes (nested under band)
-                      GoRoute(
-                        path: 'broadcast',
-                        builder: (context, state) => broadcastRoutes.builder!(context, state),
-                        routes: broadcastRoutes.routes,
-                      ),
+                      ...broadcastRoutes,
                       // Attendance, Substitute, Shifts routes
                       ...attendanceRoutes,
                       ...substituteRoutes,

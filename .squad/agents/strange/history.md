@@ -86,3 +86,27 @@
 
 **Pattern Learned:** When extracting shared services from duplicated private helpers, standardize on the majority error code pattern and update the minority callers' tests. The middleware handles both `DomainException` and `AuthException` identically, so exception type changes are safe.
 
+### 2026-04-16: CR#7 — Cursor-Based Pagination for List Endpoints
+
+**Problem:** All list endpoints returned unbounded results. For growing data, this is a performance risk.
+
+**Solution:** Cursor-based pagination (not offset) using `CreatedAt` + `Id` as cursor position. Base64-encoded JSON cursors are opaque to clients.
+
+**Infrastructure Created:**
+- `src/Sheetstorm.Domain/Pagination/PaginationModels.cs` — `PaginationRequest` (Cursor?, PageSize with EffectivePageSize clamped 1–100) and `PagedResult<T>` (Items, Cursor, HasMore, PageSize)
+- `src/Sheetstorm.Infrastructure/Pagination/CursorHelper.cs` — Encode/Decode cursor as Base64(JSON `{CreatedAt, Id}`). Invalid cursors throw `DomainException("INVALID_CURSOR", 400)`.
+- `src/Sheetstorm.Infrastructure/Pagination/PaginationExtensions.cs` — `ToPaginatedAsync` extension on `IQueryable`. Caller applies cursor WHERE clause and ordering; extension handles Take(N+1), HasMore detection, cursor encoding from last item.
+
+**Endpoints Updated:**
+- `GET /api/bands/{bandId}/posts` — paginated (newest first by CreatedAt)
+- `GET /api/bands/{bandId}/events` — paginated (newest first by CreatedAt)
+- `GET /api/bands/{bandId}/posts/{postId}/comments` — **new endpoint**, paginated (oldest first for chronological reading)
+
+**Backward Compatibility:** All endpoints default to `cursor=null, pageSize=20`. Existing clients without pagination params get the first page. Old `GetAllAsync`/`GetEventsAsync` methods remain in interfaces for internal use.
+
+**Tests:** 26 new tests (6 CursorHelper, 13 PostPagination, 7 EventPagination). All existing 882 tests pass unchanged.
+
+**Design Decision:** Cursor filtering is applied in the service layer (not the extension) because cursor WHERE clauses use concrete entity property access (e.g., `p.CreatedAt < cursorDate`) which must be translatable by EF Core for both InMemory and PostgreSQL providers. The extension method only handles the generic take+hasMore+encode logic.
+
+**Pattern Learned:** For cursor-based pagination with ascending vs descending order, the cursor filter direction must match: descending order uses `<` (older than cursor), ascending uses `>` (newer than cursor). Comments use ascending (chronological) while posts/events use descending (newest first).
+

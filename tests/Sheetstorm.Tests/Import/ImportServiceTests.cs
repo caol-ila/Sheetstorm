@@ -122,8 +122,8 @@ public class ImportServiceTests : IDisposable
         var ex = await Assert.ThrowsAsync<DomainException>(
             () => _sut.ImportAsync(stream, "test.pdf", "application/pdf", band.Id, Guid.NewGuid()));
 
-        Assert.Equal("BAND_NOT_FOUND", ex.ErrorCode);
-        Assert.Equal(404, ex.StatusCode);
+        Assert.Equal("FORBIDDEN", ex.ErrorCode);
+        Assert.Equal(403, ex.StatusCode);
     }
 
     [Fact]
@@ -141,7 +141,7 @@ public class ImportServiceTests : IDisposable
         var ex = await Assert.ThrowsAsync<DomainException>(
             () => _sut.ImportAsync(stream, "test.pdf", "application/pdf", band.Id, musician.Id));
 
-        Assert.Equal("BAND_NOT_FOUND", ex.ErrorCode);
+        Assert.Equal("FORBIDDEN", ex.ErrorCode);
     }
 
     // ── ImportAsync: State Machine ────────────────────────────────────────────

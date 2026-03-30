@@ -129,8 +129,8 @@ public class SetlistServiceTests : IDisposable
         var ex = await Assert.ThrowsAsync<DomainException>(() =>
             _sut.GetAllAsync(bandId, nonMemberMusicianId, CancellationToken.None));
 
-        Assert.Equal("BAND_NOT_FOUND", ex.ErrorCode);
-        Assert.Equal(404, ex.StatusCode);
+        Assert.Equal("FORBIDDEN", ex.ErrorCode);
+        Assert.Equal(403, ex.StatusCode);
     }
 
     // ── GetByIdAsync ─────────────────────────────────────────────────────────────
@@ -202,7 +202,7 @@ public class SetlistServiceTests : IDisposable
         var ex = await Assert.ThrowsAsync<DomainException>(() =>
             _sut.GetByIdAsync(otherBandId, setlist.Id, musicianId, CancellationToken.None));
 
-        Assert.Equal("BAND_NOT_FOUND", ex.ErrorCode);
+        Assert.Equal("FORBIDDEN", ex.ErrorCode);
     }
 
     // ── CreateAsync ──────────────────────────────────────────────────────────────

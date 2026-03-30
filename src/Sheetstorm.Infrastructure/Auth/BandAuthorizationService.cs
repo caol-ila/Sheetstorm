@@ -16,7 +16,7 @@ public class BandAuthorizationService(AppDbContext db) : IBandAuthorizationServi
         var m = await db.Memberships
             .FirstOrDefaultAsync(m => m.BandId == bandId && m.MusicianId == musicianId && m.IsActive, ct);
 
-        return m ?? throw new DomainException("BAND_NOT_FOUND", "Band not found or no access.", 404);
+        return m ?? throw new DomainException("FORBIDDEN", "Band not found or no access.", 403);
     }
 
     public async Task<Membership> RequireConductorOrAdminAsync(Guid bandId, Guid musicianId, CancellationToken ct = default)

@@ -78,7 +78,7 @@ public class SetlistControllerTests
     public async Task GetAll_ServiceThrowsDomainException_Propagates()
     {
         _service.GetAllAsync(Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>())
-            .ThrowsAsync(new DomainException("BAND_NOT_FOUND", "Not found.", 404));
+            .ThrowsAsync(new DomainException("FORBIDDEN", "Band not found or no access.", 403));
 
         await Assert.ThrowsAsync<DomainException>(
             () => _sut.GetAll(_bandId, CancellationToken.None));
@@ -457,12 +457,12 @@ public class SetlistControllerTests
     {
         var foreignBandId = Guid.NewGuid();
         _service.GetAllAsync(foreignBandId, _musicianId, Arg.Any<CancellationToken>())
-            .ThrowsAsync(new DomainException("BAND_NOT_FOUND", "Band not found or no access.", 404));
+            .ThrowsAsync(new DomainException("FORBIDDEN", "Band not found or no access.", 403));
 
         var ex = await Assert.ThrowsAsync<DomainException>(
             () => _sut.GetAll(foreignBandId, CancellationToken.None));
 
-        Assert.Equal("BAND_NOT_FOUND", ex.ErrorCode);
-        Assert.Equal(404, ex.StatusCode);
+        Assert.Equal("FORBIDDEN", ex.ErrorCode);
+        Assert.Equal(403, ex.StatusCode);
     }
 }

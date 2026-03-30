@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sheetstorm/features/events/data/models/event_models.dart';
 
-/// Unit-Tests für Event.fromJson Null-Sicherheit — Issue #104
+/// Unit-Tests für Event.fromJson Null-Sicherheit und copyWith Sentinel — Issue #104, #101
 void main() {
   group('Event.fromJson — Null-Sicherheit (#104)', () {
     test('stürzt nicht ab wenn erstellt_von fehlt', () {
@@ -120,6 +120,128 @@ void main() {
 
       final event = Event.fromJson(json);
       expect(event.myRsvpStatus, RsvpStatus.offen);
+    });
+  });
+
+  // ─── Event.copyWith — Sentinel-Pattern ────────────────────────────────────
+
+  Event _eventWithOptionals() => Event(
+        id: 'evt-1',
+        bandId: 'band-1',
+        title: 'Konzert',
+        type: EventType.konzert,
+        date: DateTime(2025, 6, 15),
+        startTime: '20:00',
+        endTime: '22:00',
+        location: 'Markplatz',
+        meetingPoint: 'Bühneneingang',
+        description: 'Jahreskonzert',
+        setlistId: 'sl-1',
+        setlistName: 'Programm 2025',
+        dressCode: 'Schwarze Tracht',
+        rsvpDeadline: DateTime(2025, 6, 10),
+        createdAt: DateTime(2025, 1, 1),
+        createdByName: 'Max Dirigent',
+        statistics: const EventStatistics(),
+      );
+
+  group('Event.copyWith — Sentinel-Pattern (#101)', () {
+    test('setlistId kann auf null gesetzt werden', () {
+      final event = _eventWithOptionals();
+      final updated = event.copyWith(setlistId: null);
+      expect(updated.setlistId, isNull,
+          reason: 'copyWith(setlistId: null) muss null setzen');
+    });
+
+    test('setlistId bleibt erhalten wenn nicht übergeben', () {
+      final event = _eventWithOptionals();
+      final updated = event.copyWith(title: 'Neuer Titel');
+      expect(updated.setlistId, 'sl-1');
+    });
+
+    test('setlistName kann auf null gesetzt werden', () {
+      final event = _eventWithOptionals();
+      final updated = event.copyWith(setlistName: null);
+      expect(updated.setlistName, isNull);
+    });
+
+    test('rsvpDeadline kann auf null gesetzt werden', () {
+      final event = _eventWithOptionals();
+      final updated = event.copyWith(rsvpDeadline: null);
+      expect(updated.rsvpDeadline, isNull,
+          reason: 'Deadline soll löschbar sein');
+    });
+
+    test('rsvpDeadline bleibt erhalten wenn nicht übergeben', () {
+      final event = _eventWithOptionals();
+      final updated = event.copyWith(title: 'Neuer Titel');
+      expect(updated.rsvpDeadline, DateTime(2025, 6, 10));
+    });
+
+    test('location kann auf null gesetzt werden', () {
+      final event = _eventWithOptionals();
+      final updated = event.copyWith(location: null);
+      expect(updated.location, isNull);
+    });
+
+    test('meetingPoint kann auf null gesetzt werden', () {
+      final event = _eventWithOptionals();
+      final updated = event.copyWith(meetingPoint: null);
+      expect(updated.meetingPoint, isNull);
+    });
+
+    test('description kann auf null gesetzt werden', () {
+      final event = _eventWithOptionals();
+      final updated = event.copyWith(description: null);
+      expect(updated.description, isNull);
+    });
+
+    test('dressCode kann auf null gesetzt werden', () {
+      final event = _eventWithOptionals();
+      final updated = event.copyWith(dressCode: null);
+      expect(updated.dressCode, isNull);
+    });
+
+    test('endTime kann auf null gesetzt werden', () {
+      final event = _eventWithOptionals();
+      final updated = event.copyWith(endTime: null);
+      expect(updated.endTime, isNull);
+    });
+
+    test('endTime bleibt erhalten wenn nicht übergeben', () {
+      final event = _eventWithOptionals();
+      final updated = event.copyWith(title: 'Neuer Titel');
+      expect(updated.endTime, '22:00');
+    });
+
+    test('Alle nullable Felder gleichzeitig auf null setzbar', () {
+      final event = _eventWithOptionals();
+      final updated = event.copyWith(
+        endTime: null,
+        location: null,
+        meetingPoint: null,
+        description: null,
+        setlistId: null,
+        setlistName: null,
+        dressCode: null,
+        rsvpDeadline: null,
+      );
+      expect(updated.endTime, isNull);
+      expect(updated.location, isNull);
+      expect(updated.meetingPoint, isNull);
+      expect(updated.description, isNull);
+      expect(updated.setlistId, isNull);
+      expect(updated.setlistName, isNull);
+      expect(updated.dressCode, isNull);
+      expect(updated.rsvpDeadline, isNull);
+    });
+
+    test('Non-nullable Felder bleiben unverändert', () {
+      final event = _eventWithOptionals();
+      final updated = event.copyWith(setlistId: null);
+      expect(updated.id, event.id);
+      expect(updated.bandId, event.bandId);
+      expect(updated.title, event.title);
     });
   });
 }

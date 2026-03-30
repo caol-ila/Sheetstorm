@@ -13,7 +13,8 @@ part of 'attendance_notifier.dart';
 final attendanceProvider = AttendanceNotifierFamily._();
 
 final class AttendanceNotifierProvider
-    extends $NotifierProvider<AttendanceNotifier, AttendanceDashboardState> {
+    extends
+        $AsyncNotifierProvider<AttendanceNotifier, AttendanceDashboardState> {
   AttendanceNotifierProvider._({
     required AttendanceNotifierFamily super.from,
     required String super.argument,
@@ -39,14 +40,6 @@ final class AttendanceNotifierProvider
   @override
   AttendanceNotifier create() => AttendanceNotifier();
 
-  /// {@macro riverpod.override_with_value}
-  Override overrideWithValue(AttendanceDashboardState value) {
-    return $ProviderOverride(
-      origin: this,
-      providerOverride: $SyncValueProvider<AttendanceDashboardState>(value),
-    );
-  }
-
   @override
   bool operator ==(Object other) {
     return other is AttendanceNotifierProvider && other.argument == argument;
@@ -59,15 +52,15 @@ final class AttendanceNotifierProvider
 }
 
 String _$attendanceNotifierHash() =>
-    r'2495a32c6848f918eae748b54f651781bf5e6733';
+    r'1e8b81bc092960dbcb0c93f8c422f86a0f101323';
 
 final class AttendanceNotifierFamily extends $Family
     with
         $ClassFamilyOverride<
           AttendanceNotifier,
+          AsyncValue<AttendanceDashboardState>,
           AttendanceDashboardState,
-          AttendanceDashboardState,
-          AttendanceDashboardState,
+          FutureOr<AttendanceDashboardState>,
           String
         > {
   AttendanceNotifierFamily._()
@@ -87,21 +80,28 @@ final class AttendanceNotifierFamily extends $Family
 }
 
 abstract class _$AttendanceNotifier
-    extends $Notifier<AttendanceDashboardState> {
+    extends $AsyncNotifier<AttendanceDashboardState> {
   late final _$args = ref.$arg as String;
   String get bandId => _$args;
 
-  AttendanceDashboardState build(String bandId);
+  FutureOr<AttendanceDashboardState> build(String bandId);
   @$mustCallSuper
   @override
   void runBuild() {
     final ref =
-        this.ref as $Ref<AttendanceDashboardState, AttendanceDashboardState>;
+        this.ref
+            as $Ref<
+              AsyncValue<AttendanceDashboardState>,
+              AttendanceDashboardState
+            >;
     final element =
         ref.element
             as $ClassProviderElement<
-              AnyNotifier<AttendanceDashboardState, AttendanceDashboardState>,
-              AttendanceDashboardState,
+              AnyNotifier<
+                AsyncValue<AttendanceDashboardState>,
+                AttendanceDashboardState
+              >,
+              AsyncValue<AttendanceDashboardState>,
               Object?,
               Object?
             >;

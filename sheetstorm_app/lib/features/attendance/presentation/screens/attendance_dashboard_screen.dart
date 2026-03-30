@@ -25,8 +25,8 @@ class _AttendanceDashboardScreenState
 
   @override
   Widget build(BuildContext context) {
-    final dashboardState =
-        ref.watch(attendanceProvider(widget.bandId));
+    final asyncState = ref.watch(attendanceProvider(widget.bandId));
+    final dashboardState = asyncState.value;
     final notifier =
         ref.read(attendanceProvider(widget.bandId).notifier);
 
@@ -77,20 +77,20 @@ class _AttendanceDashboardScreenState
             ),
 
             // Content
-            if (dashboardState.isLoading)
+            if (asyncState.isLoading)
               const SliverFillRemaining(
                 child: Center(child: CircularProgressIndicator()),
               )
-            else if (dashboardState.error != null)
+            else if (asyncState.hasError)
               SliverFillRemaining(
                 child: Center(
                   child: Text(
-                    dashboardState.error!,
+                    asyncState.error?.toString() ?? 'Unbekannter Fehler',
                     style: Theme.of(context).textTheme.bodyLarge,
                   ),
                 ),
               )
-            else
+            else if (dashboardState != null)
               _buildTabContent(dashboardState),
           ],
         ),
@@ -100,14 +100,14 @@ class _AttendanceDashboardScreenState
 
   Widget _buildDateRangePicker(
     BuildContext context,
-    AttendanceDashboardState state,
+    AttendanceDashboardState? state,
     AttendanceNotifier notifier,
   ) {
     return Card(
       child: ListTile(
         leading: const Icon(Icons.date_range),
         title: Text(
-          'Zeitraum: ${_formatDate(state.startDate)} - ${_formatDate(state.endDate)}',
+          'Zeitraum: ${_formatDate(state?.startDate)} - ${_formatDate(state?.endDate)}',
           style: const TextStyle(fontSize: AppTypography.fontSizeSm),
         ),
         trailing: const Icon(Icons.arrow_drop_down),
@@ -339,7 +339,7 @@ class _AttendanceDashboardScreenState
 
   Future<void> _showDateRangePicker(
     BuildContext context,
-    AttendanceDashboardState state,
+    AttendanceDashboardState? state,
     AttendanceNotifier notifier,
   ) async {
     final result = await showDateRangePicker(
@@ -347,8 +347,8 @@ class _AttendanceDashboardScreenState
       firstDate: DateTime(2020),
       lastDate: DateTime.now(),
       initialDateRange: DateTimeRange(
-        start: state.startDate ?? DateTime.now(),
-        end: state.endDate ?? DateTime.now(),
+        start: state?.startDate ?? DateTime.now(),
+        end: state?.endDate ?? DateTime.now(),
       ),
     );
 

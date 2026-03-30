@@ -189,8 +189,8 @@ public class BandServiceTests : IDisposable
         var ex = await Assert.ThrowsAsync<DomainException>(
             () => _sut.GetBandAsync(band.Id, nonMember.Id));
 
-        Assert.Equal("BAND_NOT_FOUND", ex.ErrorCode);
-        Assert.Equal(404, ex.StatusCode);
+        Assert.Equal("FORBIDDEN", ex.ErrorCode);
+        Assert.Equal(403, ex.StatusCode);
     }
 
     [Fact]
@@ -395,8 +395,8 @@ public class BandServiceTests : IDisposable
         var ex = await Assert.ThrowsAsync<DomainException>(
             () => _sut.RemoveMemberAsync(band.Id, target.Id, nonMember.Id));
 
-        Assert.Equal("BAND_NOT_FOUND", ex.ErrorCode);
-        Assert.Equal(404, ex.StatusCode);
+        Assert.Equal("FORBIDDEN", ex.ErrorCode);
+        Assert.Equal(403, ex.StatusCode);
     }
 
     [Fact]
@@ -651,7 +651,7 @@ public class BandServiceTests : IDisposable
         var ex = await Assert.ThrowsAsync<DomainException>(
             () => _sut.CreateInvitationAsync(band.Id, new CreateInvitationRequest(), nonMember.Id));
 
-        Assert.Equal("BAND_NOT_FOUND", ex.ErrorCode);
+        Assert.Equal("FORBIDDEN", ex.ErrorCode);
     }
 
     [Fact]
@@ -761,7 +761,7 @@ public class BandServiceTests : IDisposable
         var ex = await Assert.ThrowsAsync<DomainException>(
             () => _sut.GetVoiceMappingAsync(band.Id, nonMember.Id));
 
-        Assert.Equal("BAND_NOT_FOUND", ex.ErrorCode);
+        Assert.Equal("FORBIDDEN", ex.ErrorCode);
     }
 
     [Fact]
@@ -883,7 +883,7 @@ public class BandServiceTests : IDisposable
             () => _sut.SetUserVoicesAsync(band.Id, nonMember.Id,
                 new UserVoicesRequest("X"), nonMember.Id));
 
-        Assert.Equal("BAND_NOT_FOUND", ex.ErrorCode);
+        Assert.Equal("FORBIDDEN", ex.ErrorCode);
     }
 
     // ── UpdateBand ─────────────────────────────────────────────────────
@@ -969,6 +969,6 @@ public class BandServiceTests : IDisposable
         var ex = await Assert.ThrowsAsync<DomainException>(
             () => _sut.GetMembersAsync(band.Id, nonMember.Id));
 
-        Assert.Equal("BAND_NOT_FOUND", ex.ErrorCode);
+        Assert.Equal("FORBIDDEN", ex.ErrorCode);
     }
 }
