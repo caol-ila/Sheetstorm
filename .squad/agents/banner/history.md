@@ -299,3 +299,40 @@
 - `src/Sheetstorm.Api/Controllers/TaskController.cs`
 - `tests/Sheetstorm.Tests/Tasks/TaskServiceTests.cs`
 - `tests/Sheetstorm.Tests/Tasks/TaskControllerTests.cs`
+### 2026-03-31 — Echtzeit-Metronom (Sync) — MS3 Backend
+
+**Feature:** Echtzeit-Metronom-Sync fuer Dirigent und Musiker — UDP Multicast (primaer) + SignalR WebSocket (Fallback)
+
+**Architektur-Entscheidungen:**
+- IMetronomeSessionManager als Singleton (nicht Scoped) registriert — notwendig, damit alle Hub-Verbindungen und Controller-Requests denselben in-Memory-State teilen. Singleton ist korrekt fuer ConcurrentDictionary-basierte Stores.
+- UDP Multicast-Server als IHostedService via AddHostedService<UdpMulticastServer>() — startet parallel zum HTTP-Server, kein Blocking.
+- MetronomeSessionManager nutzt Instanz-Felder (nicht static) da Singleton — im Gegensatz zu SongBroadcastHub der static ConcurrentDictionary verwendet.
+- Clock-Sync via REST /api/v1/bands/{id}/metronome/sync UND SignalR RequestClockSync — beide Wege unterstuetzt.
+
+**Pre-existing Blocker gefixt (Annotation-Agent-Stubs):**
+- AnnotationSyncHub.cs fehlte — Tests konnten nicht kompilieren. Implementiert basierend auf Test-Erwartungen.
+- AppDbContext fehlten DbSet<Annotation> und DbSet<AnnotationElement> — DbSets waren bereits von anderem Agent vorbereitet (doppelt angelegt, Duplikat entfernt).
+- AnnotationSyncService war vorhanden — keine Aenderung noetig.
+
+**Entitaeten/Files:**
+- src/Sheetstorm.Domain/Metronome/MetronomeModels.cs — Session-Record, alle DTOs + SignalR-Messages
+- src/Sheetstorm.Domain/Metronome/IMetronomeSessionManager.cs — Interface
+- src/Sheetstorm.Infrastructure/Metronome/MetronomeSessionManager.cs — ConcurrentDictionary-Impl
+- src/Sheetstorm.Infrastructure/Metronome/UdpMulticastServer.cs — IHostedService, Binary-Protokoll LE, Heartbeat + ClockSync-Listener
+- src/Sheetstorm.Infrastructure/Metronome/MetronomeUdpOptions.cs — Config-Klasse
+- src/Sheetstorm.Api/Hubs/MetronomeHub.cs — SignalR Hub (/hubs/metronome)
+- src/Sheetstorm.Api/Controllers/MetronomeController.cs — REST /api/v1/bands/{id}/metronome/
+- src/Sheetstorm.Api/Hubs/AnnotationSyncHub.cs — SignalR Hub fuer Annotations (Stub-Impl)
+
+**Test-Ergebnis:** 63 neue Tests, 955/955 gesamt gruen (commit: df6c1aa)
+
+**UDP Protokoll (Little-Endian, gemaess 2026-03-30-metronome-protocol.md):**
+- 0x00 Heartbeat: 9 bytes (type + timestamp_us)
+- 0x02 SessionStart: 61 bytes
+- 0x03 SessionStop: 17 bytes
+- 0x04 SessionUpdate: 37 bytes
+- 0x01 ClockSync: 9 bytes req / 25 bytes response (Unicast Port 5101)
+
+**NTP-Formel (verifiziert durch Tests):**
+- roundTrip = (T4 - T1) - (T3 - T2)
+- offset = ((T2 - T1) + (T3 - T4)) / 2
