@@ -233,6 +233,51 @@ public class ShiftServiceTests : IDisposable
         Assert.Equal(5, result.RequiredCount);
     }
 
+    [Fact]
+    public async Task UpdateShiftAsync_StartTimeAfterEndTime_ThrowsValidationError()
+    {
+        var (conductorId, bandId, planId) = await SeedPlanAsync();
+        var shift = new Shift { ShiftPlanId = planId, Name = "Shift", StartTime = new TimeOnly(10, 0), EndTime = new TimeOnly(12, 0), RequiredCount = 1 };
+        _db.Shifts.Add(shift);
+        await _db.SaveChangesAsync();
+
+        var request = new UpdateShiftRequest("Shift", null, new TimeOnly(18, 0), new TimeOnly(14, 0), 1, null);
+        var ex = await Assert.ThrowsAsync<DomainException>(() =>
+            _sut.UpdateShiftAsync(bandId, planId, shift.Id, request, conductorId, CancellationToken.None));
+
+        Assert.Equal("VALIDATION_ERROR", ex.ErrorCode);
+        Assert.Equal(400, ex.StatusCode);
+    }
+
+    [Fact]
+    public async Task UpdateShiftAsync_StartTimeEqualsEndTime_ThrowsValidationError()
+    {
+        var (conductorId, bandId, planId) = await SeedPlanAsync();
+        var shift = new Shift { ShiftPlanId = planId, Name = "Shift", StartTime = new TimeOnly(10, 0), EndTime = new TimeOnly(12, 0), RequiredCount = 1 };
+        _db.Shifts.Add(shift);
+        await _db.SaveChangesAsync();
+
+        var request = new UpdateShiftRequest("Shift", null, new TimeOnly(14, 0), new TimeOnly(14, 0), 1, null);
+        var ex = await Assert.ThrowsAsync<DomainException>(() =>
+            _sut.UpdateShiftAsync(bandId, planId, shift.Id, request, conductorId, CancellationToken.None));
+
+        Assert.Equal("VALIDATION_ERROR", ex.ErrorCode);
+        Assert.Equal(400, ex.StatusCode);
+    }
+
+    [Fact]
+    public async Task CreateShiftAsync_StartTimeEqualsEndTime_ThrowsValidationError()
+    {
+        var (conductorId, bandId, planId) = await SeedPlanAsync();
+
+        var request = new CreateShiftRequest("Shift", null, new TimeOnly(14, 0), new TimeOnly(14, 0), 1, null);
+        var ex = await Assert.ThrowsAsync<DomainException>(() =>
+            _sut.CreateShiftAsync(bandId, planId, request, conductorId, CancellationToken.None));
+
+        Assert.Equal("VALIDATION_ERROR", ex.ErrorCode);
+        Assert.Equal(400, ex.StatusCode);
+    }
+
     // ── DeleteShiftAsync ──────────────────────────────────────────────────────
 
     [Fact]
