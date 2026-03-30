@@ -15,37 +15,26 @@ class ImportService {
 
   final Dio _dio;
 
-  /// Uploads one or more files as a multipart batch.
-  /// Returns the server-assigned upload_id.
-  Future<String> uploadFiles({
-    required List<PickedFileData> files,
-    required ImportTarget ziel,
-    String? bandId,
+  /// Uploads a single file to the backend import endpoint.
+  /// Returns the server-assigned piece ID.
+  Future<Map<String, dynamic>> uploadFile({
+    required PickedFileData file,
+    required String bandId,
     void Function(double progress)? onProgress,
   }) async {
-    final formData = FormData();
-
-    for (final file in files) {
-      formData.files.add(MapEntry(
-        'files[]',
-        MultipartFile.fromBytes(file.bytes, filename: file.name),
-      ));
-    }
-
-    formData.fields.add(MapEntry('ziel', ziel.name));
-    if (bandId != null) {
-      formData.fields.add(MapEntry('band_id', bandId));
-    }
+    final formData = FormData.fromMap({
+      'file': MultipartFile.fromBytes(file.bytes, filename: file.name),
+    });
 
     final response = await _dio.post<Map<String, dynamic>>(
-      '/sheet-music/upload',
+      '/api/bands/$bandId/import',
       data: formData,
       onSendProgress: (sent, total) {
         if (total > 0) onProgress?.call(sent / total);
       },
     );
 
-    return response.data!['upload_id'] as String;
+    return response.data!;
   }
 
   /// Polls upload / page-extraction status.

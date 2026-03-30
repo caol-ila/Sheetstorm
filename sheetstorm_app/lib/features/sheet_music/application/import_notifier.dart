@@ -189,11 +189,11 @@ class ImportNotifier extends _$ImportNotifier {
 
   // ── Upload flow ────────────────────────────────────────────────────────────
 
-  /// Begin uploading the given files.
+  /// Begin uploading the given files (one at a time to backend).
   Future<void> upload({
     required List<PickedFileData> files,
     required ImportTarget ziel,
-    String? bandId,
+    required String bandId,
   }) async {
     final progress = files
         .map((f) => FileUploadProgress(clientId: _uuid.v4(), file: f))
@@ -203,41 +203,32 @@ class ImportNotifier extends _$ImportNotifier {
 
     final service = ref.read(importServiceProvider);
     try {
-      final uploadId = await service.uploadFiles(
-        files: files,
-        ziel: ziel,
-        bandId: bandId,
-        onProgress: (p) {
-          final current = state;
-          if (current is ImportUploading) {
-            final updated = current.files
-                .map((f) => f.copyWith(
-                      progress: p,
-                      status: p >= 1.0
-                          ? FileUploadStatus.uploaded
-                          : FileUploadStatus.uploading,
-                    ))
-                .toList();
-            // uploadId not yet available during progress; update files only
-            state = current.copyWith(files: updated);
-          }
-        },
-      );
-
-      // Upload request accepted — mark all as uploaded, start polling
-      final current = state;
-      if (current is ImportUploading) {
-        final uploaded = current.files
-            .map((f) =>
-                f.copyWith(progress: 1.0, status: FileUploadStatus.uploaded))
-            .toList();
-        state = current.copyWith(files: uploaded, uploadId: uploadId);
+      // Upload each file individually
+      for (var i = 0; i < files.length; i++) {
+        await service.uploadFile(
+          file: files[i],
+          bandId: bandId,
+          onProgress: (p) {
+            final current = state;
+            if (current is ImportUploading) {
+              final updated = List<FileUploadProgress>.from(current.files);
+              updated[i] = updated[i].copyWith(
+                progress: p,
+                status: p >= 1.0
+                    ? FileUploadStatus.uploaded
+                    : FileUploadStatus.uploading,
+              );
+              state = current.copyWith(files: updated);
+            }
+          },
+        );
       }
 
-      _startExtractionPolling(uploadId, ziel);
+      // All files uploaded — mark complete
+      state = const ImportIdle();
     } on Exception catch (e) {
       state = ImportError(
-        message: 'Upload failed: $e',
+        message: 'Upload fehlgeschlagen: $e',
         previousState: state,
       );
     }

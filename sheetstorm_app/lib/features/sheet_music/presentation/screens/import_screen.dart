@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:sheetstorm/core/routing/app_router.dart';
 import 'package:sheetstorm/core/theme/app_colors.dart';
 import 'package:sheetstorm/core/theme/app_tokens.dart';
+import 'package:sheetstorm/features/band/application/band_notifier.dart';
 import 'package:sheetstorm/features/sheet_music/application/import_notifier.dart';
 import 'package:sheetstorm/features/sheet_music/data/models/import_models.dart';
 
@@ -71,6 +72,15 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
   }
 
   Future<void> _onFilesSelected() async {
+    final bandId = ref.read(activeBandProvider);
+    if (bandId == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bitte zuerst eine Kapelle auswählen.')),
+      );
+      return;
+    }
+
     final result = await FilePicker.platform.pickFiles(
       allowMultiple: true,
       type: FileType.custom,
@@ -88,6 +98,7 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
     await ref.read(importProvider.notifier).upload(
           files: files,
           ziel: _ziel,
+          bandId: bandId,
         );
   }
 
@@ -129,9 +140,18 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
     }
 
     if (images.isEmpty || !mounted) return;
+    final bandId = ref.read(activeBandProvider);
+    if (bandId == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bitte zuerst eine Kapelle auswählen.')),
+      );
+      return;
+    }
     await ref.read(importProvider.notifier).upload(
           files: images,
           ziel: _ziel,
+          bandId: bandId,
         );
   }
 }
