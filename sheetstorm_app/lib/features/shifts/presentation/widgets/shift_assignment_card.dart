@@ -46,6 +46,7 @@ class ShiftAssignmentCard extends StatelessWidget {
         trailing: onRemove != null
             ? IconButton(
                 icon: const Icon(Icons.remove_circle_outline, color: AppColors.error),
+                tooltip: 'Zuweisung entfernen',
                 onPressed: onRemove,
               )
             : null,

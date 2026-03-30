@@ -150,6 +150,7 @@ class _ShiftDetailContent extends StatelessWidget {
                       trailing: IconButton(
                         icon: const Icon(Icons.remove_circle_outline,
                             color: AppColors.error),
+                        tooltip: 'Zuweisung entfernen',
                         onPressed: () {
                           // Handle remove assignment
                         },
