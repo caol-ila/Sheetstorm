@@ -2,15 +2,16 @@ using Microsoft.EntityFrameworkCore;
 using Sheetstorm.Domain.Entities;
 using Sheetstorm.Domain.Exceptions;
 using Sheetstorm.Domain.Setlists;
+using Sheetstorm.Infrastructure.Auth;
 using Sheetstorm.Infrastructure.Persistence;
 
 namespace Sheetstorm.Infrastructure.Setlists;
 
-public class SetlistService(AppDbContext db) : ISetlistService
+public class SetlistService(AppDbContext db, IBandAuthorizationService bandAuth) : ISetlistService
 {
     public async Task<IReadOnlyList<SetlistDto>> GetAllAsync(Guid bandId, Guid musicianId, CancellationToken ct)
     {
-        await RequireMembershipAsync(bandId, musicianId, ct);
+        await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         return await db.Set<Setlist>()
             .Where(s => s.BandId == bandId)
@@ -32,7 +33,7 @@ public class SetlistService(AppDbContext db) : ISetlistService
 
     public async Task<SetlistDetailDto> GetByIdAsync(Guid bandId, Guid setlistId, Guid musicianId, CancellationToken ct)
     {
-        await RequireMembershipAsync(bandId, musicianId, ct);
+        await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         var setlist = await db.Set<Setlist>()
             .Include(s => s.Entries.OrderBy(e => e.Position))
@@ -72,7 +73,7 @@ public class SetlistService(AppDbContext db) : ISetlistService
 
     public async Task<SetlistDetailDto> CreateAsync(Guid bandId, CreateSetlistRequest request, Guid musicianId, CancellationToken ct)
     {
-        var membership = await RequireMembershipAsync(bandId, musicianId, ct);
+        var membership = await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
         
         if (membership.Role != MemberRole.Administrator && membership.Role != MemberRole.Conductor)
             throw new DomainException("FORBIDDEN", "Only admins and conductors can create setlists.", 403);
@@ -107,7 +108,7 @@ public class SetlistService(AppDbContext db) : ISetlistService
 
     public async Task<SetlistDetailDto> UpdateAsync(Guid bandId, Guid setlistId, UpdateSetlistRequest request, Guid musicianId, CancellationToken ct)
     {
-        var membership = await RequireMembershipAsync(bandId, musicianId, ct);
+        var membership = await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
         
         if (membership.Role != MemberRole.Administrator && membership.Role != MemberRole.Conductor)
             throw new DomainException("FORBIDDEN", "Only admins and conductors can update setlists.", 403);
@@ -159,7 +160,7 @@ public class SetlistService(AppDbContext db) : ISetlistService
 
     public async Task DeleteAsync(Guid bandId, Guid setlistId, Guid musicianId, CancellationToken ct)
     {
-        var membership = await RequireMembershipAsync(bandId, musicianId, ct);
+        var membership = await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
         
         if (membership.Role != MemberRole.Administrator && membership.Role != MemberRole.Conductor)
             throw new DomainException("FORBIDDEN", "Only admins and conductors can delete setlists.", 403);
@@ -174,7 +175,7 @@ public class SetlistService(AppDbContext db) : ISetlistService
 
     public async Task<SetlistEntryDto> AddEntryAsync(Guid bandId, Guid setlistId, AddSetlistEntryRequest request, Guid musicianId, CancellationToken ct)
     {
-        var membership = await RequireMembershipAsync(bandId, musicianId, ct);
+        var membership = await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
         
         if (membership.Role != MemberRole.Administrator && membership.Role != MemberRole.Conductor)
             throw new DomainException("FORBIDDEN", "Only admins and conductors can modify setlists.", 403);
@@ -233,7 +234,7 @@ public class SetlistService(AppDbContext db) : ISetlistService
 
     public async Task<SetlistEntryDto> UpdateEntryAsync(Guid bandId, Guid setlistId, Guid entryId, UpdateSetlistEntryRequest request, Guid musicianId, CancellationToken ct)
     {
-        var membership = await RequireMembershipAsync(bandId, musicianId, ct);
+        var membership = await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
         
         if (membership.Role != MemberRole.Administrator && membership.Role != MemberRole.Conductor)
             throw new DomainException("FORBIDDEN", "Only admins and conductors can modify setlists.", 403);
@@ -265,7 +266,7 @@ public class SetlistService(AppDbContext db) : ISetlistService
 
     public async Task DeleteEntryAsync(Guid bandId, Guid setlistId, Guid entryId, Guid musicianId, CancellationToken ct)
     {
-        var membership = await RequireMembershipAsync(bandId, musicianId, ct);
+        var membership = await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
         
         if (membership.Role != MemberRole.Administrator && membership.Role != MemberRole.Conductor)
             throw new DomainException("FORBIDDEN", "Only admins and conductors can modify setlists.", 403);
@@ -281,7 +282,7 @@ public class SetlistService(AppDbContext db) : ISetlistService
 
     public async Task ReorderEntriesAsync(Guid bandId, Guid setlistId, ReorderEntriesRequest request, Guid musicianId, CancellationToken ct)
     {
-        var membership = await RequireMembershipAsync(bandId, musicianId, ct);
+        var membership = await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
         
         if (membership.Role != MemberRole.Administrator && membership.Role != MemberRole.Conductor)
             throw new DomainException("FORBIDDEN", "Only admins and conductors can modify setlists.", 403);
@@ -312,7 +313,7 @@ public class SetlistService(AppDbContext db) : ISetlistService
 
     public async Task<SetlistDetailDto> DuplicateAsync(Guid bandId, Guid setlistId, Guid musicianId, CancellationToken ct)
     {
-        var membership = await RequireMembershipAsync(bandId, musicianId, ct);
+        var membership = await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
         
         if (membership.Role != MemberRole.Administrator && membership.Role != MemberRole.Conductor)
             throw new DomainException("FORBIDDEN", "Only admins and conductors can duplicate setlists.", 403);
@@ -385,11 +386,4 @@ public class SetlistService(AppDbContext db) : ISetlistService
         );
     }
 
-    private async Task<Membership> RequireMembershipAsync(Guid bandId, Guid musicianId, CancellationToken ct)
-    {
-        var m = await db.Set<Membership>()
-            .FirstOrDefaultAsync(m => m.BandId == bandId && m.MusicianId == musicianId && m.IsActive, ct);
-
-        return m ?? throw new DomainException("BAND_NOT_FOUND", "Band not found or no access.", 404);
-    }
 }

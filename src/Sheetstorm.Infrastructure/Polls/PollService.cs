@@ -2,15 +2,16 @@ using Microsoft.EntityFrameworkCore;
 using Sheetstorm.Domain.Entities;
 using Sheetstorm.Domain.Exceptions;
 using Sheetstorm.Domain.Polls;
+using Sheetstorm.Infrastructure.Auth;
 using Sheetstorm.Infrastructure.Persistence;
 
 namespace Sheetstorm.Infrastructure.Polls;
 
-public class PollService(AppDbContext db) : IPollService
+public class PollService(AppDbContext db, IBandAuthorizationService bandAuth) : IPollService
 {
     public async Task<IReadOnlyList<PollDto>> GetAllAsync(Guid bandId, Guid musicianId, CancellationToken ct)
     {
-        await RequireMembershipAsync(bandId, musicianId, ct);
+        await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         var polls = await db.Set<Poll>()
             .Include(p => p.CreatedByMusician)
@@ -25,7 +26,7 @@ public class PollService(AppDbContext db) : IPollService
 
     public async Task<PollDetailDto> GetByIdAsync(Guid bandId, Guid pollId, Guid musicianId, CancellationToken ct)
     {
-        await RequireMembershipAsync(bandId, musicianId, ct);
+        await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         var poll = await db.Set<Poll>()
             .Include(p => p.CreatedByMusician)
@@ -67,7 +68,7 @@ public class PollService(AppDbContext db) : IPollService
 
     public async Task<PollDetailDto> CreateAsync(Guid bandId, CreatePollRequest request, Guid musicianId, CancellationToken ct)
     {
-        var membership = await RequireMembershipAsync(bandId, musicianId, ct);
+        var membership = await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         if (membership.Role != MemberRole.Administrator && 
             membership.Role != MemberRole.Conductor && 
@@ -133,7 +134,7 @@ public class PollService(AppDbContext db) : IPollService
 
     public async Task DeleteAsync(Guid bandId, Guid pollId, Guid musicianId, CancellationToken ct)
     {
-        var membership = await RequireMembershipAsync(bandId, musicianId, ct);
+        var membership = await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         var poll = await db.Set<Poll>()
             .FirstOrDefaultAsync(p => p.Id == pollId && p.BandId == bandId, ct)
@@ -148,7 +149,7 @@ public class PollService(AppDbContext db) : IPollService
 
     public async Task VoteAsync(Guid bandId, Guid pollId, VotePollRequest request, Guid musicianId, CancellationToken ct)
     {
-        await RequireMembershipAsync(bandId, musicianId, ct);
+        await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         var poll = await db.Set<Poll>()
             .Include(p => p.Options)
@@ -192,7 +193,7 @@ public class PollService(AppDbContext db) : IPollService
 
     public async Task CloseAsync(Guid bandId, Guid pollId, Guid musicianId, CancellationToken ct)
     {
-        var membership = await RequireMembershipAsync(bandId, musicianId, ct);
+        var membership = await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         var poll = await db.Set<Poll>()
             .FirstOrDefaultAsync(p => p.Id == pollId && p.BandId == bandId, ct)
@@ -205,14 +206,6 @@ public class PollService(AppDbContext db) : IPollService
 
         poll.IsClosed = true;
         await db.SaveChangesAsync(ct);
-    }
-
-    private async Task<Membership> RequireMembershipAsync(Guid bandId, Guid musicianId, CancellationToken ct)
-    {
-        var m = await db.Set<Membership>()
-            .FirstOrDefaultAsync(m => m.BandId == bandId && m.MusicianId == musicianId && m.IsActive, ct);
-
-        return m ?? throw new DomainException("BAND_NOT_FOUND", "Band not found or no access.", 404);
     }
 
     private static PollDto MapToDto(Poll poll, Guid currentMusicianId)

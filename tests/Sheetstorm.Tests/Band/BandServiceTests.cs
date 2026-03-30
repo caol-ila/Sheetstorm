@@ -20,7 +20,7 @@ public class BandServiceTests : IDisposable
             .Options;
 
         _db = new AppDbContext(options);
-        _sut = new BandService(_db);
+        _sut = new BandService(_db, new BandAuthorizationService(_db));
     }
 
     public void Dispose()
@@ -435,7 +435,7 @@ public class BandServiceTests : IDisposable
         var mitglied1 = await AddMitgliedAsync(band.Id);
         var mitglied2 = await AddMitgliedAsync(band.Id);
 
-        var ex = await Assert.ThrowsAsync<AuthException>(
+        var ex = await Assert.ThrowsAsync<DomainException>(
             () => _sut.ChangeRoleAsync(band.Id, mitglied2.Id,
                 new ChangeRoleRequest(MemberRole.Conductor), mitglied1.Id));
 
@@ -635,7 +635,7 @@ public class BandServiceTests : IDisposable
         var mitglied = await AddMitgliedAsync(band.Id);
         var request = new CreateInvitationRequest();
 
-        var ex = await Assert.ThrowsAsync<AuthException>(
+        var ex = await Assert.ThrowsAsync<DomainException>(
             () => _sut.CreateInvitationAsync(band.Id, request, mitglied.Id));
 
         Assert.Equal("FORBIDDEN", ex.ErrorCode);
@@ -729,7 +729,7 @@ public class BandServiceTests : IDisposable
         var request = new SetVoiceMappingRequest(
             new[] { new VoiceMappingEntry("Trompete", "1. Voice") });
 
-        var ex = await Assert.ThrowsAsync<AuthException>(
+        var ex = await Assert.ThrowsAsync<DomainException>(
             () => _sut.SetVoiceMappingAsync(band.Id, request, mitglied.Id));
 
         Assert.Equal("FORBIDDEN", ex.ErrorCode);
@@ -907,7 +907,7 @@ public class BandServiceTests : IDisposable
         var (band, _) = await CreateKapelleWithAdminAsync();
         var mitglied = await AddMitgliedAsync(band.Id);
 
-        var ex = await Assert.ThrowsAsync<AuthException>(
+        var ex = await Assert.ThrowsAsync<DomainException>(
             () => _sut.UpdateBandAsync(band.Id,
                 new UpdateBandRequest("Änderung", null, null), mitglied.Id));
 
@@ -933,7 +933,7 @@ public class BandServiceTests : IDisposable
         var (band, _) = await CreateKapelleWithAdminAsync();
         var mitglied = await AddMitgliedAsync(band.Id);
 
-        var ex = await Assert.ThrowsAsync<AuthException>(
+        var ex = await Assert.ThrowsAsync<DomainException>(
             () => _sut.DeleteBandAsync(band.Id, mitglied.Id));
 
         Assert.Equal("FORBIDDEN", ex.ErrorCode);

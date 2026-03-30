@@ -3,15 +3,16 @@ using Sheetstorm.Domain.Entities;
 using Sheetstorm.Domain.Enums;
 using Sheetstorm.Domain.Events;
 using Sheetstorm.Domain.Exceptions;
+using Sheetstorm.Infrastructure.Auth;
 using Sheetstorm.Infrastructure.Persistence;
 
 namespace Sheetstorm.Infrastructure.Events;
 
-public class EventService(AppDbContext db) : IEventService
+public class EventService(AppDbContext db, IBandAuthorizationService bandAuth) : IEventService
 {
     public async Task<EventDto> CreateEventAsync(Guid bandId, CreateEventRequest request, Guid musicianId, CancellationToken ct)
     {
-        var membership = await RequireConductorOrAdminAsync(bandId, musicianId, ct);
+        var membership = await bandAuth.RequireConductorOrAdminAsync(bandId, musicianId, ct);
 
         if (request.EndDate.HasValue && request.EndDate < request.StartDate)
             throw new DomainException("VALIDATION_ERROR", "End date must be after start date.", 400);
@@ -68,7 +69,7 @@ public class EventService(AppDbContext db) : IEventService
 
     public async Task<IReadOnlyList<EventDto>> GetEventsAsync(Guid bandId, Guid musicianId, CancellationToken ct)
     {
-        await RequireMembershipAsync(bandId, musicianId, ct);
+        await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         var events = await db.Set<Event>()
             .Where(e => e.BandId == bandId)
@@ -82,7 +83,7 @@ public class EventService(AppDbContext db) : IEventService
 
     public async Task<EventDto> GetEventAsync(Guid bandId, Guid eventId, Guid musicianId, CancellationToken ct)
     {
-        await RequireMembershipAsync(bandId, musicianId, ct);
+        await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         var ev = await db.Set<Event>()
             .Include(e => e.CreatedByMusician)
@@ -95,7 +96,7 @@ public class EventService(AppDbContext db) : IEventService
 
     public async Task<EventDto> UpdateEventAsync(Guid bandId, Guid eventId, UpdateEventRequest request, Guid musicianId, CancellationToken ct)
     {
-        await RequireConductorOrAdminAsync(bandId, musicianId, ct);
+        await bandAuth.RequireConductorOrAdminAsync(bandId, musicianId, ct);
 
         var ev = await db.Set<Event>()
             .FirstOrDefaultAsync(e => e.Id == eventId && e.BandId == bandId, ct)
@@ -133,7 +134,7 @@ public class EventService(AppDbContext db) : IEventService
 
     public async Task DeleteEventAsync(Guid bandId, Guid eventId, Guid musicianId, CancellationToken ct)
     {
-        await RequireConductorOrAdminAsync(bandId, musicianId, ct);
+        await bandAuth.RequireConductorOrAdminAsync(bandId, musicianId, ct);
 
         var ev = await db.Set<Event>()
             .FirstOrDefaultAsync(e => e.Id == eventId && e.BandId == bandId, ct)
@@ -145,7 +146,7 @@ public class EventService(AppDbContext db) : IEventService
 
     public async Task<EventRsvpDto> SetRsvpAsync(Guid bandId, Guid eventId, SetRsvpRequest request, Guid musicianId, CancellationToken ct)
     {
-        await RequireMembershipAsync(bandId, musicianId, ct);
+        await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         var ev = await db.Set<Event>()
             .AnyAsync(e => e.Id == eventId && e.BandId == bandId, ct);
@@ -187,7 +188,7 @@ public class EventService(AppDbContext db) : IEventService
 
     public async Task<IReadOnlyList<EventRsvpDto>> GetRsvpsAsync(Guid bandId, Guid eventId, Guid musicianId, CancellationToken ct)
     {
-        await RequireMembershipAsync(bandId, musicianId, ct);
+        await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         var ev = await db.Set<Event>()
             .AnyAsync(e => e.Id == eventId && e.BandId == bandId, ct);
@@ -206,7 +207,7 @@ public class EventService(AppDbContext db) : IEventService
     public async Task<IReadOnlyList<SubstituteSuggestionDto>> GetSubstituteSuggestionsAsync(
         Guid bandId, Guid eventId, Guid declinedMusicianId, Guid musicianId, CancellationToken ct)
     {
-        await RequireConductorOrAdminAsync(bandId, musicianId, ct);
+        await bandAuth.RequireConductorOrAdminAsync(bandId, musicianId, ct);
 
         var ev = await db.Set<Event>()
             .AnyAsync(e => e.Id == eventId && e.BandId == bandId, ct);
@@ -300,7 +301,7 @@ public class EventService(AppDbContext db) : IEventService
     public async Task<IReadOnlyList<CalendarEventDto>> GetBandCalendarEventsAsync(
         Guid bandId, Guid musicianId, DateTime? from, DateTime? to, CancellationToken ct)
     {
-        await RequireMembershipAsync(bandId, musicianId, ct);
+        await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         var fromDate = from ?? DateTime.UtcNow.AddMonths(-1);
         var toDate = to ?? DateTime.UtcNow.AddMonths(3);
@@ -372,21 +373,4 @@ public class EventService(AppDbContext db) : IEventService
         );
     }
 
-    private async Task<Membership> RequireMembershipAsync(Guid bandId, Guid musicianId, CancellationToken ct)
-    {
-        var m = await db.Memberships
-            .FirstOrDefaultAsync(m => m.BandId == bandId && m.MusicianId == musicianId && m.IsActive, ct);
-
-        return m ?? throw new DomainException("NOT_FOUND", "Band not found or no access.", 404);
-    }
-
-    private async Task<Membership> RequireConductorOrAdminAsync(Guid bandId, Guid musicianId, CancellationToken ct)
-    {
-        var m = await RequireMembershipAsync(bandId, musicianId, ct);
-
-        if (m.Role is not (MemberRole.Administrator or MemberRole.Conductor))
-            throw new DomainException("FORBIDDEN", "Only conductors or admins can perform this action.", 403);
-
-        return m;
-    }
 }

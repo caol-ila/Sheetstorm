@@ -3,15 +3,16 @@ using Sheetstorm.Domain.Attendance;
 using Sheetstorm.Domain.Entities;
 using Sheetstorm.Domain.Enums;
 using Sheetstorm.Domain.Exceptions;
+using Sheetstorm.Infrastructure.Auth;
 using Sheetstorm.Infrastructure.Persistence;
 
 namespace Sheetstorm.Infrastructure.Attendance;
 
-public class AttendanceService(AppDbContext db) : IAttendanceService
+public class AttendanceService(AppDbContext db, IBandAuthorizationService bandAuth) : IAttendanceService
 {
     public async Task<IReadOnlyList<AttendanceRecordDto>> GetAllAsync(Guid bandId, Guid musicianId, DateOnly? startDate, DateOnly? endDate, CancellationToken ct)
     {
-        var membership = await RequireMembershipAsync(bandId, musicianId, ct);
+        var membership = await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         var query = db.Set<AttendanceRecord>()
             .Include(a => a.Musician)
@@ -47,7 +48,7 @@ public class AttendanceService(AppDbContext db) : IAttendanceService
 
     public async Task<AttendanceRecordDto> GetByIdAsync(Guid bandId, Guid recordId, Guid musicianId, CancellationToken ct)
     {
-        var membership = await RequireMembershipAsync(bandId, musicianId, ct);
+        var membership = await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         var record = await db.Set<AttendanceRecord>()
             .Include(a => a.Musician)
@@ -74,7 +75,7 @@ public class AttendanceService(AppDbContext db) : IAttendanceService
 
     public async Task<AttendanceRecordDto> CreateAsync(Guid bandId, CreateAttendanceRecordRequest request, Guid musicianId, CancellationToken ct)
     {
-        var membership = await RequireMembershipAsync(bandId, musicianId, ct);
+        var membership = await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         if (membership.Role != MemberRole.Administrator && 
             membership.Role != MemberRole.Conductor && 
@@ -132,7 +133,7 @@ public class AttendanceService(AppDbContext db) : IAttendanceService
 
     public async Task<AttendanceRecordDto> UpdateAsync(Guid bandId, Guid recordId, UpdateAttendanceRecordRequest request, Guid musicianId, CancellationToken ct)
     {
-        var membership = await RequireMembershipAsync(bandId, musicianId, ct);
+        var membership = await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         if (membership.Role != MemberRole.Administrator && 
             membership.Role != MemberRole.Conductor && 
@@ -166,7 +167,7 @@ public class AttendanceService(AppDbContext db) : IAttendanceService
 
     public async Task DeleteAsync(Guid bandId, Guid recordId, Guid musicianId, CancellationToken ct)
     {
-        var membership = await RequireMembershipAsync(bandId, musicianId, ct);
+        var membership = await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         if (membership.Role != MemberRole.Administrator && membership.Role != MemberRole.Conductor)
             throw new DomainException("FORBIDDEN", "Only admins and conductors can delete attendance records.", 403);
@@ -181,7 +182,7 @@ public class AttendanceService(AppDbContext db) : IAttendanceService
 
     public async Task<BandAttendanceStatsDto> GetStatsAsync(Guid bandId, Guid musicianId, DateOnly? startDate, DateOnly? endDate, CancellationToken ct)
     {
-        var membership = await RequireMembershipAsync(bandId, musicianId, ct);
+        var membership = await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         if (membership.Role != MemberRole.Administrator && 
             membership.Role != MemberRole.Conductor && 
@@ -242,7 +243,7 @@ public class AttendanceService(AppDbContext db) : IAttendanceService
 
     public async Task<AttendanceStatsDto> GetMusicianStatsAsync(Guid bandId, Guid targetMusicianId, Guid musicianId, DateOnly? startDate, DateOnly? endDate, CancellationToken ct)
     {
-        var membership = await RequireMembershipAsync(bandId, musicianId, ct);
+        var membership = await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         if (membership.Role == MemberRole.Musician && targetMusicianId != musicianId)
             throw new DomainException("FORBIDDEN", "You can only view your own statistics.", 403);
@@ -280,11 +281,4 @@ public class AttendanceService(AppDbContext db) : IAttendanceService
         );
     }
 
-    private async Task<Membership> RequireMembershipAsync(Guid bandId, Guid musicianId, CancellationToken ct)
-    {
-        var m = await db.Set<Membership>()
-            .FirstOrDefaultAsync(m => m.BandId == bandId && m.MusicianId == musicianId && m.IsActive, ct);
-
-        return m ?? throw new DomainException("BAND_NOT_FOUND", "Band not found or no access.", 404);
-    }
 }

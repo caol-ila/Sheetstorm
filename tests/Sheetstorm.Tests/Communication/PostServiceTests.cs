@@ -3,6 +3,7 @@ using Sheetstorm.Domain.Communication;
 using Sheetstorm.Domain.Entities;
 using Sheetstorm.Domain.Exceptions;
 using Sheetstorm.Infrastructure.Communication;
+using Sheetstorm.Infrastructure.Auth;
 using Sheetstorm.Infrastructure.Persistence;
 
 namespace Sheetstorm.Tests.Communication;
@@ -19,7 +20,7 @@ public class PostServiceTests : IDisposable
             .Options;
 
         _db = new AppDbContext(options);
-        _sut = new PostService(_db);
+        _sut = new PostService(_db, new BandAuthorizationService(_db));
     }
 
     public void Dispose()

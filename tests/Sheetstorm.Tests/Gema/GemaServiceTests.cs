@@ -5,6 +5,7 @@ using Sheetstorm.Domain.Enums;
 using Sheetstorm.Domain.Exceptions;
 using Sheetstorm.Domain.Gema;
 using Sheetstorm.Infrastructure.Gema;
+using Sheetstorm.Infrastructure.Auth;
 using Sheetstorm.Infrastructure.Persistence;
 
 namespace Sheetstorm.Tests.Gema;
@@ -21,7 +22,7 @@ public class GemaServiceTests : IDisposable
             .Options;
 
         _db = new AppDbContext(options);
-        _sut = new GemaService(_db);
+        _sut = new GemaService(_db, new BandAuthorizationService(_db));
     }
 
     public void Dispose()
@@ -107,7 +108,7 @@ public class GemaServiceTests : IDisposable
         var ex = await Assert.ThrowsAsync<DomainException>(
             () => _sut.CreateReportAsync(bandId, request, Guid.NewGuid(), CancellationToken.None));
 
-        Assert.Equal("NOT_FOUND", ex.ErrorCode);
+        Assert.Equal("BAND_NOT_FOUND", ex.ErrorCode);
         Assert.Equal(404, ex.StatusCode);
     }
 

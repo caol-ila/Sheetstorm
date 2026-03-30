@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Sheetstorm.Domain.Entities;
 using Sheetstorm.Domain.Exceptions;
 using Sheetstorm.Domain.Polls;
+using Sheetstorm.Infrastructure.Auth;
 using Sheetstorm.Infrastructure.Persistence;
 using Sheetstorm.Infrastructure.Polls;
 
@@ -19,7 +20,7 @@ public class PollServiceTests : IDisposable
             .Options;
 
         _db = new AppDbContext(options);
-        _sut = new PollService(_db);
+        _sut = new PollService(_db, new BandAuthorizationService(_db));
     }
 
     public void Dispose()

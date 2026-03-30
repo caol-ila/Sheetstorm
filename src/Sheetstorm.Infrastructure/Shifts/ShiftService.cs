@@ -3,17 +3,18 @@ using Sheetstorm.Domain.Entities;
 using Sheetstorm.Domain.Enums;
 using Sheetstorm.Domain.Exceptions;
 using Sheetstorm.Domain.Shifts;
+using Sheetstorm.Infrastructure.Auth;
 using Sheetstorm.Infrastructure.Persistence;
 
 namespace Sheetstorm.Infrastructure.Shifts;
 
-public class ShiftService(AppDbContext db) : IShiftService
+public class ShiftService(AppDbContext db, IBandAuthorizationService bandAuth) : IShiftService
 {
     // ── ShiftPlan CRUD ───────────────────────────────────────────────────────
 
     public async Task<ShiftPlanDto> CreateShiftPlanAsync(Guid bandId, CreateShiftPlanRequest request, Guid musicianId, CancellationToken ct)
     {
-        await RequireConductorOrAdminAsync(bandId, musicianId, ct);
+        await bandAuth.RequireConductorOrAdminAsync(bandId, musicianId, ct);
 
         var plan = new ShiftPlan
         {
@@ -32,7 +33,7 @@ public class ShiftService(AppDbContext db) : IShiftService
 
     public async Task<IReadOnlyList<ShiftPlanDto>> GetShiftPlansAsync(Guid bandId, Guid musicianId, CancellationToken ct)
     {
-        await RequireMembershipAsync(bandId, musicianId, ct);
+        await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         var plans = await db.Set<ShiftPlan>()
             .Where(p => p.BandId == bandId)
@@ -47,7 +48,7 @@ public class ShiftService(AppDbContext db) : IShiftService
 
     public async Task<ShiftPlanDto> GetShiftPlanAsync(Guid bandId, Guid planId, Guid musicianId, CancellationToken ct)
     {
-        await RequireMembershipAsync(bandId, musicianId, ct);
+        await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         var plan = await db.Set<ShiftPlan>()
             .Include(p => p.CreatedByMusician)
@@ -61,7 +62,7 @@ public class ShiftService(AppDbContext db) : IShiftService
 
     public async Task<ShiftPlanDto> UpdateShiftPlanAsync(Guid bandId, Guid planId, UpdateShiftPlanRequest request, Guid musicianId, CancellationToken ct)
     {
-        await RequireConductorOrAdminAsync(bandId, musicianId, ct);
+        await bandAuth.RequireConductorOrAdminAsync(bandId, musicianId, ct);
 
         var plan = await db.Set<ShiftPlan>()
             .FirstOrDefaultAsync(p => p.Id == planId && p.BandId == bandId, ct)
@@ -78,7 +79,7 @@ public class ShiftService(AppDbContext db) : IShiftService
 
     public async Task DeleteShiftPlanAsync(Guid bandId, Guid planId, Guid musicianId, CancellationToken ct)
     {
-        await RequireConductorOrAdminAsync(bandId, musicianId, ct);
+        await bandAuth.RequireConductorOrAdminAsync(bandId, musicianId, ct);
 
         var plan = await db.Set<ShiftPlan>()
             .FirstOrDefaultAsync(p => p.Id == planId && p.BandId == bandId, ct)
@@ -92,7 +93,7 @@ public class ShiftService(AppDbContext db) : IShiftService
 
     public async Task<ShiftDto> CreateShiftAsync(Guid bandId, Guid planId, CreateShiftRequest request, Guid musicianId, CancellationToken ct)
     {
-        await RequireConductorOrAdminAsync(bandId, musicianId, ct);
+        await bandAuth.RequireConductorOrAdminAsync(bandId, musicianId, ct);
 
         var plan = await db.Set<ShiftPlan>()
             .AnyAsync(p => p.Id == planId && p.BandId == bandId, ct);
@@ -121,7 +122,7 @@ public class ShiftService(AppDbContext db) : IShiftService
 
     public async Task<IReadOnlyList<ShiftSummaryDto>> GetShiftsAsync(Guid bandId, Guid planId, Guid musicianId, CancellationToken ct)
     {
-        await RequireMembershipAsync(bandId, musicianId, ct);
+        await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         var plan = await db.Set<ShiftPlan>()
             .AnyAsync(p => p.Id == planId && p.BandId == bandId, ct);
@@ -148,7 +149,7 @@ public class ShiftService(AppDbContext db) : IShiftService
 
     public async Task<ShiftDto> GetShiftAsync(Guid bandId, Guid planId, Guid shiftId, Guid musicianId, CancellationToken ct)
     {
-        await RequireMembershipAsync(bandId, musicianId, ct);
+        await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         var plan = await db.Set<ShiftPlan>()
             .AnyAsync(p => p.Id == planId && p.BandId == bandId, ct);
@@ -168,7 +169,7 @@ public class ShiftService(AppDbContext db) : IShiftService
 
     public async Task<ShiftDto> UpdateShiftAsync(Guid bandId, Guid planId, Guid shiftId, UpdateShiftRequest request, Guid musicianId, CancellationToken ct)
     {
-        await RequireConductorOrAdminAsync(bandId, musicianId, ct);
+        await bandAuth.RequireConductorOrAdminAsync(bandId, musicianId, ct);
 
         var plan = await db.Set<ShiftPlan>()
             .AnyAsync(p => p.Id == planId && p.BandId == bandId, ct);
@@ -196,7 +197,7 @@ public class ShiftService(AppDbContext db) : IShiftService
 
     public async Task DeleteShiftAsync(Guid bandId, Guid planId, Guid shiftId, Guid musicianId, CancellationToken ct)
     {
-        await RequireConductorOrAdminAsync(bandId, musicianId, ct);
+        await bandAuth.RequireConductorOrAdminAsync(bandId, musicianId, ct);
 
         var plan = await db.Set<ShiftPlan>()
             .AnyAsync(p => p.Id == planId && p.BandId == bandId, ct);
@@ -216,7 +217,7 @@ public class ShiftService(AppDbContext db) : IShiftService
 
     public async Task<ShiftAssignmentDto> CreateAssignmentAsync(Guid bandId, Guid planId, Guid shiftId, CreateShiftAssignmentRequest request, Guid musicianId, CancellationToken ct)
     {
-        await RequireMembershipAsync(bandId, musicianId, ct);
+        await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         var plan = await db.Set<ShiftPlan>()
             .AnyAsync(p => p.Id == planId && p.BandId == bandId, ct);
@@ -234,7 +235,7 @@ public class ShiftService(AppDbContext db) : IShiftService
         if (request.MusicianId.HasValue && request.MusicianId != musicianId)
         {
             // Admin assignment — require conductor/admin role
-            var membership = await RequireConductorOrAdminAsync(bandId, musicianId, ct);
+            var membership = await bandAuth.RequireConductorOrAdminAsync(bandId, musicianId, ct);
         }
 
         // Check if already assigned
@@ -267,7 +268,7 @@ public class ShiftService(AppDbContext db) : IShiftService
 
     public async Task DeleteAssignmentAsync(Guid bandId, Guid planId, Guid shiftId, Guid assignmentId, Guid musicianId, CancellationToken ct)
     {
-        await RequireMembershipAsync(bandId, musicianId, ct);
+        await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         var plan = await db.Set<ShiftPlan>()
             .AnyAsync(p => p.Id == planId && p.BandId == bandId, ct);
@@ -280,7 +281,7 @@ public class ShiftService(AppDbContext db) : IShiftService
 
         // Self-removal: only own self-signups; admins can remove any
         if (assignment.MusicianId != musicianId)
-            await RequireConductorOrAdminAsync(bandId, musicianId, ct);
+            await bandAuth.RequireConductorOrAdminAsync(bandId, musicianId, ct);
 
         db.Set<ShiftAssignment>().Remove(assignment);
         await db.SaveChangesAsync(ct);
@@ -288,7 +289,7 @@ public class ShiftService(AppDbContext db) : IShiftService
 
     public async Task<ShiftAssignmentDto> UpdateAssignmentStatusAsync(Guid bandId, Guid planId, Guid shiftId, Guid assignmentId, UpdateShiftAssignmentStatusRequest request, Guid musicianId, CancellationToken ct)
     {
-        await RequireMembershipAsync(bandId, musicianId, ct);
+        await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         var plan = await db.Set<ShiftPlan>()
             .AnyAsync(p => p.Id == planId && p.BandId == bandId, ct);
@@ -303,7 +304,7 @@ public class ShiftService(AppDbContext db) : IShiftService
 
         // Only the assigned musician or an admin can update status
         if (assignment.MusicianId != musicianId)
-            await RequireConductorOrAdminAsync(bandId, musicianId, ct);
+            await bandAuth.RequireConductorOrAdminAsync(bandId, musicianId, ct);
 
         assignment.Status = request.Status;
         assignment.Notes = request.Notes?.Trim();
@@ -315,7 +316,7 @@ public class ShiftService(AppDbContext db) : IShiftService
 
     public async Task<IReadOnlyList<MyShiftDto>> GetMyShiftsAsync(Guid bandId, Guid musicianId, CancellationToken ct)
     {
-        await RequireMembershipAsync(bandId, musicianId, ct);
+        await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         var assignments = await db.Set<ShiftAssignment>()
             .Where(a => a.MusicianId == musicianId)
@@ -386,21 +387,4 @@ public class ShiftService(AppDbContext db) : IShiftService
         assignment.CreatedAt
     );
 
-    private async Task<Membership> RequireMembershipAsync(Guid bandId, Guid musicianId, CancellationToken ct)
-    {
-        var m = await db.Memberships
-            .FirstOrDefaultAsync(m => m.BandId == bandId && m.MusicianId == musicianId && m.IsActive, ct);
-
-        return m ?? throw new DomainException("NOT_FOUND", "Band not found or no access.", 404);
-    }
-
-    private async Task<Membership> RequireConductorOrAdminAsync(Guid bandId, Guid musicianId, CancellationToken ct)
-    {
-        var m = await RequireMembershipAsync(bandId, musicianId, ct);
-
-        if (m.Role is not (MemberRole.Administrator or MemberRole.Conductor))
-            throw new DomainException("FORBIDDEN", "Only conductors or admins can perform this action.", 403);
-
-        return m;
-    }
 }

@@ -4,6 +4,7 @@ using Sheetstorm.Domain.Enums;
 using Sheetstorm.Domain.Events;
 using Sheetstorm.Domain.Exceptions;
 using Sheetstorm.Infrastructure.Events;
+using Sheetstorm.Infrastructure.Auth;
 using Sheetstorm.Infrastructure.Persistence;
 
 namespace Sheetstorm.Tests.Events;
@@ -20,7 +21,7 @@ public class EventServiceTests : IDisposable
             .Options;
 
         _db = new AppDbContext(options);
-        _sut = new EventService(_db);
+        _sut = new EventService(_db, new BandAuthorizationService(_db));
     }
 
     public void Dispose()
@@ -193,7 +194,7 @@ public class EventServiceTests : IDisposable
         var ex = await Assert.ThrowsAsync<DomainException>(() =>
             _sut.GetEventsAsync(bandId, nonMember, CancellationToken.None));
 
-        Assert.Equal("NOT_FOUND", ex.ErrorCode);
+        Assert.Equal("BAND_NOT_FOUND", ex.ErrorCode);
     }
 
     // ── GetEventAsync ────────────────────────────────────────────────────────────
@@ -233,7 +234,7 @@ public class EventServiceTests : IDisposable
         var ex = await Assert.ThrowsAsync<DomainException>(() =>
             _sut.GetEventAsync(otherBandId, ev.Id, musicianId, CancellationToken.None));
 
-        Assert.Equal("NOT_FOUND", ex.ErrorCode);
+        Assert.Equal("BAND_NOT_FOUND", ex.ErrorCode);
     }
 
     // ── UpdateEventAsync ─────────────────────────────────────────────────────────
@@ -391,7 +392,7 @@ public class EventServiceTests : IDisposable
         var ex = await Assert.ThrowsAsync<DomainException>(() =>
             _sut.SetRsvpAsync(bandId, ev.Id, request, nonMember, CancellationToken.None));
 
-        Assert.Equal("NOT_FOUND", ex.ErrorCode);
+        Assert.Equal("BAND_NOT_FOUND", ex.ErrorCode);
     }
 
     // ── GetRsvpsAsync ────────────────────────────────────────────────────────────
@@ -439,7 +440,7 @@ public class EventServiceTests : IDisposable
         var ex = await Assert.ThrowsAsync<DomainException>(() =>
             _sut.GetRsvpsAsync(bandId, ev.Id, nonMember, CancellationToken.None));
 
-        Assert.Equal("NOT_FOUND", ex.ErrorCode);
+        Assert.Equal("BAND_NOT_FOUND", ex.ErrorCode);
     }
 
     // ── GetSubstituteSuggestionsAsync ────────────────────────────────────────────
@@ -618,6 +619,6 @@ public class EventServiceTests : IDisposable
         var ex = await Assert.ThrowsAsync<DomainException>(() =>
             _sut.GetBandCalendarEventsAsync(bandId, nonMember, null, null, CancellationToken.None));
 
-        Assert.Equal("NOT_FOUND", ex.ErrorCode);
+        Assert.Equal("BAND_NOT_FOUND", ex.ErrorCode);
     }
 }

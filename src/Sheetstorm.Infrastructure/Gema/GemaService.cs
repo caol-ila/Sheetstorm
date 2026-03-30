@@ -5,15 +5,16 @@ using Sheetstorm.Domain.Entities;
 using Sheetstorm.Domain.Enums;
 using Sheetstorm.Domain.Exceptions;
 using Sheetstorm.Domain.Gema;
+using Sheetstorm.Infrastructure.Auth;
 using Sheetstorm.Infrastructure.Persistence;
 
 namespace Sheetstorm.Infrastructure.Gema;
 
-public class GemaService(AppDbContext db) : IGemaService
+public class GemaService(AppDbContext db, IBandAuthorizationService bandAuth) : IGemaService
 {
     public async Task<GemaReportDto> CreateReportAsync(Guid bandId, CreateGemaReportRequest request, Guid musicianId, CancellationToken ct)
     {
-        await RequireConductorOrAdminAsync(bandId, musicianId, ct);
+        await bandAuth.RequireConductorOrAdminAsync(bandId, musicianId, ct);
 
         var report = new GemaReport
         {
@@ -37,7 +38,7 @@ public class GemaService(AppDbContext db) : IGemaService
 
     public async Task<GemaReportDto> GetReportAsync(Guid bandId, Guid reportId, Guid musicianId, CancellationToken ct)
     {
-        await RequireMembershipAsync(bandId, musicianId, ct);
+        await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         var report = await db.Set<GemaReport>()
             .Include(r => r.GeneratedByMusician)
@@ -50,7 +51,7 @@ public class GemaService(AppDbContext db) : IGemaService
 
     public async Task<IReadOnlyList<GemaReportSummaryDto>> GetReportsAsync(Guid bandId, Guid musicianId, GemaReportStatus? status, CancellationToken ct)
     {
-        await RequireMembershipAsync(bandId, musicianId, ct);
+        await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         var query = db.Set<GemaReport>()
             .Where(r => r.BandId == bandId)
@@ -78,7 +79,7 @@ public class GemaService(AppDbContext db) : IGemaService
 
     public async Task<GemaReportDto> UpdateReportAsync(Guid bandId, Guid reportId, UpdateGemaReportRequest request, Guid musicianId, CancellationToken ct)
     {
-        await RequireConductorOrAdminAsync(bandId, musicianId, ct);
+        await bandAuth.RequireConductorOrAdminAsync(bandId, musicianId, ct);
 
         var report = await db.Set<GemaReport>()
             .FirstOrDefaultAsync(r => r.Id == reportId && r.BandId == bandId, ct)
@@ -99,7 +100,7 @@ public class GemaService(AppDbContext db) : IGemaService
 
     public async Task DeleteReportAsync(Guid bandId, Guid reportId, Guid musicianId, CancellationToken ct)
     {
-        await RequireConductorOrAdminAsync(bandId, musicianId, ct);
+        await bandAuth.RequireConductorOrAdminAsync(bandId, musicianId, ct);
 
         var report = await db.Set<GemaReport>()
             .FirstOrDefaultAsync(r => r.Id == reportId && r.BandId == bandId, ct)
@@ -114,7 +115,7 @@ public class GemaService(AppDbContext db) : IGemaService
 
     public async Task<GemaReportEntryDto> AddEntryAsync(Guid bandId, Guid reportId, AddGemaReportEntryRequest request, Guid musicianId, CancellationToken ct)
     {
-        await RequireConductorOrAdminAsync(bandId, musicianId, ct);
+        await bandAuth.RequireConductorOrAdminAsync(bandId, musicianId, ct);
 
         var report = await db.Set<GemaReport>()
             .Include(r => r.Entries)
@@ -147,7 +148,7 @@ public class GemaService(AppDbContext db) : IGemaService
 
     public async Task<GemaReportEntryDto> UpdateEntryAsync(Guid bandId, Guid reportId, Guid entryId, UpdateGemaReportEntryRequest request, Guid musicianId, CancellationToken ct)
     {
-        await RequireConductorOrAdminAsync(bandId, musicianId, ct);
+        await bandAuth.RequireConductorOrAdminAsync(bandId, musicianId, ct);
 
         var report = await db.Set<GemaReport>()
             .FirstOrDefaultAsync(r => r.Id == reportId && r.BandId == bandId, ct)
@@ -174,7 +175,7 @@ public class GemaService(AppDbContext db) : IGemaService
 
     public async Task DeleteEntryAsync(Guid bandId, Guid reportId, Guid entryId, Guid musicianId, CancellationToken ct)
     {
-        await RequireConductorOrAdminAsync(bandId, musicianId, ct);
+        await bandAuth.RequireConductorOrAdminAsync(bandId, musicianId, ct);
 
         var report = await db.Set<GemaReport>()
             .FirstOrDefaultAsync(r => r.Id == reportId && r.BandId == bandId, ct)
@@ -193,7 +194,7 @@ public class GemaService(AppDbContext db) : IGemaService
 
     public async Task<GemaReportDto> FinalizeReportAsync(Guid bandId, Guid reportId, Guid musicianId, CancellationToken ct)
     {
-        await RequireConductorOrAdminAsync(bandId, musicianId, ct);
+        await bandAuth.RequireConductorOrAdminAsync(bandId, musicianId, ct);
 
         var report = await db.Set<GemaReport>()
             .Include(r => r.Entries)
@@ -214,7 +215,7 @@ public class GemaService(AppDbContext db) : IGemaService
 
     public async Task<byte[]> ExportReportAsync(Guid bandId, Guid reportId, string format, Guid musicianId, CancellationToken ct)
     {
-        await RequireMembershipAsync(bandId, musicianId, ct);
+        await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         // Validate format before any DB mutation
         var normalizedFormat = format.ToLowerInvariant();
@@ -240,7 +241,7 @@ public class GemaService(AppDbContext db) : IGemaService
 
     public async Task<GemaReportDto> GenerateFromSetlistAsync(Guid bandId, Guid setlistId, CreateGemaReportRequest request, Guid musicianId, CancellationToken ct)
     {
-        await RequireConductorOrAdminAsync(bandId, musicianId, ct);
+        await bandAuth.RequireConductorOrAdminAsync(bandId, musicianId, ct);
 
         var setlist = await db.Set<Setlist>()
             .Include(s => s.Entries.OrderBy(e => e.Position))
@@ -384,21 +385,4 @@ public class GemaService(AppDbContext db) : IGemaService
     private static string EscapeXml(string value) =>
         value.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;").Replace("\"", "&quot;");
 
-    private async Task<Membership> RequireMembershipAsync(Guid bandId, Guid musicianId, CancellationToken ct)
-    {
-        var m = await db.Memberships
-            .FirstOrDefaultAsync(m => m.BandId == bandId && m.MusicianId == musicianId && m.IsActive, ct);
-
-        return m ?? throw new DomainException("NOT_FOUND", "Band not found or no access.", 404);
-    }
-
-    private async Task<Membership> RequireConductorOrAdminAsync(Guid bandId, Guid musicianId, CancellationToken ct)
-    {
-        var m = await RequireMembershipAsync(bandId, musicianId, ct);
-
-        if (m.Role is not (MemberRole.Administrator or MemberRole.Conductor))
-            throw new DomainException("FORBIDDEN", "Only conductors or admins can perform this action.", 403);
-
-        return m;
-    }
 }

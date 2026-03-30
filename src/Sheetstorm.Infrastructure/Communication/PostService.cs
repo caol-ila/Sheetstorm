@@ -2,15 +2,16 @@ using Microsoft.EntityFrameworkCore;
 using Sheetstorm.Domain.Communication;
 using Sheetstorm.Domain.Entities;
 using Sheetstorm.Domain.Exceptions;
+using Sheetstorm.Infrastructure.Auth;
 using Sheetstorm.Infrastructure.Persistence;
 
 namespace Sheetstorm.Infrastructure.Communication;
 
-public class PostService(AppDbContext db) : IPostService
+public class PostService(AppDbContext db, IBandAuthorizationService bandAuth) : IPostService
 {
     public async Task<IReadOnlyList<PostDto>> GetAllAsync(Guid bandId, Guid musicianId, CancellationToken ct)
     {
-        await RequireMembershipAsync(bandId, musicianId, ct);
+        await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         var posts = await db.Set<Post>()
             .Include(p => p.AuthorMusician)
@@ -26,7 +27,7 @@ public class PostService(AppDbContext db) : IPostService
 
     public async Task<PostDetailDto> GetByIdAsync(Guid bandId, Guid postId, Guid musicianId, CancellationToken ct)
     {
-        await RequireMembershipAsync(bandId, musicianId, ct);
+        await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         var post = await db.Set<Post>()
             .Include(p => p.AuthorMusician)
@@ -71,7 +72,7 @@ public class PostService(AppDbContext db) : IPostService
 
     public async Task<PostDetailDto> CreateAsync(Guid bandId, CreatePostRequest request, Guid musicianId, CancellationToken ct)
     {
-        var membership = await RequireMembershipAsync(bandId, musicianId, ct);
+        var membership = await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         if (membership.Role != MemberRole.Administrator && 
             membership.Role != MemberRole.Conductor && 
@@ -110,7 +111,7 @@ public class PostService(AppDbContext db) : IPostService
 
     public async Task<PostDetailDto> UpdateAsync(Guid bandId, Guid postId, UpdatePostRequest request, Guid musicianId, CancellationToken ct)
     {
-        await RequireMembershipAsync(bandId, musicianId, ct);
+        await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         var post = await db.Set<Post>()
             .Include(p => p.AuthorMusician)
@@ -163,7 +164,7 @@ public class PostService(AppDbContext db) : IPostService
 
     public async Task DeleteAsync(Guid bandId, Guid postId, Guid musicianId, CancellationToken ct)
     {
-        var membership = await RequireMembershipAsync(bandId, musicianId, ct);
+        var membership = await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         var post = await db.Set<Post>()
             .Include(p => p.Comments)
@@ -193,7 +194,7 @@ public class PostService(AppDbContext db) : IPostService
 
     public async Task PinAsync(Guid bandId, Guid postId, Guid musicianId, CancellationToken ct)
     {
-        var membership = await RequireMembershipAsync(bandId, musicianId, ct);
+        var membership = await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         if (membership.Role != MemberRole.Administrator && membership.Role != MemberRole.Conductor)
             throw new DomainException("FORBIDDEN", "Only admins and conductors can pin posts.", 403);
@@ -219,7 +220,7 @@ public class PostService(AppDbContext db) : IPostService
 
     public async Task UnpinAsync(Guid bandId, Guid postId, Guid musicianId, CancellationToken ct)
     {
-        var membership = await RequireMembershipAsync(bandId, musicianId, ct);
+        var membership = await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         if (membership.Role != MemberRole.Administrator && membership.Role != MemberRole.Conductor)
             throw new DomainException("FORBIDDEN", "Only admins and conductors can unpin posts.", 403);
@@ -236,7 +237,7 @@ public class PostService(AppDbContext db) : IPostService
 
     public async Task<PostCommentDto> AddCommentAsync(Guid bandId, Guid postId, CreatePostCommentRequest request, Guid musicianId, CancellationToken ct)
     {
-        await RequireMembershipAsync(bandId, musicianId, ct);
+        await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         var post = await db.Set<Post>()
             .FirstOrDefaultAsync(p => p.Id == postId && p.BandId == bandId && !p.IsDeleted, ct)
@@ -278,7 +279,7 @@ public class PostService(AppDbContext db) : IPostService
 
     public async Task DeleteCommentAsync(Guid bandId, Guid postId, Guid commentId, Guid musicianId, CancellationToken ct)
     {
-        var membership = await RequireMembershipAsync(bandId, musicianId, ct);
+        var membership = await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         var comment = await db.Set<PostComment>()
             .Include(c => c.Post)
@@ -296,7 +297,7 @@ public class PostService(AppDbContext db) : IPostService
 
     public async Task AddReactionAsync(Guid bandId, Guid postId, AddPostReactionRequest request, Guid musicianId, CancellationToken ct)
     {
-        await RequireMembershipAsync(bandId, musicianId, ct);
+        await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         var post = await db.Set<Post>()
             .FirstOrDefaultAsync(p => p.Id == postId && p.BandId == bandId && !p.IsDeleted, ct)
@@ -325,7 +326,7 @@ public class PostService(AppDbContext db) : IPostService
 
     public async Task RemoveReactionAsync(Guid bandId, Guid postId, Guid musicianId, CancellationToken ct)
     {
-        await RequireMembershipAsync(bandId, musicianId, ct);
+        await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         var reaction = await db.Set<PostReaction>()
             .Include(r => r.Post)
@@ -336,14 +337,6 @@ public class PostService(AppDbContext db) : IPostService
             db.Set<PostReaction>().Remove(reaction);
             await db.SaveChangesAsync(ct);
         }
-    }
-
-    private async Task<Membership> RequireMembershipAsync(Guid bandId, Guid musicianId, CancellationToken ct)
-    {
-        var m = await db.Set<Membership>()
-            .FirstOrDefaultAsync(m => m.BandId == bandId && m.MusicianId == musicianId && m.IsActive, ct);
-
-        return m ?? throw new DomainException("BAND_NOT_FOUND", "Band not found or no access.", 404);
     }
 
     private static PostDto MapToDto(Post post, Guid currentMusicianId)

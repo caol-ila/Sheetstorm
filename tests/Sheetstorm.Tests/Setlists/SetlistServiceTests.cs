@@ -3,6 +3,7 @@ using Sheetstorm.Domain.Entities;
 using Sheetstorm.Domain.Enums;
 using Sheetstorm.Domain.Exceptions;
 using Sheetstorm.Domain.Setlists;
+using Sheetstorm.Infrastructure.Auth;
 using Sheetstorm.Infrastructure.Persistence;
 using Sheetstorm.Infrastructure.Setlists;
 
@@ -20,7 +21,7 @@ public class SetlistServiceTests : IDisposable
             .Options;
 
         _db = new AppDbContext(options);
-        _sut = new SetlistService(_db);
+        _sut = new SetlistService(_db, new BandAuthorizationService(_db));
     }
 
     public void Dispose()
