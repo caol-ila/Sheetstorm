@@ -910,3 +910,44 @@ JSON-Felder: `kapelle_id`, `titel`, `typ`, `datum`, `start_uhrzeit`, `end_uhrzei
 - 	est/shared/models/author_model_test.dart (4 Tests)
 - 	est/features/song_broadcast/.../broadcast_dispose_test.dart (7 Tests)
 - 	est/features/routing/gorouter_migration_test.dart (6 Tests)
+
+## 2026-03-31 — MS2 Nacharbeit P3: Issues #119 + #120 + #121
+
+### Task 1 — Hardcoded Colors → Theme-Farben (#119)
+
+**Problem:** Colors.white und Colors.black in mehreren Screens brechen Dark Mode.
+
+**Fix:** 5 Dateien geändert:
+- svp_screen.dart: FilterChip-Label Colors.white → colorScheme.onPrimary
+- import_screen.dart: SnackBarAction 	extColor: Colors.white → colorScheme.onError
+- device_settings_screen.dart: ElevatedButton oregroundColor: Colors.white → colorScheme.onError
+- oard_screen.dart: FilterChip-Label Colors.white → colorScheme.onPrimary
+- setlist_list_screen.dart: Dismissible-Icon Colors.white → colorScheme.onError (const entfernt!)
+
+**Nicht geändert:** Performance-Mode-Widgets (intentional dark overlay), Annotation-Canvas-Widgets, setlist_player_screen (full-screen dark player), QR-Code-Container (muss weiß sein für Scan-Lesbarkeit), Google-Branding.
+
+**Learning:** Unterscheide intentional dark UI (Performance-Mode, Player) von unbeabsichtigt hardcodierten Farben. colorScheme.onError für Farbe auf Error-Hintergrund, .onPrimary für Text auf Primary-Hintergrund.
+
+### Task 2 — Accessibility: Semantics-Labels (#120)
+
+**Problem:** RSVP-Buttons, Attendance-Chart, Poll-Voting, Schicht-Buttons ohne Semantics.
+
+**Fix:** 5 Dateien geändert:
+- vent_detail_screen.dart: _RsvpButton → Semantics(label: '\ (ausgewählt)', selected: isSelected, button: true)
+- vent_detail_screen.dart: _AttendanceOverview → Semantics(label: 'Anwesenheitsstatistik: X Zugesagt, ...') Wrapper
+- poll_option_tile.dart: PollOptionTile → Semantics(label: option.text, selected: isSelected, button: onTap != null) Wrapper
+- setlist_player_screen.dart: prev/play-pause/next IconButton mit 	ooltip: ergänzt
+- shift_assignment_card.dart + shift_detail_screen.dart: Remove-IconButton → 	ooltip: 'Zuweisung entfernen'
+
+**Learning:** Semantics-Widget für komplexe Widgets (Attendance-Cards, FilterChips mit custom State). 	ooltip: auf IconButton ist ausreichend (wird auch als Semantics-Label genutzt). Beim Wrappen mit Semantics genau auf Klammer-Balance achten — ein fehlendes ) gibt kryptische Parser-Fehler.
+
+### Task 3 — ISO-Wochennummer korrekt berechnen (#121)
+
+**Problem:** ((dayOfYear - weekday + 10) / 7).floor() ist eine Näherung und gibt für Jahresübergänge und Woche-53-Fälle falsche Ergebnisse.
+
+**Fix:** 
+- Neue Datei lib/core/date_utils.dart mit isoWeekNumber(DateTime) — korrekte ISO-8601-Implementierung via Donnerstag-Referenz
+- calendar_screen.dart nutzt jetzt isoWeekNumber() statt der Näherungsformel
+- 8 Unit-Tests in 	est/core/date_utils_test.dart (alle grün)
+
+**Learning:** ISO-8601 Wochennummer: Donnerstag der gleichen Woche bestimmt das Jahr (Date.thursday - date.weekday). KW 1 ist die Woche, die den 4. Januar enthält. Utility-Funktionen in lib/core/date_utils.dart auslagern für Testbarkeit (private Methoden in Widget-Klassen sind nicht direkt testbar).
