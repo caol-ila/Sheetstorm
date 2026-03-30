@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sheetstorm/features/auth/application/auth_notifier.dart';
+import 'package:sheetstorm/features/auth/data/models/auth_models.dart';
 import 'package:sheetstorm/features/song_broadcast/application/broadcast_notifier.dart';
 import 'package:sheetstorm/features/song_broadcast/data/models/broadcast_models.dart';
 
@@ -227,6 +229,65 @@ void main() {
   group('BroadcastNotifier - Provider', () {
     test('provider exists', () {
       expect(broadcastProvider, isNotNull);
+    });
+  });
+
+  // --- BroadcastNotifier - musikerId aus Auth-State (CR#3) ------------------
+
+  group('BroadcastNotifier - musikerId aus Auth-State (CR#3)', () {
+    test('joinSession() ist aufrufbar ohne musikerId-Parameter', () async {
+      // RED: Compile-Fehler vor der Korrektur — "Required named parameter 'musikerId'"
+      // GREEN: Kompiliert und läuft nach der Korrektur
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      // joinSession() ohne Argument — musikerId kommt jetzt aus dem Auth-State
+      await container.read(broadcastProvider.notifier).joinSession();
+
+      // Ohne aktive Kapelle (activeBandProvider = null) → Fehlerzustand
+      expect(container.read(broadcastProvider).mode, BroadcastMode.error);
+      expect(
+        container.read(broadcastProvider).error,
+        contains('Kapelle'),
+      );
+    });
+
+    test('leaveSession() ist aufrufbar ohne musikerId-Parameter', () async {
+      // RED: Compile-Fehler vor der Korrektur — "Required named parameter 'musikerId'"
+      // GREEN: Kompiliert nach der Korrektur; kein Absturz bei fehlendem Session-State
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      // leaveSession() ohne Argument — kein Absturz erwartet (keine aktive Session)
+      await container.read(broadcastProvider.notifier).leaveSession();
+
+      expect(container.read(broadcastProvider).mode, BroadcastMode.idle);
+    });
+
+    test('AuthAuthenticated liefert valide userId für Broadcast-Join', () {
+      // Verifiziert dass Auth-State die richtige Musiker-ID enthält
+      const userId = 'musiker-uuid-test-456';
+      const authState = AuthAuthenticated(
+        User(
+          id: userId,
+          email: 'musiker@kapelle.de',
+          displayName: 'Anna Testmusikerin',
+          emailVerified: true,
+          onboardingCompleted: true,
+        ),
+      );
+
+      final container = ProviderContainer(
+        overrides: [authProvider.overrideWithValue(authState)],
+      );
+      addTearDown(container.dispose);
+
+      final auth = container.read(authProvider);
+      expect(auth, isA<AuthAuthenticated>());
+      final resolvedId = (auth as AuthAuthenticated).user.id;
+      expect(resolvedId, userId);
+      expect(resolvedId.isEmpty, isFalse,
+          reason: 'musikerId darf nicht leer sein');
     });
   });
 }

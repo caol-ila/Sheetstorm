@@ -226,3 +226,19 @@
 - 13 edge cases including: double-requests, rejection+reapply, "Meine Musik" immutability, last-admin protection
 
 **Status:** Estimate expansion needed for new endpoints + service methods
+### 2026-03-30 — MS2 Nacharbeit: Validierung & Datenintegrität
+
+**#111 ShiftService StartTime/EndTime:** Validierung war bereits vorhanden (EndTime <= StartTime → DomainException("VALIDATION_ERROR", ..., 400)). Fehlende Tests für Equal-Times-Case bei UpdateShiftAsync wurden ergänzt.
+
+**#112 PostService ParentCommentId:** AddCommentAsync hat ParentCommentId ohne Existenz-Check gespeichert. Fix: 
+- ParentComment nicht gefunden → NOT_FOUND 404
+- ParentComment gehört anderem Post → VALIDATION_ERROR 400
+- Soft-deleted Comments werden als nicht-existent behandelt (!c.IsDeleted)
+
+**#109 MaxLength Attribute — Positional Records & TypeDescriptor:**
+- Validator.TryValidateObject() verwendet TypeDescriptor, der Attribute auf positional record constructor parameters NICHT sieht.
+- ASP.NET Core's model binding verwendet PropertyInfo.GetCustomAttributes() direkt → Attribute funktionieren für HTTP-Validierung.
+- Lücken gefüllt: RepeatRule in EventModels (kein StringLength), Poll-Option-Text-Länge (Service-Level, da IReadOnlyList<string> keine per-item Annotations erlaubt).
+- Model-Validation-Tests: reflection-basiert via PropertyInfo.GetCustomAttribute<StringLengthAttribute>() — korrekte Methode für positional records.
+
+**Test-Pattern:** Service-Tests mit InMemoryDatabase bleiben das Standard-Muster. Controller-Tests mit NSubstitute für Service-Mocking.

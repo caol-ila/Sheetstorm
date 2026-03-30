@@ -1,7 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:sheetstorm/features/communication/application/post_notifier.dart';
 import 'package:sheetstorm/features/communication/data/models/post_models.dart';
+import 'package:sheetstorm/features/communication/data/services/post_service.dart';
+
+// ─── Mocks ────────────────────────────────────────────────────────────────────
+
+class MockPostService extends Mock implements PostService {}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -22,6 +28,8 @@ Post _post({
   String content = 'Test Inhalt',
   bool isPinned = false,
   int commentCount = 0,
+  List<Attachment> attachments = const [],
+  List<String> targetSectionIds = const [],
   Map<ReactionType, Reaction>? reactions,
 }) =>
     Post(
@@ -30,6 +38,8 @@ Post _post({
       author: _author(),
       title: title,
       content: content,
+      attachments: attachments,
+      targetSectionIds: targetSectionIds,
       isPinned: isPinned,
       commentCount: commentCount,
       reactions: reactions ?? {},
@@ -42,6 +52,7 @@ Comment _comment({
   String postId = 'post1',
   String content = 'Test Kommentar',
   String? parentId,
+  String? imageUrl,
   bool isDeleted = false,
 }) =>
     Comment(
@@ -50,30 +61,55 @@ Comment _comment({
       author: _author(),
       content: content,
       parentId: parentId,
+      imageUrl: imageUrl,
       isDeleted: isDeleted,
       createdAt: DateTime(2024, 1, 15),
     );
 
-Reaction _reaction({
-  ReactionType type = ReactionType.thumbsUp,
-  int count = 1,
-  bool hasReacted = false,
-}) =>
-    Reaction(
-      type: type,
-      count: count,
-      hasReacted: hasReacted,
-    );
+// ─── Setup Helpers ────────────────────────────────────────────────────────────
+
+MockPostService _defaultListService() {
+  final service = MockPostService();
+  when(() => service.getPosts(any(), pinnedOnly: any(named: 'pinnedOnly')))
+      .thenAnswer((_) async => []);
+  return service;
+}
+
+MockPostService _defaultDetailService() {
+  final service = MockPostService();
+  when(() => service.getPostDetail(any(), any()))
+      .thenAnswer((_) async => _post());
+  return service;
+}
+
+MockPostService _defaultCommentsService() {
+  final service = MockPostService();
+  when(() => service.getComments(any(), any()))
+      .thenAnswer((_) async => []);
+  return service;
+}
+
+(ProviderContainer, MockPostService) _createContainer(MockPostService service) {
+  final container = ProviderContainer(
+    overrides: [postServiceProvider.overrideWithValue(service)],
+  );
+  addTearDown(container.dispose);
+  return (container, service);
+}
 
 void main() {
-  // Initialize Flutter bindings for all tests
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUpAll(() {
+    registerFallbackValue(ReactionType.thumbsUp);
+  });
 
   // ─── PostListNotifier Tests ────────────────────────────────────────────────
 
   group('PostListNotifier — CRUD-Operationen', () {
     test('Posts werden initial geladen', () async {
-      final container = ProviderContainer();
+      final service = _defaultListService();
+      final (container, _) = _createContainer(service);
       addTearDown(container.dispose);
 
       final notifier = container.read(postListProvider('band1', pinnedOnly: false).notifier);

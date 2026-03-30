@@ -95,7 +95,7 @@ class _BroadcastReceiverScreenState
                   FilledButton(
                     onPressed: () => ref
                         .read(broadcastProvider.notifier)
-                        .joinSession(musikerId: ''), // TODO: inject actual musicianId
+                        .joinSession(),
                     child: const Text('Erneut beitreten'),
                   ),
                 ],
@@ -238,7 +238,7 @@ class _IdleViewState extends ConsumerState<_IdleView> {
                     FilledButton.icon(
                       onPressed: () => ref
                           .read(broadcastProvider.notifier)
-                          .joinSession(musikerId: ''), // TODO: inject actual musicianId
+                          .joinSession(),
                       icon: const Icon(Icons.login),
                       label: const Text('Beitreten'),
                     ),
@@ -410,7 +410,7 @@ class _ReceivingView extends ConsumerWidget {
     if (confirmed == true) {
       await ref
           .read(broadcastProvider.notifier)
-          .leaveSession(musikerId: ''); // TODO: inject actual musicianId
+          .leaveSession();
     }
   }
 }

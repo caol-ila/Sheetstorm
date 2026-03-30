@@ -67,11 +67,11 @@ abstract final class AppRoutes {
   static String bandBroadcastJoin({required String bandId}) =>
       '/app/band/$bandId/broadcast/join';
   static String bandAttendance({required String bandId}) =>
-      '/app/band/$bandId/attendance?bandId=$bandId';
+      '/app/band/$bandId/attendance';
   static String bandSubstitutes({required String bandId}) =>
-      '/app/band/$bandId/substitutes?bandId=$bandId';
+      '/app/band/$bandId/substitutes';
   static String bandShifts({required String bandId, String? planId}) =>
-      '/app/band/$bandId/shifts?bandId=$bandId${planId != null ? '&planId=$planId' : ''}';
+      '/app/band/$bandId/shifts${planId != null ? '?planId=$planId' : ''}';
 
   // ── Import routes ──────────────────────────────────────────────────────────
   static const String importStart = '/app/import';

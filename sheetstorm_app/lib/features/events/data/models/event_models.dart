@@ -108,9 +108,11 @@ class Event {
             : null,
         createdAt: DateTime.parse(json['erstellt_am'] as String),
         createdByName:
-            (json['erstellt_von'] as Map<String, dynamic>)['name'] as String,
+            (json['erstellt_von'] as Map<String, dynamic>?)?['name']
+                as String? ??
+            '',
         statistics: EventStatistics.fromJson(
-          json['statistik'] as Map<String, dynamic>,
+          json['statistik'] as Map<String, dynamic>? ?? const {},
         ),
         myRsvpStatus: json['meine_teilnahme'] != null
             ? RsvpStatus.fromJson(json['meine_teilnahme'] as String)

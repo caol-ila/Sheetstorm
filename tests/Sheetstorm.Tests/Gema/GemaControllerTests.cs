@@ -391,6 +391,59 @@ public class GemaControllerTests
             () => _sut.ExportReport(_bandId, Guid.NewGuid(), "pdf", CancellationToken.None));
     }
 
+    [Fact]
+    public async Task ExportReport_NullFormat_Returns400()
+    {
+        var reportId = Guid.NewGuid();
+
+        var result = await _sut.ExportReport(_bandId, reportId, null, CancellationToken.None);
+
+        var bad = Assert.IsType<BadRequestObjectResult>(result);
+        var err = Assert.IsType<ErrorResponse>(bad.Value);
+        Assert.Equal("INVALID_FORMAT", err.Error);
+        await _gemaService.DidNotReceive().ExportReportAsync(Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ExportReport_WhitespaceFormat_Returns400()
+    {
+        var reportId = Guid.NewGuid();
+
+        var result = await _sut.ExportReport(_bandId, reportId, "   ", CancellationToken.None);
+
+        var bad = Assert.IsType<BadRequestObjectResult>(result);
+        var err = Assert.IsType<ErrorResponse>(bad.Value);
+        Assert.Equal("INVALID_FORMAT", err.Error);
+        await _gemaService.DidNotReceive().ExportReportAsync(Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ExportReport_InvalidFormat_ServiceRejects400()
+    {
+        var reportId = Guid.NewGuid();
+        _gemaService.ExportReportAsync(_bandId, reportId, "invalid", _musicianId, Arg.Any<CancellationToken>())
+            .ThrowsAsync(new DomainException("INVALID_FORMAT", "Unsupported export format 'invalid'. Supported formats: csv, xml.", 400));
+
+        var ex = await Assert.ThrowsAsync<DomainException>(
+            () => _sut.ExportReport(_bandId, reportId, "invalid", CancellationToken.None));
+
+        Assert.Equal(400, ex.StatusCode);
+        Assert.Equal("INVALID_FORMAT", ex.ErrorCode);
+    }
+
+    [Fact]
+    public async Task ExportReport_ValidFormat_ReturnsOk()
+    {
+        var reportId = Guid.NewGuid();
+        var csvData = System.Text.Encoding.UTF8.GetBytes("Position;Werktitel\n1;Test Song");
+        _gemaService.ExportReportAsync(_bandId, reportId, "csv", _musicianId, Arg.Any<CancellationToken>())
+            .Returns(csvData);
+
+        var result = await _sut.ExportReport(_bandId, reportId, "csv", CancellationToken.None);
+
+        Assert.IsType<FileContentResult>(result);
+    }
+
     // ── Band-scoped access ────────────────────────────────────────────────────
 
     [Fact]

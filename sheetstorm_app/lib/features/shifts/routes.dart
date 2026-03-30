@@ -9,7 +9,7 @@ final shiftRoutes = [
   GoRoute(
     path: 'shifts',
     builder: (context, state) {
-      final bandId = state.uri.queryParameters['bandId'] ?? '';
+      final bandId = state.pathParameters['bandId'] ?? '';
       return ShiftPlanScreen(
         bandId: bandId,
         planId: state.uri.queryParameters['planId'] ?? '',

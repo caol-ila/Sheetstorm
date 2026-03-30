@@ -9,7 +9,7 @@ final substituteRoutes = [
   GoRoute(
     path: 'substitutes',
     builder: (context, state) {
-      final bandId = state.uri.queryParameters['bandId'] ?? '';
+      final bandId = state.pathParameters['bandId'] ?? '';
       return SubstituteManagementScreen(bandId: bandId);
     },
   ),
