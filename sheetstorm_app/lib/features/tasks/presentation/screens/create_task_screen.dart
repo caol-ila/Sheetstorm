@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sheetstorm/core/theme/app_tokens.dart';
@@ -19,7 +19,7 @@ class _CreateTaskScreenState extends ConsumerState<CreateTaskScreen> {
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
 
-  TaskPriority _priority = TaskPriority.mittel;
+  TaskPriority _priority = TaskPriority.medium;
   DateTime? _dueDate;
   bool _saving = false;
 
@@ -189,17 +189,17 @@ class _PrioritySelector extends StatelessWidget {
     return SegmentedButton<TaskPriority>(
       segments: const [
         ButtonSegment(
-          value: TaskPriority.niedrig,
+          value: TaskPriority.low,
           icon: Icon(Icons.arrow_downward, size: 16),
           label: Text('Niedrig'),
         ),
         ButtonSegment(
-          value: TaskPriority.mittel,
+          value: TaskPriority.medium,
           icon: Icon(Icons.remove, size: 16),
           label: Text('Mittel'),
         ),
         ButtonSegment(
-          value: TaskPriority.hoch,
+          value: TaskPriority.high,
           icon: Icon(Icons.arrow_upward, size: 16),
           label: Text('Hoch'),
         ),

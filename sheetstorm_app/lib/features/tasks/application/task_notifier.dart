@@ -1,10 +1,10 @@
-import 'package:riverpod_annotation/riverpod_annotation.dart';
+﻿import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:sheetstorm/features/tasks/data/models/task_models.dart';
 import 'package:sheetstorm/features/tasks/data/services/task_service.dart';
 
 part 'task_notifier.g.dart';
 
-// ─── Task List Notifier ────────────────────────────────────────────────────────
+// --- Task List Notifier -------------------------------------------------------
 
 @Riverpod(keepAlive: true)
 class TaskListNotifier extends _$TaskListNotifier {
@@ -59,7 +59,7 @@ class TaskListNotifier extends _$TaskListNotifier {
   Future<bool> deleteTask(String taskId) async {
     final service = ref.read(taskServiceProvider);
     try {
-      await service.deleteTask(taskId);
+      await service.deleteTask(bandId, taskId);
       final current = state.value ?? [];
       state = AsyncData(current.where((t) => t.id != taskId).toList());
       return true;
@@ -75,28 +75,28 @@ class TaskListNotifier extends _$TaskListNotifier {
   }
 }
 
-// ─── Task Detail Notifier ─────────────────────────────────────────────────────
+// --- Task Detail Notifier ----------------------------------------------------
 
 @riverpod
 class TaskDetailNotifier extends _$TaskDetailNotifier {
   @override
-  Future<BandTask> build(String taskId) async {
+  Future<BandTask> build(String taskId, {required String bandId}) async {
     final service = ref.read(taskServiceProvider);
-    return service.getTaskDetail(taskId);
+    return service.getTaskDetail(bandId, taskId);
   }
 
   Future<void> refresh() async {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
       final service = ref.read(taskServiceProvider);
-      return service.getTaskDetail(taskId);
+      return service.getTaskDetail(bandId, taskId);
     });
   }
 
   Future<bool> updateStatus(TaskStatus newStatus) async {
     final service = ref.read(taskServiceProvider);
     try {
-      final updated = await service.updateTaskStatus(taskId, newStatus);
+      final updated = await service.updateTaskStatus(bandId, taskId, newStatus);
       state = AsyncData(updated);
       return true;
     } catch (e, st) {
@@ -115,6 +115,7 @@ class TaskDetailNotifier extends _$TaskDetailNotifier {
     final service = ref.read(taskServiceProvider);
     try {
       final updated = await service.updateTask(
+        bandId,
         taskId,
         title: title,
         description: description,
@@ -133,7 +134,7 @@ class TaskDetailNotifier extends _$TaskDetailNotifier {
   Future<bool> updateAssignees(List<String> memberIds) async {
     final service = ref.read(taskServiceProvider);
     try {
-      final updated = await service.updateAssignees(taskId, memberIds);
+      final updated = await service.updateAssignees(bandId, taskId, memberIds);
       state = AsyncData(updated);
       return true;
     } catch (e, st) {

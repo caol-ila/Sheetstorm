@@ -1,46 +1,46 @@
-// Domain models for Aufgabenverwaltung (Task Management) — MS3
+﻿// Domain models for Task Management — MS3
 
-// ─── TaskStatus ───────────────────────────────────────────────────────────────
+// --- TaskStatus --------------------------------------------------------------
 
 enum TaskStatus {
-  offen('offen'),
-  inBearbeitung('in_bearbeitung'),
-  erledigt('erledigt');
+  open('open'),
+  inProgress('inProgress'),
+  done('done');
 
   const TaskStatus(this.value);
   final String value;
 
   static TaskStatus fromJson(String value) => switch (value) {
-        'offen' => TaskStatus.offen,
-        'in_bearbeitung' => TaskStatus.inBearbeitung,
-        'erledigt' => TaskStatus.erledigt,
-        _ => TaskStatus.offen,
+        'open' => TaskStatus.open,
+        'inProgress' => TaskStatus.inProgress,
+        'done' => TaskStatus.done,
+        _ => TaskStatus.open,
       };
 
   String toJson() => value;
 }
 
-// ─── TaskPriority ─────────────────────────────────────────────────────────────
+// --- TaskPriority ------------------------------------------------------------
 
 enum TaskPriority {
-  niedrig('niedrig'),
-  mittel('mittel'),
-  hoch('hoch');
+  low('low'),
+  medium('medium'),
+  high('high');
 
   const TaskPriority(this.value);
   final String value;
 
   static TaskPriority fromJson(String value) => switch (value) {
-        'niedrig' => TaskPriority.niedrig,
-        'mittel' => TaskPriority.mittel,
-        'hoch' => TaskPriority.hoch,
-        _ => TaskPriority.mittel,
+        'low' => TaskPriority.low,
+        'medium' => TaskPriority.medium,
+        'high' => TaskPriority.high,
+        _ => TaskPriority.medium,
       };
 
   String toJson() => value;
 }
 
-// ─── TaskAssignee ─────────────────────────────────────────────────────────────
+// --- TaskAssignee ------------------------------------------------------------
 
 class TaskAssignee {
   final String userId;
@@ -54,19 +54,19 @@ class TaskAssignee {
   });
 
   factory TaskAssignee.fromJson(Map<String, dynamic> json) => TaskAssignee(
-        userId: json['nutzer_id'] as String,
+        userId: json['userId'] as String,
         name: json['name'] as String,
-        avatarUrl: json['avatar_url'] as String?,
+        avatarUrl: json['avatarUrl'] as String?,
       );
 
   Map<String, dynamic> toJson() => {
-        'nutzer_id': userId,
+        'userId': userId,
         'name': name,
-        'avatar_url': avatarUrl,
+        'avatarUrl': avatarUrl,
       };
 }
 
-// ─── BandTask ─────────────────────────────────────────────────────────────────
+// --- BandTask ----------------------------------------------------------------
 
 class BandTask {
   final String id;
@@ -100,24 +100,24 @@ class BandTask {
   });
 
   factory BandTask.fromJson(Map<String, dynamic> json) {
-    final creator = json['erstellt_von'] as Map<String, dynamic>;
-    final rawAssignees = json['zuweisungen'] as List<dynamic>? ?? [];
+    final creator = json['createdBy'] as Map<String, dynamic>;
+    final rawAssignees = json['assignees'] as List<dynamic>? ?? [];
 
     return BandTask(
       id: json['id'] as String,
-      bandId: json['kapelle_id'] as String,
-      title: json['titel'] as String,
-      description: json['beschreibung'] as String?,
+      bandId: json['bandId'] as String,
+      title: json['title'] as String,
+      description: json['description'] as String?,
       status: TaskStatus.fromJson(json['status'] as String),
-      priority: TaskPriority.fromJson(json['prioritaet'] as String),
-      dueDate: json['faellig_am'] != null
-          ? DateTime.parse(json['faellig_am'] as String)
+      priority: TaskPriority.fromJson(json['priority'] as String),
+      dueDate: json['dueDate'] != null
+          ? DateTime.parse(json['dueDate'] as String)
           : null,
-      eventId: json['termin_id'] as String?,
+      eventId: json['eventId'] as String?,
       createdById: creator['id'] as String,
       createdByName: creator['name'] as String,
-      createdAt: DateTime.parse(json['erstellt_am'] as String),
-      updatedAt: DateTime.parse(json['geaendert_am'] as String),
+      createdAt: DateTime.parse(json['createdAt'] as String),
+      updatedAt: DateTime.parse(json['updatedAt'] as String),
       assignees: rawAssignees
           .map((e) => TaskAssignee.fromJson(e as Map<String, dynamic>))
           .toList(),
@@ -126,20 +126,20 @@ class BandTask {
 
   Map<String, dynamic> toJson() => {
         'id': id,
-        'kapelle_id': bandId,
-        'titel': title,
-        if (description != null) 'beschreibung': description,
+        'bandId': bandId,
+        'title': title,
+        if (description != null) 'description': description,
         'status': status.toJson(),
-        'prioritaet': priority.toJson(),
-        if (dueDate != null) 'faellig_am': dueDate!.toIso8601String(),
-        if (eventId != null) 'termin_id': eventId,
-        'erstellt_von': {
+        'priority': priority.toJson(),
+        if (dueDate != null) 'dueDate': dueDate!.toIso8601String(),
+        if (eventId != null) 'eventId': eventId,
+        'createdBy': {
           'id': createdById,
           'name': createdByName,
         },
-        'erstellt_am': createdAt.toIso8601String(),
-        'geaendert_am': updatedAt.toIso8601String(),
-        'zuweisungen': assignees.map((a) => a.toJson()).toList(),
+        'createdAt': createdAt.toIso8601String(),
+        'updatedAt': updatedAt.toIso8601String(),
+        'assignees': assignees.map((a) => a.toJson()).toList(),
       };
 
   BandTask copyWith({
@@ -174,7 +174,7 @@ class BandTask {
       );
 }
 
-// ─── CreateTaskRequest ────────────────────────────────────────────────────────
+// --- CreateTaskRequest -------------------------------------------------------
 
 class CreateTaskRequest {
   final String title;
@@ -196,17 +196,17 @@ class CreateTaskRequest {
   });
 
   Map<String, dynamic> toJson() => {
-        'titel': title,
-        'kapelle_id': bandId,
-        if (description != null) 'beschreibung': description,
-        if (dueDate != null) 'faellig_am': dueDate!.toIso8601String(),
-        if (priority != null) 'prioritaet': priority!.toJson(),
-        if (eventId != null) 'termin_id': eventId,
-        if (assigneeIds != null) 'zuweisungen': assigneeIds,
+        'title': title,
+        'bandId': bandId,
+        if (description != null) 'description': description,
+        if (dueDate != null) 'dueDate': dueDate!.toIso8601String(),
+        if (priority != null) 'priority': priority!.toJson(),
+        if (eventId != null) 'eventId': eventId,
+        if (assigneeIds != null) 'assigneeIds': assigneeIds,
       };
 }
 
-// ─── UpdateTaskRequest ────────────────────────────────────────────────────────
+// --- UpdateTaskRequest -------------------------------------------------------
 
 class UpdateTaskRequest {
   final String? title;
@@ -224,10 +224,10 @@ class UpdateTaskRequest {
   });
 
   Map<String, dynamic> toJson() => {
-        if (title != null) 'titel': title,
-        if (description != null) 'beschreibung': description,
-        if (dueDate != null) 'faellig_am': dueDate!.toIso8601String(),
-        if (priority != null) 'prioritaet': priority!.toJson(),
-        if (eventId != null) 'termin_id': eventId,
+        if (title != null) 'title': title,
+        if (description != null) 'description': description,
+        if (dueDate != null) 'dueDate': dueDate!.toIso8601String(),
+        if (priority != null) 'priority': priority!.toJson(),
+        if (eventId != null) 'eventId': eventId,
       };
 }

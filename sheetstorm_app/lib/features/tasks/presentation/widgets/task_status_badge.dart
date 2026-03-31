@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:sheetstorm/core/theme/app_colors.dart';
 import 'package:sheetstorm/features/tasks/data/models/task_models.dart';
 
@@ -12,9 +12,9 @@ class TaskStatusBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (label, color) = switch (status) {
-      TaskStatus.offen => ('Offen', AppColors.error),
-      TaskStatus.inBearbeitung => ('In Bearbeitung', AppColors.warning),
-      TaskStatus.erledigt => ('Erledigt', AppColors.success),
+      TaskStatus.open => ('Offen', AppColors.error),
+      TaskStatus.inProgress => ('In Bearbeitung', AppColors.warning),
+      TaskStatus.done => ('Erledigt', AppColors.success),
     };
 
     return Container(

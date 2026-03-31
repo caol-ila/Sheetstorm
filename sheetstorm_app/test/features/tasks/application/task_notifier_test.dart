@@ -1,21 +1,21 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:sheetstorm/features/tasks/application/task_notifier.dart';
 import 'package:sheetstorm/features/tasks/data/models/task_models.dart';
 import 'package:sheetstorm/features/tasks/data/services/task_service.dart';
 
-// ─── Mocks ────────────────────────────────────────────────────────────────────
+// --- Mocks ------------------------------------------------------------------
 
 class MockTaskService extends Mock implements TaskService {}
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// --- Helpers ----------------------------------------------------------------
 
 BandTask _task({
   String id = 'task1',
   String title = 'Test Aufgabe',
-  TaskStatus status = TaskStatus.offen,
-  TaskPriority priority = TaskPriority.mittel,
+  TaskStatus status = TaskStatus.open,
+  TaskPriority priority = TaskPriority.medium,
   DateTime? dueDate,
 }) =>
     BandTask(
@@ -60,13 +60,13 @@ BandTask _task({
     String taskId, {BandTask? initialTask}) {
   final service = MockTaskService();
   final task = initialTask ?? _task(id: taskId);
-  when(() => service.getTaskDetail(taskId)).thenAnswer((_) async => task);
+  when(() => service.getTaskDetail('band1', taskId)).thenAnswer((_) async => task);
 
   final container = ProviderContainer(
     overrides: [taskServiceProvider.overrideWithValue(service)],
   );
   addTearDown(container.dispose);
-  final notifier = container.read(taskDetailProvider(taskId).notifier);
+  final notifier = container.read(taskDetailProvider(taskId, bandId: 'band1').notifier);
   return (container, notifier, service);
 }
 
@@ -74,15 +74,15 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUpAll(() {
-    registerFallbackValue(TaskStatus.offen);
-    registerFallbackValue(TaskPriority.mittel);
+    registerFallbackValue(TaskStatus.open);
+    registerFallbackValue(TaskPriority.medium);
     registerFallbackValue(DateTime(2025, 1, 1));
     registerFallbackValue(
       const CreateTaskRequest(title: 'fallback', bandId: 'band1'),
     );
   });
 
-  // ─── TaskListNotifier — Laden ─────────────────────────────────────────────
+  // --- TaskListNotifier — Laden ---------------------------------------------
 
   group('TaskListNotifier — Aufgaben laden', () {
     test('Aufgaben werden vom Service geladen', () async {
@@ -118,7 +118,7 @@ void main() {
     });
   });
 
-  // ─── TaskListNotifier — Aufgabe erstellen ─────────────────────────────────
+  // --- TaskListNotifier — Aufgabe erstellen ---------------------------------
 
   group('TaskListNotifier — Aufgabe erstellen', () {
     test('Neue Aufgabe wird zur Liste hinzugefügt', () async {
@@ -157,7 +157,7 @@ void main() {
     });
   });
 
-  // ─── TaskListNotifier — Aufgabe löschen ──────────────────────────────────
+  // --- TaskListNotifier — Aufgabe löschen ----------------------------------
 
   group('TaskListNotifier — Aufgabe löschen', () {
     test('Aufgabe wird aus Liste entfernt', () async {
@@ -174,7 +174,7 @@ void main() {
 
       await n.refresh();
 
-      when(() => service.deleteTask('task1')).thenAnswer((_) async {});
+      when(() => service.deleteTask('band1', 'task1')).thenAnswer((_) async {});
 
       final success = await n.deleteTask('task1');
 
@@ -189,7 +189,7 @@ void main() {
 
       await c.read(taskListProvider(bandId: 'band1').future);
 
-      when(() => service.deleteTask(any()))
+      when(() => service.deleteTask(any(), any()))
           .thenThrow(Exception('Löschfehler'));
 
       final success = await n.deleteTask('task1');
@@ -199,22 +199,22 @@ void main() {
     });
   });
 
-  // ─── TaskDetailNotifier — Details laden ───────────────────────────────────
+  // --- TaskDetailNotifier — Details laden ----------------------------------
 
   group('TaskDetailNotifier — Details laden', () {
     test('Aufgaben-Details werden geladen', () async {
       final task = _task(id: 'task1', title: 'Detail Aufgabe');
-      final (c, _, _) = _setupDetail('task1', initialTask: task);
+      final (c, _notifier, _service) = _setupDetail('task1', initialTask: task);
 
-      await c.read(taskDetailProvider('task1').future);
+      await c.read(taskDetailProvider('task1', bandId: 'band1').future);
 
-      final state = c.read(taskDetailProvider('task1')).value;
+      final state = c.read(taskDetailProvider('task1', bandId: 'band1')).value;
       expect(state?.title, 'Detail Aufgabe');
     });
 
     test('Ladefehler setzt AsyncError', () async {
       final service = MockTaskService();
-      when(() => service.getTaskDetail('task1'))
+      when(() => service.getTaskDetail('band1', 'task1'))
           .thenThrow(Exception('Nicht gefunden'));
 
       final container = ProviderContainer(
@@ -223,68 +223,68 @@ void main() {
       addTearDown(container.dispose);
 
       // Listen to prevent auto-dispose during load
-      container.listen(taskDetailProvider('task1'), (_, __) {});
+      container.listen(taskDetailProvider('task1', bandId: 'band1'), (_, __) {});
 
       await Future<void>.delayed(const Duration(milliseconds: 50));
 
-      expect(container.read(taskDetailProvider('task1')).hasError, isTrue);
+      expect(container.read(taskDetailProvider('task1', bandId: 'band1')).hasError, isTrue);
     });
   });
 
-  // ─── TaskDetailNotifier — Status ändern ───────────────────────────────────
+  // --- TaskDetailNotifier — Status ändern ----------------------------------
 
   group('TaskDetailNotifier — Status ändern', () {
     test('Status wird auf In Bearbeitung gesetzt', () async {
-      final original = _task(id: 'task1', status: TaskStatus.offen);
-      final updated = _task(id: 'task1', status: TaskStatus.inBearbeitung);
+      final original = _task(id: 'task1', status: TaskStatus.open);
+      final updated = _task(id: 'task1', status: TaskStatus.inProgress);
       final (c, n, service) = _setupDetail('task1', initialTask: original);
 
-      when(() => service.updateTaskStatus('task1', TaskStatus.inBearbeitung))
+      when(() => service.updateTaskStatus('band1', 'task1', TaskStatus.inProgress))
           .thenAnswer((_) async => updated);
 
-      await c.read(taskDetailProvider('task1').future);
+      await c.read(taskDetailProvider('task1', bandId: 'band1').future);
 
-      final success = await n.updateStatus(TaskStatus.inBearbeitung);
+      final success = await n.updateStatus(TaskStatus.inProgress);
 
       expect(success, isTrue);
-      final state = c.read(taskDetailProvider('task1')).value;
-      expect(state?.status, TaskStatus.inBearbeitung);
+      final state = c.read(taskDetailProvider('task1', bandId: 'band1')).value;
+      expect(state?.status, TaskStatus.inProgress);
     });
 
-    test('Status wird auf Erledigt gesetzt', () async {
-      final original = _task(id: 'task1', status: TaskStatus.inBearbeitung);
-      final done = _task(id: 'task1', status: TaskStatus.erledigt);
+    test('Status wird auf Done gesetzt', () async {
+      final original = _task(id: 'task1', status: TaskStatus.inProgress);
+      final done = _task(id: 'task1', status: TaskStatus.done);
       final (c, n, service) = _setupDetail('task1', initialTask: original);
 
-      when(() => service.updateTaskStatus('task1', TaskStatus.erledigt))
+      when(() => service.updateTaskStatus('band1', 'task1', TaskStatus.done))
           .thenAnswer((_) async => done);
 
-      await c.read(taskDetailProvider('task1').future);
+      await c.read(taskDetailProvider('task1', bandId: 'band1').future);
 
-      final success = await n.updateStatus(TaskStatus.erledigt);
+      final success = await n.updateStatus(TaskStatus.done);
 
       expect(success, isTrue);
-      final state = c.read(taskDetailProvider('task1')).value;
-      expect(state?.status, TaskStatus.erledigt);
+      final state = c.read(taskDetailProvider('task1', bandId: 'band1')).value;
+      expect(state?.status, TaskStatus.done);
     });
 
     test('Fehler bei Status-Änderung setzt AsyncError', () async {
       final original = _task(id: 'task1');
       final (c, n, service) = _setupDetail('task1', initialTask: original);
 
-      when(() => service.updateTaskStatus(any(), any()))
+      when(() => service.updateTaskStatus(any(), any(), any()))
           .thenThrow(Exception('Status-Fehler'));
 
-      await c.read(taskDetailProvider('task1').future);
+      await c.read(taskDetailProvider('task1', bandId: 'band1').future);
 
-      final success = await n.updateStatus(TaskStatus.erledigt);
+      final success = await n.updateStatus(TaskStatus.done);
 
       expect(success, isFalse);
-      expect(c.read(taskDetailProvider('task1')).hasError, isTrue);
+      expect(c.read(taskDetailProvider('task1', bandId: 'band1')).hasError, isTrue);
     });
   });
 
-  // ─── TaskDetailNotifier — Aufgabe bearbeiten ─────────────────────────────
+  // --- TaskDetailNotifier — Aufgabe bearbeiten -----------------------------
 
   group('TaskDetailNotifier — Aufgabe bearbeiten', () {
     test('Titel wird aktualisiert', () async {
@@ -293,6 +293,7 @@ void main() {
       final (c, n, service) = _setupDetail('task1', initialTask: original);
 
       when(() => service.updateTask(
+            'band1',
             'task1',
             title: 'Neuer Titel',
             description: any(named: 'description'),
@@ -301,25 +302,25 @@ void main() {
             eventId: any(named: 'eventId'),
           )).thenAnswer((_) async => updated);
 
-      await c.read(taskDetailProvider('task1').future);
+      await c.read(taskDetailProvider('task1', bandId: 'band1').future);
 
       final success = await n.updateTask(title: 'Neuer Titel');
 
       expect(success, isTrue);
-      final state = c.read(taskDetailProvider('task1')).value;
+      final state = c.read(taskDetailProvider('task1', bandId: 'band1')).value;
       expect(state?.title, 'Neuer Titel');
     });
   });
 
-  // ─── TaskListNotifier — Filter ────────────────────────────────────────────
+  // --- TaskListNotifier — Filter --------------------------------------------
 
   group('TaskListNotifier — Filter', () {
     test('filterByStatus() gibt offene Aufgaben zurück', () async {
       final (c, n, service) = _setupList();
       final tasks = [
-        _task(id: 't1', status: TaskStatus.offen),
-        _task(id: 't2', status: TaskStatus.erledigt),
-        _task(id: 't3', status: TaskStatus.offen),
+        _task(id: 't1', status: TaskStatus.open),
+        _task(id: 't2', status: TaskStatus.done),
+        _task(id: 't3', status: TaskStatus.open),
       ];
 
       when(() => service.getTasks(
@@ -329,17 +330,17 @@ void main() {
 
       await n.refresh();
 
-      final open = n.filterByStatus(TaskStatus.offen);
+      final open = n.filterByStatus(TaskStatus.open);
 
       expect(open.length, 2);
-      expect(open.every((t) => t.status == TaskStatus.offen), isTrue);
+      expect(open.every((t) => t.status == TaskStatus.open), isTrue);
     });
 
     test('filterByStatus() gibt erledigte Aufgaben zurück', () async {
       final (c, n, service) = _setupList();
       final tasks = [
-        _task(id: 't1', status: TaskStatus.offen),
-        _task(id: 't2', status: TaskStatus.erledigt),
+        _task(id: 't1', status: TaskStatus.open),
+        _task(id: 't2', status: TaskStatus.done),
       ];
 
       when(() => service.getTasks(
@@ -349,16 +350,16 @@ void main() {
 
       await n.refresh();
 
-      final done = n.filterByStatus(TaskStatus.erledigt);
+      final done = n.filterByStatus(TaskStatus.done);
 
       expect(done.length, 1);
-      expect(done.first.status, TaskStatus.erledigt);
+      expect(done.first.status, TaskStatus.done);
     });
 
     test('filterByStatus() mit leerem Ergebnis', () async {
       final (c, n, service) = _setupList();
       final tasks = [
-        _task(id: 't1', status: TaskStatus.offen),
+        _task(id: 't1', status: TaskStatus.open),
       ];
 
       when(() => service.getTasks(
@@ -368,7 +369,7 @@ void main() {
 
       await n.refresh();
 
-      final inProgress = n.filterByStatus(TaskStatus.inBearbeitung);
+      final inProgress = n.filterByStatus(TaskStatus.inProgress);
 
       expect(inProgress, isEmpty);
     });

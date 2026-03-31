@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:sheetstorm/core/theme/app_tokens.dart';
 import 'package:sheetstorm/features/tasks/data/models/task_models.dart';
 
@@ -32,20 +32,20 @@ class TaskFilterBar extends StatelessWidget {
           const SizedBox(width: AppSpacing.sm),
           _FilterChip(
             label: 'Offen',
-            isSelected: selected == TaskStatus.offen,
-            onTap: () => onSelected(TaskStatus.offen),
+            isSelected: selected == TaskStatus.open,
+            onTap: () => onSelected(TaskStatus.open),
           ),
           const SizedBox(width: AppSpacing.sm),
           _FilterChip(
             label: 'In Bearbeitung',
-            isSelected: selected == TaskStatus.inBearbeitung,
-            onTap: () => onSelected(TaskStatus.inBearbeitung),
+            isSelected: selected == TaskStatus.inProgress,
+            onTap: () => onSelected(TaskStatus.inProgress),
           ),
           const SizedBox(width: AppSpacing.sm),
           _FilterChip(
             label: 'Erledigt',
-            isSelected: selected == TaskStatus.erledigt,
-            onTap: () => onSelected(TaskStatus.erledigt),
+            isSelected: selected == TaskStatus.done,
+            onTap: () => onSelected(TaskStatus.done),
           ),
         ],
       ),

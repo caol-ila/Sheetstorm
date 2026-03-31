@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sheetstorm/core/theme/app_tokens.dart';
@@ -119,9 +119,9 @@ class _EmptyState extends StatelessWidget {
     final message = filter == null
         ? 'Keine Aufgaben vorhanden'
         : switch (filter!) {
-            TaskStatus.offen => 'Keine offenen Aufgaben',
-            TaskStatus.inBearbeitung => 'Keine Aufgaben in Bearbeitung',
-            TaskStatus.erledigt => 'Noch keine erledigten Aufgaben',
+            TaskStatus.open => 'Keine offenen Aufgaben',
+            TaskStatus.inProgress => 'Keine Aufgaben in Bearbeitung',
+            TaskStatus.done => 'Noch keine erledigten Aufgaben',
           };
 
     return Center(

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:sheetstorm/core/theme/app_colors.dart';
 import 'package:sheetstorm/core/theme/app_tokens.dart';
@@ -82,9 +82,9 @@ class _PriorityChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (icon, color, label) = switch (priority) {
-      TaskPriority.niedrig => (Icons.arrow_downward, AppColors.textSecondary, 'Niedrig'),
-      TaskPriority.mittel => (Icons.remove, AppColors.warning, 'Mittel'),
-      TaskPriority.hoch => (Icons.arrow_upward, AppColors.error, 'Hoch'),
+      TaskPriority.low => (Icons.arrow_downward, AppColors.textSecondary, 'Niedrig'),
+      TaskPriority.medium => (Icons.remove, AppColors.warning, 'Mittel'),
+      TaskPriority.high => (Icons.arrow_upward, AppColors.error, 'Hoch'),
     };
 
     return Row(

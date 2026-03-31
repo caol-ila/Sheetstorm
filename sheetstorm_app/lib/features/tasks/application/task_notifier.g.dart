@@ -1,4 +1,4 @@
-// GENERATED CODE - DO NOT MODIFY BY HAND
+﻿// GENERATED CODE - DO NOT MODIFY BY HAND
 
 part of 'task_notifier.dart';
 
@@ -112,7 +112,7 @@ final class TaskDetailNotifierProvider
     extends $AsyncNotifierProvider<TaskDetailNotifier, BandTask> {
   TaskDetailNotifierProvider._({
     required TaskDetailNotifierFamily super.from,
-    required String super.argument,
+    required ({String taskId, String bandId}) super.argument,
   }) : super(
          retry: null,
          name: r'taskDetailProvider',
@@ -147,7 +147,7 @@ final class TaskDetailNotifierProvider
 }
 
 String _$taskDetailNotifierHash() =>
-    r'd68cddcb1a5e0c455a226a95f8e10ab9a338943a';
+    r'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0';
 
 final class TaskDetailNotifierFamily extends $Family
     with
@@ -156,7 +156,7 @@ final class TaskDetailNotifierFamily extends $Family
           AsyncValue<BandTask>,
           BandTask,
           FutureOr<BandTask>,
-          String
+          ({String taskId, String bandId})
         > {
   TaskDetailNotifierFamily._()
     : super(
@@ -167,18 +167,22 @@ final class TaskDetailNotifierFamily extends $Family
         isAutoDispose: true,
       );
 
-  TaskDetailNotifierProvider call(String taskId) =>
-      TaskDetailNotifierProvider._(argument: taskId, from: this);
+  TaskDetailNotifierProvider call(String taskId, {required String bandId}) =>
+      TaskDetailNotifierProvider._(
+        argument: (taskId: taskId, bandId: bandId),
+        from: this,
+      );
 
   @override
   String toString() => r'taskDetailProvider';
 }
 
 abstract class _$TaskDetailNotifier extends $AsyncNotifier<BandTask> {
-  late final _$args = ref.$arg as String;
-  String get taskId => _$args;
+  late final _$args = ref.$arg as ({String taskId, String bandId});
+  String get taskId => _$args.taskId;
+  String get bandId => _$args.bandId;
 
-  FutureOr<BandTask> build(String taskId);
+  FutureOr<BandTask> build(String taskId, {required String bandId});
   @$mustCallSuper
   @override
   void runBuild() {
@@ -191,6 +195,9 @@ abstract class _$TaskDetailNotifier extends $AsyncNotifier<BandTask> {
               Object?,
               Object?
             >;
-    element.handleCreate(ref, () => build(_$args));
+    element.handleCreate(
+      ref,
+      () => build(_$args.taskId, bandId: _$args.bandId),
+    );
   }
 }

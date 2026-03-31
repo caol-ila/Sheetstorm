@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -20,7 +20,7 @@ class TaskDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final taskAsync = ref.watch(taskDetailProvider(taskId));
+    final taskAsync = ref.watch(taskDetailProvider(taskId, bandId: bandId));
 
     return taskAsync.when(
       data: (task) => _TaskDetailContent(
@@ -43,7 +43,7 @@ class TaskDetailScreen extends ConsumerWidget {
               const SizedBox(height: AppSpacing.sm),
               FilledButton(
                 onPressed: () =>
-                    ref.read(taskDetailProvider(taskId).notifier).refresh(),
+                    ref.read(taskDetailProvider(taskId, bandId: bandId).notifier).refresh(),
                 child: const Text('Erneut versuchen'),
               ),
             ],
@@ -137,13 +137,13 @@ class _PriorityBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (icon, color, label) = switch (priority) {
-      TaskPriority.niedrig => (
+      TaskPriority.low => (
           Icons.arrow_downward,
           AppColors.textSecondary,
           'Niedrig'
         ),
-      TaskPriority.mittel => (Icons.remove, AppColors.warning, 'Mittel'),
-      TaskPriority.hoch => (Icons.arrow_upward, AppColors.error, 'Hoch'),
+      TaskPriority.medium => (Icons.remove, AppColors.warning, 'Mittel'),
+      TaskPriority.high => (Icons.arrow_upward, AppColors.error, 'Hoch'),
     };
 
     return Row(
@@ -216,7 +216,7 @@ class _StatusSection extends ConsumerWidget {
   ) async {
     if (task.status == newStatus) return;
 
-    final notifier = ref.read(taskDetailProvider(task.id).notifier);
+    final notifier = ref.read(taskDetailProvider(task.id, bandId: task.bandId).notifier);
     final success = await notifier.updateStatus(newStatus);
 
     if (context.mounted) {
@@ -245,9 +245,9 @@ class _StatusButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (icon, label, color) = switch (status) {
-      TaskStatus.offen => (Icons.radio_button_unchecked, 'Offen', AppColors.error),
-      TaskStatus.inBearbeitung => (Icons.pending, 'In Bearb.', AppColors.warning),
-      TaskStatus.erledigt => (Icons.check_circle, 'Erledigt', AppColors.success),
+      TaskStatus.open => (Icons.radio_button_unchecked, 'Offen', AppColors.error),
+      TaskStatus.inProgress => (Icons.pending, 'In Bearb.', AppColors.warning),
+      TaskStatus.done => (Icons.check_circle, 'Erledigt', AppColors.success),
     };
 
     return isSelected
@@ -348,7 +348,7 @@ class _MetaSection extends StatelessWidget {
                 label: 'Fällig am',
                 value: shortFormat.format(task.dueDate!),
                 valueColor: task.dueDate!.isBefore(DateTime.now()) &&
-                        task.status != TaskStatus.erledigt
+                        task.status != TaskStatus.done
                     ? AppColors.error
                     : null,
               ),
