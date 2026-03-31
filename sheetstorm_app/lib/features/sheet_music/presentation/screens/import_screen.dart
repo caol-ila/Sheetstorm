@@ -72,11 +72,22 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
   }
 
   Future<void> _onFilesSelected() async {
-    final bandId = ref.read(activeBandProvider);
+    var bandId = ref.read(activeBandProvider);
+
+    // If no band active yet, try to select first available band
+    if (bandId == null) {
+      final bandsAsync = ref.read(bandListProvider);
+      final bands = bandsAsync.value;
+      if (bands != null && bands.isNotEmpty) {
+        bandId = bands.first.id;
+        ref.read(activeBandProvider.notifier).setActive(bandId!);
+      }
+    }
+
     if (bandId == null) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Bitte zuerst eine Kapelle auswählen.')),
+        const SnackBar(content: Text('Bitte zuerst eine Kapelle erstellen.')),
       );
       return;
     }
@@ -140,11 +151,19 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
     }
 
     if (images.isEmpty || !mounted) return;
-    final bandId = ref.read(activeBandProvider);
+    var bandId = ref.read(activeBandProvider);
+    if (bandId == null) {
+      final bandsAsync = ref.read(bandListProvider);
+      final bands = bandsAsync.value;
+      if (bands != null && bands.isNotEmpty) {
+        bandId = bands.first.id;
+        ref.read(activeBandProvider.notifier).setActive(bandId!);
+      }
+    }
     if (bandId == null) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Bitte zuerst eine Kapelle auswählen.')),
+        const SnackBar(content: Text('Bitte zuerst eine Kapelle erstellen.')),
       );
       return;
     }
