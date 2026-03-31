@@ -4,9 +4,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sheetstorm/core/theme/app_colors.dart';
 import 'package:sheetstorm/core/theme/app_tokens.dart';
+import 'package:sheetstorm/features/performance_mode/application/auto_scroll_notifier.dart';
 import 'package:sheetstorm/features/performance_mode/application/performance_mode_notifier.dart';
 import 'package:sheetstorm/features/performance_mode/application/performance_mode_settings_notifier.dart';
 import 'package:sheetstorm/features/performance_mode/data/models/performance_mode_models.dart';
+import 'package:sheetstorm/features/performance_mode/presentation/widgets/auto_scroll_control_bar.dart';
 import 'package:sheetstorm/features/performance_mode/presentation/widgets/context_settings_sheet.dart';
 import 'package:sheetstorm/features/performance_mode/presentation/widgets/half_page_turn_view.dart';
 import 'package:sheetstorm/features/performance_mode/presentation/widgets/night_mode_filter.dart';
@@ -17,9 +19,6 @@ import 'package:sheetstorm/features/performance_mode/presentation/widgets/perfor
 import 'package:sheetstorm/features/performance_mode/presentation/widgets/voice_bottom_sheet.dart';
 import 'package:sheetstorm/features/performance_mode/presentation/widgets/two_page_view.dart';
 import 'package:sheetstorm/features/performance_mode/presentation/widgets/ui_lock_overlay.dart';
-import 'package:sheetstorm/features/annotations/application/annotation_notifier.dart';
-import 'package:sheetstorm/features/annotations/presentation/widgets/annotation_layer.dart';
-import 'package:sheetstorm/features/annotations/presentation/widgets/layer_toggle_panel.dart';
 
 /// Performance-Modus Screen — Focus-First (ux-design.md § 1.1)
 ///
@@ -128,10 +127,12 @@ class _PerformanceModeScreenState extends ConsumerState<PerformanceModeScreen>
   Widget build(BuildContext context) {
     final spielState = ref.watch(performanceModeProvider(widget.sheetId));
     final settings = ref.watch(performanceModeSettingsProvider);
+    final autoScrollState = ref.watch(autoScrollProvider);
     final notifier =
         ref.read(performanceModeProvider(widget.sheetId).notifier);
     final settingsNotifier =
         ref.read(performanceModeSettingsProvider.notifier);
+    final autoScrollNotifier = ref.read(autoScrollProvider.notifier);
 
     // Determine background color based on ColorMode
     final bgColor = switch (settings.colorMode) {
@@ -214,8 +215,14 @@ class _PerformanceModeScreenState extends ConsumerState<PerformanceModeScreen>
               Positioned.fill(
                 child: PageGestureDetector(
                   isLocked: spielState.uiLocked,
-                  onNextPage: notifier.nextPage,
-                  onPreviousPage: notifier.previousPage,
+                  onNextPage: () {
+                    autoScrollNotifier.onUserInteraction();
+                    notifier.nextPage();
+                  },
+                  onPreviousPage: () {
+                    autoScrollNotifier.onUserInteraction();
+                    notifier.previousPage();
+                  },
                   onToggleOverlay: notifier.toggleOverlay,
                   onDoubleTap: () =>
                       notifier.resetPageZoom(spielState.currentPage),
@@ -246,8 +253,19 @@ class _PerformanceModeScreenState extends ConsumerState<PerformanceModeScreen>
                 onUnlockTriggered: notifier.unlockUi,
               ),
 
+              // ── Auto-Scroll Control Bar (UX §2.2, 48px bottom) ──────────
+              if (!autoScrollState.isIdle || spielState.autoScrollActive)
+                const Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: AutoScrollControlBar(),
+                ),
+
               // ── Page indicator (subtle, bottom center) ───────────────────
-              if (!spielState.overlayVisible && !spielState.uiLocked)
+              if (!spielState.overlayVisible &&
+                  !spielState.uiLocked &&
+                  autoScrollState.isIdle)
                 Positioned(
                   bottom: 8,
                   left: 0,

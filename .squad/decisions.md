@@ -718,8 +718,317 @@ timeago: ^3.7.0                   # German relative time formatting
 
 ---
 
+## MS3 — Meilenstein 3 Entscheidungen
+
+### 2026-03-30T23:21:03Z: User Directive — Kein BLE in MS3
+**By:** Thomas (via Copilot)  
+**Decision:** Keine Features mit BLE (Bluetooth Low Energy) in MS3 planen — ein anderer Agent kümmert sich darum. Alles andere vorbereiten.
+
+---
+
+### 2026-03-29: Hill — Feature-Spezifikationen für alle 6 MS3 Features
+**By:** Hill (Product Manager)  
+**Date:** 2026-03-29
+
+Vollständige Feature-Spezifikationen erstellt für:
+1. **Tuner:** Client-seitig (kein Backend-API), FFT-Pipeline auf Device, 442 Hz Default
+2. **Metronom:** Beats als Timestamps (UTC Microseconds), nicht Echtzeit-Kommandos. UDP Multicast 239.255.77.77 primär, SignalR WebSocket Fallback. SessionState in Redis (Cloud Scaling).
+3. **Cloud-Sync:** Last-Write-Wins pro Feld (nicht pro Objekt). Scope: "Meine Musik" nur. Delta-Sync mit monotoner Version. Binärdaten (Noten) über S3 (Pre-signed URLs).
+4. **Annotationen-Sync:** Op-Log + LWW statt CRDT/OT. 24h Retention auf Operations-Log.
+5. **Auto-Scroll:** Scroll-Einstellungen lokal (kein Sync). BPM-Kopplung mit Metronom.
+6. **Aufgabenverwaltung:** Registerführer-Scope auf eigenes Register begrenzt. Musiker sehen nur zugewiesene Aufgaben.
+
+**Open Questions:**
+- Tuner Kammerton: 440 Hz oder 442 Hz? (Spec: 442 Hz Standard)
+- Metronom Multicast-Port: 5001 in Firewall für Enterprise-Deployments?
+- Cloud-Sync Quota: 1 GB oder 5 GB pro Nutzer?
+- Aufgaben-Benachrichtigungen: FCM/APNs Konfiguration Timeline?
+
+---
+
+### 2026-03-30: Stark — MS3 Technische Architektur
+**By:** Stark (Lead / Architect)  
+**Date:** 2026-03-30
+
+#### 1. Annotationen-Sync: Op-Log + LWW statt CRDT/OT
+**Entscheidung:** Operationsbasierter Sync mit Last-Write-Wins per Element-ID.
+**Begründung:** Annotationen sind unabhängige grafische Elemente. Konflikte sind extrem selten. LWW-Verlust = ein einzelner Strich. Komplexitätsreduktion > theoretische Korrektheit.
+
+#### 2. Metronom: WiFi UDP Multicast primär, WebSocket Fallback
+**Entscheidung:** WiFi UDP als primärer Transport (< 5ms LAN). SignalR WebSocket als Fallback (< 50ms).
+**Hinweis:** BLE bleibt als potenzielle dritte Option für zukünftige Iterationen offen (abweichend von initial propositem BLE-Direktive).
+
+#### 3. Metronom: Beats als Timestamps, nicht als Live-Kommandos
+**Entscheidung:** Server sendet Session-Start (BPM + Startzeit), Clients berechnen Beats lokal.
+
+#### 4. Cloud-Sync: Delta-Sync mit monotoner Version
+**Entscheidung:** Monoton steigende Version pro Nutzer. SyncChangelog-Tabelle für Feld-Level-Änderungen.
+
+#### 5. Cloud-Sync: Binärdaten über S3, nicht über Sync-API
+**Entscheidung:** Notenbilder werden separat über S3 (Pre-signed URLs) synchronisiert.
+
+#### 6. TaskStatus Naming: BandTaskStatus
+**Entscheidung:** Enum heißt `BandTaskStatus`, nicht `TaskStatus` — Vermeidung von Namespace-Kollision mit `System.Threading.Tasks.TaskStatus`.
+
+---
+
+### 2026-03-30: Banner — Aufgabenverwaltung Backend Entscheidungen
+**By:** Banner (Backend Developer)  
+**Date:** 2026-03-30
+
+1. **Endpoint-Pfad:** `/api/bands/{bandId}/tasks` (ohne v1-Segment, konsistent mit anderen Controllern)
+2. **Autorisierung:** Nur Ersteller und zugewiesene Mitglieder können Status ändern. Admins/Conductor können Status auch ändern, weil sie die Aufgabe erstellt oder sich selbst zuweisen können.
+3. **AssignTask:** PUT /assignees nimmt vollständige Liste und ersetzt alle bestehenden Zuweisungen atomisch (replace-all Semantik).
+4. **Fehlerbehandlung:** 403 Forbidden bei fehlender Bandmitgliedschaft (nicht 404, um Existenz nicht zu leaken).
+5. **Keine EF Migration für InMemory:** Tests nutzen UseInMemoryDatabase. Migrationen für PostgreSQL manuell via setup.ps1 ausgeführt.
+
+---
+
+### 2026-03-30: Banner — Cloud-Sync Backend Entscheidungen
+**By:** Banner (Backend Developer)  
+**Date:** 2026-03-30
+
+1. **API-Route-Struktur:** `/api/sync/state`, `/api/sync/push`, `/api/sync/pull`, `/api/sync/resolve` (per protocol-spec, nicht feature-spec /meine-musik)
+   - Begründung: Starks Protokoll-Spec ist die technisch verbindliche Quelle für Backend-API.
+   - Team-Impakt: Flutter-Client (Romanoff) muss Endpoints auf `/api/sync/...` (ohne v1) konfigurieren.
+
+2. **SyncChangelog Tabellenname:** `SyncChangelog` (Singular), DbSet `SyncChangelogs` (Plural) — standard ASP.NET Core EF-Konvention.
+
+3. **LWW-Granularität auf Feld-Ebene:** pro `(EntityId, FieldName)` geprüft — nicht pro Entity.
+   - Gleichzeitige Änderungen an `title` und `composer` desselben Stücks verursachen **keinen** Konflikt.
+   - Nur wenn dasselbe Feld zweimal geändert wurde und Server die neuere Änderung hat: ServerWins-Konflikt.
+
+4. **Entity-Mutations im Push:** Changelog speichert Änderungen, wendet sie aber **nicht** automatisch auf Entities an.
+   - Offene Frage: Soll Backend die Entities auch live mutieren?
+
+5. **Band.IsPersonal — Seeder:** `Band.IsPersonal = true` ist in Entity vorhanden, DemoDataSeeder erstellt aber noch keine persönliche Band.
+
+6. **`resolve`-Endpoint:** Nimmt explizite Resolutions entgegen und speichert als neue Changelog-Einträge. Relevant nur wenn UI-seitig explizite Konfliktanzeige gewünscht wird.
+
+---
+
+### 2026-03-31: Banner — Metronom-Sync Backend Entscheidungen
+**By:** Banner (Backend Developer)  
+**Date:** 2026-03-31
+
+1. **IMetronomeSessionManager = Singleton** (nicht Scoped)
+   - Begründung: SignalR-Hubs werden pro Connection instanziiert. Scoped Services können nicht in Singleton-Hubs injiziert werden. BandId als Key schützt gegen Cross-Band-Konflikte.
+
+2. **UDP Multicast-Gruppe: 239.255.77.77** (gemäß Protokoll-Spec)
+   - Feature-Spec hatte 239.255.42.99. Protokoll-Spec hat Vorrang.
+   - Offen: Stark sollte bestätigen ob 239.255.77.77 final ist.
+
+3. **UdpMulticastServer sendet keine Beats — nur Session-Start/Stop/Update + Heartbeat**
+   - Clients erhalten StartTimeUs + BPM und berechnen Beats lokal.
+   - Server könnte optional Beat-Pakete senden (nicht implementiert da Spec nicht verlangt).
+
+4. **AnnotationSyncHub stub-implementiert**
+   - Tests konnten nicht kompilieren weil AnnotationSyncHub fehlte. Stub basierend auf Test-Erwartungen implementiert.
+
+5. **REST API-Pfad: /api/v1/bands/{bandId}/metronome/**
+   - Englische Routen konsistent mit Rest der API (nicht /api/v1/kapellen/{id}/metronom/).
+
+---
+
+### 2026-04-16: Vision — Auto-Scroll / Reflow Architecture
+**By:** Vision (Principal Frontend Engineer)  
+**Date:** 2026-04-16
+
+#### 1. Separate Runtime State from Persistent Settings
+- `AutoScrollNotifier` manages runtime state (idle/playing/paused, current speed, current mode)
+- `AutoScrollSettingsNotifier` manages persistent defaults (SharedPreferences)
+- **Reason:** Runtime state resets on each session. Settings persist across restarts.
+
+#### 2. Speed Calculation in State, not Notifier
+- `AutoScrollState.calculateManualSpeed()` and `calculateBpmSpeed()` are pure methods
+- **Reason:** Pure functions are trivially testable. No notifier access or async needed.
+
+#### 3. Widget Tests use UncontrolledProviderScope
+- `overrideWithValue` throws in Riverpod 3.x codegen notifiers
+- All widget tests use `UncontrolledProviderScope(container: ...)` with real `ProviderContainer`
+
+#### 4. Control Bar always-visible when active (UX §2.2)
+- Bar appears at bottom of Stack, 48px height
+- Page dots hidden while bar visible to avoid overlap
+
+#### 5. Pause-on-Touch wired through gesture layer
+- `PageGestureDetector.onNextPage` / `onPreviousPage` call `autoScrollNotifier.onUserInteraction()`
+- Respects user's manual override intent
+
+#### Open Items
+- BPM-Metronom-Kopplung: needs integration once Metronom ready (MS3)
+- Page-Flip mode: not implemented, needs separate scroll controller
+- Vorlauf-Takte: calculation exists, UI integration pending
+
+---
+
+### 2026-03-31: Romanoff — Tasks Frontend Decisions
+**By:** Romanoff (Frontend Developer)  
+**Date:** 2026-03-31
+
+1. **API-Endpoint-Struktur:** Deutsche vs. Englische Keys
+   - Feature-Spec definiert `/api/v1/kapellen/{id}/aufgaben` mit deutschen snake_case JSON-Keys
+   - Task-Beschreibung nannte `/api/bands/{bandId}/tasks` mit camelCase
+   - Entscheidung: Feature-Spec (deutsches API) folgen für Konsistenz mit anderen Features
+   - ⚠️ Wenn Backend camelCase verwendet, müssen fromJson/toJson-Keys angepasst werden
+
+2. **routes.dart:** Kein app_router.dart-Eingriff
+   - Routes in `features/tasks/routes.dart` definiert und exportieren `taskRoutes`
+   - Integration in `app_router.dart` noch ausstehend (per Charter-Policy)
+
+3. **Out-of-scope MS3:**
+   - Kommentare (Aufgaben-Kommentar-Thread)
+   - Push-Notifications
+   - Zuweisung von Mitgliedern im Create/Edit-Formular
+   - Erinnerungs-Konfiguration
+   - Service/Notifier bereits vorbereitet, UI fehlt
+
+---
+
+### 2026-03-31: Wanda — UX-Entscheidungen für MS3
+**By:** Wanda (UX Designer)  
+**Date:** 2026-03-31
+
+#### Für Thomas zu entscheiden:
+1. **Tuner — Stimmhistorie?** Empfehlung: Option A (Tablet zeigt letzte Messung, Phone zustandslos)
+2. **Tuner — Manueller Modus bei verweigerter Permission?** Empfehlung: Option B (MVP, kein Fallback)
+3. **Metronom — Beat-Fläche Form?** Empfehlung: Option B (Kreis, sanfter, nicht Vollbild-Flash)
+4. **Metronom — Beat-Banner im Spielmodus?** Empfehlung: Option A (40px Banner, Nutzer verliert Sync nicht)
+5. **Cloud-Sync — Speicherlimit?** Empfehlung: 500 MB (MVP, typisches Blaskapellen-Repertoire)
+6. **Annotationen-Sync — Schreib-Rechte?** Empfehlung: Option A (alle Mitglieder mit Stimme)
+7. **Auto-Scroll — Manueller Eingriff pausiert?** Empfehlung: Option A (Tap = Pause, nicht Weiter)
+8. **Aufgaben — Wer sieht alle?** Empfehlung: Option A (Transparenz, aber Löschen-Recht beim Ersteller)
+9. **Aufgaben — Navigation-Platzierung?** Empfehlung: Option A (unter „Vereinsleben", später zu eigenem Tab)
+
+#### Teamrelevante Design-Entscheidungen (keine Thomas-Entscheidung):
+1. **Tuner-Transposition:** Aus Instrumentenprofil laden als Default
+2. **Metronom-Rollenprüfung:** Lokal aus Kapellenmitgliedschaft (kein Server-Roundtrip)
+3. **Auto-Scroll:** Kontinuierlich > Seiten-Flip (mit reduced-motion fallback)
+4. **Annotationen-Sync:** Kein Locking, gleichzeitiges Zeichnen erlaubt
+5. **Cloud-Sync Status:** Unsichtbar im Erfolgsfall (kein Badge, nur aktiv + Fehler)
+
+---
+
 ## Governance
 
 - All meaningful changes require team consensus
 - Document architectural decisions here
 - Keep history focused on work, decisions focused on direction
+
+---
+
+## 2026-03-31: Strange — Annotation Sync Backend Architecture
+
+**By:** Strange (Principal Backend Engineer)  
+**Feature:** Annotationen-Sync (MS3)
+
+### REST Controller Design
+- Single \AnnotationController\ handles both band-scoped and personal annotation endpoints
+- Band-scoped routes: \pi/bands/{bandId}/annotations/...\
+- Personal routes: \pi/annotations/personal/...\
+- Sync endpoint: \POST .../sync?level=Voice&voiceId=...&sinceVersion=42\
+
+### Optimistic Concurrency via Version Field
+- Every \UpdateElement\ request must include the client's known \ersion\
+- Server returns 409 Conflict with current server data if version mismatch
+- Client must accept server version and retry (LWW = Last-Write-Wins)
+
+### Soft-Delete for Sync Consistency
+- \DeleteElement\ sets \IsDeleted = true\ instead of physical delete
+- Sync responses INCLUDE soft-deleted elements so clients can remove them locally
+- Regular \GetAnnotations\ EXCLUDES soft-deleted elements
+
+### Orchestra Annotations: Conductor/Admin Only for Create
+- \CreateElement\ with \Level = Orchestra\ requires Conductor or Admin role
+- All band members can READ orchestra annotations
+- Matches MS1 visibility rules
+
+### Hub Connection Tracking
+- \AnnotationSyncHub\ tracks connection → groups mapping in \ConcurrentDictionary\
+- \OnDisconnectedAsync\ cleans up all group memberships
+- No persistent presence data (ephemeral, per spec)
+
+### Open for Review
+- Retention job for old annotation operations (24h cleanup) — not yet implemented
+- Max elements per page limit (spec suggests 1000) — not enforced yet
+
+---
+
+## 2026-04-16: Vision — Annotation Sync Frontend Architecture
+
+**By:** Vision (Principal Frontend Engineer)  
+**Scope:** Frontend only — sync layer for shared annotations
+
+### Manual SignalR JSON Protocol (no shared base yet)
+Annotation sync uses the same manual WebSocket + SignalR JSON protocol as BroadcastSignalRService. No shared abstraction extracted yet. **When a 3rd feature needs SignalR, extract a base class.**
+
+### REST Endpoints
+- \/api/bands/{bandId}/annotations/...\
+- No version segment
+- camelCase JSON keys
+- Matches Stark's protocol spec
+
+### Hub URL & Auth
+- Hub: \/hubs/annotation-sync\
+- Separate from broadcast hub (\/hubs/broadcast\)
+- Auth via access_token query param
+
+### Private Annotations Never Synced
+- \shouldSync(AnnotationLevel.private)\ returns false
+- Only voice + orchestra level annotations flow through the sync layer
+
+### LWW Conflict Resolution Client-Side
+- \AnnotationOp.resolveConflict()\ picks newer timestamp, then higher version as tiebreaker
+- Conflict banner shows winner to inform user
+
+### Offline Queue in Riverpod State
+- Ops queued in \AnnotationSyncState.offlineQueue\ while disconnected
+- \dequeueOps()\ atomically returns and clears the queue for replay on reconnect
+
+### Integration Points for Other Agents
+- **Banner (Backend):** Expects \AnnotationSyncHub\ with \JoinAnnotationGroup\, \LeaveAnnotationGroup\, \NotifyElementChange\ methods and \OnElementAdded\/\OnElementUpdated\/\OnElementDeleted\ server events.
+- **Romanoff (if wiring UI):** Import \SyncStatusIndicator\ and \LiveEditIndicator\ widgets into the Spielmodus overlay.
+
+---
+
+## 2026-07-01: Vision — Metronom Frontend Architektur
+
+**Agent:** Vision (Principal Frontend Engineer)
+
+### Beat-Berechnung ist reine Mathematik (kein State)
+
+\BeatCalculator\ ist eine reine Dart-Klasse ohne Riverpod-State. Input: \startTimeUs\, \pm\, \clockOffsetUs\, \
+owUs\. Output: \eatNumber\, \measure\, \eatInMeasure\, \isDownbeat\, \microsecondsToNextBeat\.
+
+**Begründung:** Maximale Testbarkeit, kein Framework-Dependency für die Kern-Logik. 21 Unit-Tests decken alle Edge Cases ab (extreme BPM, negative offsets, etc.).
+
+### ClockSyncService gehört zum MetronomeNotifier (kein eigener Provider)
+
+\ClockSyncService\ wird als Instanzvariable im \MetronomeNotifier\ gehalten, nicht als globaler Riverpod-Provider.
+
+**Begründung:** Clock-Sync macht nur Sinn im Kontext einer aktiven Metronom-Session. Kein Grund für globalen Zustand. Vereinfacht Lifecycle-Management.
+
+### SignalR-Service folgt BroadcastSignalRService-Pattern
+
+Gleiche manuelle JSON-Protokoll-Implementierung: Handshake, Record Separator \\u001e\, Ping/Pong Typ 6, Invocation Typ 1. Gleiche Reconnect-Strategie (exponential backoff 2-32s, max 5 Versuche).
+
+**Hub:** \/hubs/metronome\  
+**Events:** \OnSessionStarted\, \OnSessionStopped\, \OnSessionUpdated\, \OnClockSyncResponse\, \OnParticipantCountChanged\
+
+### Sentinel-Pattern für nullable copyWith-Felder
+
+\MetronomeState.copyWith\ verwendet \static const _sentinel = Object()\ für nullable Felder (\session\, \currentBeat\, \rror\). Verhindert den \ield ?? this.field\-Bug, der in MS2 identifiziert wurde.
+
+### Route: \/app/metronome\ mit Query-Parameter für Rolle
+
+Statt separater Routen für Dirigent/Musiker: eine Route \/app/metronome?conductor=true\. Rollenprüfung erfolgt lokal (kein Server-Roundtrip), wie in UX-Spec §2 festgelegt.
+
+### API Convention: \/api/\ ohne Version
+
+Per Task-Anweisung verwendet der Frontend-Client \/api/bands/{bandId}/metronome/\ ohne Versionssegment. camelCase JSON Keys. **Hinweis:** Banner's Backend verwendet \/api/v1/bands/{bandId}/metronome/\ — muss abgestimmt werden.
+
+### Open Items für Banner (Backend)
+
+- SignalR Hub muss \OnSessionStarted\, \OnSessionStopped\, \OnSessionUpdated\, \OnClockSyncResponse\, \OnParticipantCountChanged\ senden
+- Client-Methoden: \StartSession\, \StopSession\, \UpdateSession\, \RequestClockSync\, \JoinSession\, \LeaveSession\
+- UDP Multicast (239.255.77.77:5100) ist für spätere Transport-Erkennung vorbereitet, aber nicht implementiert — Frontend nutzt derzeit nur WebSocket

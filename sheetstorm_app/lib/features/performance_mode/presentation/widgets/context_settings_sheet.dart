@@ -47,7 +47,7 @@ class ContextSettingsSheet extends StatelessWidget {
             Container(
               width: 40,
               height: 4,
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 color: Colors.white24,
                 borderRadius: AppSpacing.roundedFull,
               ),

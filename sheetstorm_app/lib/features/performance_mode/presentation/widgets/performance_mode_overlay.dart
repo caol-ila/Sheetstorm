@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:sheetstorm/core/theme/app_colors.dart';
 import 'package:sheetstorm/core/theme/app_tokens.dart';
 
 /// Top and bottom overlay bars for the Spielmodus (UX §7).

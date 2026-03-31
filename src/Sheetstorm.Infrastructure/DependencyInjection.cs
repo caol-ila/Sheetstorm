@@ -18,7 +18,11 @@ using Sheetstorm.Infrastructure.Polls;
 using Sheetstorm.Infrastructure.Setlists;
 using Sheetstorm.Infrastructure.Shifts;
 using Sheetstorm.Infrastructure.Substitutes;
+using Sheetstorm.Infrastructure.Tasks;
+using Sheetstorm.Infrastructure.Sync;
 using Sheetstorm.Infrastructure.Voices;
+using Sheetstorm.Domain.Annotations;
+using Sheetstorm.Infrastructure.Annotations;
 
 namespace Sheetstorm.Infrastructure;
 
@@ -57,6 +61,9 @@ public static class DependencyInjection
         services.AddScoped<IGemaService, GemaService>();
         services.AddScoped<ISubstituteService, SubstituteService>();
         services.AddScoped<IShiftService, ShiftService>();
+        services.AddScoped<ITaskService, TaskService>();
+        services.AddScoped<ISyncService, SyncService>();
+        services.AddScoped<IAnnotationSyncService, AnnotationSyncService>();
 
         // Import pipeline
         services.AddScoped<IImportService, ImportService>();

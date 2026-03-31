@@ -10,6 +10,38 @@
 
 <!-- Append new learnings below. -->
 
+### 2026-07-01: Echtzeit-Metronom Frontend (MS3)
+
+**Context:** Implemented full metronome client with TDD: 106 tests, 21 files, 4012 LOC.
+
+**Architecture:**
+- `BeatCalculator` (pure math): given startTime + BPM + clockOffset → beat number, measure, downbeat. Called at ~60fps for animation.
+- `ClockSyncService` (NTP-like): sliding window of 10 measurements, median filter, 2σ outlier rejection. Quality: good (<5ms RTT), acceptable (5-20ms), poor (>20ms).
+- `MetronomeNotifier` (Riverpod keepAlive): orchestrates conductor/musician modes. Beat timer at 16ms. Only updates state when beat number changes.
+- `MetronomeSignalRService`: manual SignalR JSON protocol (same pattern as `BroadcastSignalRService`). Hub at `/hubs/metronome`.
+- `BeatIndicator` (CustomPainter): pulse animation via `AnimationController`, downbeat accent color.
+- Route: `/app/metronome?conductor=true` for role-based view.
+
+**Key Files:**
+- `lib/features/metronome/application/beat_calculator.dart` — Pure math, 100% testable
+- `lib/features/metronome/application/clock_sync_service.dart` — NTP offset calculation
+- `lib/features/metronome/application/metronome_notifier.dart` — Main state management
+- `lib/features/metronome/data/metronome_connection_service.dart` — SignalR service
+- `lib/features/metronome/data/models/metronome_models.dart` — All models
+- `lib/features/metronome/presentation/widgets/beat_indicator.dart` — Canvas beat display
+- `lib/features/metronome/presentation/widgets/conductor_controls.dart` — Full conductor UI
+- `lib/features/metronome/presentation/widgets/musician_view.dart` — Passive receiver UI
+- `lib/features/metronome/presentation/widgets/bpm_picker.dart` — BPM slider/stepper/tap-tempo
+
+**Decisions:**
+1. Sentinel pattern for `MetronomeState.copyWith` on nullable fields (session, currentBeat, error) — learned from MS2 copyWith bug
+2. `ClockSyncService` is plain Dart class (not a Riverpod notifier) — owned by `MetronomeNotifier`, no global state needed
+3. Widget tests for `MusicianView` use `overrideWithValue` — notifier access only in callbacks, not in build method
+4. `BeatCirclePainter.shouldRepaint` compares `isActive`, `isDownbeat`, `pulseScale`, `accentColor` — minimal repaints
+5. Tap-Tempo: removes taps older than 2s, needs ≥3 taps, averages intervals
+
+**TDD Stats:** 106 tests total (27 models, 21 beat calculator, 13 clock sync, 17 notifier, 7 beat indicator, 10 BPM picker, 8 conductor controls, 5 musician view). All green.
+
 ### 2026-04-15: MS2 Frontend Orchestration Summary — Setlist + Song Broadcast + 7 Romanoff Modules
 
 **Overall Context:**
@@ -78,3 +110,63 @@ Parallel orchestration completed. Vision implemented 2 modules (Setlist + Song B
 3. **AttendanceDashboardState.copyWith sentinel pattern:** Replaced `field ?? this.field` with `Object? field = _sentinel` pattern for all nullable fields (`stats`, `trend`, `startDate`, `endDate`, `eventType`, `error`). `isLoading` kept as `bool?` since it's non-nullable with default.
 
 **Key Insight:** `copyWith(error: null)` with `error ?? this.error` silently keeps the old value — a pervasive pattern bug across many MS2 models. Sentinel pattern is the correct Dart idiom for nullable field resets.
+
+### 2026-04-16: Auto-Scroll / Reflow Feature (MS3)
+
+**Context:** Implemented auto-scroll controls, settings persistence, and screen integration following strict TDD.
+
+**Architecture:**
+- `AutoScrollState` + `AutoScrollNotifier` (@riverpod): stateless scroll state machine — idle/playing/paused transitions, speed factor (0.5×–3×), BPM mode, bars-per-line, lead-in bars
+- `AutoScrollSettingsNotifier` (@riverpod): persistent defaults via SharedPreferences, same pattern as `PerformanceModeSettingsNotifier`
+- `AutoScrollControlBar` (ConsumerWidget): compact 48px bar with Stop/Play-Pause/Reset + speed stepper [−] label [+]
+- `AutoScrollWrapper` (existing, tested): Timer.periodic ~60fps scrolling with speed parameter
+- Screen integration: control bar appears at bottom when auto-scroll active, gesture layer wires `onUserInteraction()` to pause-on-touch
+
+**Key Files:**
+- `lib/features/performance_mode/application/auto_scroll_notifier.dart` — State + notifier
+- `lib/features/performance_mode/application/auto_scroll_settings_notifier.dart` — Persistent settings
+- `lib/features/performance_mode/presentation/widgets/auto_scroll_control_bar.dart` — Control bar widget
+- `lib/features/performance_mode/presentation/screens/performance_mode_screen.dart` — Integration
+
+**Speed Calculation:**
+- Manual: `speedFactor × (screenHeight / 10)` px/s
+- BPM: `lineHeight / lineDuration` where `lineDuration = (60/BPM) × barsPerLine`
+- All calculation tested with real-world values (120 BPM, 4 bars/line, A4 page)
+
+**TDD Stats:** 70+ new tests (48 notifier, 8 settings, 14 widget, 4 wrapper). 252 total performance_mode tests green.
+
+**Decisions:**
+1. Separate `AutoScrollNotifier` (runtime state) from `AutoScrollSettingsNotifier` (persistence) — clean separation, settings survive app restart
+2. Control bar uses `ConsumerWidget` not `StatefulWidget` — all state lives in Riverpod, no local state needed
+3. `overrideWithValue` doesn't work with Riverpod 3.x codegen notifier providers for widget tests — use `UncontrolledProviderScope` + real notifier instead
+
+### 2026-04-16: Annotation Sync Frontend Layer (MS3)
+
+**Context:** Implemented the full real-time annotation sync frontend layer following strict TDD.
+
+**Architecture:**
+- `sync/annotation_op_model.dart` — Wire DTOs (AnnotationElementDto, BBoxDto, StrokePointDto), AnnotationOp with LWW conflict resolution, SyncVersion, ElementChangeNotification
+- `sync/annotation_sync_notifier.dart` — Riverpod Notifier managing 5 sync states (disconnected/connecting/connected/syncing/error), offline op queue, remote element tracking, active editors presence, conflict info
+- `sync/annotation_sync_service.dart` — Manual SignalR JSON protocol client (same pattern as BroadcastSignalRService), REST URL builders, server event parsing, reconnect with exponential backoff (1s/3s/10s/30s)
+- `sync/annotation_sync_converters.dart` — Bidirectional Annotation ↔ AnnotationElementDto conversion, level/tool string mapping, shouldSync() gate
+- `presentation/widgets/sync_status_indicator.dart` — ConsumerWidget showing connected/syncing/offline state with icon + pending-ops badge
+- `presentation/widgets/live_edit_indicator.dart` — Active editors banner ("Max zeichnet…") + LWW conflict banner ("Änderung von X wurde übernommen")
+
+**Key Decisions:**
+1. **No shared SignalR base class yet** — mirrors BroadcastSignalRService pattern directly. If a third feature needs SignalR, extract shared base.
+2. **Sentinel pattern for nullable copyWith fields** — `clearError: true` / `clearConflict: true` flags instead of `Object? = _sentinel` pattern (simpler for this state shape).
+3. **REST endpoints follow `/api/bands/{bandId}/annotations/...`** — no version segment, camelCase JSON keys per API convention.
+4. **Hub at `/hubs/annotation-sync`** — separate from broadcast hub.
+5. **Private annotations never synced** — `shouldSync()` returns false for `AnnotationLevel.private`.
+6. **Widget tests use `overrideWith(() => FakeNotifier)` pattern** — works cleanly with non-codegen NotifierProvider.
+
+**TDD Stats:** 108 new tests (31 model, 32 notifier, 19 service, 14 integration, 12 widget). 274 total annotation tests green. Zero analyzer issues.
+
+**Key Files:**
+- `lib/features/annotations/sync/annotation_op_model.dart`
+- `lib/features/annotations/sync/annotation_sync_notifier.dart`
+- `lib/features/annotations/sync/annotation_sync_service.dart`
+- `lib/features/annotations/sync/annotation_sync_converters.dart`
+- `lib/features/annotations/presentation/widgets/sync_status_indicator.dart`
+- `lib/features/annotations/presentation/widgets/live_edit_indicator.dart`
+

@@ -10,6 +10,73 @@
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
+### 2026-03-29: Feature-Specs für alle 6 MS3-Features erstellt
+
+**Aufgabe:** Vollständige Feature-Spezifikationen für alle MS3-Deliverables auf Basis von `docs/meilensteine.md`.
+
+**Ergebnis:** 6 Spec-Dateien in `docs/feature-specs/`:
+
+1. **`tuner-spec.md`** — Chromatischer Tuner
+   - Platform Channels: CoreAudio (iOS), Oboe/NDK (Android), WASAPI (Windows), Web Audio API (Web)
+   - FFT-Algorithmus vollständig spezifiziert: Hann-Window, 2048 Samples, Parabolic Interpolation
+   - Latenz-Budget: < 20ms (5ms Audio-Buffer + 3ms FFT + 1ms Berechnung + 16ms Frame)
+   - Transpositions-Tabelle: Bb (+2 HT), Eb (+3 HT), F (+7 HT), C (0)
+   - Kammerton-Default: 442 Hz (für Blaskapellen üblich), im Konfigurationssystem (MS1)
+   - Kein eigenes Backend-API — nutzt bestehendes Konfigurationssystem
+
+2. **`metronom-sync-spec.md`** — Echtzeit-Metronom
+   - UDP Multicast: `239.255.42.99:5001`, Paket-Format MessagePack, max 64 Bytes
+   - Beats als Timestamps (UTC Microseconds), kein Live-Kommando → präzises Scheduling
+   - NTP-ähnliche Clock-Sync: Offset-Berechnung via RTT, alle 30s wiederholen
+   - Protokoll-Auto-Erkennung: UDP wenn Multicast erreichbar, sonst WebSocket
+   - SessionState in Redis (nicht In-Memory bei Multi-Instanz)
+   - Latenz-Ziele: UDP < 5ms LAN, WebSocket < 50ms Internet
+
+3. **`cloud-sync-spec.md`** — Cloud-Sync Persönliche Sammlung
+   - Delta-Sync mit Versionsnummer (BIGINT), Change-Log-Tabelle
+   - Last-Write-Wins per Feld (nicht per Objekt) — granulare Konflikt-Auflösung
+   - PDF-Binärdaten: Content-Hash (SHA-256) verhindert Doppel-Upload
+   - Offline-Queue in lokaler Drift-DB, exponentielles Backoff
+   - Scope MS3: nur „Meine Musik" (nicht Kapellen-Bibliothek)
+   - Max. 10 Geräte pro Nutzer
+
+4. **`annotationen-sync-spec.md`** — Annotationen-Sync (Erweitert)
+   - Baut auf MS1 `annotationen-spec.md` auf (Schema, Sichtbarkeitsregeln bleiben)
+   - Operations-Log für Offline-Queue-Replay (24h Retention — nicht für History)
+   - Presence-Indicator: nur Anzahl (nicht Namen) by Default — Datenschutz
+   - Stimmen-Sync: Musiker tritt Channel bei beim Stück öffnen (JoinStimme/LeaveStimme)
+
+5. **`auto-scroll-spec.md`** — Auto-Scroll / Reflow
+   - Vollständig client-seitig, kein Backend-API
+   - BPM-Kalkulation: `px/s = (Zeilenhöhe) / (Taktdauer_ms × Takte_pro_Zeile / 1000)`
+   - Vorlauf-Takte: Scroll-Position = aktueller Takt + N Takte Offset
+   - Scroll-Einstellung per Stück in lokaler Drift-DB (kein Sync)
+   - Fußpedal: kann vorhandene HID-Schnittstelle (MS1) für Pause/Weiter nutzen
+
+6. **`aufgabenverwaltung-spec.md`** — Aufgabenverwaltung / To-Do-Listen
+   - Berechtigungsmatrix: Musiker sehen nur eigene Aufgaben; Dirigent/Admin alles
+   - Registerführer kann nur seinem Register zuweisen
+   - Soft-Delete, Archivierung nach 30 Tagen (automatischer Job)
+   - Termin-Verknüpfung mit MS2 Konzertplanung (ON DELETE SET NULL)
+   - Push opt-in, In-App als Fallback; Erinnerungs-Job prüft Status vor Versand
+
+**Wichtigste technische Entscheidungen:**
+
+- **Tuner:** Kein Backend-API — rein client-seitig, nutzt Konfigurationssystem
+- **Metronom:** UDP Beats = Timestamps, nicht Kommandos → Clients schedulen lokal, kein Head-of-Line-Blocking
+- **Cloud-Sync:** Last-Write-Wins per Feld (nicht Objekt) — feinere Granularität, weniger Konflikte
+- **Annotationen-Sync:** Annotations-Operations-Log 24h Retention (keine History) — klare Abgrenzung zu Cloud-Sync
+- **Auto-Scroll:** Per-Stück-Einstellung lokal (nicht synchronisiert) — jeder Musiker scrollt in seiner eigenen Geschwindigkeit
+- **Aufgaben:** Registerführer-Scope begrenzt auf eigenes Register (Konsistenz mit bestehenden Rollen-Rechten)
+
+**Betroffene Dateien:**
+- `docs/feature-specs/tuner-spec.md` (neu)
+- `docs/feature-specs/metronom-sync-spec.md` (neu)
+- `docs/feature-specs/cloud-sync-spec.md` (neu)
+- `docs/feature-specs/annotationen-sync-spec.md` (neu)
+- `docs/feature-specs/auto-scroll-spec.md` (neu)
+- `docs/feature-specs/aufgabenverwaltung-spec.md` (neu)
+
 ### 2026-03-28: GitHub Issues für MS1–MS3 erstellt
 
 **Aufgabe:** GitHub Issues für Meilensteine 1, 2 und 3 erstellt — vollständige Issue-Struktur pro Feature (UX-Design, Feature-Spec, Implementierung, Tests).

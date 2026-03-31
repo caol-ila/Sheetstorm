@@ -59,12 +59,6 @@ void main() {
       await tester.pump();
 
       // Divider is a Container with width=1
-      final dividers = tester.widgetList<Container>(find.byType(Container));
-      final hasDivider = dividers.any(
-        (c) =>
-            c.constraints != null &&
-            c.constraints!.maxWidth == 1.0,
-      );
       // Also acceptable: find containers or boxes with width=1
       // Just ensure the widget tree renders without errors
       expect(find.byType(TwoPageView), findsOneWidget);

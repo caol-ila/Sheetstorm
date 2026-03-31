@@ -50,7 +50,7 @@ final class MembersNotifierProvider
   }
 }
 
-String _$membersNotifierHash() => r'1dfc878475920271486883307e05d254f593c992';
+String _$membersNotifierHash() => r'0b1731bcdc8da348436b29a7e78bc39c84012bea';
 
 final class MembersNotifierFamily extends $Family
     with

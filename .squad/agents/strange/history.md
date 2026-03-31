@@ -62,3 +62,38 @@
 **Test Updates:** Replaced `OnDisconnectedAsync_UpdatesParticipantCount` with conductor/non-conductor disconnect tests. Updated GEMA composer test assertion. All 827 tests pass.
 
 **Pattern Learned:** Voice entity has no `BandId` — must validate via `Voice.Piece.BandId` (requires `.Include(v => v.Piece)`).
+
+### 2026-03-31: MS3 — Annotation Sync Backend (TDD)
+
+**What was built:**
+- REST controller for annotation CRUD + delta sync (AnnotationController.cs)
+- DI wiring for IAnnotationSyncService in DependencyInjection.cs
+- 33 passing tests (18 service + 8 hub + 7 controller)
+
+**Architecture (from Stark's spec):**
+- Op-Log + LWW per element — no CRDT, no OT
+- Annotation container = one per (PiecePageId, Level, VoiceId?) tuple
+- AnnotationElement = individual graphic element with version + soft-delete
+- Optimistic concurrency: 409 Conflict when client version != server version
+- SignalR groups: `annotation-voice-{bandId}-{voiceId}-{piecePageId}` and `annotation-orchestra-{bandId}-{piecePageId}`
+- REST is source of truth; SignalR is real-time notification shortcut
+
+**Key files (created/modified):**
+- `src/Sheetstorm.Api/Controllers/AnnotationController.cs` — REST endpoints
+- `src/Sheetstorm.Infrastructure/DependencyInjection.cs` — DI registration
+- `tests/Sheetstorm.Tests/Annotations/AnnotationControllerTests.cs` — controller tests
+
+**Pre-existing files (already committed by prior team member):**
+- Domain entities: `Annotation.cs`, `AnnotationElement.cs`, enums
+- Service: `AnnotationSyncService.cs`, `IAnnotationSyncService.cs`
+- Hub: `AnnotationSyncHub.cs`
+- Tests: `AnnotationSyncServiceTests.cs`, `AnnotationSyncHubTests.cs`
+- EF configs: `AnnotationConfiguration.cs`, `AnnotationElementConfiguration.cs`
+
+**Patterns used:**
+- Controller uses `IAnnotationSyncService` interface (mock in tests, scoped DI in production)
+- `RequireMembershipAsync` per service call (not shared, per Sheetstorm convention)
+- Orchestra annotations restricted to Conductor/Admin role
+- Soft-delete for sync consistency (deleted elements still sync to clients)
+- Delta sync: `SyncElements(sinceVersion)` returns only elements with version > sinceVersion
+

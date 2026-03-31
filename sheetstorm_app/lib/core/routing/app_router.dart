@@ -30,6 +30,7 @@ import 'package:sheetstorm/features/attendance/routes.dart';
 import 'package:sheetstorm/features/substitute/routes.dart';
 import 'package:sheetstorm/features/shifts/routes.dart';
 import 'package:sheetstorm/shared/widgets/app_shell.dart';
+import 'package:sheetstorm/features/tuner/routes.dart';
 
 part 'app_router.g.dart';
 
@@ -79,6 +80,7 @@ abstract final class AppRoutes {
   static const String _importMetadata =
       '/app/import/:uploadId/metadata/:pieceIndex';
   static const String _importSummary = '/app/import/:uploadId/summary';
+  static const String tuner = '/app/tuner';
   static const String settings = '/app/settings';
 
   // Deep-Links: sheetstorm://bibliothek/[id]
@@ -287,6 +289,12 @@ GoRouter appRouter(Ref ref) {
                 path: AppRoutes.settings,
                 builder: (context, state) => const SettingsScreen(),
               ),
+            ],
+          ),
+          // ── Werkzeuge (Tuner, etc.) ─────────────────────────────────────
+          StatefulShellBranch(
+            routes: [
+              tunerRoute,
             ],
           ),
         ],

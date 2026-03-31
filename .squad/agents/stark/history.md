@@ -373,3 +373,38 @@ DE→EN translation merged — backend (98 files) + frontend (115 files)
 **Specs Affected:**
 - docs/feature-specs/kapellenverwaltung-spec.md — 7 US total, 15 ACs, 13 edge cases
 - docs/feature-specs/auth-onboarding-spec.md — Entry point logic updated
+
+### 2026-03-30: MS3 Technische Architektur — Vollständige Spezifikation
+
+**Aufgabe:** Technische Architektur für alle 6 MS3-Features entworfen.
+
+**Architektur-Entscheidungen:**
+
+1. **Tuner:** Rein clientseitig. FFT via Platform Channels zu CoreAudio (iOS), Oboe (Android), Web Audio API. YIN/MPM Pitch-Detection. Pipeline-Budget: <20ms (5ms Capture + 5ms FFT + 3ms Detection + 2ms Mapping + 5ms UI).
+
+2. **Echtzeit-Metronom:** Beats als Timestamps, nicht Live-Kommandos. NTP-ähnliche Clock-Sync (5 Messungen, Median). Session-State in-memory (ConcurrentDictionary, analog SongBroadcastHub). UDP Multicast (239.255.77.77:5100/5101) + SignalR Fallback. Binäres UDP-Nachrichtenformat (9–61 Bytes). IMetronomeService als Singleton, geteilt zwischen UDP-Server und SignalR-Hub.
+
+3. **Cloud-Sync:** Delta-Sync mit monoton steigender Version pro Nutzer. SyncChangelogs-Tabelle für Feld-Level Änderungen. LWW per Feld (späterer Timestamp gewinnt). Offline-Queue in Drift. Binärdaten (Notenbilder) über S3, nicht über Sync-API.
+
+4. **Annotationen-Sync:** Op-Log + LWW per Element (CRDT/OT evaluiert und verworfen — SVG-Elemente sind unabhängig, Konflikte selten). Server-Persistierung in Annotations + AnnotationElements Tabellen. SignalR-Gruppen für Voice/Orchestra-Level. Optimistic Concurrency via Version-Feld (409 bei Konflikt). REST als Source of Truth, SignalR als Echtzeit-Shortcut.
+
+5. **Auto-Scroll:** Rein clientseitig, erweitert performance_mode/. Manueller Speed-Slider oder BPM-basiert (Metronom-Kopplung).
+
+6. **Aufgabenverwaltung:** Standard-CRUD, Band-scoped. 3-Status-Machine (Open → InProgress → Done). Event-Kopplung via FK. Erinnerungen über bestehendes Push-System.
+
+**Neue DB-Tabellen:** SyncVersions, SyncChangelogs, Annotations, AnnotationElements, BandTasks, TaskAssignments
+**Neue Controller:** SyncController, TaskController, AnnotationController
+**Neue SignalR Hubs:** MetronomeHub, AnnotationSyncHub
+**Neuer UDP-Server:** UdpMulticastServer (IHostedService)
+**Neue Flutter-Module:** tuner/, metronome/, cloud_sync/, tasks/
+**Erweiterte Module:** annotations/ (Sync-Hooks), performance_mode/ (Auto-Scroll)
+
+**Key File Paths:**
+- `docs/specs/2026-03-30-ms3-architecture.md` — Hauptdokument
+- `docs/specs/2026-03-30-metronome-protocol.md` — UDP/WebSocket Byte-Layouts, Clock-Sync
+- `docs/specs/2026-03-30-cloud-sync-protocol.md` — Delta-Sync API, Offline-Queue
+- `docs/specs/2026-03-30-annotation-sync.md` — Op-Log, LWW, SignalR-Gruppen
+
+**Naming-Kollision beachten:** `TaskStatus` → `BandTaskStatus` verwenden (Kollision mit `System.Threading.Tasks.TaskStatus`).
+
+**BLE-Entscheidung notiert:** Thomas' initiale BLE-Präferenz (Decision 2026-03-28T12:44Z) vs. Meilenstein-Spec (WiFi UDP + WebSocket). Architektur folgt der detaillierteren Spec. BLE als zukünftige dritte Option offen.

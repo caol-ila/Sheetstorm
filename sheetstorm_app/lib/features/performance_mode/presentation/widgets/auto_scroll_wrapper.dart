@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:sheetstorm/core/theme/app_tokens.dart';
 
 /// Auto-scroll widget for continuous vertical scrolling through long pieces.
 ///

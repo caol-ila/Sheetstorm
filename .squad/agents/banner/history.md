@@ -10,6 +10,43 @@
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
+### 2026-03-30 — Cloud-Sync Backend (MS3)
+
+**Feature:** Cloud-Sync (Persönliche Sammlung) — Delta-Sync-Protokoll für `Meine Musik`
+
+**Entitäten:**
+- `SyncVersion` (`src/Sheetstorm.Domain/Entities/SyncVersion.cs`) — PK = `MusicianId` (kein `BaseEntity`-Id). Monoton steigender `CurrentVersion`-Counter + `LastSyncAt`.
+- `SyncChangelog` (`src/Sheetstorm.Domain/Entities/SyncChangelog.cs`) — Pro-Änderung-Log-Eintrag mit `EntityType`, `EntityId`, `Operation`, `FieldName`, `NewValue`, `ChangedAt`, `Version`.
+- `Band.IsPersonal` (`src/Sheetstorm.Domain/Entities/Band.cs`) — Kennzeichnet die persönliche `Meine Musik`-Kapelle (gemäß Team-Entscheidung 2026-03-28).
+
+**DTOs:** `src/Sheetstorm.Domain/Sync/SyncDtos.cs` — records für SyncState, Pull, Push, Resolve.
+
+**Service:** `ISyncService` / `SyncService` in `src/Sheetstorm.Infrastructure/Sync/` — 4 Methoden.
+
+**LWW-Logik:** Im `PushAsync`: Für `Update`-Operationen wird `SyncChangelog` per `(EntityId, FieldName)` geprüft. Ist `existingChange.ChangedAt > change.ChangedAt` → ServerWins (Konflikt). Sonst → akzeptieren, Version inkrementieren.
+
+**API:** `SyncController` unter `/api/sync/{state|pull|push|resolve}` (kein Version-Segment, kein `meine-musik`-Pfad — Protokoll-Spec verwendet diese vereinfachten Routen).
+
+**EF-Konfiguration:**
+- Index auf `(MusicianId, Version)` → effizient für Pull-Queries
+- Index auf `(MusicianId, EntityId, FieldName)` → effizient für LWW-Konflikterkennung
+
+**Build-Problem (Worktree-spezifisch):** Paralleles `dotnet test` auf dem Solution-Level schlägt oft fehl mit MSB3492-Cache-Race-Condition. Workaround: Erst `dotnet build` in jedem Projekt-Verzeichnis separat (Domain → Infrastructure → Api → Tests), dann `dotnet test --no-build` im Test-Verzeichnis.
+
+**Tests:** 22 neue Tests (SyncServiceTests + SyncControllerTests), alle grün. Baseline: 25→48 passing, 1 pre-existing Auth-Fail unverändert.
+
+**Key Files:**
+- `src/Sheetstorm.Domain/Entities/SyncVersion.cs`
+- `src/Sheetstorm.Domain/Entities/SyncChangelog.cs`
+- `src/Sheetstorm.Domain/Sync/SyncDtos.cs`
+- `src/Sheetstorm.Infrastructure/Sync/ISyncService.cs`
+- `src/Sheetstorm.Infrastructure/Sync/SyncService.cs`
+- `src/Sheetstorm.Api/Controllers/SyncController.cs`
+- `src/Sheetstorm.Tests/Sync/SyncServiceTests.cs`
+- `src/Sheetstorm.Tests/Sync/SyncControllerTests.cs`
+
+
+
 ### 2026-03-29 — Demo-Account-Seeder & Auth-System-Details
 
 **Auth-System:** Kein ASP.NET Identity — Custom AuthService mit BCrypt.Net-Next 4.1.0 für Passwort-Hashing, SHA-256 für Token-Hashing (Refresh + Email-Verifikation), JWT für Access Tokens.
@@ -226,3 +263,76 @@
 - 13 edge cases including: double-requests, rejection+reapply, "Meine Musik" immutability, last-admin protection
 
 **Status:** Estimate expansion needed for new endpoints + service methods
+
+### 2026-03-30 — Aufgabenverwaltung (Task Management) — Backend
+
+**Branch:** `squad/ms3-implementation`
+**Worktree:** `C:\Source\music-ms3`
+
+**Was gebaut (TDD: RED → GREEN → REFACTOR → COMMIT):**
+- `BandTask` Entity (Title, Description, BandTaskStatus, TaskPriority, DueDate, EventId, CreatedByMusicianId)
+- `BandTaskAssignment` Entity — N:M Musiker-zu-Aufgabe Zuweisung
+- `BandTaskStatus` Enum: Open, InProgress, Done (Rückwärts-Übergänge erlaubt)
+- `TaskPriority` Enum: Low, Medium, High
+- `TaskModels.cs` in `Sheetstorm.Domain.Tasks`: alle Request/Response-Records
+- `ITaskService` + `TaskService` in `Sheetstorm.Infrastructure.Tasks`
+- `TaskController` bei `/api/bands/{bandId}/tasks` (GET list, GET detail, POST, PUT, DELETE, PATCH status, PUT assignees)
+- EF-Konfiguration: `BandTaskConfiguration` + `BandTaskAssignmentConfiguration` (Cascade, Unique-Index)
+- 39 neue Tests (25 Service + 14 Controller), alle 866 Tests bestanden
+
+**Autorisierung:**
+- Aufgaben erstellen/bearbeiten/löschen: Conductor, Admin, SectionLeader
+- Status ändern: Ersteller ODER zugewiesene Mitglieder
+- Aufgaben lesen: alle Bandmitglieder
+
+**Architektur-Entscheidungen:**
+- DTOs in `Sheetstorm.Domain.Tasks` (konsistent mit Events-Pattern)
+- Service gibt 403 bei fehlender Mitgliedschaft (nicht 404), um Band-Existenz nicht zu leaken
+- `AssignTaskAsync` ersetzt alle bestehenden Zuweisungen (replace-all Semantik)
+- Filterung via `TaskQueryParams` record (Status, AssigneeId, SortBy, SortDir)
+
+**Key Files:**
+- `src/Sheetstorm.Domain/Entities/BandTask.cs`
+- `src/Sheetstorm.Domain/Entities/BandTaskAssignment.cs`
+- `src/Sheetstorm.Domain/Tasks/TaskModels.cs`
+- `src/Sheetstorm.Infrastructure/Tasks/TaskService.cs`
+- `src/Sheetstorm.Api/Controllers/TaskController.cs`
+- `tests/Sheetstorm.Tests/Tasks/TaskServiceTests.cs`
+- `tests/Sheetstorm.Tests/Tasks/TaskControllerTests.cs`
+### 2026-03-31 — Echtzeit-Metronom (Sync) — MS3 Backend
+
+**Feature:** Echtzeit-Metronom-Sync fuer Dirigent und Musiker — UDP Multicast (primaer) + SignalR WebSocket (Fallback)
+
+**Architektur-Entscheidungen:**
+- IMetronomeSessionManager als Singleton (nicht Scoped) registriert — notwendig, damit alle Hub-Verbindungen und Controller-Requests denselben in-Memory-State teilen. Singleton ist korrekt fuer ConcurrentDictionary-basierte Stores.
+- UDP Multicast-Server als IHostedService via AddHostedService<UdpMulticastServer>() — startet parallel zum HTTP-Server, kein Blocking.
+- MetronomeSessionManager nutzt Instanz-Felder (nicht static) da Singleton — im Gegensatz zu SongBroadcastHub der static ConcurrentDictionary verwendet.
+- Clock-Sync via REST /api/v1/bands/{id}/metronome/sync UND SignalR RequestClockSync — beide Wege unterstuetzt.
+
+**Pre-existing Blocker gefixt (Annotation-Agent-Stubs):**
+- AnnotationSyncHub.cs fehlte — Tests konnten nicht kompilieren. Implementiert basierend auf Test-Erwartungen.
+- AppDbContext fehlten DbSet<Annotation> und DbSet<AnnotationElement> — DbSets waren bereits von anderem Agent vorbereitet (doppelt angelegt, Duplikat entfernt).
+- AnnotationSyncService war vorhanden — keine Aenderung noetig.
+
+**Entitaeten/Files:**
+- src/Sheetstorm.Domain/Metronome/MetronomeModels.cs — Session-Record, alle DTOs + SignalR-Messages
+- src/Sheetstorm.Domain/Metronome/IMetronomeSessionManager.cs — Interface
+- src/Sheetstorm.Infrastructure/Metronome/MetronomeSessionManager.cs — ConcurrentDictionary-Impl
+- src/Sheetstorm.Infrastructure/Metronome/UdpMulticastServer.cs — IHostedService, Binary-Protokoll LE, Heartbeat + ClockSync-Listener
+- src/Sheetstorm.Infrastructure/Metronome/MetronomeUdpOptions.cs — Config-Klasse
+- src/Sheetstorm.Api/Hubs/MetronomeHub.cs — SignalR Hub (/hubs/metronome)
+- src/Sheetstorm.Api/Controllers/MetronomeController.cs — REST /api/v1/bands/{id}/metronome/
+- src/Sheetstorm.Api/Hubs/AnnotationSyncHub.cs — SignalR Hub fuer Annotations (Stub-Impl)
+
+**Test-Ergebnis:** 63 neue Tests, 955/955 gesamt gruen (commit: df6c1aa)
+
+**UDP Protokoll (Little-Endian, gemaess 2026-03-30-metronome-protocol.md):**
+- 0x00 Heartbeat: 9 bytes (type + timestamp_us)
+- 0x02 SessionStart: 61 bytes
+- 0x03 SessionStop: 17 bytes
+- 0x04 SessionUpdate: 37 bytes
+- 0x01 ClockSync: 9 bytes req / 25 bytes response (Unicast Port 5101)
+
+**NTP-Formel (verifiziert durch Tests):**
+- roundTrip = (T4 - T1) - (T3 - T2)
+- offset = ((T2 - T1) + (T3 - T4)) / 2

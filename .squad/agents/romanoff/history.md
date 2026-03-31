@@ -774,3 +774,14 @@ JSON-Felder: `kapelle_id`, `titel`, `typ`, `datum`, `start_uhrzeit`, `end_uhrzei
 - docs/feature-specs/kapellenverwaltung-spec.md — US-00, US-02, US-06, §7.9–7.13 (edge cases)
 
 **Status:** Request Wanda review of UX flows before implementation
+
+---
+
+## 2026-05-01 — MS3 Aufgabenverwaltung Flutter Frontend
+
+**TDD: 41 Tests grün. Riverpod 3.x Mocking Pattern gelernt: Overrides im Konstruktor übergeben, nicht per updateOverrides(). AutoDispose-Provider mit listen() alive halten für Fehler-Tests.**
+
+Files: task_models.dart, task_service.dart/.g.dart, task_notifier.dart/.g.dart, task_status_badge.dart, task_card.dart, task_filter_bar.dart, task_list_screen.dart, task_detail_screen.dart, create_task_screen.dart, routes.dart
+
+API-Keys: Deutsche snake_case (kapelle_id, titel, faellig_am, erstellt_am) — konsistent mit events/communication.
+Status-Flow: Rot=Offen/Gelb=InBearbeitung/Grün=Erledigt per TaskStatusBadge. TouchTarget min 44px.

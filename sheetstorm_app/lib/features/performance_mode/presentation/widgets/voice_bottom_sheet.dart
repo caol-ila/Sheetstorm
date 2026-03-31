@@ -106,7 +106,7 @@ class VoiceBottomSheet extends StatelessWidget {
 
     return ListTile(
       leading: isSelected
-          ? Icon(Icons.check_circle, color: AppColors.darkPrimary)
+          ? const Icon(Icons.check_circle, color: AppColors.darkPrimary)
           : stimme.isFallback
               ? const Icon(Icons.arrow_forward, color: Colors.amber)
               : const SizedBox(width: 24),
@@ -130,7 +130,7 @@ class VoiceBottomSheet extends StatelessWidget {
           : null,
       selected: isSelected,
       selectedTileColor: AppColors.darkPrimary.withOpacity(0.1),
-      shape: RoundedRectangleBorder(
+      shape: const RoundedRectangleBorder(
         borderRadius: AppSpacing.roundedMd,
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
