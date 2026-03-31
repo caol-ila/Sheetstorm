@@ -579,6 +579,186 @@ features/{feature_name}/
 - **Wiederverwendung:** BLE-Infrastruktur aus MS2 Dirigenten-Broadcast
 
 **Betroffene Issues:** #68-#72 (Metronom specs)  
+
+---
+
+## 2026-03-30: Design Decision: Post Soft-Delete Strategy (#110)
+
+**Author:** Banner (Backend)  
+**Date:** 2026-03-30  
+**Status:** Implemented  
+
+Posts used hard-delete while PostComments used soft-delete, creating inconsistency and orphaning risk.
+
+**Decision:** Conditional delete based on child comments presence:
+- **Posts WITH comments → soft-delete:** Set `IsDeleted = true`, clear Title/Content to `"[Gelöscht]"`, preserve thread
+- **Posts WITHOUT comments → hard-delete:** Remove entirely, no wasted storage
+- **Already soft-deleted → throw 404:** Idempotent behavior
+
+**Implementation:**
+- New fields: `IsDeleted` (bool), `DeletedAt` (DateTime?)
+- `PostService.DeleteAsync` checks `post.Comments.Any(c => !c.IsDeleted)`
+- `GetAllAsync` filters `!p.IsDeleted`; `GetByIdAsync` returns soft-deleted (for thread reading)
+- Migration: `20260330215615_PostSoftDelete`
+
+**Rationale:** Preserves comment threads while avoiding unnecessary soft-delete clutter for orphaned posts.
+
+---
+
+## 2026-03-30: Design Decision: Model-Validation-Tests via Reflection
+
+**Author:** Banner (Backend)  
+**Date:** 2026-03-30  
+**Context:** Task #109 — MaxLength-Attributes in Request-Models  
+
+Model-validation tests for positional C# Records must use **Reflection** (`PropertyInfo.GetCustomAttribute<T>()`), not `Validator.TryValidateObject()`.
+
+**Rationale:** `Validator.TryValidateObject()` uses `TypeDescriptor.GetProperties()`, which doesn't fully capture attributes on positional record constructor parameters. ASP.NET Core's model binding uses `PropertyInfo.GetCustomAttributes()` directly, so tests must match.
+
+**Pattern:** Implement validation tests in `Sheetstorm.Tests/Validation/RequestModelValidationTests.cs` using Reflection.
+
+---
+
+## 2026-03-30: Design Decision: Flutter Provider-Overrides in Tests
+
+**Author:** Parker (QA)  
+**Date:** 2026-03-30  
+**Issue:** #113  
+
+Flutter tests for network-dependent Notifiers **must always:**
+1. Define `MockXxxService extends Mock implements XxxService`
+2. Use `ProviderContainer(overrides: [xxxServiceProvider.overrideWithValue(service)])`
+3. Stub all Service methods called in `build()` with `when()` 
+
+**Pattern:**
+```dart
+class MockPostService extends Mock implements PostService {}
+
+final service = MockPostService();
+when(() => service.getPosts(any(), pinnedOnly: any(named: 'pinnedOnly')))
+    .thenAnswer((_) async => []);
+
+final container = ProviderContainer(
+  overrides: [postServiceProvider.overrideWithValue(service)],
+);
+addTearDown(container.dispose);
+```
+
+**Reference:** Implemented in `test/features/communication/application/post_notifier_test.dart` and `test/features/substitute/application/substitute_notifier_test.dart`.
+
+---
+
+## 2026-03-31: Design Decision: GoRouter Navigation without state.extra — PendingProvider Pattern
+
+**Author:** Romanoff (Frontend)  
+**Date:** 2026-03-31  
+**Issue:** #102 / CR#1  
+
+For transient navigation data that cannot be serialized to URL parameters (e.g., freshly-created objects), use a dedicated Riverpod Notifier as a temporary buffer instead of `state.extra`.
+
+**Pattern:**
+```dart
+@riverpod
+class PendingSubstituteLink extends _$PendingSubstituteLink {
+  @override
+  SubstituteLink? build() => null;
+  void set(SubstituteLink? link) => state = link;
+}
+
+// In navigation:
+ref.read(pendingSubstituteLinkProvider.notifier).set(link);
+context.push('/app/band/$bandId/substitute/link');
+
+// In route builder:
+final link = ref.watch(pendingSubstituteLinkProvider);
+if (link == null) context.pop();
+```
+
+**Rationale:**
+- Serializable objects → path/query params
+- Non-serializable objects (transient) → PendingProvider
+- Avoids deep-link breakage and app-state restoration issues from `state.extra`
+
+**Constraint:** PendingProvider must be in separate `.dart` file (not in codegen parts). Set `keepAlive: false`.
+
+---
+
+## 2026-03-30: Design Decision: Riverpod 3.x ref.read() Lifecycle Constraints
+
+**Author:** Romanoff (Frontend)  
+**Date:** 2026-03-30  
+**Context:** BroadcastNotifier CR#3 — musikerId injection  
+
+Services needed in `ref.onDispose()` callbacks must be cached as `late final` fields in `build()`, **NOT accessed via `ref.read()`** in cleanup methods.
+
+**Rationale:** Riverpod 3.x throws `AssertionError` if `ref.read()` is called inside lifecycle callbacks.
+
+**Wrong Pattern (throws error):**
+```dart
+BroadcastSignalRService get _signalR => ref.read(broadcastSignalRServiceProvider);
+
+void _cleanup() {
+  _signalR.disconnect(); // AssertionError: Cannot use Ref in lifecycle callbacks
+}
+```
+
+**Correct Pattern:**
+```dart
+late BroadcastSignalRService _signalR;
+
+BroadcastState build() {
+  _signalR = ref.read(broadcastSignalRServiceProvider);
+  ref.onDispose(_cleanup);
+  return const BroadcastState();
+}
+
+void _cleanup() {
+  _signalR.disconnect(); // Safe: cached value, no ref.read()
+}
+```
+
+**Scope:** All `keepAlive: true` Notifiers with cleanup logic.
+
+---
+
+## 2026-04-16: Design Decision: Cursor-Based Pagination for List Endpoints
+
+**Author:** Strange (Principal Backend)  
+**Date:** 2026-04-16  
+**Status:** Implemented (CR#7)  
+
+All list endpoints use **cursor-based pagination** (not offset-based) for performance and consistency.
+
+**Why Cursor Over Offset:**
+- No page drift with real-time data inserts
+- Consistent performance via indexed columns (CreatedAt + Id)
+- Better for feeds where items are frequently added
+
+**Cursor Format:** Base64-encoded JSON `{"CreatedAt":"2025-06-15T10:30:00Z","Id":"guid"}`, opaque to clients.
+
+**Defaults & Limits:**
+- Default page size: 20
+- Max page size: 100 (clamped silently)
+- No cursor = first page
+
+**Response Shape:**
+```json
+{
+  "items": [...],
+  "cursor": "base64-or-null",
+  "hasMore": true,
+  "pageSize": 20
+}
+```
+
+**Applied Endpoints:** Posts, Events, Comments (ordered by CreatedAt DESC, ASC, or custom per context).
+
+**Files:**
+- Domain: `Pagination/PaginationModels.cs`
+- Infrastructure: `Pagination/CursorHelper.cs`, `PaginationExtensions.cs`
+- Tests: 26 tests in `Sheetstorm.Tests/Pagination/`
+
+**Impact:** Flutter clients handle new `PagedResult<T>` shape. Existing calls without cursor/pageSize still work.
 **Unverändert:** #64-#67 (Tuner), #73-#77 (Cloud-Sync), #78-#82 (Annotationen)
 
 #### Annotations Sync: Op-Log + Last-Writer-Wins
