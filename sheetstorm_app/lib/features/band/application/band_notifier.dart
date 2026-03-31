@@ -45,7 +45,17 @@ class BandListNotifier extends _$BandListNotifier {
   @override
   Future<List<Band>> build() async {
     final service = ref.read(bandServiceProvider);
-    return service.getBands();
+    final bands = await service.getBands();
+
+    // Auto-select first band if none is active
+    if (bands.isNotEmpty) {
+      final active = ref.read(activeBandProvider);
+      if (active == null) {
+        ref.read(activeBandProvider.notifier).setActive(bands.first.id);
+      }
+    }
+
+    return bands;
   }
 
   Future<void> refresh() async {
@@ -70,6 +80,10 @@ class BandListNotifier extends _$BandListNotifier {
       );
       final current = state.value ?? [];
       state = AsyncData([...current, band]);
+
+      // Auto-select the newly created band
+      ref.read(activeBandProvider.notifier).setActive(band.id);
+
       return band;
     } catch (e, st) {
       state = AsyncError(e, st);
