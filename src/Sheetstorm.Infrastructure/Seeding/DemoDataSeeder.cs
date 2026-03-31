@@ -24,24 +24,52 @@ public class DemoDataSeeder(AppDbContext db, IHostEnvironment env, ILogger<DemoD
             return;
         }
 
+        Musician musician;
         if (await db.Musicians.AnyAsync(m => m.Email == DemoEmail))
         {
             logger.LogInformation("Demo-User '{Email}' existiert bereits. Übersprungen.", DemoEmail);
-            return;
+            musician = await db.Musicians.FirstAsync(m => m.Email == DemoEmail);
+        }
+        else
+        {
+            musician = new Musician
+            {
+                Name = DemoDisplayName,
+                Email = DemoEmail,
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(DemoPassword),
+                EmailVerified = true,
+                OnboardingCompleted = true
+            };
+
+            db.Musicians.Add(musician);
+            await db.SaveChangesAsync();
+
+            logger.LogInformation("Demo-User '{Email}' (Passwort: '{Password}') erfolgreich erstellt.", DemoEmail, DemoPassword);
         }
 
-        var musician = new Musician
+        // Seed a demo band so the import workflow works out of the box
+        if (!await db.Bands.AnyAsync())
         {
-            Name = DemoDisplayName,
-            Email = DemoEmail,
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword(DemoPassword),
-            EmailVerified = true,
-            OnboardingCompleted = false
-        };
+            var band = new Band
+            {
+                Name = "Demo Kapelle",
+                Description = "Demo-Kapelle für lokale Entwicklung",
+                Location = "Teststadt"
+            };
+            db.Bands.Add(band);
+            await db.SaveChangesAsync();
 
-        db.Musicians.Add(musician);
-        await db.SaveChangesAsync();
+            var membership = new Membership
+            {
+                BandId = band.Id,
+                MusicianId = musician.Id,
+                Role = MemberRole.Administrator,
+                IsActive = true
+            };
+            db.Memberships.Add(membership);
+            await db.SaveChangesAsync();
 
-        logger.LogInformation("Demo-User '{Email}' (Passwort: '{Password}') erfolgreich erstellt.", DemoEmail, DemoPassword);
+            logger.LogInformation("Demo-Kapelle '{Name}' mit Admin-Mitgliedschaft erstellt.", band.Name);
+        }
     }
 }
