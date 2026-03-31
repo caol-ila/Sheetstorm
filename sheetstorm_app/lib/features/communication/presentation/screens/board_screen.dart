@@ -93,7 +93,7 @@ class _BoardScreenState extends ConsumerState<BoardScreen> {
       backgroundColor: Colors.transparent,
       selectedColor: AppColors.primary,
       labelStyle: TextStyle(
-        color: isSelected ? Colors.white : AppColors.textPrimary,
+        color: isSelected ? Theme.of(context).colorScheme.onPrimary : AppColors.textPrimary,
         fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
       ),
     );

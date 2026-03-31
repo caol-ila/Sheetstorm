@@ -1,5 +1,6 @@
 using Sheetstorm.Domain.Events;
 using Sheetstorm.Domain.Enums;
+using Sheetstorm.Domain.Pagination;
 
 namespace Sheetstorm.Infrastructure.Events;
 
@@ -8,6 +9,7 @@ public interface IEventService
     // Events CRUD
     Task<EventDto> CreateEventAsync(Guid bandId, CreateEventRequest request, Guid musicianId, CancellationToken ct);
     Task<IReadOnlyList<EventDto>> GetEventsAsync(Guid bandId, Guid musicianId, CancellationToken ct);
+    Task<PagedResult<EventDto>> GetEventsPaginatedAsync(Guid bandId, Guid musicianId, PaginationRequest pagination, CancellationToken ct);
     Task<EventDto> GetEventAsync(Guid bandId, Guid eventId, Guid musicianId, CancellationToken ct);
     Task<EventDto> UpdateEventAsync(Guid bandId, Guid eventId, UpdateEventRequest request, Guid musicianId, CancellationToken ct);
     Task DeleteEventAsync(Guid bandId, Guid eventId, Guid musicianId, CancellationToken ct);

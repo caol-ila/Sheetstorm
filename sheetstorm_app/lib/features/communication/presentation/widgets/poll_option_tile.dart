@@ -25,7 +25,11 @@ class PollOptionTile extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-      child: InkWell(
+      child: Semantics(
+        label: '${option.text}${isSelected ? ', ausgewählt' : ''}',
+        button: onTap != null,
+        selected: isSelected,
+        child: InkWell(
         onTap: onTap,
         borderRadius: AppSpacing.roundedMd,
         child: Container(
@@ -117,6 +121,7 @@ class PollOptionTile extends StatelessWidget {
           ),
         ),
       ),
+    ),
     );
   }
 }

@@ -41,7 +41,7 @@ final class BroadcastNotifierProvider
   }
 }
 
-String _$broadcastNotifierHash() => r'b4632f46edf871e4955e6fbc4705a47b8d0dc8e5';
+String _$broadcastNotifierHash() => r'eeaf63794e63ed57a23dcb772a23af26277aa7a7';
 
 abstract class _$BroadcastNotifier extends $Notifier<BroadcastState> {
   BroadcastState build();

@@ -4,6 +4,7 @@ using Sheetstorm.Domain.Enums;
 using Sheetstorm.Domain.Exceptions;
 using Sheetstorm.Domain.MediaLinks;
 using Sheetstorm.Infrastructure.MediaLinks;
+using Sheetstorm.Infrastructure.Auth;
 using Sheetstorm.Infrastructure.Persistence;
 
 namespace Sheetstorm.Tests.MediaLinks;
@@ -20,7 +21,7 @@ public class MediaLinkServiceTests : IDisposable
             .Options;
 
         _db = new AppDbContext(options);
-        _sut = new MediaLinkService(_db);
+        _sut = new MediaLinkService(_db, new BandAuthorizationService(_db));
     }
 
     public void Dispose()
@@ -101,7 +102,7 @@ public class MediaLinkServiceTests : IDisposable
         var ex = await Assert.ThrowsAsync<DomainException>(
             () => _sut.GetAllForPieceAsync(bandId, pieceId, Guid.NewGuid(), CancellationToken.None));
 
-        Assert.Equal("BAND_NOT_FOUND", ex.ErrorCode);
+        Assert.Equal("FORBIDDEN", ex.ErrorCode);
     }
 
     // ── CreateAsync ───────────────────────────────────────────────────────────

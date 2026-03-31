@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sheetstorm/features/setlist/application/setlist_player_notifier.dart';
 
 (ProviderContainer, SetlistPlayerNotifier) _setup(String setlistId) {
@@ -14,6 +15,10 @@ SetlistPlayerState _state(ProviderContainer c, String setlistId) =>
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+  });
 
   group('SetlistPlayerNotifier — Grundfunktionen', () {
     test('Player startet im idle-Status', () {
@@ -39,46 +44,58 @@ void main() {
       expect(state.error, isNull);
     });
 
-    test('togglePause() kann aufgerufen werden', () {
+    test('togglePause() hat keinen Effekt im idle-Zustand', () {
       final (c, n) = _setup('sl1');
 
       n.togglePause();
-      expect(true, isTrue);
+
+      final state = _state(c, 'sl1');
+      expect(state.status, PlayerStatus.idle);
     });
 
-    test('next() kann aufgerufen werden', () {
+    test('next() erhöht currentIndex bei leerer Liste', () {
       final (c, n) = _setup('sl1');
 
       n.next();
-      expect(true, isTrue);
+
+      final state = _state(c, 'sl1');
+      expect(state.currentIndex, 1); // isLast=false wenn leer → Index erhöht sich
     });
 
-    test('previous() kann aufgerufen werden', () {
+    test('previous() ändert Index nicht bei Position 0', () {
       final (c, n) = _setup('sl1');
 
       n.previous();
-      expect(true, isTrue);
+
+      final state = _state(c, 'sl1');
+      expect(state.currentIndex, 0); // isFirst=true bei Index 0 → kein Rücksprung
     });
 
-    test('jumpTo() kann aufgerufen werden', () {
+    test('jumpTo() ändert Index nicht bei leerer Liste', () {
       final (c, n) = _setup('sl1');
 
       n.jumpTo(0);
-      expect(true, isTrue);
+
+      final state = _state(c, 'sl1');
+      expect(state.currentIndex, 0); // totalPlayable=0 → alle Indizes außerhalb Bereich
     });
 
-    test('jumpTo() mit negativem Index', () {
+    test('jumpTo() mit negativem Index hat keinen Effekt', () {
       final (c, n) = _setup('sl1');
 
       n.jumpTo(-1);
-      expect(true, isTrue);
+
+      final state = _state(c, 'sl1');
+      expect(state.currentIndex, 0); // negativer Index → returns early
     });
 
-    test('jumpTo() mit großem Index', () {
+    test('jumpTo() mit Index außerhalb Bereich hat keinen Effekt', () {
       final (c, n) = _setup('sl1');
 
       n.jumpTo(999);
-      expect(true, isTrue);
+
+      final state = _state(c, 'sl1');
+      expect(state.currentIndex, 0); // Index > totalPlayable → returns early
     });
 
     test('toggleAutoAdvance() schaltet autoAdvance ein', () {
@@ -174,6 +191,49 @@ void main() {
 
       final state = _state(c, 'sl1');
       expect(state.progressLabel, '');
+    });
+  });
+
+  // ─── Leere Liste — Edge Cases (#117) ─────────────────────────────────────────
+
+  group('SetlistPlayerNotifier — Leere Liste (Edge Cases)', () {
+    test('SetlistWithZeroItems_IsLast_ReturnsFalse', () {
+      final (c, _) = _setup('sl1');
+
+      final state = _state(c, 'sl1');
+
+      expect(state.totalPlayable, 0);
+      expect(state.isLast, isFalse); // isLast nur true wenn totalPlayable > 0
+    });
+
+    test('SetlistNavigation_EmptyList_DoesNotCrash', () {
+      final (c, n) = _setup('sl1');
+
+      n.next();    // isLast=false → currentIndex wird 1
+      n.previous(); // isFirst=false (index 1 > 0) → currentIndex wird 0
+      n.jumpTo(0);  // totalPlayable=0 → returns early
+      n.jumpTo(-1); // negativ → returns early
+      n.jumpTo(999); // außerhalb → returns early
+
+      final state = _state(c, 'sl1');
+      expect(state.currentIndex, 0);
+      expect(state.status, PlayerStatus.idle);
+    });
+
+    test('SetlistWithZeroItems_ProgressLabel_IsEmpty', () {
+      final (c, _) = _setup('sl1');
+
+      final state = _state(c, 'sl1');
+
+      expect(state.progressLabel, isEmpty); // keine Division durch null
+    });
+
+    test('SetlistWithZeroItems_CurrentStueck_IsNull', () {
+      final (c, _) = _setup('sl1');
+
+      final state = _state(c, 'sl1');
+
+      expect(state.currentStueck, isNull); // kein Zugriff auf leere Liste
     });
   });
 }

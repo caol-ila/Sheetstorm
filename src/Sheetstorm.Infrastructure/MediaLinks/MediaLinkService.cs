@@ -3,15 +3,16 @@ using Sheetstorm.Domain.Entities;
 using Sheetstorm.Domain.Enums;
 using Sheetstorm.Domain.Exceptions;
 using Sheetstorm.Domain.MediaLinks;
+using Sheetstorm.Infrastructure.Auth;
 using Sheetstorm.Infrastructure.Persistence;
 
 namespace Sheetstorm.Infrastructure.MediaLinks;
 
-public class MediaLinkService(AppDbContext db) : IMediaLinkService
+public class MediaLinkService(AppDbContext db, IBandAuthorizationService bandAuth) : IMediaLinkService
 {
     public async Task<IReadOnlyList<MediaLinkDto>> GetAllForPieceAsync(Guid bandId, Guid pieceId, Guid musicianId, CancellationToken ct)
     {
-        await RequireMembershipAsync(bandId, musicianId, ct);
+        await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         var piece = await db.Set<Piece>()
             .FirstOrDefaultAsync(p => p.Id == pieceId && p.BandId == bandId, ct)
@@ -38,7 +39,7 @@ public class MediaLinkService(AppDbContext db) : IMediaLinkService
 
     public async Task<MediaLinkDto> CreateAsync(Guid bandId, Guid pieceId, CreateMediaLinkRequest request, Guid musicianId, CancellationToken ct)
     {
-        var membership = await RequireMembershipAsync(bandId, musicianId, ct);
+        var membership = await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         if (membership.Role != MemberRole.Administrator && 
             membership.Role != MemberRole.Conductor && 
@@ -90,7 +91,7 @@ public class MediaLinkService(AppDbContext db) : IMediaLinkService
 
     public async Task<MediaLinkDto> UpdateAsync(Guid bandId, Guid pieceId, Guid linkId, UpdateMediaLinkRequest request, Guid musicianId, CancellationToken ct)
     {
-        var membership = await RequireMembershipAsync(bandId, musicianId, ct);
+        var membership = await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         if (membership.Role != MemberRole.Administrator && 
             membership.Role != MemberRole.Conductor && 
@@ -123,7 +124,7 @@ public class MediaLinkService(AppDbContext db) : IMediaLinkService
 
     public async Task DeleteAsync(Guid bandId, Guid pieceId, Guid linkId, Guid musicianId, CancellationToken ct)
     {
-        var membership = await RequireMembershipAsync(bandId, musicianId, ct);
+        var membership = await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         if (membership.Role != MemberRole.Administrator && 
             membership.Role != MemberRole.Conductor && 
@@ -136,14 +137,6 @@ public class MediaLinkService(AppDbContext db) : IMediaLinkService
 
         db.Set<MediaLink>().Remove(mediaLink);
         await db.SaveChangesAsync(ct);
-    }
-
-    private async Task<Membership> RequireMembershipAsync(Guid bandId, Guid musicianId, CancellationToken ct)
-    {
-        var m = await db.Set<Membership>()
-            .FirstOrDefaultAsync(m => m.BandId == bandId && m.MusicianId == musicianId && m.IsActive, ct);
-
-        return m ?? throw new DomainException("BAND_NOT_FOUND", "Band not found or no access.", 404);
     }
 
     private static MediaLinkType DetermineMediaLinkType(string url)

@@ -8,7 +8,7 @@ using Sheetstorm.Infrastructure.Persistence;
 
 namespace Sheetstorm.Infrastructure.BandManagement;
 
-public class BandService(AppDbContext db) : IBandService
+public class BandService(AppDbContext db, IBandAuthorizationService bandAuth) : IBandService
 {
     private static readonly char[] CodeChars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789".ToCharArray();
 
@@ -30,7 +30,7 @@ public class BandService(AppDbContext db) : IBandService
 
     public async Task<BandDetailDto> GetBandAsync(Guid bandId, Guid musicianId)
     {
-        await RequireMembershipAsync(bandId, musicianId);
+        await bandAuth.RequireMembershipAsync(bandId, musicianId);
 
         var band = await db.Bands
             .Include(k => k.Members.Where(m => m.IsActive))
@@ -97,7 +97,7 @@ public class BandService(AppDbContext db) : IBandService
         UpdateBandRequest request,
         Guid musicianId)
     {
-        await RequireAdminAsync(bandId, musicianId);
+        await bandAuth.RequireAdminAsync(bandId, musicianId);
 
         var band = await db.Bands.FindAsync(bandId)
             ?? throw new DomainException("BAND_NOT_FOUND", "Band not found.", 404);
@@ -124,7 +124,7 @@ public class BandService(AppDbContext db) : IBandService
 
     public async Task DeleteBandAsync(Guid bandId, Guid musicianId)
     {
-        await RequireAdminAsync(bandId, musicianId);
+        await bandAuth.RequireAdminAsync(bandId, musicianId);
 
         var band = await db.Bands.FindAsync(bandId)
             ?? throw new DomainException("BAND_NOT_FOUND", "Band not found.", 404);
@@ -135,7 +135,7 @@ public class BandService(AppDbContext db) : IBandService
 
     public async Task<IReadOnlyList<MemberDto>> GetMembersAsync(Guid bandId, Guid musicianId)
     {
-        await RequireMembershipAsync(bandId, musicianId);
+        await bandAuth.RequireMembershipAsync(bandId, musicianId);
 
         return await db.Memberships
             .Where(m => m.BandId == bandId && m.IsActive)
@@ -156,7 +156,7 @@ public class BandService(AppDbContext db) : IBandService
         CreateInvitationRequest request,
         Guid musicianId)
     {
-        await RequireAdminAsync(bandId, musicianId);
+        await bandAuth.RequireAdminAsync(bandId, musicianId);
 
         var code = GenerateCode();
         var expiresAt = DateTime.UtcNow.AddDays(request.ValidityDays);
@@ -239,7 +239,7 @@ public class BandService(AppDbContext db) : IBandService
         ChangeRoleRequest request,
         Guid musicianId)
     {
-        await RequireAdminAsync(bandId, musicianId);
+        await bandAuth.RequireAdminAsync(bandId, musicianId);
 
         if (userId == musicianId)
             throw new DomainException("CANNOT_CHANGE_OWN_ROLE", "You cannot change your own role.", 400);
@@ -268,11 +268,11 @@ public class BandService(AppDbContext db) : IBandService
     {
         var requester = await db.Memberships
             .FirstOrDefaultAsync(m => m.BandId == bandId && m.MusicianId == musicianId && m.IsActive)
-            ?? throw new DomainException("BAND_NOT_FOUND", "Band not found or no access.", 404);
+            ?? throw new DomainException("FORBIDDEN", "Band not found or no access.", 403);
 
         // Only admins can remove others; any member can remove themselves (leave)
         if (userId != musicianId && requester.Role != MemberRole.Administrator)
-            throw new AuthException("FORBIDDEN", "Only admins can remove members.", 403);
+            throw new DomainException("FORBIDDEN", "Only admins can remove members.", 403);
 
         // Prevent the last admin from leaving
         if (userId == musicianId && requester.Role == MemberRole.Administrator)
@@ -300,7 +300,7 @@ public class BandService(AppDbContext db) : IBandService
 
     public async Task<VoiceMappingResponse> GetVoiceMappingAsync(Guid bandId, Guid musicianId)
     {
-        await RequireMembershipAsync(bandId, musicianId);
+        await bandAuth.RequireMembershipAsync(bandId, musicianId);
 
         var entries = await db.BandVoiceMappings
             .Where(m => m.BandId == bandId)
@@ -316,7 +316,7 @@ public class BandService(AppDbContext db) : IBandService
         SetVoiceMappingRequest request,
         Guid musicianId)
     {
-        await RequireAdminAsync(bandId, musicianId);
+        await bandAuth.RequireAdminAsync(bandId, musicianId);
 
         // Replace all existing mappings for this Band atomically
         var existing = await db.BandVoiceMappings
@@ -347,10 +347,10 @@ public class BandService(AppDbContext db) : IBandService
         Guid musicianId)
     {
         // Admins may set any member's override; members may only set their own
-        var requester = await RequireMembershipAsync(bandId, musicianId);
+        var requester = await bandAuth.RequireMembershipAsync(bandId, musicianId);
 
         if (userId != musicianId && requester.Role != MemberRole.Administrator)
-            throw new AuthException("FORBIDDEN", "Only admins can set other members' voices.", 403);
+            throw new DomainException("FORBIDDEN", "Only admins can set other members' voices.", 403);
 
         var target = userId == musicianId
             ? requester
@@ -366,24 +366,6 @@ public class BandService(AppDbContext db) : IBandService
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
-
-    private async Task<Membership> RequireMembershipAsync(Guid bandId, Guid musicianId)
-    {
-        var m = await db.Memberships
-            .FirstOrDefaultAsync(m => m.BandId == bandId && m.MusicianId == musicianId && m.IsActive);
-
-        return m ?? throw new DomainException("BAND_NOT_FOUND", "Band not found or no access.", 404);
-    }
-
-    private async Task<Membership> RequireAdminAsync(Guid bandId, Guid musicianId)
-    {
-        var m = await RequireMembershipAsync(bandId, musicianId);
-
-        if (m.Role != MemberRole.Administrator)
-            throw new AuthException("FORBIDDEN", "Only admins can perform this action.", 403);
-
-        return m;
-    }
 
     private static string GenerateCode()
     {

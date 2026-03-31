@@ -23,7 +23,7 @@ public class ConfigServiceTests : IDisposable
             .Options;
 
         _db = new AppDbContext(options);
-        _sut = new ConfigService(_db);
+        _sut = new ConfigService(_db, new BandAuthorizationService(_db));
     }
 
     public void Dispose()
@@ -149,7 +149,7 @@ public class ConfigServiceTests : IDisposable
         var (_, bandId) = await CreateAdminAsync();
         var musicianId = await AddMemberAsync(bandId, MemberRole.Musician);
 
-        var ex = await Assert.ThrowsAsync<AuthException>(
+        var ex = await Assert.ThrowsAsync<DomainException>(
             () => _sut.SetBandConfigAsync(bandId, "band.name",
                 new SetConfigValueRequest(Json("\"x\"")), musicianId));
 
@@ -385,7 +385,7 @@ public class ConfigServiceTests : IDisposable
         var (_, bandId) = await CreateAdminAsync();
         var musicianId = await AddMemberAsync(bandId, MemberRole.Musician);
 
-        var ex = await Assert.ThrowsAsync<AuthException>(
+        var ex = await Assert.ThrowsAsync<DomainException>(
             () => _sut.SetPolicyAsync(bandId, "policy.force_locale",
                 new SetConfigValueRequest(Json("true")), musicianId));
 
@@ -412,7 +412,7 @@ public class ConfigServiceTests : IDisposable
         var (_, bandId) = await CreateAdminAsync();
         var musicianId = await AddMemberAsync(bandId, MemberRole.Musician);
 
-        var ex = await Assert.ThrowsAsync<AuthException>(
+        var ex = await Assert.ThrowsAsync<DomainException>(
             () => _sut.GetPoliciesAsync(bandId, musicianId));
 
         Assert.Equal(403, ex.StatusCode);
@@ -818,8 +818,8 @@ public class ConfigServiceTests : IDisposable
         var ex = await Assert.ThrowsAsync<DomainException>(
             () => _sut.GetBandConfigAsync(bandId, stranger.Id));
 
-        Assert.Equal("BAND_NOT_FOUND", ex.ErrorCode);
-        Assert.Equal(404, ex.StatusCode);
+        Assert.Equal("FORBIDDEN", ex.ErrorCode);
+        Assert.Equal(403, ex.StatusCode);
     }
 
     [Fact]

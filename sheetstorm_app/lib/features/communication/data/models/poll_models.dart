@@ -1,4 +1,7 @@
 /// Domain models for Communication — Polls
+import 'package:sheetstorm/shared/models/author_model.dart';
+
+export 'package:sheetstorm/shared/models/author_model.dart' show Author;
 
 // ─── Poll Status ──────────────────────────────────────────────────────────────
 
@@ -16,36 +19,6 @@ enum PollStatus {
       };
 
   String toJson() => name;
-}
-
-// ─── Author ───────────────────────────────────────────────────────────────────
-
-class Author {
-  final String id;
-  final String name;
-  final String? avatarUrl;
-  final String? role;
-
-  const Author({
-    required this.id,
-    required this.name,
-    this.avatarUrl,
-    this.role,
-  });
-
-  factory Author.fromJson(Map<String, dynamic> json) => Author(
-        id: json['id'] as String,
-        name: json['name'] as String,
-        avatarUrl: json['avatarUrl'] as String?,
-        role: json['role'] as String?,
-      );
-
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'avatarUrl': avatarUrl,
-        'role': role,
-      };
 }
 
 // ─── Poll Option ──────────────────────────────────────────────────────────────

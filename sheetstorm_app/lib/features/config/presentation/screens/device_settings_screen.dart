@@ -274,7 +274,7 @@ class _CacheSection extends StatelessWidget {
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.error,
-              foregroundColor: Colors.white,
+              foregroundColor: Theme.of(context).colorScheme.onError,
             ),
             child: const Text('Cache leeren'),
           ),

@@ -972,6 +972,14 @@ namespace Sheetstorm.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
                     b.Property<bool>("IsPinned")
                         .HasColumnType("boolean");
 
@@ -990,7 +998,7 @@ namespace Sheetstorm.Infrastructure.Migrations
 
                     b.HasIndex("AuthorMusicianId");
 
-                    b.HasIndex("BandId", "IsPinned", "CreatedAt");
+                    b.HasIndex("BandId", "IsDeleted", "IsPinned", "CreatedAt");
 
                     b.ToTable("Posts");
                 });

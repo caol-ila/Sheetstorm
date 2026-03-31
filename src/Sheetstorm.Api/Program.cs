@@ -74,6 +74,18 @@ builder.Services.AddRateLimiter(options =>
                 QueueLimit = 0
             }));
 
+    // Substitute-token validation: brute-force protection for short tokens
+    options.AddPolicy("substitute-validate", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 10,
+                Window = TimeSpan.FromMinutes(1),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0
+            }));
+
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     options.OnRejected = async (context, _) =>
     {
@@ -92,11 +104,31 @@ builder.Services.AddInfrastructure(builder.Configuration);
 // Demo-Seeder (nur im Development-Modus aktiv)
 builder.Services.AddScoped<DemoDataSeeder>();
 
-// CORS – tight in production, permissive in dev
+// CORS — build allowed-origins list from config and optional env-var override
+var corsOriginsFromConfig = builder.Configuration
+    .GetSection("Cors:AllowedOrigins")
+    .Get<string[]>() ?? [];
+
+var corsEnvVar = Environment.GetEnvironmentVariable("CORS_ALLOWED_ORIGINS");
+if (!string.IsNullOrWhiteSpace(corsEnvVar))
+{
+    var envOrigins = corsEnvVar.Split(',',
+        StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+    corsOriginsFromConfig = [.. corsOriginsFromConfig.Concat(envOrigins).Distinct()];
+}
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("DevPolicy", policy =>
         policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
+
+    options.AddPolicy("ProdPolicy", policy =>
+    {
+        if (corsOriginsFromConfig.Length > 0)
+            policy.WithOrigins(corsOriginsFromConfig).AllowAnyMethod().AllowAnyHeader();
+        else
+            policy.SetIsOriginAllowed(_ => false);
+    });
 });
 
 var app = builder.Build();
@@ -112,6 +144,10 @@ if (app.Environment.IsDevelopment())
         var seeder = scope.ServiceProvider.GetRequiredService<DemoDataSeeder>();
         await seeder.SeedAsync();
     }
+}
+else
+{
+    app.UseCors("ProdPolicy");
 }
 
 app.UseHttpsRedirection();

@@ -362,3 +362,44 @@
 **Parker (QA) - IMPORTANT:**
 - Banner's ParentCommentId fix in `PostService.AddCommentAsync()` affects Parker's provider override migration for communication notifiers
 - When Parker tests `post_notifier_test.dart`, parent comment validation is now enforced at service layer — mock setup must include valid post references
+### 2026-03-30 — MS2 Nacharbeit: Validierung & Datenintegrität
+
+**#111 ShiftService StartTime/EndTime:** Validierung war bereits vorhanden (EndTime <= StartTime → DomainException("VALIDATION_ERROR", ..., 400)). Fehlende Tests für Equal-Times-Case bei UpdateShiftAsync wurden ergänzt.
+
+**#112 PostService ParentCommentId:** AddCommentAsync hat ParentCommentId ohne Existenz-Check gespeichert. Fix: 
+- ParentComment nicht gefunden → NOT_FOUND 404
+- ParentComment gehört anderem Post → VALIDATION_ERROR 400
+- Soft-deleted Comments werden als nicht-existent behandelt (!c.IsDeleted)
+
+**#109 MaxLength Attribute — Positional Records & TypeDescriptor:**
+- Validator.TryValidateObject() verwendet TypeDescriptor, der Attribute auf positional record constructor parameters NICHT sieht.
+- ASP.NET Core's model binding verwendet PropertyInfo.GetCustomAttributes() direkt → Attribute funktionieren für HTTP-Validierung.
+- Lücken gefüllt: RepeatRule in EventModels (kein StringLength), Poll-Option-Text-Länge (Service-Level, da IReadOnlyList<string> keine per-item Annotations erlaubt).
+- Model-Validation-Tests: reflection-basiert via PropertyInfo.GetCustomAttribute<StringLengthAttribute>() — korrekte Methode für positional records.
+
+**Test-Pattern:** Service-Tests mit InMemoryDatabase bleiben das Standard-Muster. Controller-Tests mit NSubstitute für Service-Mocking.
+
+### 2026-03-30 — #110: PostService Soft-Delete Inkonsistenz
+
+**Problem:** Posts wurden immer hard-deleted (`db.Remove()`), Comments dagegen soft-deleted (`IsDeleted` flag) — inkonsistente Strategie mit Risiko von Orphan-Records.
+
+**Lösung: Conditional Delete — abhängig von Child-Comments:**
+- Post **mit aktiven Comments** → Soft-Delete: `IsDeleted = true`, `DeletedAt = UtcNow`, Title/Content → `"[Gelöscht]"`, unpin. Shell bleibt erhalten, Comment-Thread bleibt navigierbar.
+- Post **ohne Comments** → Hard-Delete (kein Orphan-Risiko).
+- Bereits soft-gelöschter Post → `NOT_FOUND` (404) — verhindert Doppel-Delete.
+
+**Entity-Änderungen:** `Post` bekommt `IsDeleted` (bool, default false) + `DeletedAt` (DateTime?). Migration `20260330215615_PostSoftDelete` erstellt.
+
+**Query-Strategie:**
+- `GetAllAsync`: filtert `!p.IsDeleted` — gelöschte Posts erscheinen nicht in Listings.
+- `GetByIdAsync`: **kein Filter** — soft-deleted Posts sind weiter lesbar (Comment-Thread).
+- Alle Mutations (Update, Pin, Unpin, AddComment, AddReaction): `&& !p.IsDeleted` Guard.
+
+**TDD:** 4 neue Tests — `DeleteAsync_WithComments_SoftDeletes`, `DeleteAsync_WithoutComments_HardDeletes`, `GetAllAsync_ExcludesSoftDeletedPosts`, `DeleteAsync_AlreadyDeleted_ThrowsNotFound`. RED→GREEN→858/858 bestanden.
+
+**Key Files:**
+- `src/Sheetstorm.Domain/Entities/Post.cs` — neue Felder
+- `src/Sheetstorm.Infrastructure/Communication/PostService.cs` — DeleteAsync + Query-Guards
+- `src/Sheetstorm.Infrastructure/Persistence/Configurations/PostConfiguration.cs` — EF-Config
+- `src/Sheetstorm.Infrastructure/Migrations/20260330215615_PostSoftDelete.cs` — Migration
+- `tests/Sheetstorm.Tests/Communication/PostServiceTests.cs` — 4 neue Tests

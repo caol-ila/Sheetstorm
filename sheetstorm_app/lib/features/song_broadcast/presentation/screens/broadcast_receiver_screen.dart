@@ -4,7 +4,6 @@ import 'package:sheetstorm/core/theme/app_colors.dart';
 import 'package:sheetstorm/core/theme/app_tokens.dart';
 import 'package:sheetstorm/features/song_broadcast/application/broadcast_notifier.dart';
 import 'package:sheetstorm/features/song_broadcast/data/models/broadcast_models.dart';
-import 'package:sheetstorm/features/song_broadcast/data/services/broadcast_service.dart';
 import 'package:sheetstorm/features/song_broadcast/presentation/widgets/broadcast_status_indicator.dart';
 
 /// Musician view for receiving broadcast song changes.
@@ -95,7 +94,7 @@ class _BroadcastReceiverScreenState
                   FilledButton(
                     onPressed: () => ref
                         .read(broadcastProvider.notifier)
-                        .joinSession(musikerId: ''), // TODO: inject actual musicianId
+                        .joinSession(),
                     child: const Text('Erneut beitreten'),
                   ),
                 ],
@@ -238,7 +237,7 @@ class _IdleViewState extends ConsumerState<_IdleView> {
                     FilledButton.icon(
                       onPressed: () => ref
                           .read(broadcastProvider.notifier)
-                          .joinSession(musikerId: ''), // TODO: inject actual musicianId
+                          .joinSession(),
                       icon: const Icon(Icons.login),
                       label: const Text('Beitreten'),
                     ),
@@ -410,7 +409,7 @@ class _ReceivingView extends ConsumerWidget {
     if (confirmed == true) {
       await ref
           .read(broadcastProvider.notifier)
-          .leaveSession(musikerId: ''); // TODO: inject actual musicianId
+          .leaveSession();
     }
   }
 }

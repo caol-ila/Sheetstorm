@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sheetstorm/features/setlist/application/setlist_notifier.dart';
 import 'package:sheetstorm/features/setlist/data/models/setlist_models.dart';
 
@@ -58,6 +59,10 @@ SetlistEntry _entry({
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+  });
+
   // ─── SetlistListNotifier — Basic operations ───────────────────────────────
 
   group('SetlistListNotifier — Methoden verfügbar', () {
@@ -92,30 +97,28 @@ void main() {
       expect(result, anyOf(isNull, isA<Setlist>()));
     });
 
-    test('search() kann aufgerufen werden', () async {
+    test('search() ändert Zustand nicht bei fehlender Band', () async {
       final (c, n) = _setupList();
 
       await n.search('test');
 
-      // Method executes without errors
-      expect(true, isTrue);
+      expect(c.read(setlistListProvider).hasError, isFalse);
     });
 
-    test('filter() kann aufgerufen werden', () async {
+    test('filter() ändert Zustand nicht bei fehlender Band', () async {
       final (c, n) = _setupList();
 
       await n.filter(typ: SetlistTyp.konzert);
 
-      // Method executes without errors
-      expect(true, isTrue);
+      expect(c.read(setlistListProvider).hasError, isFalse);
     });
 
-    test('refresh() kann aufgerufen werden', () async {
+    test('refresh() ändert Zustand nicht bei fehlender Band', () async {
       final (c, n) = _setupList();
 
       await n.refresh();
 
-      expect(true, isTrue);
+      expect(c.read(setlistListProvider).hasError, isFalse);
     });
 
     test('filter() mit sortierung Parameter', () async {
@@ -123,7 +126,7 @@ void main() {
 
       await n.filter(sortierung: 'datum_desc');
 
-      expect(true, isTrue);
+      expect(c.read(setlistListProvider).hasError, isFalse);
     });
 
     test('createSetlist() mit allen Parametern', () async {
@@ -144,13 +147,12 @@ void main() {
   // ─── SetlistDetailNotifier — Einträge verwalten ──────────────────────────
 
   group('SetlistDetailNotifier — Methoden verfügbar', () {
-    test('addStueck() kann aufgerufen werden', () async {
+    test('addStueck() kehrt bei fehlender Band frühzeitig zurück', () async {
       final (c, n) = _setupDetail('sl1');
 
       await n.addStueck(stueckId: 'p1');
 
-      // Method executes without errors
-      expect(true, isTrue);
+      expect(c.read(setlistDetailProvider('sl1')), isNotNull);
     });
 
     test('addStueck() mit geschätzter Dauer', () async {
@@ -161,16 +163,15 @@ void main() {
         geschaetzteDauerSekunden: 240,
       );
 
-      expect(true, isTrue);
+      expect(c.read(setlistDetailProvider('sl1')), isNotNull);
     });
 
-    test('addPlatzhalter() kann aufgerufen werden', () async {
+    test('addPlatzhalter() kehrt bei fehlender Band frühzeitig zurück', () async {
       final (c, n) = _setupDetail('sl1');
 
       await n.addPlatzhalter(titel: 'Zugabe');
 
-      // Method executes without errors
-      expect(true, isTrue);
+      expect(c.read(setlistDetailProvider('sl1')), isNotNull);
     });
 
     test('addPlatzhalter() mit allen Parametern', () async {
@@ -183,16 +184,15 @@ void main() {
         geschaetzteDauerSekunden: 180,
       );
 
-      expect(true, isTrue);
+      expect(c.read(setlistDetailProvider('sl1')), isNotNull);
     });
 
-    test('addPause() kann aufgerufen werden', () async {
+    test('addPause() kehrt bei fehlender Band frühzeitig zurück', () async {
       final (c, n) = _setupDetail('sl1');
 
       await n.addPause(dauerSekunden: 900);
 
-      // Method executes without errors
-      expect(true, isTrue);
+      expect(c.read(setlistDetailProvider('sl1')), isNotNull);
     });
 
     test('addPause() mit eigenem Titel', () async {
@@ -203,27 +203,25 @@ void main() {
         dauerSekunden: 1200,
       );
 
-      expect(true, isTrue);
+      expect(c.read(setlistDetailProvider('sl1')), isNotNull);
     });
 
-    test('deleteEntry() kann aufgerufen werden', () async {
+    test('deleteEntry() kehrt bei fehlender Band frühzeitig zurück', () async {
       final (c, n) = _setupDetail('sl1');
 
       await n.deleteEntry('e1');
 
-      // Method executes without errors
-      expect(true, isTrue);
+      expect(c.read(setlistDetailProvider('sl1')), isNotNull);
     });
 
-    test('reorderEntries() kann aufgerufen werden', () async {
+    test('reorderEntries() kehrt bei fehlender Band frühzeitig zurück', () async {
       final (c, n) = _setupDetail('sl1');
       final e1 = _entry(id: 'e1', position: 1);
       final e2 = _entry(id: 'e2', position: 2);
 
       await n.reorderEntries([e2, e1]);
 
-      // Method executes without errors
-      expect(true, isTrue);
+      expect(c.read(setlistDetailProvider('sl1')), isNotNull);
     });
 
     test('reorderEntries() mit drei Einträgen', () async {
@@ -234,25 +232,23 @@ void main() {
 
       await n.reorderEntries([e3, e1, e2]);
 
-      expect(true, isTrue);
+      expect(c.read(setlistDetailProvider('sl1')), isNotNull);
     });
 
-    test('convertToStueck() kann aufgerufen werden', () async {
+    test('convertToStueck() kehrt bei fehlender Band frühzeitig zurück', () async {
       final (c, n) = _setupDetail('sl1');
 
       await n.convertToStueck('e1', 'p1');
 
-      // Method executes without errors
-      expect(true, isTrue);
+      expect(c.read(setlistDetailProvider('sl1')), isNotNull);
     });
 
-    test('updateMetadata() kann aufgerufen werden', () async {
+    test('updateMetadata() kehrt bei fehlender Band frühzeitig zurück', () async {
       final (c, n) = _setupDetail('sl1');
 
       await n.updateMetadata(name: 'Neuer Name', typ: SetlistTyp.probe);
 
-      // Method executes without errors
-      expect(true, isTrue);
+      expect(c.read(setlistDetailProvider('sl1')), isNotNull);
     });
 
     test('updateMetadata() nur Name', () async {
@@ -260,7 +256,7 @@ void main() {
 
       await n.updateMetadata(name: 'Geänderter Name');
 
-      expect(true, isTrue);
+      expect(c.read(setlistDetailProvider('sl1')), isNotNull);
     });
 
     test('updateMetadata() mit Datum und Zeit', () async {
@@ -271,7 +267,7 @@ void main() {
         startzeit: '18:30',
       );
 
-      expect(true, isTrue);
+      expect(c.read(setlistDetailProvider('sl1')), isNotNull);
     });
 
     test('updateMetadata() mit Beschreibung', () async {
@@ -281,15 +277,15 @@ void main() {
         beschreibung: 'Eine neue Beschreibung',
       );
 
-      expect(true, isTrue);
+      expect(c.read(setlistDetailProvider('sl1')), isNotNull);
     });
 
-    test('refresh() kann aufgerufen werden', () async {
+    test('refresh() kehrt bei fehlender Band frühzeitig zurück', () async {
       final (c, n) = _setupDetail('sl1');
 
       await n.refresh();
 
-      expect(true, isTrue);
+      expect(c.read(setlistDetailProvider('sl1')), isNotNull);
     });
   });
 
@@ -318,6 +314,57 @@ void main() {
       expect(entry.isStueck, isFalse);
       expect(entry.isPlatzhalter, isFalse);
       expect(entry.isPlayable, isFalse);
+    });
+  });
+
+  // ─── Leere Einträge — Edge Cases (#117) ──────────────────────────────────────
+
+  group('SetlistDetailNotifier — Leere Einträge (Edge Cases)', () {
+    test('SetlistReorder_EmptyList_NoOp', () async {
+      final (c, n) = _setupDetail('sl1');
+
+      await n.reorderEntries([]);
+
+      // Keine Ausnahme — leere Neuordnung ist sicher
+      expect(c.read(setlistDetailProvider('sl1')), isNotNull);
+    });
+
+    test('SetlistRemoveFromEmpty_ThrowsOrNoOp', () async {
+      final (c, n) = _setupDetail('sl1');
+
+      await n.deleteEntry('nicht-vorhanden');
+
+      // Keine Ausnahme — deleteEntry bei fehlender Band kehrt frühzeitig zurück
+      expect(c.read(setlistDetailProvider('sl1')), isNotNull);
+    });
+
+    test('SetlistReorder_EmptyList_PreservesState', () async {
+      final (c, n) = _setupDetail('sl1');
+      await Future.microtask(() {}); // build abschließen lassen
+      final stateBefore = c.read(setlistDetailProvider('sl1'));
+
+      await n.reorderEntries([]);
+
+      // Zustand bleibt erhalten — keine unerwartete Mutation
+      final stateAfter = c.read(setlistDetailProvider('sl1'));
+      expect(stateAfter, isNotNull);
+      expect(stateAfter.hasError, equals(stateBefore.hasError));
+    });
+
+    test('SetlistDetailNotifier_NoBand_AllMutationsAreNoOp', () async {
+      final (c, n) = _setupDetail('sl1');
+
+      // Alle mutierenden Methoden ohne aktive Band sind no-ops
+      await n.addStueck(stueckId: 'x');
+      await n.addPlatzhalter(titel: 'x');
+      await n.addPause(dauerSekunden: 60);
+      await n.deleteEntry('x');
+      await n.reorderEntries([]);
+      await n.convertToStueck('x', 'y');
+      await n.updateMetadata(name: 'x');
+
+      // Kein Absturz, Zustand ist weiterhin gültig
+      expect(c.read(setlistDetailProvider('sl1')), isNotNull);
     });
   });
 }

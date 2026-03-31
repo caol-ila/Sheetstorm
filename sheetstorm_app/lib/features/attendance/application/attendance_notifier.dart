@@ -6,14 +6,16 @@ part 'attendance_notifier.g.dart';
 
 // ─── Attendance Dashboard State ───────────────────────────────────────────────
 
+/// Holds filter params and loaded data for the Attendance dashboard.
+///
+/// Wrapped in [AsyncValue] by [AttendanceNotifier] — loading and error states
+/// are handled by Riverpod's [AsyncNotifier] instead of custom fields.
 class AttendanceDashboardState {
   final AttendanceStats? stats;
   final AttendanceTrend? trend;
   final DateTime? startDate;
   final DateTime? endDate;
   final String? eventType;
-  final bool isLoading;
-  final String? error;
 
   const AttendanceDashboardState({
     this.stats,
@@ -21,8 +23,6 @@ class AttendanceDashboardState {
     this.startDate,
     this.endDate,
     this.eventType,
-    this.isLoading = false,
-    this.error,
   });
 
   static const _sentinel = Object();
@@ -33,8 +33,6 @@ class AttendanceDashboardState {
     Object? startDate = _sentinel,
     Object? endDate = _sentinel,
     Object? eventType = _sentinel,
-    bool? isLoading,
-    Object? error = _sentinel,
   }) =>
       AttendanceDashboardState(
         stats: stats == _sentinel ? this.stats : stats as AttendanceStats?,
@@ -44,8 +42,6 @@ class AttendanceDashboardState {
         endDate: endDate == _sentinel ? this.endDate : endDate as DateTime?,
         eventType:
             eventType == _sentinel ? this.eventType : eventType as String?,
-        isLoading: isLoading ?? this.isLoading,
-        error: error == _sentinel ? this.error : error as String?,
       );
 }
 
@@ -54,78 +50,95 @@ class AttendanceDashboardState {
 @Riverpod(keepAlive: true)
 class AttendanceNotifier extends _$AttendanceNotifier {
   @override
-  AttendanceDashboardState build(String bandId) {
-    // Default: Last 3 months
+  Future<AttendanceDashboardState> build(String bandId) {
     final now = DateTime.now();
-    final threeMonthsAgo = DateTime(now.year, now.month - 3, now.day);
-    
-    final initialState = AttendanceDashboardState(
-      startDate: threeMonthsAgo,
+    return _loadData(
+      startDate: DateTime(now.year, now.month - 3, now.day),
       endDate: now,
     );
-
-    // Load data asynchronously
-    _loadData();
-
-    return initialState;
   }
 
-  Future<void> _loadData() async {
-    state = state.copyWith(isLoading: true, error: null);
-    
-    try {
-      final service = ref.read(attendanceServiceProvider);
-      
-      final statsResult = await service.getStatistics(
+  Future<AttendanceDashboardState> _loadData({
+    DateTime? startDate,
+    DateTime? endDate,
+    String? eventType,
+  }) async {
+    final service = ref.read(attendanceServiceProvider);
+    final results = await Future.wait([
+      service.getStatistics(
         bandId,
-        startDate: state.startDate,
-        endDate: state.endDate,
-        eventType: state.eventType,
-      );
-
-      final trendResult = await service.getTrends(
+        startDate: startDate,
+        endDate: endDate,
+        eventType: eventType,
+      ),
+      service.getTrends(
         bandId,
-        startDate: state.startDate,
-        endDate: state.endDate,
-        eventType: state.eventType,
-      );
-
-      state = state.copyWith(
-        stats: statsResult,
-        trend: trendResult,
-        isLoading: false,
-      );
-    } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        error: 'Fehler beim Laden der Statistiken',
-      );
-    }
+        startDate: startDate,
+        endDate: endDate,
+        eventType: eventType,
+      ),
+    ]);
+    return AttendanceDashboardState(
+      stats: results[0] as AttendanceStats,
+      trend: results[1] as AttendanceTrend,
+      startDate: startDate,
+      endDate: endDate,
+      eventType: eventType,
+    );
   }
 
   Future<void> setDateRange(DateTime? start, DateTime? end) async {
-    state = state.copyWith(startDate: start, endDate: end);
-    await _loadData();
+    final cur = state.value;
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(
+      () => _loadData(
+        startDate: start,
+        endDate: end,
+        eventType: cur?.eventType,
+      ),
+    );
   }
 
   Future<void> setEventType(String? type) async {
-    state = state.copyWith(eventType: type);
-    await _loadData();
+    final cur = state.value;
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(
+      () => _loadData(
+        startDate: cur?.startDate,
+        endDate: cur?.endDate,
+        eventType: type,
+      ),
+    );
   }
 
   Future<void> refresh() async {
-    await _loadData();
+    final cur = state.value;
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(
+      () => _loadData(
+        startDate: cur?.startDate,
+        endDate: cur?.endDate,
+        eventType: cur?.eventType,
+      ),
+    );
+  }
+
+  /// Clears all active filters and reloads data without any filter constraints.
+  Future<void> resetFilter() async {
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(() => _loadData());
   }
 
   Future<ExportData?> exportData(String format) async {
+    final cur = state.value;
     try {
       final service = ref.read(attendanceServiceProvider);
       return await service.requestExport(
         bandId,
         format,
-        startDate: state.startDate,
-        endDate: state.endDate,
-        eventType: state.eventType,
+        startDate: cur?.startDate,
+        endDate: cur?.endDate,
+        eventType: cur?.eventType,
       );
     } catch (e) {
       return null;

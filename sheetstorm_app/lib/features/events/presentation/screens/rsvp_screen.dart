@@ -183,7 +183,7 @@ class _FilterChip extends StatelessWidget {
       backgroundColor: isSelected ? (color ?? AppColors.primary) : null,
       selectedColor: color,
       labelStyle: TextStyle(
-        color: isSelected ? Colors.white : null,
+        color: isSelected ? Theme.of(context).colorScheme.onPrimary : null,
       ),
     );
   }

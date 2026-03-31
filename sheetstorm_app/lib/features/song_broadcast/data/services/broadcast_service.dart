@@ -21,7 +21,9 @@ BroadcastRestService broadcastRestService(Ref ref) {
 @Riverpod(keepAlive: true)
 BroadcastSignalRService broadcastSignalRService(Ref ref) {
   final tokenStorage = ref.read(tokenStorageProvider);
-  return BroadcastSignalRService(tokenStorage: tokenStorage);
+  final service = BroadcastSignalRService(tokenStorage: tokenStorage);
+  ref.onDispose(service.dispose);
+  return service;
 }
 
 // ─── REST Service ──────────────────────────────────────────────────────────────
@@ -233,16 +235,29 @@ class BroadcastSignalRService {
     ]);
   }
 
-  /// Dispose all resources.
+  /// Dispose all resources. Safe to call multiple times.
   void dispose() {
     _heartbeatTimer?.cancel();
+    _heartbeatTimer = null;
     _subscription?.cancel();
+    _subscription = null;
     _channel?.sink.close();
-    _sessionStartedController.close();
-    _songChangedController.close();
-    _sessionEndedController.close();
-    _connectionCountController.close();
-    _connectionStateController.close();
+    _channel = null;
+    if (!_sessionStartedController.isClosed) {
+      _sessionStartedController.close();
+    }
+    if (!_songChangedController.isClosed) {
+      _songChangedController.close();
+    }
+    if (!_sessionEndedController.isClosed) {
+      _sessionEndedController.close();
+    }
+    if (!_connectionCountController.isClosed) {
+      _connectionCountController.close();
+    }
+    if (!_connectionStateController.isClosed) {
+      _connectionStateController.close();
+    }
   }
 
   // ─── Private helpers ─────────────────────────────────────────────────────

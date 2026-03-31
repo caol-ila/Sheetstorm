@@ -375,6 +375,7 @@ class _BottomOverlay extends ConsumerWidget {
               IconButton(
                 icon: const Icon(Icons.skip_previous,
                     color: Colors.white, size: 36),
+                tooltip: 'Vorheriges Stück',
                 onPressed:
                     playerState.isFirst ? null : notifier.previous,
               ),
@@ -387,12 +388,16 @@ class _BottomOverlay extends ConsumerWidget {
                   color: Colors.white,
                   size: AppSpacing.touchTargetPlay,
                 ),
+                tooltip: playerState.status == PlayerStatus.paused
+                    ? 'Wiedergabe starten'
+                    : 'Wiedergabe pausieren',
                 onPressed: notifier.togglePause,
               ),
               // Next
               IconButton(
                 icon: const Icon(Icons.skip_next,
                     color: Colors.white, size: 36),
+                tooltip: 'Nächstes Stück',
                 onPressed: playerState.isLast ? null : notifier.next,
               ),
               // Auto-advance toggle

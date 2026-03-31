@@ -4,15 +4,16 @@ using Microsoft.EntityFrameworkCore;
 using Sheetstorm.Domain.Entities;
 using Sheetstorm.Domain.Exceptions;
 using Sheetstorm.Domain.Substitutes;
+using Sheetstorm.Infrastructure.Auth;
 using Sheetstorm.Infrastructure.Persistence;
 
 namespace Sheetstorm.Infrastructure.Substitutes;
 
-public class SubstituteService(AppDbContext db) : ISubstituteService
+public class SubstituteService(AppDbContext db, IBandAuthorizationService bandAuth) : ISubstituteService
 {
     public async Task<SubstituteAccessCreatedDto> CreateAccessAsync(Guid bandId, CreateSubstituteAccessRequest request, Guid musicianId, CancellationToken ct)
     {
-        await RequireConductorOrAdminAsync(bandId, musicianId, ct);
+        await bandAuth.RequireConductorOrAdminAsync(bandId, musicianId, ct);
 
         // Generate a cryptographically secure token
         var rawTokenBytes = RandomNumberGenerator.GetBytes(32);
@@ -124,7 +125,7 @@ public class SubstituteService(AppDbContext db) : ISubstituteService
 
     public async Task RevokeAccessAsync(Guid bandId, Guid accessId, Guid musicianId, CancellationToken ct)
     {
-        await RequireConductorOrAdminAsync(bandId, musicianId, ct);
+        await bandAuth.RequireConductorOrAdminAsync(bandId, musicianId, ct);
 
         var access = await db.Set<SubstituteAccess>()
             .FirstOrDefaultAsync(a => a.Id == accessId && a.BandId == bandId, ct)
@@ -140,7 +141,7 @@ public class SubstituteService(AppDbContext db) : ISubstituteService
 
     public async Task<IReadOnlyList<SubstituteAccessDto>> GetActiveAccessesAsync(Guid bandId, Guid musicianId, CancellationToken ct)
     {
-        await RequireMembershipAsync(bandId, musicianId, ct);
+        await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         var accesses = await db.Set<SubstituteAccess>()
             .Where(a => a.BandId == bandId)
@@ -173,7 +174,7 @@ public class SubstituteService(AppDbContext db) : ISubstituteService
 
     public async Task<SubstituteAccessDto> ExtendAccessAsync(Guid bandId, Guid accessId, ExtendSubstituteAccessRequest request, Guid musicianId, CancellationToken ct)
     {
-        await RequireConductorOrAdminAsync(bandId, musicianId, ct);
+        await bandAuth.RequireConductorOrAdminAsync(bandId, musicianId, ct);
 
         var access = await db.Set<SubstituteAccess>()
             .Include(a => a.Voice)
@@ -222,21 +223,4 @@ public class SubstituteService(AppDbContext db) : ISubstituteService
         return Convert.ToBase64String(hash);
     }
 
-    private async Task<Membership> RequireMembershipAsync(Guid bandId, Guid musicianId, CancellationToken ct)
-    {
-        var m = await db.Memberships
-            .FirstOrDefaultAsync(m => m.BandId == bandId && m.MusicianId == musicianId && m.IsActive, ct);
-
-        return m ?? throw new DomainException("NOT_FOUND", "Band not found or no access.", 404);
-    }
-
-    private async Task<Membership> RequireConductorOrAdminAsync(Guid bandId, Guid musicianId, CancellationToken ct)
-    {
-        var m = await RequireMembershipAsync(bandId, musicianId, ct);
-
-        if (m.Role is not (MemberRole.Administrator or MemberRole.Conductor))
-            throw new DomainException("FORBIDDEN", "Only conductors or admins can perform this action.", 403);
-
-        return m;
-    }
 }

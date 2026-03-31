@@ -2,21 +2,24 @@ using Microsoft.EntityFrameworkCore;
 using Sheetstorm.Domain.Communication;
 using Sheetstorm.Domain.Entities;
 using Sheetstorm.Domain.Exceptions;
+using Sheetstorm.Domain.Pagination;
+using Sheetstorm.Infrastructure.Auth;
+using Sheetstorm.Infrastructure.Pagination;
 using Sheetstorm.Infrastructure.Persistence;
 
 namespace Sheetstorm.Infrastructure.Communication;
 
-public class PostService(AppDbContext db) : IPostService
+public class PostService(AppDbContext db, IBandAuthorizationService bandAuth) : IPostService
 {
     public async Task<IReadOnlyList<PostDto>> GetAllAsync(Guid bandId, Guid musicianId, CancellationToken ct)
     {
-        await RequireMembershipAsync(bandId, musicianId, ct);
+        await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         var posts = await db.Set<Post>()
             .Include(p => p.AuthorMusician)
             .Include(p => p.Comments.Where(c => !c.IsDeleted))
             .Include(p => p.Reactions)
-            .Where(p => p.BandId == bandId)
+            .Where(p => p.BandId == bandId && !p.IsDeleted)
             .OrderByDescending(p => p.IsPinned)
             .ThenByDescending(p => p.CreatedAt)
             .ToListAsync(ct);
@@ -24,9 +27,41 @@ public class PostService(AppDbContext db) : IPostService
         return posts.Select(p => MapToDto(p, musicianId)).ToList();
     }
 
+    public async Task<PagedResult<PostDto>> GetAllPaginatedAsync(
+        Guid bandId, Guid musicianId, PaginationRequest pagination, CancellationToken ct)
+    {
+        await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
+
+        var pageSize = pagination.EffectivePageSize;
+
+        var query = db.Set<Post>()
+            .Include(p => p.AuthorMusician)
+            .Include(p => p.Comments.Where(c => !c.IsDeleted))
+            .Include(p => p.Reactions)
+            .Where(p => p.BandId == bandId && !p.IsDeleted);
+
+        if (pagination.Cursor is not null)
+        {
+            var (cursorDate, cursorId) = CursorHelper.Decode(pagination.Cursor);
+            query = query.Where(p =>
+                p.CreatedAt < cursorDate ||
+                (p.CreatedAt == cursorDate && p.Id.CompareTo(cursorId) < 0));
+        }
+
+        return await query
+            .OrderByDescending(p => p.CreatedAt)
+            .ThenByDescending(p => p.Id)
+            .ToPaginatedAsync(
+                pageSize,
+                p => MapToDto(p, musicianId),
+                p => p.CreatedAt,
+                p => p.Id,
+                ct);
+    }
+
     public async Task<PostDetailDto> GetByIdAsync(Guid bandId, Guid postId, Guid musicianId, CancellationToken ct)
     {
-        await RequireMembershipAsync(bandId, musicianId, ct);
+        await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         var post = await db.Set<Post>()
             .Include(p => p.AuthorMusician)
@@ -34,7 +69,7 @@ public class PostService(AppDbContext db) : IPostService
             .ThenInclude(c => c.AuthorMusician)
             .Include(p => p.Reactions)
             .ThenInclude(r => r.Musician)
-            .FirstOrDefaultAsync(p => p.Id == postId && p.BandId == bandId, ct)
+            .FirstOrDefaultAsync(p => p.Id == postId && p.BandId == bandId && !p.IsDeleted, ct)
             ?? throw new DomainException("NOT_FOUND", "Post not found.", 404);
 
         var comments = post.Comments
@@ -71,7 +106,7 @@ public class PostService(AppDbContext db) : IPostService
 
     public async Task<PostDetailDto> CreateAsync(Guid bandId, CreatePostRequest request, Guid musicianId, CancellationToken ct)
     {
-        var membership = await RequireMembershipAsync(bandId, musicianId, ct);
+        var membership = await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         if (membership.Role != MemberRole.Administrator && 
             membership.Role != MemberRole.Conductor && 
@@ -110,14 +145,14 @@ public class PostService(AppDbContext db) : IPostService
 
     public async Task<PostDetailDto> UpdateAsync(Guid bandId, Guid postId, UpdatePostRequest request, Guid musicianId, CancellationToken ct)
     {
-        await RequireMembershipAsync(bandId, musicianId, ct);
+        await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         var post = await db.Set<Post>()
             .Include(p => p.AuthorMusician)
             .Include(p => p.Comments.Where(c => !c.IsDeleted))
             .ThenInclude(c => c.AuthorMusician)
             .Include(p => p.Reactions)
-            .FirstOrDefaultAsync(p => p.Id == postId && p.BandId == bandId, ct)
+            .FirstOrDefaultAsync(p => p.Id == postId && p.BandId == bandId && !p.IsDeleted, ct)
             ?? throw new DomainException("NOT_FOUND", "Post not found.", 404);
 
         if (post.AuthorMusicianId != musicianId)
@@ -163,35 +198,50 @@ public class PostService(AppDbContext db) : IPostService
 
     public async Task DeleteAsync(Guid bandId, Guid postId, Guid musicianId, CancellationToken ct)
     {
-        var membership = await RequireMembershipAsync(bandId, musicianId, ct);
+        var membership = await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         var post = await db.Set<Post>()
-            .FirstOrDefaultAsync(p => p.Id == postId && p.BandId == bandId, ct)
+            .Include(p => p.Comments)
+            .FirstOrDefaultAsync(p => p.Id == postId && p.BandId == bandId && !p.IsDeleted, ct)
             ?? throw new DomainException("NOT_FOUND", "Post not found.", 404);
 
         if (post.AuthorMusicianId != musicianId && membership.Role != MemberRole.Administrator)
             throw new DomainException("FORBIDDEN", "You can only delete your own posts or be an admin.", 403);
 
-        db.Set<Post>().Remove(post);
+        var hasActiveComments = post.Comments.Any(c => !c.IsDeleted);
+        if (hasActiveComments)
+        {
+            post.IsDeleted = true;
+            post.DeletedAt = DateTime.UtcNow;
+            post.Title = "[Gelöscht]";
+            post.Content = "[Gelöscht]";
+            post.IsPinned = false;
+            post.PinnedAt = null;
+        }
+        else
+        {
+            db.Set<Post>().Remove(post);
+        }
+
         await db.SaveChangesAsync(ct);
     }
 
     public async Task PinAsync(Guid bandId, Guid postId, Guid musicianId, CancellationToken ct)
     {
-        var membership = await RequireMembershipAsync(bandId, musicianId, ct);
+        var membership = await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         if (membership.Role != MemberRole.Administrator && membership.Role != MemberRole.Conductor)
             throw new DomainException("FORBIDDEN", "Only admins and conductors can pin posts.", 403);
 
         var post = await db.Set<Post>()
-            .FirstOrDefaultAsync(p => p.Id == postId && p.BandId == bandId, ct)
+            .FirstOrDefaultAsync(p => p.Id == postId && p.BandId == bandId && !p.IsDeleted, ct)
             ?? throw new DomainException("NOT_FOUND", "Post not found.", 404);
 
         if (post.IsPinned)
             return;
 
         var pinnedCount = await db.Set<Post>()
-            .CountAsync(p => p.BandId == bandId && p.IsPinned, ct);
+            .CountAsync(p => p.BandId == bandId && p.IsPinned && !p.IsDeleted, ct);
 
         if (pinnedCount >= 3)
             throw new DomainException("CONFLICT", "Maximum of 3 posts can be pinned at once.", 409);
@@ -204,13 +254,13 @@ public class PostService(AppDbContext db) : IPostService
 
     public async Task UnpinAsync(Guid bandId, Guid postId, Guid musicianId, CancellationToken ct)
     {
-        var membership = await RequireMembershipAsync(bandId, musicianId, ct);
+        var membership = await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         if (membership.Role != MemberRole.Administrator && membership.Role != MemberRole.Conductor)
             throw new DomainException("FORBIDDEN", "Only admins and conductors can unpin posts.", 403);
 
         var post = await db.Set<Post>()
-            .FirstOrDefaultAsync(p => p.Id == postId && p.BandId == bandId, ct)
+            .FirstOrDefaultAsync(p => p.Id == postId && p.BandId == bandId && !p.IsDeleted, ct)
             ?? throw new DomainException("NOT_FOUND", "Post not found.", 404);
 
         post.IsPinned = false;
@@ -221,11 +271,21 @@ public class PostService(AppDbContext db) : IPostService
 
     public async Task<PostCommentDto> AddCommentAsync(Guid bandId, Guid postId, CreatePostCommentRequest request, Guid musicianId, CancellationToken ct)
     {
-        await RequireMembershipAsync(bandId, musicianId, ct);
+        await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         var post = await db.Set<Post>()
-            .FirstOrDefaultAsync(p => p.Id == postId && p.BandId == bandId, ct)
+            .FirstOrDefaultAsync(p => p.Id == postId && p.BandId == bandId && !p.IsDeleted, ct)
             ?? throw new DomainException("NOT_FOUND", "Post not found.", 404);
+
+        if (request.ParentCommentId.HasValue)
+        {
+            var parent = await db.Set<PostComment>()
+                .FirstOrDefaultAsync(c => c.Id == request.ParentCommentId.Value && !c.IsDeleted, ct)
+                ?? throw new DomainException("NOT_FOUND", "Parent comment not found.", 404);
+
+            if (parent.PostId != postId)
+                throw new DomainException("VALIDATION_ERROR", "Parent comment does not belong to this post.", 400);
+        }
 
         var comment = new PostComment
         {
@@ -251,9 +311,52 @@ public class PostService(AppDbContext db) : IPostService
         );
     }
 
+    public async Task<PagedResult<PostCommentDto>> GetCommentsPaginatedAsync(
+        Guid bandId, Guid postId, Guid musicianId, PaginationRequest pagination, CancellationToken ct)
+    {
+        await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
+
+        var postExists = await db.Set<Post>()
+            .AnyAsync(p => p.Id == postId && p.BandId == bandId && !p.IsDeleted, ct);
+        if (!postExists)
+            throw new DomainException("NOT_FOUND", "Post not found.", 404);
+
+        var pageSize = pagination.EffectivePageSize;
+
+        var query = db.Set<PostComment>()
+            .Include(c => c.AuthorMusician)
+            .Where(c => c.PostId == postId && !c.IsDeleted);
+
+        if (pagination.Cursor is not null)
+        {
+            var (cursorDate, cursorId) = CursorHelper.Decode(pagination.Cursor);
+            query = query.Where(c =>
+                c.CreatedAt > cursorDate ||
+                (c.CreatedAt == cursorDate && c.Id.CompareTo(cursorId) > 0));
+        }
+
+        // Comments ordered oldest first (ascending) for chronological reading
+        return await query
+            .OrderBy(c => c.CreatedAt)
+            .ThenBy(c => c.Id)
+            .ToPaginatedAsync(
+                pageSize,
+                c => new PostCommentDto(
+                    c.Id,
+                    c.Content,
+                    c.AuthorMusicianId,
+                    c.AuthorMusician.Name,
+                    c.ParentCommentId,
+                    c.IsDeleted,
+                    c.CreatedAt),
+                c => c.CreatedAt,
+                c => c.Id,
+                ct);
+    }
+
     public async Task DeleteCommentAsync(Guid bandId, Guid postId, Guid commentId, Guid musicianId, CancellationToken ct)
     {
-        var membership = await RequireMembershipAsync(bandId, musicianId, ct);
+        var membership = await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         var comment = await db.Set<PostComment>()
             .Include(c => c.Post)
@@ -271,10 +374,10 @@ public class PostService(AppDbContext db) : IPostService
 
     public async Task AddReactionAsync(Guid bandId, Guid postId, AddPostReactionRequest request, Guid musicianId, CancellationToken ct)
     {
-        await RequireMembershipAsync(bandId, musicianId, ct);
+        await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         var post = await db.Set<Post>()
-            .FirstOrDefaultAsync(p => p.Id == postId && p.BandId == bandId, ct)
+            .FirstOrDefaultAsync(p => p.Id == postId && p.BandId == bandId && !p.IsDeleted, ct)
             ?? throw new DomainException("NOT_FOUND", "Post not found.", 404);
 
         var existingReaction = await db.Set<PostReaction>()
@@ -300,7 +403,7 @@ public class PostService(AppDbContext db) : IPostService
 
     public async Task RemoveReactionAsync(Guid bandId, Guid postId, Guid musicianId, CancellationToken ct)
     {
-        await RequireMembershipAsync(bandId, musicianId, ct);
+        await bandAuth.RequireMembershipAsync(bandId, musicianId, ct);
 
         var reaction = await db.Set<PostReaction>()
             .Include(r => r.Post)
@@ -311,14 +414,6 @@ public class PostService(AppDbContext db) : IPostService
             db.Set<PostReaction>().Remove(reaction);
             await db.SaveChangesAsync(ct);
         }
-    }
-
-    private async Task<Membership> RequireMembershipAsync(Guid bandId, Guid musicianId, CancellationToken ct)
-    {
-        var m = await db.Set<Membership>()
-            .FirstOrDefaultAsync(m => m.BandId == bandId && m.MusicianId == musicianId && m.IsActive, ct);
-
-        return m ?? throw new DomainException("BAND_NOT_FOUND", "Band not found or no access.", 404);
     }
 
     private static PostDto MapToDto(Post post, Guid currentMusicianId)

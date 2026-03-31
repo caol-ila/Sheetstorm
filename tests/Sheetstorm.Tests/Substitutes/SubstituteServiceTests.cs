@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Sheetstorm.Domain.Entities;
 using Sheetstorm.Domain.Exceptions;
 using Sheetstorm.Domain.Substitutes;
+using Sheetstorm.Infrastructure.Auth;
 using Sheetstorm.Infrastructure.Persistence;
 using Sheetstorm.Infrastructure.Substitutes;
 
@@ -19,7 +20,7 @@ public class SubstituteServiceTests : IDisposable
             .Options;
 
         _db = new AppDbContext(options);
-        _sut = new SubstituteService(_db);
+        _sut = new SubstituteService(_db, new BandAuthorizationService(_db));
     }
 
     public void Dispose()

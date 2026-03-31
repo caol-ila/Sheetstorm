@@ -20,7 +20,7 @@ public class BandServiceTests : IDisposable
             .Options;
 
         _db = new AppDbContext(options);
-        _sut = new BandService(_db);
+        _sut = new BandService(_db, new BandAuthorizationService(_db));
     }
 
     public void Dispose()
@@ -189,8 +189,8 @@ public class BandServiceTests : IDisposable
         var ex = await Assert.ThrowsAsync<DomainException>(
             () => _sut.GetBandAsync(band.Id, nonMember.Id));
 
-        Assert.Equal("BAND_NOT_FOUND", ex.ErrorCode);
-        Assert.Equal(404, ex.StatusCode);
+        Assert.Equal("FORBIDDEN", ex.ErrorCode);
+        Assert.Equal(403, ex.StatusCode);
     }
 
     [Fact]
@@ -360,13 +360,13 @@ public class BandServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task RemoveMemberAsync_NonAdminRemovesOther_ThrowsAuthException()
+    public async Task RemoveMemberAsync_NonAdminRemovesOther_ThrowsDomainException()
     {
         var (band, admin) = await CreateKapelleWithAdminAsync();
         var mitglied1 = await AddMitgliedAsync(band.Id);
         var mitglied2 = await AddMitgliedAsync(band.Id);
 
-        var ex = await Assert.ThrowsAsync<AuthException>(
+        var ex = await Assert.ThrowsAsync<DomainException>(
             () => _sut.RemoveMemberAsync(band.Id, mitglied2.Id, mitglied1.Id));
 
         Assert.Equal("FORBIDDEN", ex.ErrorCode);
@@ -395,8 +395,8 @@ public class BandServiceTests : IDisposable
         var ex = await Assert.ThrowsAsync<DomainException>(
             () => _sut.RemoveMemberAsync(band.Id, target.Id, nonMember.Id));
 
-        Assert.Equal("BAND_NOT_FOUND", ex.ErrorCode);
-        Assert.Equal(404, ex.StatusCode);
+        Assert.Equal("FORBIDDEN", ex.ErrorCode);
+        Assert.Equal(403, ex.StatusCode);
     }
 
     [Fact]
@@ -435,7 +435,7 @@ public class BandServiceTests : IDisposable
         var mitglied1 = await AddMitgliedAsync(band.Id);
         var mitglied2 = await AddMitgliedAsync(band.Id);
 
-        var ex = await Assert.ThrowsAsync<AuthException>(
+        var ex = await Assert.ThrowsAsync<DomainException>(
             () => _sut.ChangeRoleAsync(band.Id, mitglied2.Id,
                 new ChangeRoleRequest(MemberRole.Conductor), mitglied1.Id));
 
@@ -635,7 +635,7 @@ public class BandServiceTests : IDisposable
         var mitglied = await AddMitgliedAsync(band.Id);
         var request = new CreateInvitationRequest();
 
-        var ex = await Assert.ThrowsAsync<AuthException>(
+        var ex = await Assert.ThrowsAsync<DomainException>(
             () => _sut.CreateInvitationAsync(band.Id, request, mitglied.Id));
 
         Assert.Equal("FORBIDDEN", ex.ErrorCode);
@@ -651,7 +651,7 @@ public class BandServiceTests : IDisposable
         var ex = await Assert.ThrowsAsync<DomainException>(
             () => _sut.CreateInvitationAsync(band.Id, new CreateInvitationRequest(), nonMember.Id));
 
-        Assert.Equal("BAND_NOT_FOUND", ex.ErrorCode);
+        Assert.Equal("FORBIDDEN", ex.ErrorCode);
     }
 
     [Fact]
@@ -729,7 +729,7 @@ public class BandServiceTests : IDisposable
         var request = new SetVoiceMappingRequest(
             new[] { new VoiceMappingEntry("Trompete", "1. Voice") });
 
-        var ex = await Assert.ThrowsAsync<AuthException>(
+        var ex = await Assert.ThrowsAsync<DomainException>(
             () => _sut.SetVoiceMappingAsync(band.Id, request, mitglied.Id));
 
         Assert.Equal("FORBIDDEN", ex.ErrorCode);
@@ -761,7 +761,7 @@ public class BandServiceTests : IDisposable
         var ex = await Assert.ThrowsAsync<DomainException>(
             () => _sut.GetVoiceMappingAsync(band.Id, nonMember.Id));
 
-        Assert.Equal("BAND_NOT_FOUND", ex.ErrorCode);
+        Assert.Equal("FORBIDDEN", ex.ErrorCode);
     }
 
     [Fact]
@@ -826,13 +826,13 @@ public class BandServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task SetUserVoicesAsync_NonAdminSetsOtherMemberOverride_ThrowsAuthException()
+    public async Task SetUserVoicesAsync_NonAdminSetsOtherMemberOverride_ThrowsDomainException()
     {
         var (band, _) = await CreateKapelleWithAdminAsync();
         var mitglied1 = await AddMitgliedAsync(band.Id);
         var mitglied2 = await AddMitgliedAsync(band.Id);
 
-        var ex = await Assert.ThrowsAsync<AuthException>(
+        var ex = await Assert.ThrowsAsync<DomainException>(
             () => _sut.SetUserVoicesAsync(band.Id, mitglied2.Id,
                 new UserVoicesRequest("Unerlaubt"), mitglied1.Id));
 
@@ -883,7 +883,7 @@ public class BandServiceTests : IDisposable
             () => _sut.SetUserVoicesAsync(band.Id, nonMember.Id,
                 new UserVoicesRequest("X"), nonMember.Id));
 
-        Assert.Equal("BAND_NOT_FOUND", ex.ErrorCode);
+        Assert.Equal("FORBIDDEN", ex.ErrorCode);
     }
 
     // ── UpdateBand ─────────────────────────────────────────────────────
@@ -907,7 +907,7 @@ public class BandServiceTests : IDisposable
         var (band, _) = await CreateKapelleWithAdminAsync();
         var mitglied = await AddMitgliedAsync(band.Id);
 
-        var ex = await Assert.ThrowsAsync<AuthException>(
+        var ex = await Assert.ThrowsAsync<DomainException>(
             () => _sut.UpdateBandAsync(band.Id,
                 new UpdateBandRequest("Änderung", null, null), mitglied.Id));
 
@@ -933,7 +933,7 @@ public class BandServiceTests : IDisposable
         var (band, _) = await CreateKapelleWithAdminAsync();
         var mitglied = await AddMitgliedAsync(band.Id);
 
-        var ex = await Assert.ThrowsAsync<AuthException>(
+        var ex = await Assert.ThrowsAsync<DomainException>(
             () => _sut.DeleteBandAsync(band.Id, mitglied.Id));
 
         Assert.Equal("FORBIDDEN", ex.ErrorCode);
@@ -969,6 +969,6 @@ public class BandServiceTests : IDisposable
         var ex = await Assert.ThrowsAsync<DomainException>(
             () => _sut.GetMembersAsync(band.Id, nonMember.Id));
 
-        Assert.Equal("BAND_NOT_FOUND", ex.ErrorCode);
+        Assert.Equal("FORBIDDEN", ex.ErrorCode);
     }
 }

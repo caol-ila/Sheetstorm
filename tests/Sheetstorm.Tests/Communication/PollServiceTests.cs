@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Sheetstorm.Domain.Entities;
 using Sheetstorm.Domain.Exceptions;
 using Sheetstorm.Domain.Polls;
+using Sheetstorm.Infrastructure.Auth;
 using Sheetstorm.Infrastructure.Persistence;
 using Sheetstorm.Infrastructure.Polls;
 
@@ -19,7 +20,7 @@ public class PollServiceTests : IDisposable
             .Options;
 
         _db = new AppDbContext(options);
-        _sut = new PollService(_db);
+        _sut = new PollService(_db, new BandAuthorizationService(_db));
     }
 
     public void Dispose()
@@ -200,6 +201,20 @@ public class PollServiceTests : IDisposable
         var (musicianId, bandId, _) = await SeedPollAsync(MemberRole.Administrator);
 
         var request = new CreatePollRequest("Question?", new[] { "Only one" }, false, false, null);
+        var ex = await Assert.ThrowsAsync<DomainException>(() =>
+            _sut.CreateAsync(bandId, request, musicianId, CancellationToken.None));
+
+        Assert.Equal("VALIDATION_ERROR", ex.ErrorCode);
+        Assert.Equal(400, ex.StatusCode);
+    }
+
+    [Fact]
+    public async Task CreateAsync_OversizedOptionText_ThrowsValidationError()
+    {
+        var (musicianId, bandId, _) = await SeedPollAsync(MemberRole.Administrator);
+        var oversizedOption = new string('a', 201);
+
+        var request = new CreatePollRequest("Question?", new[] { oversizedOption, "B" }, false, false, null);
         var ex = await Assert.ThrowsAsync<DomainException>(() =>
             _sut.CreateAsync(bandId, request, musicianId, CancellationToken.None));
 

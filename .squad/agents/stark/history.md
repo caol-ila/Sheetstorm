@@ -397,3 +397,26 @@ DE→EN translation merged — backend (98 files) + frontend (115 files)
 - technologie-entscheidung.md enthält noch "Warum nicht BLE" — sollte aktualisiert werden
 
 **Alle 19 Issues haben Review-Kommentar erhalten (Audit-Trail).**
+### 2025-07-17: MS2 Post-Merge Triage — 22 Issues + 10 CR-Empfehlungen
+
+**Aufgabe:** Alle offenen MS2 Post-Merge Issues (#100–#121) triagiert und mit 10 Code-Review-Empfehlungen aus `ms2-code-review.md` dedupliziert.
+
+**Ergebnis:**
+- 22 Issues + 10 CR-Items → nach Deduplizierung 26 eigenständige Arbeitspakete
+- 3 Überlappungen identifiziert: CR#6=#108, CR#8=#107, CR#1⊃#102
+- Priorisierung in 4 Batches: P0 (1 Item), P1 (11 Items), P2 (13 Items), P3 (4 Items)
+- Geschätzter Gesamtaufwand: ~17.5 Tage, parallelisiert ~6 Tage bei 4 Agents
+- Einziges P0: Hardcoded musikerId '' bricht Broadcast-Join (CR#3)
+- Plan geschrieben nach: `.squad/decisions/inbox/stark-ms2-nacharbeit-plan.md`
+
+**Architektur-Entscheidungen im Plan:**
+- #110 Soft-Delete: Empfehlung Soft-Delete mit DeletedAt konsistent für Posts+Comments
+- #101 copyWith: Sentinel-Pattern vs. Freezed — Entscheidung offen
+- #108 Auth-Helper: IBandAuthorizationService als Shared Service (DI Scoped)
+- CR#7 Pagination: Cursor-basiert (nicht Offset), PagedResult<T>
+
+**Agent-Zuordnung:**
+- Romanoff (Frontend): 15 Items, ~6 Tage
+- Banner (Backend): 7 Items, ~4 Tage
+- Strange (Principal Backend): 2 Items (DRY Auth + Pagination), ~3 Tage
+- Parker (Tests): 7 Items, ~4.5 Tage

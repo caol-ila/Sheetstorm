@@ -67,11 +67,24 @@ abstract final class AppRoutes {
   static String bandBroadcastJoin({required String bandId}) =>
       '/app/band/$bandId/broadcast/join';
   static String bandAttendance({required String bandId}) =>
-      '/app/band/$bandId/attendance?bandId=$bandId';
+      '/app/band/$bandId/attendance';
   static String bandSubstitutes({required String bandId}) =>
-      '/app/band/$bandId/substitutes?bandId=$bandId';
+      '/app/band/$bandId/substitutes';
   static String bandShifts({required String bandId, String? planId}) =>
-      '/app/band/$bandId/shifts?bandId=$bandId${planId != null ? '&planId=$planId' : ''}';
+      '/app/band/$bandId/shifts${planId != null ? '?planId=$planId' : ''}';
+  static String bandSubstituteLink({required String bandId}) =>
+      '/app/band/$bandId/substitute/link';
+  static String bandSubstituteQr({
+    required String bandId,
+    required String accessId,
+  }) =>
+      '/app/band/$bandId/substitute/qr/$accessId';
+  static String bandShiftDetail({
+    required String bandId,
+    required String planId,
+    required String shiftId,
+  }) =>
+      '/app/band/$bandId/shift/detail/$planId/$shiftId';
 
   // ── Import routes ──────────────────────────────────────────────────────────
   static const String importStart = '/app/import';
@@ -268,11 +281,7 @@ GoRouter appRouter(Ref ref) {
                         ),
                       ),
                       // Song broadcast routes (nested under band)
-                      GoRoute(
-                        path: 'broadcast',
-                        builder: (context, state) => broadcastRoutes.builder!(context, state),
-                        routes: broadcastRoutes.routes,
-                      ),
+                      ...broadcastRoutes,
                       // Attendance, Substitute, Shifts routes
                       ...attendanceRoutes,
                       ...substituteRoutes,

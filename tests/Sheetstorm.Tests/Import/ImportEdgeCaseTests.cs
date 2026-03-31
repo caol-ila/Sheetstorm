@@ -7,6 +7,7 @@ using Sheetstorm.Domain.Enums;
 using Sheetstorm.Domain.Exceptions;
 using Sheetstorm.Domain.Import;
 using Sheetstorm.Infrastructure.Import;
+using Sheetstorm.Infrastructure.Auth;
 using Sheetstorm.Infrastructure.Persistence;
 
 namespace Sheetstorm.Tests.Import;
@@ -33,7 +34,7 @@ public class ImportEdgeCaseTests : IDisposable
         _storage = Substitute.For<IStorageService>();
         _ai = Substitute.For<IAiMetadataService>();
         _logger = Substitute.For<ILogger<ImportService>>();
-        _sut = new ImportService(_db, _storage, _ai, _logger);
+        _sut = new ImportService(_db, new BandAuthorizationService(_db), _storage, _ai, _logger);
     }
 
     public void Dispose()
