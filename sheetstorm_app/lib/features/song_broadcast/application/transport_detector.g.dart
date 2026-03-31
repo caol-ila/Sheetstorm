@@ -41,7 +41,7 @@ final class TransportDetectorProvider
   }
 }
 
-String _$transportDetectorHash() => r'transport_detector_stub_hash_001';
+String _$transportDetectorHash() => r'73781151c54d3c501c9259185dfdb536db3d94b9';
 
 abstract class _$TransportDetector extends $Notifier<TransportType> {
   TransportType build();

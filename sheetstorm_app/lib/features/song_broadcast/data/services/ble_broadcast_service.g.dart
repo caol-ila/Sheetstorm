@@ -55,4 +55,4 @@ final class BleBroadcastServiceProvider
 }
 
 String _$bleBroadcastServiceHash() =>
-    r'ble_broadcast_service_stub_hash_001';
+    r'8158b7d50aa43ccc6bb083ae392c8c2b2586a1f7';

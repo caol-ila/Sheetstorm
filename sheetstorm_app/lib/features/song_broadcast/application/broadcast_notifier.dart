@@ -358,4 +358,8 @@ class BroadcastNotifier extends _$BroadcastNotifier {
     _cancelSubscriptions();
     _signalR.disconnect();
   }
+
+  /// Exposes the BLE transport's metronome beat stream so MetronomeNotifier
+  /// (or any other subscriber) can listen for incoming conductor beats.
+  Stream<MetronomeBeatPayload> get metronomeStream => _ble.onMetronomeBeat;
 }

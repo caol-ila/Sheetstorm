@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of 'broadcast_notifier.dart';
+part of 'metronome_notifier.dart';
 
 // **************************************************************************
 // RiverpodGenerator
@@ -9,51 +9,51 @@ part of 'broadcast_notifier.dart';
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
 
-@ProviderFor(BroadcastNotifier)
-final broadcastProvider = BroadcastNotifierProvider._();
+@ProviderFor(MetronomeNotifier)
+final metronomeProvider = MetronomeNotifierProvider._();
 
-final class BroadcastNotifierProvider
-    extends $NotifierProvider<BroadcastNotifier, BroadcastState> {
-  BroadcastNotifierProvider._()
+final class MetronomeNotifierProvider
+    extends $NotifierProvider<MetronomeNotifier, MetronomeState> {
+  MetronomeNotifierProvider._()
     : super(
         from: null,
         argument: null,
         retry: null,
-        name: r'broadcastProvider',
+        name: r'metronomeProvider',
         isAutoDispose: false,
         dependencies: null,
         $allTransitiveDependencies: null,
       );
 
   @override
-  String debugGetCreateSourceHash() => _$broadcastNotifierHash();
+  String debugGetCreateSourceHash() => _$metronomeNotifierHash();
 
   @$internal
   @override
-  BroadcastNotifier create() => BroadcastNotifier();
+  MetronomeNotifier create() => MetronomeNotifier();
 
   /// {@macro riverpod.override_with_value}
-  Override overrideWithValue(BroadcastState value) {
+  Override overrideWithValue(MetronomeState value) {
     return $ProviderOverride(
       origin: this,
-      providerOverride: $SyncValueProvider<BroadcastState>(value),
+      providerOverride: $SyncValueProvider<MetronomeState>(value),
     );
   }
 }
 
-String _$broadcastNotifierHash() => r'5097884040167b925219073b153cfc21b5cbcb5f';
+String _$metronomeNotifierHash() => r'ab78363d5ebce8e013c67025d042d6ef0874d642';
 
-abstract class _$BroadcastNotifier extends $Notifier<BroadcastState> {
-  BroadcastState build();
+abstract class _$MetronomeNotifier extends $Notifier<MetronomeState> {
+  MetronomeState build();
   @$mustCallSuper
   @override
   void runBuild() {
-    final ref = this.ref as $Ref<BroadcastState, BroadcastState>;
+    final ref = this.ref as $Ref<MetronomeState, MetronomeState>;
     final element =
         ref.element
             as $ClassProviderElement<
-              AnyNotifier<BroadcastState, BroadcastState>,
-              BroadcastState,
+              AnyNotifier<MetronomeState, MetronomeState>,
+              MetronomeState,
               Object?,
               Object?
             >;

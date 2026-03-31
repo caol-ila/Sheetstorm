@@ -1,6 +1,7 @@
 import 'package:go_router/go_router.dart';
 import 'package:sheetstorm/features/song_broadcast/presentation/screens/broadcast_control_screen.dart';
 import 'package:sheetstorm/features/song_broadcast/presentation/screens/broadcast_receiver_screen.dart';
+import 'package:sheetstorm/features/song_broadcast/presentation/screens/metronome_screen.dart';
 
 /// Song Broadcast feature route definitions for integration into the app router.
 ///
@@ -16,6 +17,12 @@ final broadcastRoutes = GoRoute(
     GoRoute(
       path: 'join',
       builder: (context, state) => BroadcastReceiverScreen(
+        bandId: state.pathParameters['bandId']!,
+      ),
+    ),
+    GoRoute(
+      path: 'metronome',
+      builder: (context, state) => MetronomeScreen(
         bandId: state.pathParameters['bandId']!,
       ),
     ),
