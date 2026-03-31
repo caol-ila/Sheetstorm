@@ -69,7 +69,7 @@ public class PostService(AppDbContext db, IBandAuthorizationService bandAuth) : 
             .ThenInclude(c => c.AuthorMusician)
             .Include(p => p.Reactions)
             .ThenInclude(r => r.Musician)
-            .FirstOrDefaultAsync(p => p.Id == postId && p.BandId == bandId, ct)
+            .FirstOrDefaultAsync(p => p.Id == postId && p.BandId == bandId && !p.IsDeleted, ct)
             ?? throw new DomainException("NOT_FOUND", "Post not found.", 404);
 
         var comments = post.Comments

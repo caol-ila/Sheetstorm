@@ -272,7 +272,7 @@ public class BandService(AppDbContext db, IBandAuthorizationService bandAuth) : 
 
         // Only admins can remove others; any member can remove themselves (leave)
         if (userId != musicianId && requester.Role != MemberRole.Administrator)
-            throw new AuthException("FORBIDDEN", "Only admins can remove members.", 403);
+            throw new DomainException("FORBIDDEN", "Only admins can remove members.", 403);
 
         // Prevent the last admin from leaving
         if (userId == musicianId && requester.Role == MemberRole.Administrator)
@@ -350,7 +350,7 @@ public class BandService(AppDbContext db, IBandAuthorizationService bandAuth) : 
         var requester = await bandAuth.RequireMembershipAsync(bandId, musicianId);
 
         if (userId != musicianId && requester.Role != MemberRole.Administrator)
-            throw new AuthException("FORBIDDEN", "Only admins can set other members' voices.", 403);
+            throw new DomainException("FORBIDDEN", "Only admins can set other members' voices.", 403);
 
         var target = userId == musicianId
             ? requester

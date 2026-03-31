@@ -117,6 +117,20 @@ public class PostServiceTests : IDisposable
             _sut.GetByIdAsync(bandId, Guid.NewGuid(), musicianId, CancellationToken.None));
     }
 
+    [Fact]
+    public async Task GetByIdAsync_SoftDeletedPost_ThrowsNotFound()
+    {
+        var (musicianId, bandId, postId) = await SeedPostAsync();
+        var post = await _db.Posts.FindAsync(postId);
+        post!.IsDeleted = true;
+        await _db.SaveChangesAsync();
+
+        var ex = await Assert.ThrowsAsync<DomainException>(() =>
+            _sut.GetByIdAsync(bandId, postId, musicianId, CancellationToken.None));
+
+        Assert.Equal("NOT_FOUND", ex.ErrorCode);
+    }
+
     // ── CreateAsync ───────────────────────────────────────────────────────────
 
     [Fact]

@@ -360,13 +360,13 @@ public class BandServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task RemoveMemberAsync_NonAdminRemovesOther_ThrowsAuthException()
+    public async Task RemoveMemberAsync_NonAdminRemovesOther_ThrowsDomainException()
     {
         var (band, admin) = await CreateKapelleWithAdminAsync();
         var mitglied1 = await AddMitgliedAsync(band.Id);
         var mitglied2 = await AddMitgliedAsync(band.Id);
 
-        var ex = await Assert.ThrowsAsync<AuthException>(
+        var ex = await Assert.ThrowsAsync<DomainException>(
             () => _sut.RemoveMemberAsync(band.Id, mitglied2.Id, mitglied1.Id));
 
         Assert.Equal("FORBIDDEN", ex.ErrorCode);
@@ -826,13 +826,13 @@ public class BandServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task SetUserVoicesAsync_NonAdminSetsOtherMemberOverride_ThrowsAuthException()
+    public async Task SetUserVoicesAsync_NonAdminSetsOtherMemberOverride_ThrowsDomainException()
     {
         var (band, _) = await CreateKapelleWithAdminAsync();
         var mitglied1 = await AddMitgliedAsync(band.Id);
         var mitglied2 = await AddMitgliedAsync(band.Id);
 
-        var ex = await Assert.ThrowsAsync<AuthException>(
+        var ex = await Assert.ThrowsAsync<DomainException>(
             () => _sut.SetUserVoicesAsync(band.Id, mitglied2.Id,
                 new UserVoicesRequest("Unerlaubt"), mitglied1.Id));
 
