@@ -59,8 +59,10 @@ void main() {
       'annotationId': 'annot-1',
       'tool': 'pencil',
       'level': 'voice',
-      'pageIndex': 2,
-      'bbox': {'x': 0.1, 'y': 0.2, 'width': 0.3, 'height': 0.05},
+      'bboxX': 0.1,
+      'bboxY': 0.2,
+      'bboxWidth': 0.3,
+      'bboxHeight': 0.05,
       'points': [
         {'x': 0.1, 'y': 0.2, 'pressure': 0.5},
         {'x': 0.3, 'y': 0.4, 'pressure': 0.7},
@@ -72,9 +74,9 @@ void main() {
       'strokeWidth': 3.0,
       'version': 1,
       'isDeleted': false,
-      'userId': 'user-1',
+      'createdByMusicianId': 'user-1',
       'createdAt': '2026-04-01T12:00:00.000Z',
-      'changedAt': '2026-04-01T12:00:00.000Z',
+      'updatedAt': '2026-04-01T12:00:00.000Z',
     };
 
     test('fromJson parst vollständiges Element', () {
@@ -84,7 +86,6 @@ void main() {
       expect(dto.annotationId, 'annot-1');
       expect(dto.tool, 'pencil');
       expect(dto.level, 'voice');
-      expect(dto.pageIndex, 2);
       expect(dto.bbox.x, 0.1);
       expect(dto.bbox.y, 0.2);
       expect(dto.bbox.width, 0.3);
@@ -99,9 +100,9 @@ void main() {
       expect(dto.strokeWidth, 3.0);
       expect(dto.version, 1);
       expect(dto.isDeleted, false);
-      expect(dto.userId, 'user-1');
+      expect(dto.createdByMusicianId, 'user-1');
       expect(dto.createdAt, now);
-      expect(dto.changedAt, now);
+      expect(dto.updatedAt, now);
     });
 
     test('toJson erzeugt korrektes Map', () {
@@ -110,7 +111,6 @@ void main() {
         annotationId: 'annot-1',
         tool: 'pencil',
         level: 'voice',
-        pageIndex: 2,
         bbox: const BBoxDto(x: 0.1, y: 0.2, width: 0.3, height: 0.05),
         points: const [
           StrokePointDto(x: 0.1, y: 0.2, pressure: 0.5),
@@ -120,17 +120,16 @@ void main() {
         strokeWidth: 3.0,
         version: 1,
         isDeleted: false,
-        userId: 'user-1',
+        createdByMusicianId: 'user-1',
         createdAt: now,
-        changedAt: now,
+        updatedAt: now,
       );
 
       final result = dto.toJson();
       expect(result['id'], 'elem-1');
       expect(result['annotationId'], 'annot-1');
-      expect(result['tool'], 'pencil');
-      expect(result['level'], 'voice');
-      expect(result['pageIndex'], 2);
+      expect(result['tool'], 0);
+      expect(result['level'], 1);
       expect(result['version'], 1);
       expect(result['isDeleted'], false);
     });
@@ -168,21 +167,18 @@ void main() {
       expect(roundtrip.version, original.version);
       expect(roundtrip.tool, original.tool);
       expect(roundtrip.level, original.level);
-      expect(roundtrip.pageIndex, original.pageIndex);
     });
   });
 
   // ─── BBoxDto ─────────────────────────────────────────────────────────────
 
   group('BBoxDto', () {
-    test('fromJson/toJson roundtrip', () {
-      const original = BBoxDto(x: 0.1, y: 0.2, width: 0.3, height: 0.4);
-      final json = original.toJson();
-      final restored = BBoxDto.fromJson(json);
-      expect(restored.x, original.x);
-      expect(restored.y, original.y);
-      expect(restored.width, original.width);
-      expect(restored.height, original.height);
+    test('Konstruktor setzt Felder korrekt', () {
+      const bbox = BBoxDto(x: 0.1, y: 0.2, width: 0.3, height: 0.4);
+      expect(bbox.x, 0.1);
+      expect(bbox.y, 0.2);
+      expect(bbox.width, 0.3);
+      expect(bbox.height, 0.4);
     });
   });
 
@@ -307,72 +303,73 @@ void main() {
   group('ElementChangeNotification', () {
     test('create-Notification enthält Element', () {
       final notif = ElementChangeNotification(
-        type: AnnotationOpType.create,
+        changeType: 'create',
         element: AnnotationElementDto(
           id: 'elem-1',
           annotationId: 'annot-1',
           tool: 'pencil',
           level: 'voice',
-          pageIndex: 0,
           bbox: const BBoxDto(x: 0, y: 0, width: 0.1, height: 0.1),
           opacity: 1.0,
           strokeWidth: 3.0,
           version: 1,
           isDeleted: false,
-          userId: 'user-1',
+          createdByMusicianId: 'user-1',
           createdAt: DateTime.utc(2026),
-          changedAt: DateTime.utc(2026),
+          updatedAt: DateTime.utc(2026),
         ),
       );
-      expect(notif.type, AnnotationOpType.create);
+      expect(notif.changeType, 'create');
       expect(notif.element, isNotNull);
       expect(notif.element!.id, 'elem-1');
     });
 
     test('delete-Notification enthält elementId + annotationId', () {
       final notif = const ElementChangeNotification(
-        type: AnnotationOpType.delete,
+        changeType: 'delete',
         elementId: 'elem-1',
         annotationId: 'annot-1',
       );
-      expect(notif.type, AnnotationOpType.delete);
+      expect(notif.changeType, 'delete');
       expect(notif.elementId, 'elem-1');
       expect(notif.annotationId, 'annot-1');
     });
 
     test('fromJson parst create-Notification', () {
       final json = <String, dynamic>{
-        'type': 'create',
+        'changeType': 'create',
         'element': {
           'id': 'elem-1',
           'annotationId': 'annot-1',
           'tool': 'pencil',
           'level': 'voice',
-          'pageIndex': 0,
-          'bbox': {'x': 0, 'y': 0, 'width': 0.1, 'height': 0.1},
+          'bboxX': 0,
+          'bboxY': 0,
+          'bboxWidth': 0.1,
+          'bboxHeight': 0.1,
           'opacity': 1.0,
           'strokeWidth': 3.0,
           'version': 1,
           'isDeleted': false,
-          'userId': 'user-1',
+          'createdByMusicianId': 'user-1',
           'createdAt': '2026-01-01T00:00:00.000Z',
-          'changedAt': '2026-01-01T00:00:00.000Z',
+          'updatedAt': '2026-01-01T00:00:00.000Z',
         },
       };
       final notif = ElementChangeNotification.fromJson(json);
-      expect(notif.type, AnnotationOpType.create);
+      expect(notif.changeType, 'create');
       expect(notif.element, isNotNull);
     });
 
     test('toJson roundtrip für delete', () {
       final original = const ElementChangeNotification(
-        type: AnnotationOpType.delete,
+        changeType: 'delete',
         elementId: 'elem-99',
         annotationId: 'annot-5',
       );
       final json = original.toJson();
       final restored = ElementChangeNotification.fromJson(json);
-      expect(restored.type, AnnotationOpType.delete);
+      expect(restored.changeType, 'delete');
       expect(restored.elementId, 'elem-99');
     });
   });

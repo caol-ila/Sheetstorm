@@ -4,125 +4,198 @@ import 'package:equatable/equatable.dart';
 
 enum SyncStatus { idle, syncing, synced, conflict, offline, error }
 
-// ─── SyncVersion ─────────────────────────────────────────────────────────────
+// ─── SyncChangeEntry (received from server via pull) ─────────────────────────
 
-/// Vector-clock versioning info for a sync delta.
-class SyncVersion extends Equatable {
-  const SyncVersion({
-    required this.deviceId,
-    required this.timestamp,
-    this.vectorClock = const {},
-  });
-
-  final String deviceId;
-  final DateTime timestamp;
-  final Map<String, int> vectorClock;
-
-  factory SyncVersion.fromJson(Map<String, dynamic> json) {
-    final clock = (json['vectorClock'] as Map<String, dynamic>? ?? {})
-        .map((k, v) => MapEntry(k, (v as num).toInt()));
-    return SyncVersion(
-      deviceId: json['deviceId'] as String,
-      timestamp: DateTime.parse(json['timestamp'] as String),
-      vectorClock: clock,
-    );
-  }
-
-  Map<String, dynamic> toJson() => {
-        'deviceId': deviceId,
-        'timestamp': timestamp.toIso8601String(),
-        'vectorClock': vectorClock,
-      };
-
-  @override
-  List<Object?> get props => [deviceId, timestamp, vectorClock];
-}
-
-// ─── SyncDelta ────────────────────────────────────────────────────────────────
-
-/// A single change unit for delta-sync.
-class SyncDelta extends Equatable {
-  const SyncDelta({
+/// Matches backend SyncChangeEntry from PullResponse.
+class SyncChangeEntry extends Equatable {
+  const SyncChangeEntry({
+    required this.version,
     required this.entityType,
     required this.entityId,
     required this.operation,
-    required this.version,
-    this.payload = const {},
+    this.fieldName,
+    this.newValue,
+    this.fields,
+    required this.changedAt,
   });
 
+  final int version;
   final String entityType;
   final String entityId;
-
-  /// One of: 'create', 'update', 'delete'
   final String operation;
+  final String? fieldName;
+  final String? newValue;
+  final Map<String, String>? fields;
+  final DateTime changedAt;
 
-  final SyncVersion version;
-  final Map<String, dynamic> payload;
-
-  factory SyncDelta.fromJson(Map<String, dynamic> json) {
-    return SyncDelta(
+  factory SyncChangeEntry.fromJson(Map<String, dynamic> json) {
+    return SyncChangeEntry(
+      version: (json['version'] as num).toInt(),
       entityType: json['entityType'] as String,
       entityId: json['entityId'] as String,
       operation: json['operation'] as String,
-      version: SyncVersion.fromJson(json['version'] as Map<String, dynamic>),
-      payload: (json['payload'] as Map<String, dynamic>? ?? {}),
+      fieldName: json['fieldName'] as String?,
+      newValue: json['newValue'] as String?,
+      fields: (json['fields'] as Map<String, dynamic>?)
+          ?.map((k, v) => MapEntry(k, v as String)),
+      changedAt: DateTime.parse(json['changedAt'] as String),
     );
   }
-
-  Map<String, dynamic> toJson() => {
-        'entityType': entityType,
-        'entityId': entityId,
-        'operation': operation,
-        'version': version.toJson(),
-        'payload': payload,
-      };
 
   @override
-  List<Object?> get props => [entityType, entityId, operation, version, payload];
+  List<Object?> get props =>
+      [version, entityType, entityId, operation, fieldName, newValue, fields, changedAt];
 }
 
-// ─── SyncConflict ─────────────────────────────────────────────────────────────
+// ─── SyncDelta (sent to server via push) ─────────────────────────────────────
 
-/// A detected sync conflict with LWW resolution metadata.
-class SyncConflict extends Equatable {
-  const SyncConflict({
+/// Matches backend PushChangeEntry.
+class SyncDelta extends Equatable {
+  const SyncDelta({
+    required this.clientChangeId,
     required this.entityType,
-    required this.entityId,
-    required this.localDelta,
-    required this.serverDelta,
-    required this.resolvedWith,
+    this.entityId,
+    required this.operation,
+    this.fieldName,
+    this.newValue,
+    this.fields,
+    required this.changedAt,
   });
 
+  final String clientChangeId;
   final String entityType;
-  final String entityId;
-  final SyncDelta localDelta;
-  final SyncDelta serverDelta;
-
-  /// 'server' or 'local' — which version was kept (Last-Write-Wins)
-  final String resolvedWith;
-
-  factory SyncConflict.fromJson(Map<String, dynamic> json) {
-    return SyncConflict(
-      entityType: json['entityType'] as String,
-      entityId: json['entityId'] as String,
-      localDelta: SyncDelta.fromJson(json['localDelta'] as Map<String, dynamic>),
-      serverDelta:
-          SyncDelta.fromJson(json['serverDelta'] as Map<String, dynamic>),
-      resolvedWith: json['resolvedWith'] as String? ?? 'server',
-    );
-  }
+  final String? entityId;
+  final String operation;
+  final String? fieldName;
+  final String? newValue;
+  final Map<String, String>? fields;
+  final DateTime changedAt;
 
   Map<String, dynamic> toJson() => {
+        'clientChangeId': clientChangeId,
         'entityType': entityType,
-        'entityId': entityId,
-        'localDelta': localDelta.toJson(),
-        'serverDelta': serverDelta.toJson(),
-        'resolvedWith': resolvedWith,
+        if (entityId != null) 'entityId': entityId,
+        'operation': operation,
+        if (fieldName != null) 'fieldName': fieldName,
+        if (newValue != null) 'newValue': newValue,
+        if (fields != null) 'fields': fields,
+        'changedAt': changedAt.toIso8601String(),
       };
 
   @override
   List<Object?> get props =>
-      [entityType, entityId, localDelta, serverDelta, resolvedWith];
+      [clientChangeId, entityType, entityId, operation, fieldName, newValue, fields, changedAt];
+}
+
+// ─── AcceptedChange ─────────────────────────────────────────────────────────
+
+/// Matches backend AcceptedChange from PushResponse.
+class AcceptedChange {
+  const AcceptedChange({
+    required this.clientChangeId,
+    required this.serverVersion,
+    required this.serverEntityId,
+  });
+
+  final String clientChangeId;
+  final int serverVersion;
+  final String serverEntityId;
+
+  factory AcceptedChange.fromJson(Map<String, dynamic> json) => AcceptedChange(
+        clientChangeId: json['clientChangeId'] as String,
+        serverVersion: (json['serverVersion'] as num).toInt(),
+        serverEntityId: json['serverEntityId'] as String,
+      );
+}
+
+// ─── SyncConflict ─────────────────────────────────────────────────────────────
+
+/// Matches backend ConflictEntry from PushResponse.
+class SyncConflict extends Equatable {
+  const SyncConflict({
+    required this.clientChangeId,
+    required this.entityType,
+    required this.entityId,
+    this.fieldName,
+    this.clientValue,
+    this.serverValue,
+    required this.serverChangedAt,
+    required this.resolution,
+  });
+
+  final String clientChangeId;
+  final String entityType;
+  final String entityId;
+  final String? fieldName;
+  final String? clientValue;
+  final String? serverValue;
+  final DateTime serverChangedAt;
+  final String resolution;
+
+  factory SyncConflict.fromJson(Map<String, dynamic> json) => SyncConflict(
+        clientChangeId: json['clientChangeId'] as String,
+        entityType: json['entityType'] as String,
+        entityId: json['entityId'] as String,
+        fieldName: json['fieldName'] as String?,
+        clientValue: json['clientValue'] as String?,
+        serverValue: json['serverValue'] as String?,
+        serverChangedAt: DateTime.parse(json['serverChangedAt'] as String),
+        resolution: json['resolution'] as String,
+      );
+
+  @override
+  List<Object?> get props => [
+        clientChangeId, entityType, entityId, fieldName,
+        clientValue, serverValue, serverChangedAt, resolution,
+      ];
+}
+
+// ─── PullResponse ───────────────────────────────────────────────────────────
+
+/// Matches backend PullResponse.
+class PullResponse {
+  const PullResponse({
+    required this.changes,
+    required this.currentVersion,
+    required this.hasMore,
+  });
+
+  final List<SyncChangeEntry> changes;
+  final int currentVersion;
+  final bool hasMore;
+
+  factory PullResponse.fromJson(Map<String, dynamic> json) => PullResponse(
+        changes: (json['changes'] as List<dynamic>)
+            .map((e) => SyncChangeEntry.fromJson(e as Map<String, dynamic>))
+            .toList(),
+        currentVersion: (json['currentVersion'] as num).toInt(),
+        hasMore: json['hasMore'] as bool,
+      );
+}
+
+// ─── PushResponse ───────────────────────────────────────────────────────────
+
+/// Matches backend PushResponse.
+class PushResponse {
+  const PushResponse({
+    required this.accepted,
+    required this.conflicts,
+    required this.newVersion,
+  });
+
+  final List<AcceptedChange> accepted;
+  final List<SyncConflict> conflicts;
+  final int newVersion;
+
+  factory PushResponse.fromJson(Map<String, dynamic> json) => PushResponse(
+        accepted: (json['accepted'] as List<dynamic>)
+            .map((e) => AcceptedChange.fromJson(e as Map<String, dynamic>))
+            .toList(),
+        conflicts: (json['conflicts'] as List<dynamic>)
+            .map((e) => SyncConflict.fromJson(e as Map<String, dynamic>))
+            .toList(),
+        newVersion: (json['newVersion'] as num).toInt(),
+      );
 }
 
 // ─── SyncState ────────────────────────────────────────────────────────────────
@@ -132,14 +205,16 @@ class SyncState extends Equatable {
   const SyncState({
     this.status = SyncStatus.idle,
     this.lastSyncAt,
-    this.pendingChanges = 0,
+    this.currentVersion = 0,
+    this.pendingServerChanges = 0,
     this.conflicts = const [],
     this.errorMessage,
   });
 
   final SyncStatus status;
   final DateTime? lastSyncAt;
-  final int pendingChanges;
+  final int currentVersion;
+  final int pendingServerChanges;
   final List<SyncConflict> conflicts;
   final String? errorMessage;
 
@@ -150,46 +225,49 @@ class SyncState extends Equatable {
   SyncState copyWith({
     SyncStatus? status,
     DateTime? lastSyncAt,
-    int? pendingChanges,
+    int? currentVersion,
+    int? pendingServerChanges,
     List<SyncConflict>? conflicts,
     String? errorMessage,
+    bool clearError = false,
   }) {
     return SyncState(
       status: status ?? this.status,
       lastSyncAt: lastSyncAt ?? this.lastSyncAt,
-      pendingChanges: pendingChanges ?? this.pendingChanges,
+      currentVersion: currentVersion ?? this.currentVersion,
+      pendingServerChanges: pendingServerChanges ?? this.pendingServerChanges,
       conflicts: conflicts ?? this.conflicts,
-      errorMessage: errorMessage ?? this.errorMessage,
+      errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
     );
   }
 
   @override
   List<Object?> get props =>
-      [status, lastSyncAt, pendingChanges, conflicts, errorMessage];
+      [status, lastSyncAt, currentVersion, pendingServerChanges, conflicts, errorMessage];
 }
 
 // ─── SyncStateResponse ────────────────────────────────────────────────────────
 
-/// DTO from GET /api/sync/state
+/// DTO from GET /api/sync/state — matches backend SyncStateResponse.
 class SyncStateResponse {
   const SyncStateResponse({
+    required this.currentVersion,
     this.lastSyncAt,
-    this.pendingChanges = 0,
-    this.conflicts = const [],
+    this.pendingServerChanges = 0,
   });
 
+  final int currentVersion;
   final DateTime? lastSyncAt;
-  final int pendingChanges;
-  final List<SyncConflict> conflicts;
+  final int pendingServerChanges;
 
   factory SyncStateResponse.fromJson(Map<String, dynamic> json) {
-    final lastSyncAtStr = json['lastSyncAt'] as String?;
     return SyncStateResponse(
-      lastSyncAt: lastSyncAtStr != null ? DateTime.parse(lastSyncAtStr) : null,
-      pendingChanges: json['pendingChanges'] as int? ?? 0,
-      conflicts: (json['conflicts'] as List<dynamic>? ?? [])
-          .map((c) => SyncConflict.fromJson(c as Map<String, dynamic>))
-          .toList(),
+      currentVersion: (json['currentVersion'] as num).toInt(),
+      lastSyncAt: json['lastSyncAt'] != null
+          ? DateTime.parse(json['lastSyncAt'] as String)
+          : null,
+      pendingServerChanges:
+          (json['pendingServerChanges'] as num?)?.toInt() ?? 0,
     );
   }
 }

@@ -1,4 +1,4 @@
-﻿// GENERATED CODE - DO NOT MODIFY BY HAND
+// GENERATED CODE - DO NOT MODIFY BY HAND
 
 part of 'task_notifier.dart';
 
@@ -50,7 +50,7 @@ final class TaskListNotifierProvider
   }
 }
 
-String _$taskListNotifierHash() => r'11ca16aa23be5c1cd256d763c3217fd395831067';
+String _$taskListNotifierHash() => r'c2d22ca23d10f83380da0f98cf708c6279a08d1c';
 
 final class TaskListNotifierFamily extends $Family
     with
@@ -112,7 +112,7 @@ final class TaskDetailNotifierProvider
     extends $AsyncNotifierProvider<TaskDetailNotifier, BandTask> {
   TaskDetailNotifierProvider._({
     required TaskDetailNotifierFamily super.from,
-    required ({String taskId, String bandId}) super.argument,
+    required (String, {String bandId}) super.argument,
   }) : super(
          retry: null,
          name: r'taskDetailProvider',
@@ -128,7 +128,7 @@ final class TaskDetailNotifierProvider
   String toString() {
     return r'taskDetailProvider'
         ''
-        '($argument)';
+        '$argument';
   }
 
   @$internal
@@ -147,7 +147,7 @@ final class TaskDetailNotifierProvider
 }
 
 String _$taskDetailNotifierHash() =>
-    r'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0';
+    r'a50c1f60dbccb7ebf20c3ee8437202db19120bce';
 
 final class TaskDetailNotifierFamily extends $Family
     with
@@ -156,7 +156,7 @@ final class TaskDetailNotifierFamily extends $Family
           AsyncValue<BandTask>,
           BandTask,
           FutureOr<BandTask>,
-          ({String taskId, String bandId})
+          (String, {String bandId})
         > {
   TaskDetailNotifierFamily._()
     : super(
@@ -169,7 +169,7 @@ final class TaskDetailNotifierFamily extends $Family
 
   TaskDetailNotifierProvider call(String taskId, {required String bandId}) =>
       TaskDetailNotifierProvider._(
-        argument: (taskId: taskId, bandId: bandId),
+        argument: (taskId, bandId: bandId),
         from: this,
       );
 
@@ -178,8 +178,8 @@ final class TaskDetailNotifierFamily extends $Family
 }
 
 abstract class _$TaskDetailNotifier extends $AsyncNotifier<BandTask> {
-  late final _$args = ref.$arg as ({String taskId, String bandId});
-  String get taskId => _$args.taskId;
+  late final _$args = ref.$arg as (String, {String bandId});
+  String get taskId => _$args.$1;
   String get bandId => _$args.bandId;
 
   FutureOr<BandTask> build(String taskId, {required String bandId});
@@ -195,9 +195,6 @@ abstract class _$TaskDetailNotifier extends $AsyncNotifier<BandTask> {
               Object?,
               Object?
             >;
-    element.handleCreate(
-      ref,
-      () => build(_$args.taskId, bandId: _$args.bandId),
-    );
+    element.handleCreate(ref, () => build(_$args.$1, bandId: _$args.bandId));
   }
 }

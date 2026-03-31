@@ -1,7 +1,10 @@
 // ─── Annotation Sync Models ──────────────────────────────────────────────────
 //
 // DTOs and operation models for the real-time annotation sync layer.
-// Wire format uses camelCase JSON keys per API convention.
+// Backend contract: src/Sheetstorm.Domain/Annotations/AnnotationModels.cs
+// Enums serialize as int (ASP.NET Core default). Bbox fields are flat.
+
+import 'dart:convert' as json_lib;
 
 /// Operation type for annotation sync
 enum AnnotationOpType {
@@ -28,9 +31,27 @@ enum AnnotationSyncStatus {
   error,
 }
 
+// ─── Int↔String enum mapping (backend sends int) ────────────────────────────
+
+const _toolNames = ['pencil', 'highlighter', 'text', 'stamp'];
+const _levelNames = ['private', 'voice', 'orchestra'];
+
+String _toolFromInt(int i) => i < _toolNames.length ? _toolNames[i] : 'pencil';
+int _toolToInt(String s) {
+  final idx = _toolNames.indexOf(s);
+  return idx >= 0 ? idx : 0;
+}
+
+String _levelFromInt(int i) =>
+    i < _levelNames.length ? _levelNames[i] : 'private';
+int _levelToInt(String s) {
+  final idx = _levelNames.indexOf(s);
+  return idx >= 0 ? idx : 0;
+}
+
 // ─── BBoxDto ────────────────────────────────────────────────────────────────
 
-/// Bounding box DTO for wire format
+/// Bounding box — internal convenience, serialized as flat fields on the wire.
 class BBoxDto {
   const BBoxDto({
     required this.x,
@@ -43,20 +64,6 @@ class BBoxDto {
   final double y;
   final double width;
   final double height;
-
-  factory BBoxDto.fromJson(Map<String, dynamic> json) => BBoxDto(
-        x: (json['x'] as num).toDouble(),
-        y: (json['y'] as num).toDouble(),
-        width: (json['width'] as num).toDouble(),
-        height: (json['height'] as num).toDouble(),
-      );
-
-  Map<String, dynamic> toJson() => {
-        'x': x,
-        'y': y,
-        'width': width,
-        'height': height,
-      };
 }
 
 // ─── StrokePointDto ─────────────────────────────────────────────────────────
@@ -88,14 +95,14 @@ class StrokePointDto {
 
 // ─── AnnotationElementDto ───────────────────────────────────────────────────
 
-/// Wire DTO for a single annotation element (from/to server)
+/// Wire DTO for a single annotation element (from/to server).
+/// Backend uses flat bboxX/Y/Width/Height, int enums, and points as JSON string.
 class AnnotationElementDto {
   const AnnotationElementDto({
     required this.id,
     required this.annotationId,
     required this.tool,
     required this.level,
-    required this.pageIndex,
     required this.bbox,
     this.points,
     this.text,
@@ -105,16 +112,17 @@ class AnnotationElementDto {
     required this.strokeWidth,
     required this.version,
     required this.isDeleted,
-    this.userId,
+    this.createdByMusicianId,
     required this.createdAt,
-    required this.changedAt,
+    required this.updatedAt,
   });
 
   final String id;
   final String annotationId;
+  /// Stored as lowercase string internally (pencil/highlighter/text/stamp)
   final String tool;
+  /// Stored as lowercase string internally (private/voice/orchestra)
   final String level;
-  final int pageIndex;
   final BBoxDto bbox;
   final List<StrokePointDto>? points;
   final String? text;
@@ -124,43 +132,68 @@ class AnnotationElementDto {
   final double strokeWidth;
   final int version;
   final bool isDeleted;
-  final String? userId;
+  final String? createdByMusicianId;
   final DateTime createdAt;
-  final DateTime changedAt;
+  final DateTime updatedAt;
 
   factory AnnotationElementDto.fromJson(Map<String, dynamic> json) {
-    final pointsJson = json['points'] as List<dynamic>?;
+    // Backend sends points as a JSON string, not a list
+    List<StrokePointDto>? points;
+    final rawPoints = json['points'];
+    if (rawPoints is String && rawPoints.isNotEmpty) {
+      final decoded = json_lib.jsonDecode(rawPoints) as List<dynamic>;
+      points = decoded
+          .map((p) => StrokePointDto.fromJson(p as Map<String, dynamic>))
+          .toList();
+    } else if (rawPoints is List) {
+      // Accept list format too for test flexibility
+      points = rawPoints
+          .map((p) => StrokePointDto.fromJson(p as Map<String, dynamic>))
+          .toList();
+    }
+
+    // Backend sends tool/level as int
+    final toolValue = json['tool'];
+    final levelValue = json['level'];
+
     return AnnotationElementDto(
       id: json['id'] as String,
       annotationId: json['annotationId'] as String,
-      tool: json['tool'] as String,
-      level: json['level'] as String,
-      pageIndex: json['pageIndex'] as int,
-      bbox: BBoxDto.fromJson(json['bbox'] as Map<String, dynamic>),
-      points: pointsJson
-          ?.map((p) => StrokePointDto.fromJson(p as Map<String, dynamic>))
-          .toList(),
+      tool: toolValue is int ? _toolFromInt(toolValue) : toolValue as String,
+      level:
+          levelValue is int ? _levelFromInt(levelValue) : levelValue as String,
+      bbox: BBoxDto(
+        x: (json['bboxX'] as num).toDouble(),
+        y: (json['bboxY'] as num).toDouble(),
+        width: (json['bboxWidth'] as num).toDouble(),
+        height: (json['bboxHeight'] as num).toDouble(),
+      ),
+      points: points,
       text: json['text'] as String?,
       stampCategory: json['stampCategory'] as String?,
       stampValue: json['stampValue'] as String?,
       opacity: (json['opacity'] as num).toDouble(),
       strokeWidth: (json['strokeWidth'] as num).toDouble(),
-      version: json['version'] as int,
+      version: (json['version'] as num).toInt(),
       isDeleted: json['isDeleted'] as bool,
-      userId: json['userId'] as String?,
+      createdByMusicianId: json['createdByMusicianId'] as String?,
       createdAt: DateTime.parse(json['createdAt'] as String),
-      changedAt: DateTime.parse(json['changedAt'] as String),
+      updatedAt: DateTime.parse(json['updatedAt'] as String),
     );
   }
 
   Map<String, dynamic> toJson() => {
         'id': id,
         'annotationId': annotationId,
-        'tool': tool,
-        'level': level,
-        'pageIndex': pageIndex,
-        'bbox': bbox.toJson(),
-        'points': points?.map((p) => p.toJson()).toList(),
+        'tool': _toolToInt(tool),
+        'level': _levelToInt(level),
+        'bboxX': bbox.x,
+        'bboxY': bbox.y,
+        'bboxWidth': bbox.width,
+        'bboxHeight': bbox.height,
+        'points': points != null
+            ? json_lib.jsonEncode(points!.map((p) => p.toJson()).toList())
+            : null,
         'text': text,
         'stampCategory': stampCategory,
         'stampValue': stampValue,
@@ -168,9 +201,9 @@ class AnnotationElementDto {
         'strokeWidth': strokeWidth,
         'version': version,
         'isDeleted': isDeleted,
-        'userId': userId,
+        'createdByMusicianId': createdByMusicianId,
         'createdAt': createdAt.toUtc().toIso8601String(),
-        'changedAt': changedAt.toUtc().toIso8601String(),
+        'updatedAt': updatedAt.toUtc().toIso8601String(),
       };
 }
 
@@ -267,16 +300,18 @@ class SyncVersion {
 
 // ─── ElementChangeNotification ──────────────────────────────────────────────
 
-/// Notification sent via SignalR when an element changes
+/// Notification sent via SignalR when an element changes.
+/// Backend uses `changeType` (string), not `type`.
 class ElementChangeNotification {
   const ElementChangeNotification({
-    required this.type,
+    required this.changeType,
     this.element,
     this.elementId,
     this.annotationId,
   });
 
-  final AnnotationOpType type;
+  /// One of: 'create', 'update', 'delete'
+  final String changeType;
   final AnnotationElementDto? element;
   final String? elementId;
   final String? annotationId;
@@ -284,7 +319,7 @@ class ElementChangeNotification {
   factory ElementChangeNotification.fromJson(Map<String, dynamic> json) {
     final elementJson = json['element'] as Map<String, dynamic>?;
     return ElementChangeNotification(
-      type: AnnotationOpType.fromJson(json['type'] as String),
+      changeType: json['changeType'] as String,
       element: elementJson != null
           ? AnnotationElementDto.fromJson(elementJson)
           : null,
@@ -294,7 +329,7 @@ class ElementChangeNotification {
   }
 
   Map<String, dynamic> toJson() => {
-        'type': type.toJson(),
+        'changeType': changeType,
         if (element != null) 'element': element!.toJson(),
         if (elementId != null) 'elementId': elementId,
         if (annotationId != null) 'annotationId': annotationId,

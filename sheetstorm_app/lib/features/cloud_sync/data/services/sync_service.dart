@@ -15,35 +15,31 @@ class SyncService {
 
   final Dio _dio;
 
-  /// Fetches current sync state: pending count and unresolved conflicts.
+  /// Fetches current sync state from server.
   Future<SyncStateResponse> getSyncState() async {
     final response =
         await _dio.get<Map<String, dynamic>>('/api/sync/state');
     return SyncStateResponse.fromJson(response.data!);
   }
 
-  /// Pulls deltas from server, optionally since a given timestamp.
-  Future<List<SyncDelta>> pull(DateTime? since) async {
-    final params = since != null
-        ? <String, dynamic>{'since': since.toIso8601String()}
-        : null;
-    final response = await _dio.get<Map<String, dynamic>>(
+  /// Pulls changes from server since a given version.
+  Future<PullResponse> pull(int sinceVersion) async {
+    final response = await _dio.post<Map<String, dynamic>>(
       '/api/sync/pull',
-      queryParameters: params,
+      data: {'sinceVersion': sinceVersion},
     );
-    final data = response.data!;
-    return (data['deltas'] as List<dynamic>? ?? [])
-        .map((d) => SyncDelta.fromJson(d as Map<String, dynamic>))
-        .toList();
+    return PullResponse.fromJson(response.data!);
   }
 
-  /// Pushes local deltas to server.
-  Future<void> push(List<SyncDelta> deltas) async {
-    await _dio.post<dynamic>(
+  /// Pushes local changes to server.
+  Future<PushResponse> push(int baseVersion, List<SyncDelta> changes) async {
+    final response = await _dio.post<Map<String, dynamic>>(
       '/api/sync/push',
       data: {
-        'deltas': deltas.map((d) => d.toJson()).toList(),
+        'baseVersion': baseVersion,
+        'changes': changes.map((d) => d.toJson()).toList(),
       },
     );
+    return PushResponse.fromJson(response.data!);
   }
 }

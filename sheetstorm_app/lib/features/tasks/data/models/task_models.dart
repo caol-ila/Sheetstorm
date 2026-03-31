@@ -1,72 +1,71 @@
 ﻿// Domain models for Task Management — MS3
+//
+// Backend contract: src/Sheetstorm.Domain/Tasks/TaskModels.cs
+// Enums serialize as int (ASP.NET Core default).
 
-// --- TaskStatus --------------------------------------------------------------
+// --- BandTaskStatus (backend: BandTaskStatus) --------------------------------
 
 enum TaskStatus {
-  open('open'),
-  inProgress('inProgress'),
-  done('done');
+  open(0),
+  inProgress(1),
+  done(2);
 
   const TaskStatus(this.value);
-  final String value;
+  final int value;
 
-  static TaskStatus fromJson(String value) => switch (value) {
-        'open' => TaskStatus.open,
-        'inProgress' => TaskStatus.inProgress,
-        'done' => TaskStatus.done,
+  static TaskStatus fromJson(dynamic value) => switch (value) {
+        0 => TaskStatus.open,
+        1 => TaskStatus.inProgress,
+        2 => TaskStatus.done,
         _ => TaskStatus.open,
       };
 
-  String toJson() => value;
+  int toJson() => value;
 }
 
 // --- TaskPriority ------------------------------------------------------------
 
 enum TaskPriority {
-  low('low'),
-  medium('medium'),
-  high('high');
+  low(0),
+  medium(1),
+  high(2);
 
   const TaskPriority(this.value);
-  final String value;
+  final int value;
 
-  static TaskPriority fromJson(String value) => switch (value) {
-        'low' => TaskPriority.low,
-        'medium' => TaskPriority.medium,
-        'high' => TaskPriority.high,
+  static TaskPriority fromJson(dynamic value) => switch (value) {
+        0 => TaskPriority.low,
+        1 => TaskPriority.medium,
+        2 => TaskPriority.high,
         _ => TaskPriority.medium,
       };
 
-  String toJson() => value;
+  int toJson() => value;
 }
 
-// --- TaskAssignee ------------------------------------------------------------
+// --- TaskAssignee (backend: TaskAssigneeDto) ---------------------------------
 
 class TaskAssignee {
-  final String userId;
+  final String musicianId;
   final String name;
-  final String? avatarUrl;
 
   const TaskAssignee({
-    required this.userId,
+    required this.musicianId,
     required this.name,
-    this.avatarUrl,
   });
 
   factory TaskAssignee.fromJson(Map<String, dynamic> json) => TaskAssignee(
-        userId: json['userId'] as String,
+        musicianId: json['musicianId'] as String,
         name: json['name'] as String,
-        avatarUrl: json['avatarUrl'] as String?,
       );
 
   Map<String, dynamic> toJson() => {
-        'userId': userId,
+        'musicianId': musicianId,
         'name': name,
-        'avatarUrl': avatarUrl,
       };
 }
 
-// --- BandTask ----------------------------------------------------------------
+// --- BandTask (backend: BandTaskDto) -----------------------------------------
 
 class BandTask {
   final String id;
@@ -77,7 +76,7 @@ class BandTask {
   final TaskPriority priority;
   final DateTime? dueDate;
   final String? eventId;
-  final String createdById;
+  final String createdByMusicianId;
   final String createdByName;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -92,7 +91,7 @@ class BandTask {
     required this.priority,
     this.dueDate,
     this.eventId,
-    required this.createdById,
+    required this.createdByMusicianId,
     required this.createdByName,
     required this.createdAt,
     required this.updatedAt,
@@ -100,7 +99,6 @@ class BandTask {
   });
 
   factory BandTask.fromJson(Map<String, dynamic> json) {
-    final creator = json['createdBy'] as Map<String, dynamic>;
     final rawAssignees = json['assignees'] as List<dynamic>? ?? [];
 
     return BandTask(
@@ -108,14 +106,14 @@ class BandTask {
       bandId: json['bandId'] as String,
       title: json['title'] as String,
       description: json['description'] as String?,
-      status: TaskStatus.fromJson(json['status'] as String),
-      priority: TaskPriority.fromJson(json['priority'] as String),
+      status: TaskStatus.fromJson(json['status']),
+      priority: TaskPriority.fromJson(json['priority']),
       dueDate: json['dueDate'] != null
           ? DateTime.parse(json['dueDate'] as String)
           : null,
       eventId: json['eventId'] as String?,
-      createdById: creator['id'] as String,
-      createdByName: creator['name'] as String,
+      createdByMusicianId: json['createdByMusicianId'] as String,
+      createdByName: json['createdByName'] as String,
       createdAt: DateTime.parse(json['createdAt'] as String),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
       assignees: rawAssignees
@@ -133,10 +131,8 @@ class BandTask {
         'priority': priority.toJson(),
         if (dueDate != null) 'dueDate': dueDate!.toIso8601String(),
         if (eventId != null) 'eventId': eventId,
-        'createdBy': {
-          'id': createdById,
-          'name': createdByName,
-        },
+        'createdByMusicianId': createdByMusicianId,
+        'createdByName': createdByName,
         'createdAt': createdAt.toIso8601String(),
         'updatedAt': updatedAt.toIso8601String(),
         'assignees': assignees.map((a) => a.toJson()).toList(),
@@ -151,7 +147,7 @@ class BandTask {
     TaskPriority? priority,
     DateTime? dueDate,
     String? eventId,
-    String? createdById,
+    String? createdByMusicianId,
     String? createdByName,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -166,7 +162,7 @@ class BandTask {
         priority: priority ?? this.priority,
         dueDate: dueDate ?? this.dueDate,
         eventId: eventId ?? this.eventId,
-        createdById: createdById ?? this.createdById,
+        createdByMusicianId: createdByMusicianId ?? this.createdByMusicianId,
         createdByName: createdByName ?? this.createdByName,
         createdAt: createdAt ?? this.createdAt,
         updatedAt: updatedAt ?? this.updatedAt,
@@ -197,7 +193,6 @@ class CreateTaskRequest {
 
   Map<String, dynamic> toJson() => {
         'title': title,
-        'bandId': bandId,
         if (description != null) 'description': description,
         if (dueDate != null) 'dueDate': dueDate!.toIso8601String(),
         if (priority != null) 'priority': priority!.toJson(),

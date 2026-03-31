@@ -25,17 +25,15 @@ AnnotationElementDto _elementDto({
   String annotationId = 'annot-1',
   String tool = 'pencil',
   String level = 'voice',
-  int pageIndex = 0,
   int version = 1,
   bool isDeleted = false,
-  String userId = 'user-remote',
+  String createdByMusicianId = 'user-remote',
 }) =>
     AnnotationElementDto(
       id: id,
       annotationId: annotationId,
       tool: tool,
       level: level,
-      pageIndex: pageIndex,
       bbox: const BBoxDto(x: 0.1, y: 0.2, width: 0.3, height: 0.05),
       points: const [
         StrokePointDto(x: 0.1, y: 0.2, pressure: 0.5),
@@ -45,9 +43,9 @@ AnnotationElementDto _elementDto({
       strokeWidth: 3.0,
       version: version,
       isDeleted: isDeleted,
-      userId: userId,
+      createdByMusicianId: createdByMusicianId,
       createdAt: DateTime.utc(2026, 4, 1),
-      changedAt: DateTime.utc(2026, 4, 1),
+      updatedAt: DateTime.utc(2026, 4, 1),
     );
 
 void main() {
@@ -56,7 +54,7 @@ void main() {
   group('AnnotationElementDto → Annotation Konvertierung', () {
     test('toAnnotation konvertiert pencil-Element korrekt', () {
       final dto = _elementDto();
-      final annotation = dtoToAnnotation(dto);
+      final annotation = dtoToAnnotation(dto, pageIndex: 0);
 
       expect(annotation.id, 'remote-elem-1');
       expect(annotation.level, AnnotationLevel.voice);
@@ -74,18 +72,17 @@ void main() {
         annotationId: 'annot-1',
         tool: 'text',
         level: 'orchestra',
-        pageIndex: 3,
         bbox: const BBoxDto(x: 0.5, y: 0.5, width: 0.15, height: 0.03),
         text: 'forte hier',
         opacity: 1.0,
         strokeWidth: 3.0,
         version: 1,
         isDeleted: false,
-        userId: 'user-1',
+        createdByMusicianId: 'user-1',
         createdAt: DateTime.utc(2026, 4, 1),
-        changedAt: DateTime.utc(2026, 4, 1),
+        updatedAt: DateTime.utc(2026, 4, 1),
       );
-      final annotation = dtoToAnnotation(dto);
+      final annotation = dtoToAnnotation(dto, pageIndex: 3);
       expect(annotation.tool, AnnotationTool.text);
       expect(annotation.text, 'forte hier');
       expect(annotation.level, AnnotationLevel.orchestra);
@@ -97,7 +94,6 @@ void main() {
         annotationId: 'annot-1',
         tool: 'stamp',
         level: 'private',
-        pageIndex: 1,
         bbox: const BBoxDto(x: 0.3, y: 0.4, width: 0.04, height: 0.03),
         stampCategory: 'dynamik',
         stampValue: 'ff',
@@ -105,11 +101,11 @@ void main() {
         strokeWidth: 3.0,
         version: 1,
         isDeleted: false,
-        userId: 'user-1',
+        createdByMusicianId: 'user-1',
         createdAt: DateTime.utc(2026, 4, 1),
-        changedAt: DateTime.utc(2026, 4, 1),
+        updatedAt: DateTime.utc(2026, 4, 1),
       );
-      final annotation = dtoToAnnotation(dto);
+      final annotation = dtoToAnnotation(dto, pageIndex: 1);
       expect(annotation.tool, AnnotationTool.stamp);
       expect(annotation.stampCategory, 'dynamik');
       expect(annotation.stampValue, 'ff');
@@ -134,13 +130,12 @@ void main() {
       final dto = annotationToDto(
         original,
         annotationId: 'annot-1',
-        userId: 'user-1',
+        musicianId: 'user-1',
         version: 1,
       );
       expect(dto.id, 'local-1');
       expect(dto.tool, 'pencil');
       expect(dto.level, 'voice');
-      expect(dto.pageIndex, 2);
       expect(dto.opacity, 0.8);
       expect(dto.strokeWidth, 5.0);
       expect(dto.points, hasLength(2));
@@ -192,11 +187,11 @@ void main() {
       final syncNotifier = _syncNotifier(container);
 
       // Remote add
-      final dto = _elementDto(id: 'remote-1', pageIndex: 0);
+      final dto = _elementDto(id: 'remote-1');
       syncNotifier.applyRemoteAdd(dto);
 
       // Convert and apply to annotation state
-      final annotation = dtoToAnnotation(dto);
+      final annotation = dtoToAnnotation(dto, pageIndex: 0);
       annotNotifier.addAnnotation(annotation);
 
       expect(_annotState(container, pieceId).annotations, hasLength(1));
@@ -214,8 +209,8 @@ void main() {
       // Add two annotations
       final dto1 = _elementDto(id: 'elem-1');
       final dto2 = _elementDto(id: 'elem-2');
-      annotNotifier.addAnnotation(dtoToAnnotation(dto1));
-      annotNotifier.addAnnotation(dtoToAnnotation(dto2));
+      annotNotifier.addAnnotation(dtoToAnnotation(dto1, pageIndex: 0));
+      annotNotifier.addAnnotation(dtoToAnnotation(dto2, pageIndex: 0));
       expect(_annotState(container, pieceId).annotations, hasLength(2));
 
       // Remote delete

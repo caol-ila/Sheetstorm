@@ -209,6 +209,18 @@ class AnnotationSyncNotifier extends Notifier<AnnotationSyncState> {
   void dismissConflict() {
     state = state.copyWith(clearConflict: true);
   }
+
+  // ── Disconnect Handling ───────────────────────────────────────────────
+
+  /// Called when the SignalR connection drops. Transitions to disconnected,
+  /// clears stale presence data, preserves offline queue for retry.
+  void handleDisconnect() {
+    state = state.copyWith(
+      status: AnnotationSyncStatus.disconnected,
+      activeEditors: {},
+      clearError: true,
+    );
+  }
 }
 
 // ─── Provider ───────────────────────────────────────────────────────────────

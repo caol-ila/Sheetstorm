@@ -25,7 +25,7 @@ BandTask _task({
       status: status,
       priority: priority,
       dueDate: dueDate,
-      createdById: 'user1',
+      createdByMusicianId: 'user1',
       createdByName: 'Max Mustermann',
       createdAt: DateTime(2025, 1, 15),
       updatedAt: DateTime(2025, 1, 15),

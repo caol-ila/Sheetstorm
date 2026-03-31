@@ -3,20 +3,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sheetstorm/features/cloud_sync/data/models/sync_models.dart';
 import 'package:sheetstorm/features/cloud_sync/presentation/widgets/sync_conflict_dialog.dart';
 
-SyncConflict _conflict({String resolvedWith = 'server'}) {
-  final version = SyncVersion(deviceId: 'dev1', timestamp: DateTime(2025, 6, 1));
-  final delta = SyncDelta(
-    entityType: 'sheet_music',
-    entityId: 'sm-001',
-    operation: 'update',
-    version: version,
-  );
+SyncConflict _conflict({String resolution = 'server'}) {
   return SyncConflict(
+    clientChangeId: 'cc-1',
     entityType: 'sheet_music',
     entityId: 'sm-001',
-    localDelta: delta,
-    serverDelta: delta,
-    resolvedWith: resolvedWith,
+    serverChangedAt: DateTime(2025, 6, 1),
+    resolution: resolution,
   );
 }
 
@@ -54,13 +47,13 @@ void main() {
       expect(find.textContaining('Last-Write-Wins'), findsOneWidget);
     });
 
-    testWidgets('zeigt Server-Version für resolvedWith=server', (tester) async {
-      await tester.pumpWidget(_buildDialog(_conflict(resolvedWith: 'server')));
+    testWidgets('zeigt Server-Version für resolution=server', (tester) async {
+      await tester.pumpWidget(_buildDialog(_conflict(resolution: 'server')));
       expect(find.textContaining('Server-Version'), findsOneWidget);
     });
 
-    testWidgets('zeigt Lokale Version für resolvedWith=local', (tester) async {
-      await tester.pumpWidget(_buildDialog(_conflict(resolvedWith: 'local')));
+    testWidgets('zeigt Lokale Version für resolution=local', (tester) async {
+      await tester.pumpWidget(_buildDialog(_conflict(resolution: 'local')));
       expect(find.textContaining('Lokale Version'), findsOneWidget);
     });
   });

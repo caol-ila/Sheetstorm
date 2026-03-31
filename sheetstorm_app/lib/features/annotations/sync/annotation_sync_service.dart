@@ -201,9 +201,10 @@ class AnnotationSignalRService {
     _send('LeaveAnnotationGroup', [bandId, piecePageId, level, voiceId]);
   }
 
-  /// Notify server of an element change
-  void notifyElementChange(ElementChangeNotification notification) {
-    _send('NotifyElementChange', [notification.toJson()]);
+  /// Notify server of an element change (requires groupName as first positional arg)
+  void notifyElementChange(
+      String groupName, ElementChangeNotification notification) {
+    _send('NotifyElementChange', [groupName, notification.toJson()]);
   }
 
   void _send(String target, List<dynamic> arguments) {

@@ -5,52 +5,52 @@ void main() {
   // --- TaskStatus -----------------------------------------------------------
 
   group('TaskStatus — fromJson / toJson', () {
-    test('open parst korrekt', () {
-      expect(TaskStatus.fromJson('open'), TaskStatus.open);
+    test('0 → open', () {
+      expect(TaskStatus.fromJson(0), TaskStatus.open);
     });
 
-    test('inProgress parst korrekt', () {
-      expect(TaskStatus.fromJson('inProgress'), TaskStatus.inProgress);
+    test('1 → inProgress', () {
+      expect(TaskStatus.fromJson(1), TaskStatus.inProgress);
     });
 
-    test('done parst korrekt', () {
-      expect(TaskStatus.fromJson('done'), TaskStatus.done);
+    test('2 → done', () {
+      expect(TaskStatus.fromJson(2), TaskStatus.done);
     });
 
     test('unbekannter Wert → open (Fallback)', () {
-      expect(TaskStatus.fromJson('unknown'), TaskStatus.open);
+      expect(TaskStatus.fromJson(99), TaskStatus.open);
     });
 
-    test('toJson gibt den richtigen String zurück', () {
-      expect(TaskStatus.open.toJson(), 'open');
-      expect(TaskStatus.inProgress.toJson(), 'inProgress');
-      expect(TaskStatus.done.toJson(), 'done');
+    test('toJson gibt den richtigen int zurück', () {
+      expect(TaskStatus.open.toJson(), 0);
+      expect(TaskStatus.inProgress.toJson(), 1);
+      expect(TaskStatus.done.toJson(), 2);
     });
   });
 
   // --- TaskPriority ---------------------------------------------------------
 
   group('TaskPriority — fromJson / toJson', () {
-    test('low parst korrekt', () {
-      expect(TaskPriority.fromJson('low'), TaskPriority.low);
+    test('0 → low', () {
+      expect(TaskPriority.fromJson(0), TaskPriority.low);
     });
 
-    test('medium parst korrekt', () {
-      expect(TaskPriority.fromJson('medium'), TaskPriority.medium);
+    test('1 → medium', () {
+      expect(TaskPriority.fromJson(1), TaskPriority.medium);
     });
 
-    test('high parst korrekt', () {
-      expect(TaskPriority.fromJson('high'), TaskPriority.high);
+    test('2 → high', () {
+      expect(TaskPriority.fromJson(2), TaskPriority.high);
     });
 
     test('unbekannter Wert → medium (Fallback)', () {
-      expect(TaskPriority.fromJson('unknown'), TaskPriority.medium);
+      expect(TaskPriority.fromJson(99), TaskPriority.medium);
     });
 
-    test('toJson gibt den richtigen String zurück', () {
-      expect(TaskPriority.low.toJson(), 'low');
-      expect(TaskPriority.medium.toJson(), 'medium');
-      expect(TaskPriority.high.toJson(), 'high');
+    test('toJson gibt den richtigen int zurück', () {
+      expect(TaskPriority.low.toJson(), 0);
+      expect(TaskPriority.medium.toJson(), 1);
+      expect(TaskPriority.high.toJson(), 2);
     });
   });
 
@@ -62,21 +62,18 @@ void main() {
       'bandId': 'band1',
       'title': 'Notenständer besorgen',
       'description': 'Für die nächste Probe',
-      'status': 'open',
-      'priority': 'high',
+      'status': 0, // Open
+      'priority': 2, // High
       'dueDate': '2025-06-01T18:00:00.000Z',
       'eventId': 'event1',
-      'createdBy': {
-        'id': 'user1',
-        'name': 'Max Mustermann',
-      },
+      'createdByMusicianId': 'user1',
+      'createdByName': 'Max Mustermann',
       'createdAt': '2025-01-15T10:00:00.000Z',
       'updatedAt': '2025-01-15T10:00:00.000Z',
       'assignees': [
         {
-          'userId': 'user2',
+          'musicianId': 'user2',
           'name': 'Anna Schmidt',
-          'avatarUrl': null,
         },
       ],
     };
@@ -97,16 +94,16 @@ void main() {
       expect(task.eventId, 'event1');
     });
 
-    test('Ersteller wird korrekt gemappt', () {
+    test('Ersteller wird korrekt gemappt (flat fields)', () {
       final task = BandTask.fromJson(fullJson);
-      expect(task.createdById, 'user1');
+      expect(task.createdByMusicianId, 'user1');
       expect(task.createdByName, 'Max Mustermann');
     });
 
     test('Zuweisungen werden korrekt gemappt', () {
       final task = BandTask.fromJson(fullJson);
       expect(task.assignees.length, 1);
-      expect(task.assignees.first.userId, 'user2');
+      expect(task.assignees.first.musicianId, 'user2');
       expect(task.assignees.first.name, 'Anna Schmidt');
     });
 
@@ -115,9 +112,10 @@ void main() {
         'id': 'task2',
         'bandId': 'band1',
         'title': 'Einfache Aufgabe',
-        'status': 'open',
-        'priority': 'medium',
-        'createdBy': {'id': 'u1', 'name': 'Test'},
+        'status': 0,
+        'priority': 1,
+        'createdByMusicianId': 'u1',
+        'createdByName': 'Test',
         'createdAt': '2025-01-15T10:00:00.000Z',
         'updatedAt': '2025-01-15T10:00:00.000Z',
         'assignees': <dynamic>[],
@@ -142,23 +140,23 @@ void main() {
       priority: TaskPriority.high,
       dueDate: DateTime.utc(2025, 6, 1, 18),
       eventId: 'event1',
-      createdById: 'user1',
+      createdByMusicianId: 'user1',
       createdByName: 'Max',
       createdAt: DateTime.utc(2025, 1, 15, 10),
       updatedAt: DateTime.utc(2025, 1, 15, 10),
       assignees: [
-        const TaskAssignee(userId: 'user2', name: 'Anna'),
+        const TaskAssignee(musicianId: 'user2', name: 'Anna'),
       ],
     );
 
-    test('Status wird korrekt serialisiert', () {
+    test('Status wird als int serialisiert', () {
       final json = task.toJson();
-      expect(json['status'], 'inProgress');
+      expect(json['status'], 1); // inProgress = 1
     });
 
-    test('Priorität wird korrekt serialisiert', () {
+    test('Priorität wird als int serialisiert', () {
       final json = task.toJson();
-      expect(json['priority'], 'high');
+      expect(json['priority'], 2); // high = 2
     });
 
     test('Pflichtfelder sind vorhanden', () {
@@ -166,6 +164,13 @@ void main() {
       expect(json['id'], 'task1');
       expect(json['bandId'], 'band1');
       expect(json['title'], 'Test Aufgabe');
+    });
+
+    test('createdByMusicianId als flat field', () {
+      final json = task.toJson();
+      expect(json['createdByMusicianId'], 'user1');
+      expect(json['createdByName'], 'Max');
+      expect(json.containsKey('createdBy'), isFalse);
     });
   });
 
@@ -178,7 +183,7 @@ void main() {
       title: 'Original',
       status: TaskStatus.open,
       priority: TaskPriority.medium,
-      createdById: 'user1',
+      createdByMusicianId: 'user1',
       createdByName: 'Max',
       createdAt: DateTime(2025, 1, 1),
       updatedAt: DateTime(2025, 1, 1),
@@ -199,7 +204,7 @@ void main() {
 
     test('Unveränderliche Felder bleiben erhalten', () {
       final updated = original.copyWith(title: 'Neu');
-      expect(updated.createdById, 'user1');
+      expect(updated.createdByMusicianId, 'user1');
       expect(updated.assignees, isEmpty);
     });
   });
@@ -209,24 +214,12 @@ void main() {
   group('TaskAssignee — fromJson', () {
     test('Zugewiesener wird korrekt gemappt', () {
       final json = <String, dynamic>{
-        'userId': 'u1',
+        'musicianId': 'u1',
         'name': 'Hans Maier',
-        'avatarUrl': 'https://example.com/avatar.jpg',
       };
       final assignee = TaskAssignee.fromJson(json);
-      expect(assignee.userId, 'u1');
+      expect(assignee.musicianId, 'u1');
       expect(assignee.name, 'Hans Maier');
-      expect(assignee.avatarUrl, 'https://example.com/avatar.jpg');
-    });
-
-    test('avatarUrl kann null sein', () {
-      final json = <String, dynamic>{
-        'userId': 'u1',
-        'name': 'Hans',
-        'avatarUrl': null,
-      };
-      final assignee = TaskAssignee.fromJson(json);
-      expect(assignee.avatarUrl, isNull);
     });
   });
 
@@ -240,7 +233,8 @@ void main() {
       );
       final json = req.toJson();
       expect(json['title'], 'Neue Aufgabe');
-      expect(json['bandId'], 'band1');
+      // bandId is used for URL path, not in body
+      expect(json.containsKey('bandId'), isFalse);
     });
 
     test('Optionale Felder werden nur eingeschlossen wenn gesetzt', () {
@@ -254,7 +248,7 @@ void main() {
       final json = req.toJson();
       expect(json['description'], 'Beschreibung');
       expect(json['dueDate'], isNotNull);
-      expect(json['priority'], 'high');
+      expect(json['priority'], 2); // high = 2
     });
 
     test('Nicht gesetzte optionale Felder fehlen im JSON', () {

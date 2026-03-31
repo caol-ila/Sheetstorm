@@ -19,7 +19,7 @@ class SyncConflictDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final resolutionLabel = conflict.resolvedWith == 'server'
+    final resolutionLabel = conflict.resolution == 'server'
         ? 'Server-Version'
         : 'Lokale Version';
 

@@ -65,7 +65,7 @@ class TaskService {
       priority: priority,
       eventId: eventId,
     );
-    final res = await _dio.patch<Map<String, dynamic>>(
+    final res = await _dio.put<Map<String, dynamic>>(
       '/api/bands/$bandId/tasks/$taskId',
       data: req.toJson(),
     );
@@ -77,7 +77,7 @@ class TaskService {
     String taskId,
     TaskStatus status,
   ) async {
-    final res = await _dio.put<Map<String, dynamic>>(
+    final res = await _dio.patch<Map<String, dynamic>>(
       '/api/bands/$bandId/tasks/$taskId/status',
       data: {'status': status.toJson()},
     );

@@ -13,157 +13,173 @@ void main() {
     test('contains error', () => expect(SyncStatus.values, contains(SyncStatus.error)));
   });
 
-  // ─── SyncVersion ─────────────────────────────────────────────────────────────
+  // ─── SyncChangeEntry ────────────────────────────────────────────────────────
 
-  group('SyncVersion — fromJson/toJson round-trip', () {
+  group('SyncChangeEntry — fromJson', () {
     final json = {
-      'deviceId': 'device-abc',
-      'timestamp': '2025-06-01T10:00:00.000Z',
-      'vectorClock': {'device-abc': 5, 'device-xyz': 3},
-    };
-
-    test('fromJson parses deviceId', () {
-      final v = SyncVersion.fromJson(json);
-      expect(v.deviceId, 'device-abc');
-    });
-
-    test('fromJson parses timestamp', () {
-      final v = SyncVersion.fromJson(json);
-      expect(v.timestamp, DateTime.parse('2025-06-01T10:00:00.000Z'));
-    });
-
-    test('fromJson parses vectorClock', () {
-      final v = SyncVersion.fromJson(json);
-      expect(v.vectorClock['device-abc'], 5);
-      expect(v.vectorClock['device-xyz'], 3);
-    });
-
-    test('toJson produces correct keys', () {
-      final v = SyncVersion.fromJson(json);
-      final out = v.toJson();
-      expect(out['deviceId'], 'device-abc');
-      expect(out['vectorClock'], isA<Map>());
-    });
-
-    test('empty vectorClock is allowed', () {
-      final v = SyncVersion.fromJson(const {
-        'deviceId': 'dev1',
-        'timestamp': '2025-01-01T00:00:00.000Z',
-      });
-      expect(v.vectorClock, isEmpty);
-    });
-  });
-
-  // ─── SyncDelta ────────────────────────────────────────────────────────────────
-
-  group('SyncDelta — fromJson/toJson round-trip', () {
-    final versionJson = {
-      'deviceId': 'dev1',
-      'timestamp': '2025-06-01T10:00:00.000Z',
-      'vectorClock': <String, dynamic>{},
-    };
-
-    final deltaJson = {
+      'version': 42,
       'entityType': 'sheet_music',
       'entityId': 'sm-001',
       'operation': 'update',
-      'version': versionJson,
-      'payload': {'title': 'Ode an die Freude'},
+      'fieldName': 'title',
+      'newValue': 'Ode an die Freude',
+      'changedAt': '2025-06-01T10:00:00.000Z',
     };
 
-    test('fromJson parses entityType', () {
-      final d = SyncDelta.fromJson(deltaJson);
-      expect(d.entityType, 'sheet_music');
+    test('parses version', () {
+      final e = SyncChangeEntry.fromJson(json);
+      expect(e.version, 42);
     });
 
-    test('fromJson parses entityId', () {
-      final d = SyncDelta.fromJson(deltaJson);
-      expect(d.entityId, 'sm-001');
+    test('parses entityType', () {
+      final e = SyncChangeEntry.fromJson(json);
+      expect(e.entityType, 'sheet_music');
     });
 
-    test('fromJson parses operation', () {
-      final d = SyncDelta.fromJson(deltaJson);
-      expect(d.operation, 'update');
+    test('parses operation', () {
+      final e = SyncChangeEntry.fromJson(json);
+      expect(e.operation, 'update');
     });
 
-    test('fromJson parses version', () {
-      final d = SyncDelta.fromJson(deltaJson);
-      expect(d.version.deviceId, 'dev1');
+    test('parses fieldName and newValue', () {
+      final e = SyncChangeEntry.fromJson(json);
+      expect(e.fieldName, 'title');
+      expect(e.newValue, 'Ode an die Freude');
     });
 
-    test('fromJson parses payload', () {
-      final d = SyncDelta.fromJson(deltaJson);
-      expect(d.payload['title'], 'Ode an die Freude');
+    test('null fieldName is allowed', () {
+      final j = Map<String, dynamic>.from(json)
+        ..remove('fieldName')
+        ..remove('newValue');
+      final e = SyncChangeEntry.fromJson(j);
+      expect(e.fieldName, isNull);
+      expect(e.newValue, isNull);
     });
 
-    test('toJson round-trip preserves entityId', () {
-      final d = SyncDelta.fromJson(deltaJson);
+    test('parses fields map', () {
+      final j = Map<String, dynamic>.from(json)
+        ..['fields'] = {'title': 'New', 'key': 'new_key'};
+      final e = SyncChangeEntry.fromJson(j);
+      expect(e.fields?['title'], 'New');
+    });
+  });
+
+  // ─── SyncDelta (push format) ───────────────────────────────────────────────
+
+  group('SyncDelta — toJson', () {
+    test('serializes all fields', () {
+      final d = SyncDelta(
+        clientChangeId: 'cc-1',
+        entityType: 'sheet_music',
+        entityId: 'sm-001',
+        operation: 'update',
+        fieldName: 'title',
+        newValue: 'Neuer Titel',
+        changedAt: DateTime.utc(2025, 6, 1, 10),
+      );
       final out = d.toJson();
+      expect(out['clientChangeId'], 'cc-1');
+      expect(out['entityType'], 'sheet_music');
       expect(out['entityId'], 'sm-001');
-    });
-
-    test('toJson round-trip preserves operation', () {
-      final d = SyncDelta.fromJson(deltaJson);
-      final out = d.toJson();
       expect(out['operation'], 'update');
+      expect(out['fieldName'], 'title');
+      expect(out['newValue'], 'Neuer Titel');
     });
 
-    test('missing payload defaults to empty map', () {
-      final json = {
-        'entityType': 'annotation',
-        'entityId': 'ann-1',
-        'operation': 'delete',
-        'version': versionJson,
-      };
-      final d = SyncDelta.fromJson(json);
-      expect(d.payload, isEmpty);
+    test('omits null optional fields', () {
+      final d = SyncDelta(
+        clientChangeId: 'cc-2',
+        entityType: 'annotation',
+        operation: 'create',
+        changedAt: DateTime.utc(2025, 6, 1),
+      );
+      final out = d.toJson();
+      expect(out.containsKey('entityId'), isFalse);
+      expect(out.containsKey('fieldName'), isFalse);
+      expect(out.containsKey('newValue'), isFalse);
     });
   });
 
   // ─── SyncConflict ─────────────────────────────────────────────────────────────
 
-  group('SyncConflict — fromJson/toJson', () {
-    final vJson = {
-      'deviceId': 'dev1',
-      'timestamp': '2025-06-01T10:00:00.000Z',
-      'vectorClock': <String, dynamic>{},
-    };
-    final deltaJson = {
-      'entityType': 'sheet_music',
-      'entityId': 'sm-001',
-      'operation': 'update',
-      'version': vJson,
-      'payload': <String, dynamic>{},
-    };
-
+  group('SyncConflict — fromJson', () {
     final conflictJson = {
+      'clientChangeId': 'cc-1',
       'entityType': 'sheet_music',
       'entityId': 'sm-001',
-      'localDelta': deltaJson,
-      'serverDelta': deltaJson,
-      'resolvedWith': 'server',
+      'fieldName': 'title',
+      'clientValue': 'Mein Titel',
+      'serverValue': 'Server Titel',
+      'serverChangedAt': '2025-06-01T10:00:00.000Z',
+      'resolution': 'server',
     };
 
-    test('fromJson parses entityType', () {
+    test('parses entityType', () {
       final c = SyncConflict.fromJson(conflictJson);
       expect(c.entityType, 'sheet_music');
     });
 
-    test('fromJson parses resolvedWith', () {
+    test('parses resolution', () {
       final c = SyncConflict.fromJson(conflictJson);
-      expect(c.resolvedWith, 'server');
+      expect(c.resolution, 'server');
     });
 
-    test('fromJson defaults resolvedWith to server', () {
-      final json = Map<String, dynamic>.from(conflictJson)..remove('resolvedWith');
-      final c = SyncConflict.fromJson(json);
-      expect(c.resolvedWith, 'server');
+    test('parses clientValue and serverValue', () {
+      final c = SyncConflict.fromJson(conflictJson);
+      expect(c.clientValue, 'Mein Titel');
+      expect(c.serverValue, 'Server Titel');
     });
 
-    test('toJson round-trip preserves entityId', () {
+    test('parses clientChangeId', () {
       final c = SyncConflict.fromJson(conflictJson);
-      final out = c.toJson();
-      expect(out['entityId'], 'sm-001');
+      expect(c.clientChangeId, 'cc-1');
+    });
+  });
+
+  // ─── PullResponse ─────────────────────────────────────────────────────────────
+
+  group('PullResponse — fromJson', () {
+    test('parses changes and version', () {
+      final json = {
+        'changes': [
+          {
+            'version': 1,
+            'entityType': 'sheet_music',
+            'entityId': 'sm-001',
+            'operation': 'create',
+            'changedAt': '2025-06-01T10:00:00.000Z',
+          },
+        ],
+        'currentVersion': 5,
+        'hasMore': false,
+      };
+      final r = PullResponse.fromJson(json);
+      expect(r.changes.length, 1);
+      expect(r.currentVersion, 5);
+      expect(r.hasMore, isFalse);
+    });
+  });
+
+  // ─── PushResponse ─────────────────────────────────────────────────────────────
+
+  group('PushResponse — fromJson', () {
+    test('parses accepted and conflicts', () {
+      final json = {
+        'accepted': [
+          {
+            'clientChangeId': 'cc-1',
+            'serverVersion': 6,
+            'serverEntityId': 'sm-001',
+          },
+        ],
+        'conflicts': <dynamic>[],
+        'newVersion': 7,
+      };
+      final r = PushResponse.fromJson(json);
+      expect(r.accepted.length, 1);
+      expect(r.accepted.first.clientChangeId, 'cc-1');
+      expect(r.conflicts, isEmpty);
+      expect(r.newVersion, 7);
     });
   });
 
@@ -175,9 +191,14 @@ void main() {
       expect(s.status, SyncStatus.idle);
     });
 
-    test('default pendingChanges is 0', () {
+    test('default currentVersion is 0', () {
       const s = SyncState();
-      expect(s.pendingChanges, 0);
+      expect(s.currentVersion, 0);
+    });
+
+    test('default pendingServerChanges is 0', () {
+      const s = SyncState();
+      expect(s.pendingServerChanges, 0);
     });
 
     test('default conflicts is empty', () {
@@ -211,16 +232,16 @@ void main() {
       expect(updated.status, SyncStatus.synced);
     });
 
-    test('copyWith updates pendingChanges', () {
+    test('copyWith updates pendingServerChanges', () {
       const s = SyncState();
-      final updated = s.copyWith(pendingChanges: 3);
-      expect(updated.pendingChanges, 3);
+      final updated = s.copyWith(pendingServerChanges: 3);
+      expect(updated.pendingServerChanges, 3);
     });
 
     test('copyWith preserves unchanged fields', () {
-      const s = SyncState(pendingChanges: 2);
+      const s = SyncState(pendingServerChanges: 2);
       final updated = s.copyWith(status: SyncStatus.syncing);
-      expect(updated.pendingChanges, 2);
+      expect(updated.pendingServerChanges, 2);
     });
 
     test('copyWith updates lastSyncAt', () {
@@ -230,9 +251,15 @@ void main() {
       expect(updated.lastSyncAt, now);
     });
 
+    test('copyWith clearError resets errorMessage', () {
+      const s = SyncState(errorMessage: 'old error');
+      final updated = s.copyWith(clearError: true);
+      expect(updated.errorMessage, isNull);
+    });
+
     test('equatable: two identical states are equal', () {
-      const a = SyncState(status: SyncStatus.idle, pendingChanges: 0);
-      const b = SyncState(status: SyncStatus.idle, pendingChanges: 0);
+      const a = SyncState(status: SyncStatus.idle, pendingServerChanges: 0);
+      const b = SyncState(status: SyncStatus.idle, pendingServerChanges: 0);
       expect(a, equals(b));
     });
   });
@@ -240,28 +267,29 @@ void main() {
   // ─── SyncStateResponse ────────────────────────────────────────────────────────
 
   group('SyncStateResponse — fromJson', () {
-    test('parses pendingChanges', () {
+    test('parses currentVersion and pendingServerChanges', () {
       final r = SyncStateResponse.fromJson({
+        'currentVersion': 42,
         'lastSyncAt': null,
-        'pendingChanges': 4,
-        'conflicts': <dynamic>[],
+        'pendingServerChanges': 4,
       });
-      expect(r.pendingChanges, 4);
+      expect(r.currentVersion, 42);
+      expect(r.pendingServerChanges, 4);
     });
 
     test('parses lastSyncAt', () {
       final r = SyncStateResponse.fromJson({
+        'currentVersion': 1,
         'lastSyncAt': '2025-05-30T08:00:00.000Z',
-        'pendingChanges': 0,
-        'conflicts': <dynamic>[],
+        'pendingServerChanges': 0,
       });
       expect(r.lastSyncAt, isNotNull);
     });
 
     test('null lastSyncAt stays null', () {
       final r = SyncStateResponse.fromJson({
-        'pendingChanges': 0,
-        'conflicts': <dynamic>[],
+        'currentVersion': 0,
+        'pendingServerChanges': 0,
       });
       expect(r.lastSyncAt, isNull);
     });

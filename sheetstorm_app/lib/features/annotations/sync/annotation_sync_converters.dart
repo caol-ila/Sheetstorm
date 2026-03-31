@@ -5,13 +5,14 @@
 import 'package:sheetstorm/features/annotations/data/models/annotation_models.dart';
 import 'package:sheetstorm/features/annotations/sync/annotation_op_model.dart';
 
-/// Convert AnnotationElementDto (wire) → Annotation (local)
-Annotation dtoToAnnotation(AnnotationElementDto dto) {
+/// Convert AnnotationElementDto (wire) → Annotation (local).
+/// [pageIndex] must be supplied from sync context (the page being synced).
+Annotation dtoToAnnotation(AnnotationElementDto dto, {required int pageIndex}) {
   return Annotation(
     id: dto.id,
     level: levelFromString(dto.level),
     tool: toolFromString(dto.tool),
-    pageIndex: dto.pageIndex,
+    pageIndex: pageIndex,
     bbox: BBox(
       x: dto.bbox.x,
       y: dto.bbox.y,
@@ -35,7 +36,7 @@ Annotation dtoToAnnotation(AnnotationElementDto dto) {
 AnnotationElementDto annotationToDto(
   Annotation a, {
   required String annotationId,
-  required String userId,
+  required String musicianId,
   required int version,
 }) {
   return AnnotationElementDto(
@@ -43,7 +44,6 @@ AnnotationElementDto annotationToDto(
     annotationId: annotationId,
     tool: toolToString(a.tool),
     level: levelToString(a.level),
-    pageIndex: a.pageIndex,
     bbox: BBoxDto(
       x: a.bbox.x,
       y: a.bbox.y,
@@ -63,9 +63,9 @@ AnnotationElementDto annotationToDto(
     strokeWidth: a.strokeWidth,
     version: version,
     isDeleted: false,
-    userId: userId,
+    createdByMusicianId: musicianId,
     createdAt: a.createdAt,
-    changedAt: DateTime.now().toUtc(),
+    updatedAt: DateTime.now().toUtc(),
   );
 }
 

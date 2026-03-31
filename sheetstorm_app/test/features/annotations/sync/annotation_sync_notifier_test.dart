@@ -35,25 +35,23 @@ AnnotationElementDto _elementDto({
   String annotationId = 'annot-1',
   String tool = 'pencil',
   String level = 'voice',
-  int pageIndex = 0,
   int version = 1,
   bool isDeleted = false,
-  String userId = 'user-remote',
+  String createdByMusicianId = 'user-remote',
 }) =>
     AnnotationElementDto(
       id: id,
       annotationId: annotationId,
       tool: tool,
       level: level,
-      pageIndex: pageIndex,
       bbox: const BBoxDto(x: 0.1, y: 0.2, width: 0.3, height: 0.05),
       opacity: 1.0,
       strokeWidth: 3.0,
       version: version,
       isDeleted: isDeleted,
-      userId: userId,
+      createdByMusicianId: createdByMusicianId,
       createdAt: DateTime.utc(2026, 4, 1),
-      changedAt: DateTime.utc(2026, 4, 1),
+      updatedAt: DateTime.utc(2026, 4, 1),
     );
 
 void main() {
