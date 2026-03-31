@@ -41,7 +41,7 @@ final class MetronomeNotifierProvider
   }
 }
 
-String _$metronomeNotifierHash() => r'ab78363d5ebce8e013c67025d042d6ef0874d642';
+String _$metronomeNotifierHash() => r'311da19132f74c50593447d6dfd87f7ab4087831';
 
 abstract class _$MetronomeNotifier extends $Notifier<MetronomeState> {
   MetronomeState build();

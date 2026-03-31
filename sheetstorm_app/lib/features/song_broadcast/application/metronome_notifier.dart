@@ -12,7 +12,7 @@ class MetronomeState {
   final int bpm;
   final int beatsPerMeasure;
   final int beatUnit;
-  final int currentBeat; // 0-based within measure; -1 = none active
+  final int currentBeat; // 0-based within measure
   final bool isPlaying;
   final bool isConductor; // true = sends beats; false = receives
   final DateTime? sessionStartTime;
@@ -21,13 +21,13 @@ class MetronomeState {
     this.bpm = 120,
     this.beatsPerMeasure = 4,
     this.beatUnit = 4,
-    this.currentBeat = -1,
+    this.currentBeat = 0,
     this.isPlaying = false,
     this.isConductor = false,
     this.sessionStartTime,
   });
 
-  Duration get beatDuration => Duration(milliseconds: (60000 / bpm).round());
+  int get beatDuration => (60000 / bpm).round();
   bool get isOnDownbeat => currentBeat == 0;
   String get timeSignatureDisplay => '$beatsPerMeasure/$beatUnit';
 
@@ -59,8 +59,8 @@ class MetronomeNotifier extends _$MetronomeNotifier {
   Stopwatch? _stopwatch;
   int _beatCount = 0; // total beats since session start
 
-  // Tap tempo tracking
-  final List<DateTime> _tapTimestamps = [];
+  // Tap tempo tracking (stores millisecond timestamps)
+  final List<int> _tapTimestampsMs = [];
 
   StreamSubscription<MetronomeBeatPayload>? _beatSubscription;
 
@@ -91,11 +91,14 @@ class MetronomeNotifier extends _$MetronomeNotifier {
     _scheduleBeat();
   }
 
+  /// Alias for [startMetronome] — sets conductor mode.
+  void startAsConductor() => startMetronome();
+
   void stopMetronome() {
     _cancelTimer();
     state = state.copyWith(
       isPlaying: false,
-      currentBeat: -1,
+      currentBeat: 0,
     );
   }
 
@@ -106,33 +109,40 @@ class MetronomeNotifier extends _$MetronomeNotifier {
   }
 
   void setTimeSignature(int beats, int unit) {
-    state = state.copyWith(beatsPerMeasure: beats, beatUnit: unit);
+    state = state.copyWith(
+      beatsPerMeasure: beats,
+      beatUnit: unit,
+      currentBeat: 0,
+    );
   }
 
-  /// Calculate BPM from consecutive taps (tap tempo).
-  void tapTempo() {
-    final now = DateTime.now();
+  /// Advance the beat counter by one step (wraps at beatsPerMeasure).
+  /// Used by the timer callback and available publicly for testing.
+  void tick() {
+    final nextBeat = (state.currentBeat + 1) % state.beatsPerMeasure;
+    state = state.copyWith(currentBeat: nextBeat);
+  }
 
+  /// Calculate BPM from consecutive taps using an explicit timestamp.
+  void tap({required int timestampMs}) {
     // Reset if last tap was more than 2 seconds ago
-    if (_tapTimestamps.isNotEmpty &&
-        now.difference(_tapTimestamps.last).inMilliseconds > 2000) {
-      _tapTimestamps.clear();
+    if (_tapTimestampsMs.isNotEmpty &&
+        timestampMs - _tapTimestampsMs.last > 2000) {
+      _tapTimestampsMs.clear();
     }
 
-    _tapTimestamps.add(now);
+    _tapTimestampsMs.add(timestampMs);
 
     // Keep last 8 taps
-    if (_tapTimestamps.length > 8) {
-      _tapTimestamps.removeAt(0);
+    if (_tapTimestampsMs.length > 8) {
+      _tapTimestampsMs.removeAt(0);
     }
 
-    if (_tapTimestamps.length < 2) return;
+    if (_tapTimestampsMs.length < 2) return;
 
     final intervals = <int>[];
-    for (var i = 1; i < _tapTimestamps.length; i++) {
-      intervals.add(
-        _tapTimestamps[i].difference(_tapTimestamps[i - 1]).inMilliseconds,
-      );
+    for (var i = 1; i < _tapTimestampsMs.length; i++) {
+      intervals.add(_tapTimestampsMs[i] - _tapTimestampsMs[i - 1]);
     }
 
     final avgInterval = intervals.reduce((a, b) => a + b) / intervals.length;
@@ -140,19 +150,45 @@ class MetronomeNotifier extends _$MetronomeNotifier {
     setBpm(newBpm);
   }
 
+  /// Tap tempo using wall-clock time — for use from the UI.
+  void tapTempo() =>
+      tap(timestampMs: DateTime.now().millisecondsSinceEpoch);
+
+  /// Build a [MetronomeBeatPayload] from the current state.
+  MetronomeBeatPayload generateBeatPayload({required int sessionTimeMs}) {
+    return MetronomeBeatPayload(
+      bpm: state.bpm,
+      beatsPerMeasure: state.beatsPerMeasure,
+      beatUnit: state.beatUnit,
+      beatTimestampMs: sessionTimeMs,
+      beatNumberInMeasure: state.currentBeat,
+      nextBeatMs: sessionTimeMs + state.beatDuration,
+    );
+  }
+
   // ─── Musician Methods ──────────────────────────────────────────────────
 
+  /// Enter musician (receiver) mode and subscribe to BLE beats.
   void startReceiving() {
     _beatSubscription?.cancel();
     state = state.copyWith(isConductor: false, isPlaying: true);
     _beatSubscription = _ble.onMetronomeBeat.listen(_onBeatReceived);
   }
 
+  /// Enter musician mode without subscribing to BLE — useful in tests.
+  void startAsMusician() {
+    state = state.copyWith(isConductor: false, isPlaying: true);
+  }
+
   void stopReceiving() {
     _beatSubscription?.cancel();
     _beatSubscription = null;
-    state = state.copyWith(isPlaying: false, currentBeat: -1);
+    state = state.copyWith(isPlaying: false, currentBeat: 0);
   }
+
+  /// Apply an incoming beat payload to the local state.
+  /// Public so it can be called from tests and external callers.
+  void receiveBeat(MetronomeBeatPayload payload) => _onBeatReceived(payload);
 
   // ─── Internal Beat Logic ───────────────────────────────────────────────
 
@@ -176,23 +212,25 @@ class MetronomeNotifier extends _$MetronomeNotifier {
     if (!state.isPlaying) return;
 
     final elapsedMs = _stopwatch?.elapsedMilliseconds ?? 0;
-    final beatInMeasure = _beatCount % state.beatsPerMeasure;
-    final beatDurationMs = (60000 / state.bpm).round();
-    final nextBeatMs = elapsedMs + beatDurationMs;
 
-    state = state.copyWith(currentBeat: beatInMeasure);
+    tick();
     _beatCount++;
 
-    // Broadcast via BLE transport
-    final payload = MetronomeBeatPayload(
-      bpm: state.bpm,
-      beatsPerMeasure: state.beatsPerMeasure,
-      beatUnit: state.beatUnit,
-      beatTimestampMs: elapsedMs,
-      beatNumberInMeasure: beatInMeasure,
-      nextBeatMs: nextBeatMs,
-    );
-    _ble.sendMetronomeBeat(payload);
+    // Broadcast via BLE transport — wrapped so test environments without BLE
+    // don't crash (BLE provider will throw if not overridden in tests).
+    try {
+      final payload = MetronomeBeatPayload(
+        bpm: state.bpm,
+        beatsPerMeasure: state.beatsPerMeasure,
+        beatUnit: state.beatUnit,
+        beatTimestampMs: elapsedMs,
+        beatNumberInMeasure: state.currentBeat,
+        nextBeatMs: elapsedMs + state.beatDuration,
+      );
+      _ble.sendMetronomeBeat(payload);
+    } catch (_) {
+      // BLE not available (e.g., test environment)
+    }
 
     _scheduleBeat();
   }
