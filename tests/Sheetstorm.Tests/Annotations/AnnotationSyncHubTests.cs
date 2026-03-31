@@ -133,7 +133,7 @@ public class AnnotationSyncHubTests : IDisposable
     [Fact]
     public async Task NotifyElementChange_BroadcastsToOthersInGroup()
     {
-        // First join a group
+        // First join a group (required for broadcast authorization)
         await _sut.JoinAnnotationGroup(_bandId, _piecePageId, "Voice", _voiceId);
 
         var notification = new ElementChangeNotification(
@@ -160,6 +160,9 @@ public class AnnotationSyncHubTests : IDisposable
     [Fact]
     public async Task NotifyElementChange_DeletedType_SendsOnElementDeleted()
     {
+        // Must join the group first
+        await _sut.JoinAnnotationGroup(_bandId, _piecePageId, "Orchestra", null);
+
         var notification = new ElementChangeNotification(
             AnnotationId: Guid.NewGuid(),
             ElementId: Guid.NewGuid(),
@@ -179,6 +182,9 @@ public class AnnotationSyncHubTests : IDisposable
     [Fact]
     public async Task NotifyElementChange_UpdatedType_SendsOnElementUpdated()
     {
+        // Must join the group first
+        await _sut.JoinAnnotationGroup(_bandId, _piecePageId, "Voice", _voiceId);
+
         var notification = new ElementChangeNotification(
             AnnotationId: Guid.NewGuid(),
             ElementId: Guid.NewGuid(),
@@ -198,6 +204,39 @@ public class AnnotationSyncHubTests : IDisposable
             "OnElementUpdated",
             Arg.Is<object[]>(args => args.Length == 1),
             Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task NotifyElementChange_WithoutJoiningGroup_ThrowsHubException()
+    {
+        var notification = new ElementChangeNotification(
+            AnnotationId: Guid.NewGuid(),
+            ElementId: Guid.NewGuid(),
+            ChangeType: "added",
+            Element: null
+        );
+
+        var groupName = $"annotation-voice-{_bandId}-{_voiceId}-{_piecePageId}";
+        await Assert.ThrowsAsync<HubException>(() =>
+            _sut.NotifyElementChange(groupName, notification));
+    }
+
+    [Fact]
+    public async Task NotifyElementChange_NonMember_ThrowsHubException()
+    {
+        var outsiderId = Guid.NewGuid();
+        _db.Musicians.Add(new Musician { Id = outsiderId, Email = "out@test.com", Name = "Outsider" });
+        await _db.SaveChangesAsync();
+
+        var outsiderClaims = new ClaimsPrincipal(new ClaimsIdentity([
+            new Claim(JwtRegisteredClaimNames.Sub, outsiderId.ToString()),
+        ]));
+        _mockContext.User.Returns(outsiderClaims);
+
+        var groupName = $"annotation-voice-{_bandId}-{_voiceId}-{_piecePageId}";
+        await Assert.ThrowsAsync<HubException>(() =>
+            _sut.NotifyElementChange(groupName, new ElementChangeNotification(
+                Guid.NewGuid(), Guid.NewGuid(), "added", null)));
     }
 
     // ── OnDisconnectedAsync ──────────────────────────────────────────────

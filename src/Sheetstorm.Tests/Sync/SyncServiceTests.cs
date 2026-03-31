@@ -228,51 +228,42 @@ public class SyncServiceTests : IDisposable
     // ── PushAsync — LWW conflict detection ───────────────────────────────────────
 
     [Fact]
-    public async Task Push_UpdateSameField_ServerHasNewerTimestamp_ServerWins()
+    public async Task Push_UpdateSameField_LastPushWins_WithServerTimestamps()
     {
         var musicianId = await SeedMusicianAsync();
         var entityId = Guid.NewGuid();
-        var serverTime = new DateTime(2026, 3, 30, 10, 0, 0, DateTimeKind.Utc);
-        var clientTime = serverTime.AddMinutes(-5); // client is 5 minutes older
 
-        // Server already has a newer change
+        // First push sets a value
         await _sut.PushAsync(musicianId, new PushRequest(0, [
-            MakePushUpdate(entityId, "title", "Server Title", serverTime)
+            MakePushUpdate(entityId, "title", "First Title")
         ]), CancellationToken.None);
 
-        // Client tries to push an older change for the same field
-        var clientChange = MakePushUpdate(entityId, "title", "Client Title (older)", clientTime);
-        var result = await _sut.PushAsync(musicianId, new PushRequest(1, [clientChange]), CancellationToken.None);
-
-        Assert.Empty(result.Accepted);
-        Assert.Single(result.Conflicts);
-        Assert.Equal("ServerWins", result.Conflicts[0].Resolution);
-        Assert.Equal("Server Title", result.Conflicts[0].ServerValue);
-        Assert.Equal("Client Title (older)", result.Conflicts[0].ClientValue);
-    }
-
-    [Fact]
-    public async Task Push_UpdateSameField_ClientHasNewerTimestamp_ClientWins()
-    {
-        var musicianId = await SeedMusicianAsync();
-        var entityId = Guid.NewGuid();
-        var serverTime = new DateTime(2026, 3, 30, 10, 0, 0, DateTimeKind.Utc);
-        var clientTime = serverTime.AddMinutes(5); // client is 5 minutes newer
-
-        // Server has an older change
-        await _sut.PushAsync(musicianId, new PushRequest(0, [
-            MakePushUpdate(entityId, "title", "Server Title (old)", serverTime)
-        ]), CancellationToken.None);
-
-        // Client pushes a newer change for the same field
-        var clientChange = MakePushUpdate(entityId, "title", "Client Title (newer)", clientTime);
+        // Second push for same field — always accepted (server sets authoritative timestamp)
+        var clientChange = MakePushUpdate(entityId, "title", "Second Title");
         var result = await _sut.PushAsync(musicianId, new PushRequest(1, [clientChange]), CancellationToken.None);
 
         Assert.Single(result.Accepted);
         Assert.Empty(result.Conflicts);
-        Assert.Equal("Client Title (newer)", result.Accepted[0].ClientChangeId == clientChange.ClientChangeId
-            ? clientChange.NewValue
-            : throw new Exception("Wrong change"));
+        Assert.Equal(clientChange.ClientChangeId, result.Accepted[0].ClientChangeId);
+    }
+
+    [Fact]
+    public async Task Push_UpdateSameField_AlwaysAccepted_ServerTimestampsAuthoritative()
+    {
+        var musicianId = await SeedMusicianAsync();
+        var entityId = Guid.NewGuid();
+
+        // Server has an existing change
+        await _sut.PushAsync(musicianId, new PushRequest(0, [
+            MakePushUpdate(entityId, "title", "Server Title (old)")
+        ]), CancellationToken.None);
+
+        // Client pushes a change for the same field — always accepted with server timestamps
+        var clientChange = MakePushUpdate(entityId, "title", "Client Title (newer)");
+        var result = await _sut.PushAsync(musicianId, new PushRequest(1, [clientChange]), CancellationToken.None);
+
+        Assert.Single(result.Accepted);
+        Assert.Empty(result.Conflicts);
     }
 
     [Fact]
@@ -297,27 +288,24 @@ public class SyncServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Push_MixedChanges_SomeAcceptedSomeConflicted()
+    public async Task Push_MixedChanges_AllAcceptedWithServerTimestamps()
     {
         var musicianId = await SeedMusicianAsync();
         var entityId = Guid.NewGuid();
-        var baseTime = new DateTime(2026, 3, 30, 10, 0, 0, DateTimeKind.Utc);
 
-        // Server has newer title
+        // Server has an existing title change
         await _sut.PushAsync(musicianId, new PushRequest(0, [
-            MakePushUpdate(entityId, "title", "Server Title", baseTime.AddMinutes(5))
+            MakePushUpdate(entityId, "title", "Server Title")
         ]), CancellationToken.None);
 
-        // Client pushes old title (conflict) + new composer (no conflict)
-        var oldTitleChange = MakePushUpdate(entityId, "title", "Old Title", baseTime);
-        var newComposerChange = MakePushUpdate(entityId, "composer", "Beethoven", baseTime.AddMinutes(10));
+        // Client pushes title update + composer update — both accepted with server-authoritative timestamps
+        var titleChange = MakePushUpdate(entityId, "title", "New Title");
+        var composerChange = MakePushUpdate(entityId, "composer", "Beethoven");
 
-        var result = await _sut.PushAsync(musicianId, new PushRequest(1, [oldTitleChange, newComposerChange]), CancellationToken.None);
+        var result = await _sut.PushAsync(musicianId, new PushRequest(1, [titleChange, composerChange]), CancellationToken.None);
 
-        Assert.Single(result.Accepted);
-        Assert.Single(result.Conflicts);
-        Assert.Equal(newComposerChange.ClientChangeId, result.Accepted[0].ClientChangeId);
-        Assert.Equal(oldTitleChange.ClientChangeId, result.Conflicts[0].ClientChangeId);
+        Assert.Equal(2, result.Accepted.Count);
+        Assert.Empty(result.Conflicts);
     }
 
     [Fact]
@@ -345,12 +333,12 @@ public class SyncServiceTests : IDisposable
     // ── Changelog persistence ────────────────────────────────────────────────────
 
     [Fact]
-    public async Task Push_AcceptedChange_IsPersistedInChangelog()
+    public async Task Push_AcceptedChange_IsPersistedInChangelog_WithServerTimestamp()
     {
         var musicianId = await SeedMusicianAsync();
         var entityId = Guid.NewGuid();
-        var changedAt = new DateTime(2026, 3, 30, 10, 0, 0, DateTimeKind.Utc);
-        var change = MakePushUpdate(entityId, "title", "Marsch der Jugend", changedAt);
+        var change = MakePushUpdate(entityId, "title", "Marsch der Jugend");
+        var beforePush = DateTime.UtcNow;
 
         await _sut.PushAsync(musicianId, new PushRequest(0, [change]), CancellationToken.None);
 
@@ -361,7 +349,8 @@ public class SyncServiceTests : IDisposable
         Assert.Equal("Piece", stored.EntityType);
         Assert.Equal("title", stored.FieldName);
         Assert.Equal("Marsch der Jugend", stored.NewValue);
-        Assert.Equal(changedAt, stored.ChangedAt);
+        // Server sets the timestamp — it must be >= the time before push
+        Assert.True(stored.ChangedAt >= beforePush, "Server should set ChangedAt, not trust client timestamp.");
         Assert.Equal(1, stored.Version);
     }
 }

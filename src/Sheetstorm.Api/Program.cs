@@ -6,9 +6,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Sheetstorm.Api.Hubs;
 using Sheetstorm.Api.Middleware;
-using Sheetstorm.Domain.Metronome;
 using Sheetstorm.Infrastructure;
-using Sheetstorm.Infrastructure.Metronome;
 using Sheetstorm.Infrastructure.Persistence;
 using Sheetstorm.Infrastructure.Seeding;
 
@@ -86,7 +84,7 @@ builder.Services.AddRateLimiter(options =>
     };
 });
 
-// SignalR (Realtime: WebSocket fallback for Metronome + Annotation sync)
+// SignalR (Realtime: Song broadcast + Annotation sync)
 builder.Services.AddSignalR();
 
 // EF Core + PostgreSQL (registered in Infrastructure)
@@ -94,12 +92,6 @@ builder.Services.AddInfrastructure(builder.Configuration);
 
 // Demo-Seeder (nur im Development-Modus aktiv)
 builder.Services.AddScoped<DemoDataSeeder>();
-
-// Metronome: session manager (singleton for shared state) + UDP hosted service
-builder.Services.Configure<MetronomeUdpOptions>(
-    builder.Configuration.GetSection("Metronome:Udp"));
-builder.Services.AddSingleton<IMetronomeSessionManager, MetronomeSessionManager>();
-builder.Services.AddHostedService<UdpMulticastServer>();
 
 // CORS – tight in production, permissive in dev
 builder.Services.AddCors(options =>
@@ -135,7 +127,6 @@ app.MapHealthChecks("/health");
 
 // SignalR hubs
 app.MapHub<SongBroadcastHub>("/hubs/song-broadcast");
-app.MapHub<MetronomeHub>("/hubs/metronome");
 app.MapHub<AnnotationSyncHub>("/hubs/annotations");
 
 app.Run();

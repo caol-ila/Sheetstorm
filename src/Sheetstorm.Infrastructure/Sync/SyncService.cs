@@ -51,6 +51,31 @@ public class SyncService(AppDbContext db) : ISyncService
         var accepted = new List<AcceptedChange>();
         var conflicts = new List<ConflictEntry>();
 
+        // Batch-load existing changelogs for conflict detection (avoid N+1 per change)
+        var updateChanges = request.Changes
+            .Where(c => c.Operation == "Update" && c.FieldName is not null && c.EntityId is not null)
+            .ToList();
+
+        var relevantEntityIds = updateChanges.Select(c => c.EntityId!.Value).Distinct().ToList();
+        var relevantFieldNames = updateChanges.Select(c => c.FieldName!).Distinct().ToList();
+
+        var existingChangelogs = relevantEntityIds.Count > 0
+            ? await db.SyncChangelogs
+                .Where(c => c.MusicianId == musicianId
+                          && relevantEntityIds.Contains(c.EntityId)
+                          && c.FieldName != null && relevantFieldNames.Contains(c.FieldName)
+                          && c.Operation == "Update")
+                .GroupBy(c => new { c.EntityId, c.FieldName })
+                .Select(g => g.OrderByDescending(c => c.ChangedAt).First())
+                .ToListAsync(ct)
+            : [];
+
+        var changelogLookup = existingChangelogs.ToDictionary(
+            c => (c.EntityId, c.FieldName!),
+            c => c);
+
+        var now = DateTime.UtcNow;
+
         foreach (var change in request.Changes)
         {
             // Conflict check only applies to Update operations on a specific field
@@ -58,15 +83,8 @@ public class SyncService(AppDbContext db) : ISyncService
                 && change.FieldName is not null
                 && change.EntityId is not null)
             {
-                var existingChange = await db.SyncChangelogs
-                    .Where(c => c.MusicianId == musicianId
-                             && c.EntityId == change.EntityId
-                             && c.FieldName == change.FieldName
-                             && c.Operation == "Update")
-                    .OrderByDescending(c => c.ChangedAt)
-                    .FirstOrDefaultAsync(ct);
-
-                if (existingChange is not null && existingChange.ChangedAt > change.ChangedAt)
+                if (changelogLookup.TryGetValue((change.EntityId.Value, change.FieldName), out var existingChange)
+                    && existingChange.ChangedAt > now)
                 {
                     // Server has a newer change — ServerWins
                     conflicts.Add(new ConflictEntry(
@@ -82,7 +100,7 @@ public class SyncService(AppDbContext db) : ISyncService
                 }
             }
 
-            // Accept the change
+            // Accept the change — server sets the authoritative timestamp
             sv.CurrentVersion++;
             var entityId = change.EntityId ?? Guid.NewGuid();
 
@@ -97,14 +115,14 @@ public class SyncService(AppDbContext db) : ISyncService
                 Operation = change.Operation,
                 FieldName = change.FieldName,
                 NewValue = storedValue,
-                ChangedAt = change.ChangedAt,
+                ChangedAt = now,
                 Version = sv.CurrentVersion
             });
 
             accepted.Add(new AcceptedChange(change.ClientChangeId, sv.CurrentVersion, entityId));
         }
 
-        sv.LastSyncAt = DateTime.UtcNow;
+        sv.LastSyncAt = now;
         await db.SaveChangesAsync(ct);
 
         return new PushResponse(accepted, conflicts, sv.CurrentVersion);

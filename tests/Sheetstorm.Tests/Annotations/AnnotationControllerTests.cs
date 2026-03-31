@@ -70,6 +70,24 @@ public class AnnotationControllerTests : IDisposable
         Assert.Single(data);
     }
 
+    [Fact]
+    public async Task GetAnnotations_InvalidLevel_Returns400()
+    {
+        var result = await _sut.GetAnnotations(_bandId, _piecePageId, "InvalidLevel", _voiceId, CancellationToken.None);
+
+        var bad = Assert.IsType<BadRequestObjectResult>(result);
+        Assert.NotNull(bad.Value);
+    }
+
+    [Fact]
+    public async Task SyncElements_InvalidLevel_Returns400()
+    {
+        var result = await _sut.SyncElements(_bandId, _piecePageId, "Bogus", _voiceId, 0, CancellationToken.None);
+
+        var bad = Assert.IsType<BadRequestObjectResult>(result);
+        Assert.NotNull(bad.Value);
+    }
+
     // ── CreateElement ─────────────────────────────────────────────────────
 
     [Fact]

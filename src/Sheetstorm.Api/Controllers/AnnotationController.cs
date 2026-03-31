@@ -20,13 +20,16 @@ public class AnnotationController(IAnnotationSyncService annotationService) : Co
     // GET /api/bands/{bandId}/annotations/{piecePageId}?level=Voice&voiceId={voiceId}
     [HttpGet("api/bands/{bandId:guid}/annotations/{piecePageId:guid}")]
     [ProducesResponseType(typeof(IReadOnlyList<AnnotationDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetAnnotations(
         Guid bandId, Guid piecePageId,
         [FromQuery] string level,
         [FromQuery] Guid? voiceId,
         CancellationToken ct)
     {
-        var annotationLevel = Enum.Parse<AnnotationLevel>(level);
+        if (!Enum.TryParse<AnnotationLevel>(level, out var annotationLevel))
+            return BadRequest(new ErrorResponse("VALIDATION_ERROR", $"Invalid annotation level: '{level}'. Valid values: {string.Join(", ", Enum.GetNames<AnnotationLevel>())}"));
+
         var result = await annotationService.GetAnnotationsAsync(
             bandId, piecePageId, annotationLevel, voiceId, CurrentUserId, ct);
         return Ok(result);
@@ -74,6 +77,7 @@ public class AnnotationController(IAnnotationSyncService annotationService) : Co
     // POST /api/bands/{bandId}/annotations/{piecePageId}/sync?level=Voice&voiceId={voiceId}&sinceVersion=42
     [HttpPost("api/bands/{bandId:guid}/annotations/{piecePageId:guid}/sync")]
     [ProducesResponseType(typeof(AnnotationSyncResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> SyncElements(
         Guid bandId, Guid piecePageId,
         [FromQuery] string level,
@@ -81,7 +85,9 @@ public class AnnotationController(IAnnotationSyncService annotationService) : Co
         [FromQuery] long sinceVersion,
         CancellationToken ct)
     {
-        var annotationLevel = Enum.Parse<AnnotationLevel>(level);
+        if (!Enum.TryParse<AnnotationLevel>(level, out var annotationLevel))
+            return BadRequest(new ErrorResponse("VALIDATION_ERROR", $"Invalid annotation level: '{level}'. Valid values: {string.Join(", ", Enum.GetNames<AnnotationLevel>())}"));
+
         var result = await annotationService.SyncElementsAsync(
             bandId, piecePageId, annotationLevel, voiceId, sinceVersion, CurrentUserId, ct);
         return Ok(result);

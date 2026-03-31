@@ -43,6 +43,19 @@ public class AnnotationSyncHub(AppDbContext db) : Hub
     /// <summary>Notify other clients about an element change (real-time shortcut).</summary>
     public async Task NotifyElementChange(string groupName, ElementChangeNotification notification)
     {
+        var userId = GetUserId() ?? throw new HubException("User not authenticated.");
+
+        // Validate caller is a member of the band referenced in the group name
+        var bandId = ExtractBandIdFromGroupName(groupName);
+        await RequireMembershipAsync(bandId, userId);
+
+        // Verify caller has actually joined this group
+        if (!ConnectionGroups.TryGetValue(Context.ConnectionId, out var groups)
+            || !groups.Contains(groupName))
+        {
+            throw new HubException("You must join the annotation group before broadcasting.");
+        }
+
         var clientProxy = Clients.OthersInGroup(groupName);
 
         switch (notification.ChangeType)
@@ -81,6 +94,23 @@ public class AnnotationSyncHub(AppDbContext db) : Hub
             "Orchestra" => $"annotation-orchestra-{bandId}-{piecePageId}",
             _ => throw new HubException($"Invalid annotation level: {level}")
         };
+
+    private static Guid ExtractBandIdFromGroupName(string groupName)
+    {
+        // Format: "annotation-voice-{bandId}-{voiceId}-{piecePageId}"
+        //      or "annotation-orchestra-{bandId}-{piecePageId}"
+        var parts = groupName.Split('-');
+        // parts[0] = "annotation", parts[1] = "voice"/"orchestra", parts[2] = bandId (first segment of guid)
+        // Since GUIDs contain dashes, we need to rejoin 5 segments starting at index 2
+        if (parts.Length < 7)
+            throw new HubException("Invalid group name format.");
+
+        var bandIdStr = string.Join("-", parts[2], parts[3], parts[4], parts[5], parts[6]);
+        if (!Guid.TryParse(bandIdStr, out var bandId))
+            throw new HubException("Invalid band ID in group name.");
+
+        return bandId;
+    }
 
     private static void TrackGroup(string connectionId, string groupName)
     {

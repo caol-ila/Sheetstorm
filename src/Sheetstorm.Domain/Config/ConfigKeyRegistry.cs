@@ -168,8 +168,6 @@ public static class ConfigKeyRegistry
                 Json("[\"Administrator\",\"Dirigent\"]"), "Orchestra annotation permissions"),
             new("band.concert_pitch", ConfigValueType.Int, ConfigLevel.Band, Json("442"), "Concert pitch in Hz",
                 MinValue: 415, MaxValue: 466),
-            new("band.metronome.default_bpm", ConfigValueType.Int, ConfigLevel.Band, Json("120"), "Default BPM",
-                MinValue: 20, MaxValue: 300),
             new("band.substitute.default_expiry_days", ConfigValueType.Int, ConfigLevel.Band, Json("7"),
                 "Substitute link validity in days", MinValue: 1, MaxValue: 30),
 
