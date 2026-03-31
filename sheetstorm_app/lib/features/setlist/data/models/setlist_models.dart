@@ -356,14 +356,14 @@ class Setlist {
 
 // ─── Spielmodus (Player) Models ────────────────────────────────────────────────
 
-class SpielmmodusVoice {
+class SpielmodusVoice {
   final String id;
   final String name;
 
-  const SpielmmodusVoice({required this.id, required this.name});
+  const SpielmodusVoice({required this.id, required this.name});
 
-  factory SpielmmodusVoice.fromJson(Map<String, dynamic> json) =>
-      SpielmmodusVoice(
+  factory SpielmodusVoice.fromJson(Map<String, dynamic> json) =>
+      SpielmodusVoice(
         id: json['id'] as String,
         name: json['name'] as String,
       );
@@ -393,7 +393,7 @@ class SpielmodusStueck {
   final int position;
   final String? stueckId;
   final String titel;
-  final SpielmmodusVoice? stimme;
+  final SpielmodusVoice? stimme;
   final List<SpielmodusPage> seiten;
   final bool uebersprungen;
   final String? typ;
@@ -418,7 +418,7 @@ class SpielmodusStueck {
         stueckId: json['stueck_id'] as String?,
         titel: json['titel'] as String,
         stimme: json['stimme'] != null
-            ? SpielmmodusVoice.fromJson(
+            ? SpielmodusVoice.fromJson(
                 json['stimme'] as Map<String, dynamic>)
             : null,
         seiten: (json['seiten'] as List<dynamic>?)
