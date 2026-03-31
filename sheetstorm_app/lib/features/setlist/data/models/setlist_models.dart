@@ -322,13 +322,15 @@ class Setlist {
         'eintraege': eintraege.map((e) => e.toJson()).toList(),
       };
 
+  static const _sentinel = Object();
+
   Setlist copyWith({
     String? id,
     String? name,
     SetlistTyp? typ,
-    String? datum,
-    String? startzeit,
-    String? beschreibung,
+    Object? datum = _sentinel,
+    Object? startzeit = _sentinel,
+    Object? beschreibung = _sentinel,
     int? anzahlEintraege,
     int? gesamtdauerMinuten,
     SetlistCreator? erstelltVon,
@@ -340,9 +342,9 @@ class Setlist {
         id: id ?? this.id,
         name: name ?? this.name,
         typ: typ ?? this.typ,
-        datum: datum ?? this.datum,
-        startzeit: startzeit ?? this.startzeit,
-        beschreibung: beschreibung ?? this.beschreibung,
+        datum: datum == _sentinel ? this.datum : datum as String?,
+        startzeit: startzeit == _sentinel ? this.startzeit : startzeit as String?,
+        beschreibung: beschreibung == _sentinel ? this.beschreibung : beschreibung as String?,
         anzahlEintraege: anzahlEintraege ?? this.anzahlEintraege,
         gesamtdauerMinuten: gesamtdauerMinuten ?? this.gesamtdauerMinuten,
         erstelltVon: erstelltVon ?? this.erstelltVon,
@@ -354,14 +356,14 @@ class Setlist {
 
 // ─── Spielmodus (Player) Models ────────────────────────────────────────────────
 
-class SpielmmodusVoice {
+class SpielmodusVoice {
   final String id;
   final String name;
 
-  const SpielmmodusVoice({required this.id, required this.name});
+  const SpielmodusVoice({required this.id, required this.name});
 
-  factory SpielmmodusVoice.fromJson(Map<String, dynamic> json) =>
-      SpielmmodusVoice(
+  factory SpielmodusVoice.fromJson(Map<String, dynamic> json) =>
+      SpielmodusVoice(
         id: json['id'] as String,
         name: json['name'] as String,
       );
@@ -391,7 +393,7 @@ class SpielmodusStueck {
   final int position;
   final String? stueckId;
   final String titel;
-  final SpielmmodusVoice? stimme;
+  final SpielmodusVoice? stimme;
   final List<SpielmodusPage> seiten;
   final bool uebersprungen;
   final String? typ;
@@ -416,7 +418,7 @@ class SpielmodusStueck {
         stueckId: json['stueck_id'] as String?,
         titel: json['titel'] as String,
         stimme: json['stimme'] != null
-            ? SpielmmodusVoice.fromJson(
+            ? SpielmodusVoice.fromJson(
                 json['stimme'] as Map<String, dynamic>)
             : null,
         seiten: (json['seiten'] as List<dynamic>?)

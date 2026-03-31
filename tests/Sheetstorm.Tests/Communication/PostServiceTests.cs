@@ -3,6 +3,7 @@ using Sheetstorm.Domain.Communication;
 using Sheetstorm.Domain.Entities;
 using Sheetstorm.Domain.Exceptions;
 using Sheetstorm.Infrastructure.Communication;
+using Sheetstorm.Infrastructure.Auth;
 using Sheetstorm.Infrastructure.Persistence;
 
 namespace Sheetstorm.Tests.Communication;
@@ -19,7 +20,7 @@ public class PostServiceTests : IDisposable
             .Options;
 
         _db = new AppDbContext(options);
-        _sut = new PostService(_db);
+        _sut = new PostService(_db, new BandAuthorizationService(_db));
     }
 
     public void Dispose()
@@ -114,6 +115,20 @@ public class PostServiceTests : IDisposable
 
         await Assert.ThrowsAsync<DomainException>(() =>
             _sut.GetByIdAsync(bandId, Guid.NewGuid(), musicianId, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_SoftDeletedPost_ThrowsNotFound()
+    {
+        var (musicianId, bandId, postId) = await SeedPostAsync();
+        var post = await _db.Posts.FindAsync(postId);
+        post!.IsDeleted = true;
+        await _db.SaveChangesAsync();
+
+        var ex = await Assert.ThrowsAsync<DomainException>(() =>
+            _sut.GetByIdAsync(bandId, postId, musicianId, CancellationToken.None));
+
+        Assert.Equal("NOT_FOUND", ex.ErrorCode);
     }
 
     // ── CreateAsync ───────────────────────────────────────────────────────────
@@ -366,6 +381,40 @@ public class PostServiceTests : IDisposable
         Assert.Equal(parent.Id, result.ParentCommentId);
     }
 
+    [Fact]
+    public async Task AddCommentAsync_WithNonExistentParent_ThrowsNotFound()
+    {
+        var (musicianId, bandId, postId) = await SeedPostAsync();
+        var nonExistentId = Guid.NewGuid();
+
+        var request = new CreatePostCommentRequest("Reply", nonExistentId);
+        var ex = await Assert.ThrowsAsync<DomainException>(() =>
+            _sut.AddCommentAsync(bandId, postId, request, musicianId, CancellationToken.None));
+
+        Assert.Equal("NOT_FOUND", ex.ErrorCode);
+        Assert.Equal(404, ex.StatusCode);
+    }
+
+    [Fact]
+    public async Task AddCommentAsync_WithParentFromDifferentPost_ThrowsBadRequest()
+    {
+        var (musicianId, bandId, postId) = await SeedPostAsync();
+        // Create a second post and a comment belonging to it
+        var otherPost = new Post { BandId = bandId, AuthorMusicianId = musicianId, Title = "Other Post", Content = "Other Content" };
+        _db.Posts.Add(otherPost);
+        await _db.SaveChangesAsync();
+        var otherComment = new PostComment { PostId = otherPost.Id, AuthorMusicianId = musicianId, Content = "Other comment" };
+        _db.PostComments.Add(otherComment);
+        await _db.SaveChangesAsync();
+
+        var request = new CreatePostCommentRequest("Reply", otherComment.Id);
+        var ex = await Assert.ThrowsAsync<DomainException>(() =>
+            _sut.AddCommentAsync(bandId, postId, request, musicianId, CancellationToken.None));
+
+        Assert.Equal("VALIDATION_ERROR", ex.ErrorCode);
+        Assert.Equal(400, ex.StatusCode);
+    }
+
     // ── DeleteCommentAsync ────────────────────────────────────────────────────
 
     [Fact]
@@ -465,5 +514,67 @@ public class PostServiceTests : IDisposable
         var (musicianId, bandId, postId) = await SeedPostAsync();
 
         await _sut.RemoveReactionAsync(bandId, postId, musicianId, CancellationToken.None);
+    }
+
+    // ── DeleteAsync: soft vs hard delete ─────────────────────────────────────
+
+    [Fact]
+    public async Task DeleteAsync_WithComments_SoftDeletes()
+    {
+        var (musicianId, bandId, postId) = await SeedPostAsync();
+        var comment = new PostComment { PostId = postId, AuthorMusicianId = musicianId, Content = "A comment" };
+        _db.PostComments.Add(comment);
+        await _db.SaveChangesAsync();
+
+        await _sut.DeleteAsync(bandId, postId, musicianId, CancellationToken.None);
+
+        var post = await _db.Posts.FindAsync(postId);
+        Assert.NotNull(post);
+        Assert.True(post!.IsDeleted);
+        Assert.NotNull(post.DeletedAt);
+        Assert.Equal("[Gelöscht]", post.Title);
+        Assert.Equal("[Gelöscht]", post.Content);
+        Assert.False(post.IsPinned);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_WithoutComments_HardDeletes()
+    {
+        var (musicianId, bandId, postId) = await SeedPostAsync();
+
+        await _sut.DeleteAsync(bandId, postId, musicianId, CancellationToken.None);
+
+        var exists = await _db.Posts.AnyAsync(p => p.Id == postId);
+        Assert.False(exists);
+    }
+
+    [Fact]
+    public async Task GetAllAsync_ExcludesSoftDeletedPosts()
+    {
+        var (musicianId, bandId, postId) = await SeedPostAsync();
+        var post = await _db.Posts.FindAsync(postId);
+        post!.IsDeleted = true;
+        post.DeletedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+
+        var result = await _sut.GetAllAsync(bandId, musicianId, CancellationToken.None);
+
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_AlreadyDeleted_ThrowsNotFound()
+    {
+        var (musicianId, bandId, postId) = await SeedPostAsync();
+        var comment = new PostComment { PostId = postId, AuthorMusicianId = musicianId, Content = "A comment" };
+        _db.PostComments.Add(comment);
+        await _db.SaveChangesAsync();
+
+        await _sut.DeleteAsync(bandId, postId, musicianId, CancellationToken.None);
+
+        var ex = await Assert.ThrowsAsync<DomainException>(() =>
+            _sut.DeleteAsync(bandId, postId, musicianId, CancellationToken.None));
+        Assert.Equal("NOT_FOUND", ex.ErrorCode);
+        Assert.Equal(404, ex.StatusCode);
     }
 }

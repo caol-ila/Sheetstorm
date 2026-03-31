@@ -341,7 +341,7 @@ class _SetlistCard extends StatelessWidget {
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: AppSpacing.lg),
         color: AppColors.error,
-        child: const Icon(Icons.delete, color: Colors.white),
+        child: Icon(Icons.delete, color: theme.colorScheme.onError),
       ),
       confirmDismiss: (_) async => true,
       onDismissed: (_) => onDelete(),

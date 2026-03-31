@@ -62,3 +62,51 @@
 **Test Updates:** Replaced `OnDisconnectedAsync_UpdatesParticipantCount` with conductor/non-conductor disconnect tests. Updated GEMA composer test assertion. All 827 tests pass.
 
 **Pattern Learned:** Voice entity has no `BandId` — must validate via `Voice.Piece.BandId` (requires `.Include(v => v.Piece)`).
+
+### 2026-03-31: #108 + CR#6 — IBandAuthorizationService DRY Refactoring
+
+**Problem:** `RequireMembershipAsync`, `RequireConductorOrAdminAsync`, `RequireAdminAsync` were duplicated as private helpers across 12 services + SongBroadcastHub. Each had minor variants (error codes, db access patterns, CancellationToken support).
+
+**Solution:** Extracted into shared `IBandAuthorizationService` → `BandAuthorizationService` (Scoped DI). Single source of truth for band-level authorization.
+
+**Files Created:**
+- `src/Sheetstorm.Infrastructure/Auth/IBandAuthorizationService.cs`
+- `src/Sheetstorm.Infrastructure/Auth/BandAuthorizationService.cs`
+- `tests/Sheetstorm.Tests/Auth/BandAuthorization/BandAuthorizationServiceTests.cs` (24 tests)
+
+**Services Refactored (13 total):** EventService, GemaService, ShiftService, SubstituteService, BandService, ConfigService, PostService, MediaLinkService, PollService, AttendanceService, SetlistService, ImportService, SongBroadcastHub.
+
+**Standardizations Applied:**
+- Error code: `"NOT_FOUND"` → `"BAND_NOT_FOUND"` for 4 services (Event, Gema, Shift, Substitute)
+- Exception type: `AuthException` → `DomainException` for admin checks (BandService, ConfigService)
+- Hub: `HubException` → `DomainException` for auth failures
+- All methods now support optional `CancellationToken`
+
+**Impact:** Net -145 lines production code. 882 tests pass. SongBroadcastHub no longer depends on `AppDbContext` directly.
+
+**Pattern Learned:** When extracting shared services from duplicated private helpers, standardize on the majority error code pattern and update the minority callers' tests. The middleware handles both `DomainException` and `AuthException` identically, so exception type changes are safe.
+
+### 2026-04-16: CR#7 — Cursor-Based Pagination for List Endpoints
+
+**Problem:** All list endpoints returned unbounded results. For growing data, this is a performance risk.
+
+**Solution:** Cursor-based pagination (not offset) using `CreatedAt` + `Id` as cursor position. Base64-encoded JSON cursors are opaque to clients.
+
+**Infrastructure Created:**
+- `src/Sheetstorm.Domain/Pagination/PaginationModels.cs` — `PaginationRequest` (Cursor?, PageSize with EffectivePageSize clamped 1–100) and `PagedResult<T>` (Items, Cursor, HasMore, PageSize)
+- `src/Sheetstorm.Infrastructure/Pagination/CursorHelper.cs` — Encode/Decode cursor as Base64(JSON `{CreatedAt, Id}`). Invalid cursors throw `DomainException("INVALID_CURSOR", 400)`.
+- `src/Sheetstorm.Infrastructure/Pagination/PaginationExtensions.cs` — `ToPaginatedAsync` extension on `IQueryable`. Caller applies cursor WHERE clause and ordering; extension handles Take(N+1), HasMore detection, cursor encoding from last item.
+
+**Endpoints Updated:**
+- `GET /api/bands/{bandId}/posts` — paginated (newest first by CreatedAt)
+- `GET /api/bands/{bandId}/events` — paginated (newest first by CreatedAt)
+- `GET /api/bands/{bandId}/posts/{postId}/comments` — **new endpoint**, paginated (oldest first for chronological reading)
+
+**Backward Compatibility:** All endpoints default to `cursor=null, pageSize=20`. Existing clients without pagination params get the first page. Old `GetAllAsync`/`GetEventsAsync` methods remain in interfaces for internal use.
+
+**Tests:** 26 new tests (6 CursorHelper, 13 PostPagination, 7 EventPagination). All existing 882 tests pass unchanged.
+
+**Design Decision:** Cursor filtering is applied in the service layer (not the extension) because cursor WHERE clauses use concrete entity property access (e.g., `p.CreatedAt < cursorDate`) which must be translatable by EF Core for both InMemory and PostgreSQL providers. The extension method only handles the generic take+hasMore+encode logic.
+
+**Pattern Learned:** For cursor-based pagination with ascending vs descending order, the cursor filter direction must match: descending order uses `<` (older than cursor), ascending uses `>` (newer than cursor). Comments use ascending (chronological) while posts/events use descending (newest first).
+

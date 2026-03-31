@@ -8,7 +8,7 @@ final attendanceRoutes = [
   GoRoute(
     path: 'attendance',
     builder: (context, state) {
-      final bandId = state.uri.queryParameters['bandId'] ?? '';
+      final bandId = state.pathParameters['bandId'] ?? '';
       return AttendanceDashboardScreen(bandId: bandId);
     },
   ),

@@ -37,7 +37,7 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
             backgroundColor: AppColors.error,
             action: SnackBarAction(
               label: 'Zurück',
-              textColor: Colors.white,
+              textColor: Theme.of(context).colorScheme.onError,
               onPressed: () => ref.read(importProvider.notifier).resetError(),
             ),
           ),

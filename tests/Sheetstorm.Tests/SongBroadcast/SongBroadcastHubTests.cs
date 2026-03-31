@@ -6,6 +6,7 @@ using NSubstitute;
 using Sheetstorm.Api.Hubs;
 using Sheetstorm.Domain.Entities;
 using Sheetstorm.Domain.SongBroadcast;
+using Sheetstorm.Infrastructure.Auth;
 using Sheetstorm.Infrastructure.Persistence;
 
 namespace Sheetstorm.Tests.SongBroadcast;
@@ -48,7 +49,7 @@ public class SongBroadcastHubTests : IDisposable
         _mockContext.User.Returns(claims);
         _mockClients.Group(Arg.Any<string>()).Returns(_mockClientProxy);
 
-        _sut = new SongBroadcastHub(_db)
+        _sut = new SongBroadcastHub(new BandAuthorizationService(_db))
         {
             Clients = _mockClients,
             Context = _mockContext,
@@ -334,7 +335,7 @@ public class SongBroadcastHubTests : IDisposable
         await _sut.StartBroadcast(_bandId);
 
         var otherUserId = SeedMember(_bandId);
-        var otherHub = new SongBroadcastHub(_db)
+        var otherHub = new SongBroadcastHub(new BandAuthorizationService(_db))
         {
             Clients = _mockClients,
             Groups = _mockGroups,
@@ -358,7 +359,7 @@ public class SongBroadcastHubTests : IDisposable
         await _sut.StartBroadcast(_bandId);
 
         var otherUserId = SeedMember(_bandId);
-        var otherHub = new SongBroadcastHub(_db)
+        var otherHub = new SongBroadcastHub(new BandAuthorizationService(_db))
         {
             Clients = _mockClients,
             Groups = _mockGroups,
@@ -384,7 +385,7 @@ public class SongBroadcastHubTests : IDisposable
 
         await _sut.StartBroadcast(band1);
 
-        var otherHub = new SongBroadcastHub(_db)
+        var otherHub = new SongBroadcastHub(new BandAuthorizationService(_db))
         {
             Clients = _mockClients,
             Groups = _mockGroups,
@@ -422,7 +423,7 @@ public class SongBroadcastHubTests : IDisposable
         await _sut.SetCurrentSong(_bandId, pieceId, "Test Song");
 
         var otherUserId = SeedMember(_bandId);
-        var otherHub = new SongBroadcastHub(_db)
+        var otherHub = new SongBroadcastHub(new BandAuthorizationService(_db))
         {
             Clients = _mockClients,
             Groups = _mockGroups,
@@ -444,7 +445,7 @@ public class SongBroadcastHubTests : IDisposable
         var state1 = await _sut.JoinBroadcast(_bandId);
 
         var otherUserId = SeedMember(_bandId);
-        var otherHub = new SongBroadcastHub(_db)
+        var otherHub = new SongBroadcastHub(new BandAuthorizationService(_db))
         {
             Clients = _mockClients,
             Groups = _mockGroups,
@@ -461,7 +462,7 @@ public class SongBroadcastHubTests : IDisposable
     [Fact]
     public async Task StartBroadcast_UnauthenticatedUser_ThrowsHubException()
     {
-        var unauthHub = new SongBroadcastHub(_db)
+        var unauthHub = new SongBroadcastHub(new BandAuthorizationService(_db))
         {
             Clients = _mockClients,
             Groups = _mockGroups,
@@ -477,7 +478,7 @@ public class SongBroadcastHubTests : IDisposable
     [Fact]
     public async Task SetCurrentSong_UnauthenticatedUser_ThrowsHubException()
     {
-        var unauthHub = new SongBroadcastHub(_db)
+        var unauthHub = new SongBroadcastHub(new BandAuthorizationService(_db))
         {
             Clients = _mockClients,
             Groups = _mockGroups,
@@ -493,7 +494,7 @@ public class SongBroadcastHubTests : IDisposable
     [Fact]
     public async Task JoinBroadcast_UnauthenticatedUser_ThrowsHubException()
     {
-        var unauthHub = new SongBroadcastHub(_db)
+        var unauthHub = new SongBroadcastHub(new BandAuthorizationService(_db))
         {
             Clients = _mockClients,
             Groups = _mockGroups,

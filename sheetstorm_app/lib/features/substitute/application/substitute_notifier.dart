@@ -1,8 +1,6 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:sheetstorm/features/substitute/data/models/substitute_models.dart';
-import 'package:sheetstorm/features/substitute/data/services/substitute_service.dart';
-
-part 'substitute_notifier.g.dart';
+import 'package:sheetstorm/features/substitute/data/services/substitute_service.dart';part 'substitute_notifier.g.dart';
 
 // ─── Substitute List Notifier ─────────────────────────────────────────────────
 

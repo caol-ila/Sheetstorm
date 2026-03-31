@@ -290,24 +290,33 @@ class _RsvpButton extends StatelessWidget {
       RsvpStatus.offen => (Icons.circle_outlined, 'Offen', AppColors.textSecondary),
     };
 
-    return isSelected
-        ? FilledButton.icon(
-            onPressed: null,
-            icon: Icon(icon),
-            label: Text(label),
-            style: FilledButton.styleFrom(
-              backgroundColor: color,
-              minimumSize: const Size(0, AppSpacing.touchTargetMin),
+    final semanticLabel = isSelected
+        ? '$label (ausgewählt)'
+        : label;
+
+    return Semantics(
+      label: semanticLabel,
+      selected: isSelected,
+      button: true,
+      child: isSelected
+          ? FilledButton.icon(
+              onPressed: null,
+              icon: Icon(icon),
+              label: Text(label),
+              style: FilledButton.styleFrom(
+                backgroundColor: color,
+                minimumSize: const Size(0, AppSpacing.touchTargetMin),
+              ),
+            )
+          : OutlinedButton.icon(
+              onPressed: onPressed,
+              icon: Icon(icon),
+              label: Text(label),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(0, AppSpacing.touchTargetMin),
+              ),
             ),
-          )
-        : OutlinedButton.icon(
-            onPressed: onPressed,
-            icon: Icon(icon),
-            label: Text(label),
-            style: OutlinedButton.styleFrom(
-              minimumSize: const Size(0, AppSpacing.touchTargetMin),
-            ),
-          );
+    );
   }
 }
 
@@ -437,57 +446,63 @@ class _AttendanceOverview extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final stats = event.statistics;
 
-    return Card(
-      child: InkWell(
-        onTap: () {
-          context.push('/app/events/${event.id}/rsvps');
-        },
-        borderRadius: AppSpacing.roundedMd,
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'ANWESENHEIT',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 1.2,
-                    ),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _StatColumn(
-                    count: stats.zugesagt,
-                    label: 'Zugesagt',
-                    color: AppColors.success,
-                  ),
-                  _StatColumn(
-                    count: stats.abgesagt,
-                    label: 'Abgesagt',
-                    color: AppColors.error,
-                  ),
-                  _StatColumn(
-                    count: stats.offen,
-                    label: 'Offen',
-                    color: AppColors.textSecondary,
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              const Center(
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
+    return Semantics(
+      label: 'Anwesenheitsstatistik: ${stats.zugesagt} Zugesagt, '
+          '${stats.abgesagt} Abgesagt, ${stats.offen} Offen. '
+          'Tippen für Details.',
+      button: true,
+      child: Card(
+        child: InkWell(
+          onTap: () {
+            context.push('/app/events/${event.id}/rsvps');
+          },
+          borderRadius: AppSpacing.roundedMd,
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'ANWESENHEIT',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.2,
+                      ),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
-                    Text('Details anzeigen'),
-                    SizedBox(width: AppSpacing.xs),
-                    Icon(Icons.arrow_forward, size: 16),
+                    _StatColumn(
+                      count: stats.zugesagt,
+                      label: 'Zugesagt',
+                      color: AppColors.success,
+                    ),
+                    _StatColumn(
+                      count: stats.abgesagt,
+                      label: 'Abgesagt',
+                      color: AppColors.error,
+                    ),
+                    _StatColumn(
+                      count: stats.offen,
+                      label: 'Offen',
+                      color: AppColors.textSecondary,
+                    ),
                   ],
                 ),
-              ),
-            ],
+                const SizedBox(height: AppSpacing.sm),
+                const Center(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('Details anzeigen'),
+                      SizedBox(width: AppSpacing.xs),
+                      Icon(Icons.arrow_forward, size: 16),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

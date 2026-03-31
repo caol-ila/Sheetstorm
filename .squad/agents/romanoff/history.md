@@ -10,6 +10,93 @@
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
+## 2026-03-31 — MS2 Nacharbeit P2: Issues #101 + #100 + #105
+
+**Tasks completed:**
+
+### Task 1 — copyWith Sentinel Pattern für nullable Felder (#101)
+
+**Problem:** Das klassische `??`-Pattern in `copyWith` verhindert das explizite Setzen auf `null`. Z.B. `copyWith(dirigentName: null)` gibt immer den alten Wert zurück, weil `null ?? this.dirigentName == this.dirigentName`.
+
+**Fix:** Sentinel-Pattern:
+```dart
+static const _sentinel = Object(); // innerhalb der Klasse, nicht auf File-Ebene
+
+String? copyWith({ Object? dirigentName = _sentinel }) =>
+  dirigentName == _sentinel ? this.dirigentName : dirigentName as String?
+```
+
+**Angewendet auf:**
+- `BroadcastSession.copyWith` — `dirigentName`, `aktiveStueckId`, `aktiveStueckTitel`
+- `Event.copyWith` — `endTime`, `location`, `meetingPoint`, `description`, `setlistId`, `setlistName`, `dressCode`, `rsvpDeadline`
+- `Setlist.copyWith` — `datum`, `startzeit`, `beschreibung`
+
+**TDD-Tests:** Neue Test-Dateien `broadcast_model_test.dart`, `setlist_model_test.dart`, erweitert `event_model_test.dart`
+
+### Task 2 — broadcastRoutes Refactoring (#100)
+
+**Problem:** `broadcast/routes.dart` verwendete einen absoluten Pfad und `GoRoute`-Typ. Im `app_router.dart` wurde dann `broadcastRoutes.builder!` force-unwrapped, was zu Laufzeitfehlern führen kann.
+
+**Fix:**
+- `broadcastRoutes` von `GoRoute` (Typ) zu `List<GoRoute>` geändert
+- Absoluter Pfad `/app/band/:bandId/broadcast` → relativer Pfad `'broadcast'`
+- `state.pathParameters['bandId']!` → null-safe `state.pathParameters['bandId'] ?? ''`
+- In `app_router.dart`: `GoRoute(path: 'broadcast', builder: broadcastRoutes.builder!, routes: broadcastRoutes.routes)` → `...broadcastRoutes` (Spread)
+
+**Pattern:** Features wie `attendanceRoutes`, `substituteRoutes`, `shiftRoutes` nutzen korrekt `List<GoRoute>` mit Spread. `setlistRoutes`, `eventRoutes` nutzen `GoRoute` direkt als single top-level Route. Broadcast war falsch (GoRoute-Typ aber Spread erwartet).
+
+### Task 3 — AttendanceNotifier zu AsyncNotifier (#105)
+
+**Problem:** `AttendanceNotifier extends Notifier<AttendanceDashboardState>` verwaltete `isLoading` und `error` manuell im State — dupliziert die bereits in Riverpod's `AsyncValue` enthaltene Funktionalität.
+
+**Fix:**
+- `Notifier<AttendanceDashboardState>` → `AsyncNotifier<AttendanceDashboardState>`
+- `build()` gibt `Future<AttendanceDashboardState>` zurück
+- `isLoading`, `error` aus `AttendanceDashboardState` entfernt
+- State-Mutationen: `state = const AsyncLoading()` dann `state = await AsyncValue.guard(...)`
+- Screen: `asyncState = ref.watch(attendanceProvider(bandId))` — nutzt `asyncState.isLoading / .hasError / .error / .value`
+- `build_runner build` ausgeführt für `.g.dart` Regeneration
+
+**Riverpod 3.x Lesson:** `valueOrNull` existiert NICHT in Riverpod 3.4.1 — stattdessen `.value` (gibt `T?` zurück, analog zu `valueOrNull`).
+
+**Test-Isolation:** Tests die `unawaited()` HTTP-Calls feuern, können spätere Tests durch uncaught exceptions kaputtmachen. Lösung: Alle State-Tests synchron halten — nur `asyncState.isLoading == true` auf initial build prüfen (immer `AsyncLoading` durch `build()` Future).
+
+---
+
+## 2026-03-30 — MS2 Nacharbeit: CR#3 + Issues #103 + #104
+
+**Tasks completed:**
+
+### Task 1 — musikerId aus Auth-State (CR#3)
+
+**Problem:** 3x hardcoded `musikerId: ''` in `broadcast_receiver_screen.dart` — joinSession/leaveSession wurden mit leerem String aufgerufen, Broadcast-Feature komplett kaputt.
+
+**Fix:**
+- `BroadcastNotifier`: Privater Getter `_musikerId` liest `User.id` aus `authProvider`. Services (`_rest`, `_signalR`) jetzt als `late final` in `build()` gecacht — **wichtig für Riverpod 3.x**: `ref.read()` darf NICHT in `onDispose`-Callbacks aufgerufen werden (Assertion-Fehler).
+- `joinSession()` und `leaveSession()` benötigen keinen `musikerId`-Parameter mehr — Notifier löst ihn intern auf.
+- Fehlerfall: unauthentifizierter Nutzer → BroadcastMode.error mit "Nicht angemeldet".
+
+**Riverpod 3.x Lesson:** `ref.read()` in `ref.onDispose()` wirft AssertionError `"Cannot use Ref inside life-cycles/selectors"`. Services die in Cleanup-Methoden benötigt werden, müssen in `build()` gecacht werden.
+
+### Task 2 — Event.fromJson Null-Sicherheit (#104)
+
+**Fix:** `event_models.dart`:
+- `erstellt_von` null-safe: `(json['erstellt_von'] as Map<String, dynamic>?)?['name'] as String? ?? ''`
+- `statistik` null-safe: `json['statistik'] as Map<String, dynamic>? ?? const {}`
+
+**Pattern:** Alle MS2-Modelle, die Backend-Antworten parsen, sollten optionale Felder mit `as T?` + `?? default` behandeln — nie mit nicht-null Cast wenn das Feld fehlen kann.
+
+### Task 3 — bandId aus Pfadparametern (#103)
+
+**Fix:** `attendance/routes.dart`, `substitute/routes.dart`, `shifts/routes.dart` verwenden jetzt `state.pathParameters['bandId']` statt `state.uri.queryParameters['bandId']`. GoRouter füllt Pfadparameter in verschachtelten Routen automatisch aus dem übergeordneten `:bandId` Segment.
+
+**AppRoutes cleanup:** `bandAttendance`, `bandSubstitutes`, `bandShifts` URL-Generatoren enthalten kein redundantes `?bandId=$bandId` mehr. `planId` bleibt als Query-Parameter da es kein Pfadparameter ist.
+
+**New test files:**
+- `test/features/events/data/models/event_model_test.dart` — Event.fromJson null-safety
+- `test/features/routing/band_id_route_param_test.dart` — Route bandId extraction
+
+
 ## 2026-04-15 — Complete MS2 Frontend Implementation Summary (5 Agent Instances)
 
 **Overall Context:**
@@ -774,3 +861,93 @@ JSON-Felder: `kapelle_id`, `titel`, `typ`, `datum`, `start_uhrzeit`, `end_uhrzei
 - docs/feature-specs/kapellenverwaltung-spec.md — US-00, US-02, US-06, §7.9–7.13 (edge cases)
 
 **Status:** Request Wanda review of UX flows before implementation
+
+## 2026-03-31 — MS2 Nacharbeit: GoRouter-Migration + StreamController-Dispose + Author-DRY
+
+**Commit:** 23087ed (zusammen mit Backend-Aenderungen commited)
+
+### Task 1 — GoRouter-Migration (#102 + CR#1)
+
+**Problem:** state.extra bricht Deep Links; Navigator.pushNamed umgeht Auth-Redirect; flache Event-Subrouten.
+
+**Fix:**
+- vents/routes.dart: Flache Routen → verschachtelte Struktur (wie setlistRoutes) für korrekte StatefulShellBranch-Integration
+- shifts/routes.dart: state.extra → Pfadparameter :planId/:shiftId
+- substitute/routes.dart: state.extra entfernt, /substitute/qr/:accessId Route hinzugefügt
+- ShiftDetailScreen: StatelessWidget → ConsumerWidget, liest Shift aus shiftPlanProvider
+- SubstituteQrScreen: neuer Screen für QR-Code-Anzeige per ccessId
+- shift_plan_screen.dart + substitute_management_screen.dart: Navigator.pushNamed → context.push()
+- PendingSubstituteLinkProvider: Riverpod Notifier hält transientes SubstituteLink für gorouter-navigation ohne state.extra
+- pp_router.dart: AppRoutes.bandSubstituteLink/Qr/ShiftDetail Helper ergänzt
+
+**Learning:** In Riverpod 3.x gibt es kein StateProvider mehr → @riverpod class XNotifier extends _ mit state = ... setzen. Für transiente Navigationsdaten immer einen eigenen Provider (separate .dart-Datei!) anlegen, nicht in codegen-Dateien mit part mischen.
+
+### Task 2 — BroadcastSignalRService.dispose() (#107 + CR#8)
+
+**Problem:** 5 StreamController wurden in dispose() zwar geschlossen, aber dispose() wurde nie aufgerufen, weil der Riverpod-Provider kein ef.onDispose() registriert hatte.
+
+**Fix:**
+- Provider: ef.onDispose(service.dispose) hinzugefügt
+- dispose() idempotent gemacht (guard: if (!controller.isClosed))
+- keepAlive: true beibehalten (WebSocket-Verbindung muss persistent sein)
+
+**Learning:** Immer ef.onDispose() für Services mit Ressourcen registrieren, auch bei keepAlive: true. Das keepAlive verhindert nur das automatische Verwerfen durch Riverpod, nicht das manuelle Dispose.
+
+### Task 3 — Author-DRY + markNeedsBuild (CR#2)
+
+**Problem:**
+- (a) Author-Klasse dupliziert in post_models.dart und poll_models.dart
+- (b) 3× (context as Element).markNeedsBuild() in Dialog-Callbacksv
+
+**Fix:**
+- lib/shared/models/author_model.dart: einzige kanonische Author-Klasse
+- post_models.dart + poll_models.dart: importieren + re-exportieren Author
+- markNeedsBuild × 3 → StatefulBuilder mit lokalem setDialogState()
+
+**Learning:** StatefulBuilder ist das korrekte Muster für lokalen State in Dialogen/AlertDialogs. (context as Element).markNeedsBuild() ist fragil (cast kann crashen) und nicht idiomatisch Flutter.
+
+**Tests hinzugefügt:**
+- 	est/shared/models/author_model_test.dart (4 Tests)
+- 	est/features/song_broadcast/.../broadcast_dispose_test.dart (7 Tests)
+- 	est/features/routing/gorouter_migration_test.dart (6 Tests)
+
+## 2026-03-31 — MS2 Nacharbeit P3: Issues #119 + #120 + #121
+
+### Task 1 — Hardcoded Colors → Theme-Farben (#119)
+
+**Problem:** Colors.white und Colors.black in mehreren Screens brechen Dark Mode.
+
+**Fix:** 5 Dateien geändert:
+- svp_screen.dart: FilterChip-Label Colors.white → colorScheme.onPrimary
+- import_screen.dart: SnackBarAction 	extColor: Colors.white → colorScheme.onError
+- device_settings_screen.dart: ElevatedButton oregroundColor: Colors.white → colorScheme.onError
+- oard_screen.dart: FilterChip-Label Colors.white → colorScheme.onPrimary
+- setlist_list_screen.dart: Dismissible-Icon Colors.white → colorScheme.onError (const entfernt!)
+
+**Nicht geändert:** Performance-Mode-Widgets (intentional dark overlay), Annotation-Canvas-Widgets, setlist_player_screen (full-screen dark player), QR-Code-Container (muss weiß sein für Scan-Lesbarkeit), Google-Branding.
+
+**Learning:** Unterscheide intentional dark UI (Performance-Mode, Player) von unbeabsichtigt hardcodierten Farben. colorScheme.onError für Farbe auf Error-Hintergrund, .onPrimary für Text auf Primary-Hintergrund.
+
+### Task 2 — Accessibility: Semantics-Labels (#120)
+
+**Problem:** RSVP-Buttons, Attendance-Chart, Poll-Voting, Schicht-Buttons ohne Semantics.
+
+**Fix:** 5 Dateien geändert:
+- vent_detail_screen.dart: _RsvpButton → Semantics(label: '\ (ausgewählt)', selected: isSelected, button: true)
+- vent_detail_screen.dart: _AttendanceOverview → Semantics(label: 'Anwesenheitsstatistik: X Zugesagt, ...') Wrapper
+- poll_option_tile.dart: PollOptionTile → Semantics(label: option.text, selected: isSelected, button: onTap != null) Wrapper
+- setlist_player_screen.dart: prev/play-pause/next IconButton mit 	ooltip: ergänzt
+- shift_assignment_card.dart + shift_detail_screen.dart: Remove-IconButton → 	ooltip: 'Zuweisung entfernen'
+
+**Learning:** Semantics-Widget für komplexe Widgets (Attendance-Cards, FilterChips mit custom State). 	ooltip: auf IconButton ist ausreichend (wird auch als Semantics-Label genutzt). Beim Wrappen mit Semantics genau auf Klammer-Balance achten — ein fehlendes ) gibt kryptische Parser-Fehler.
+
+### Task 3 — ISO-Wochennummer korrekt berechnen (#121)
+
+**Problem:** ((dayOfYear - weekday + 10) / 7).floor() ist eine Näherung und gibt für Jahresübergänge und Woche-53-Fälle falsche Ergebnisse.
+
+**Fix:** 
+- Neue Datei lib/core/date_utils.dart mit isoWeekNumber(DateTime) — korrekte ISO-8601-Implementierung via Donnerstag-Referenz
+- calendar_screen.dart nutzt jetzt isoWeekNumber() statt der Näherungsformel
+- 8 Unit-Tests in 	est/core/date_utils_test.dart (alle grün)
+
+**Learning:** ISO-8601 Wochennummer: Donnerstag der gleichen Woche bestimmt das Jahr (Date.thursday - date.weekday). KW 1 ist die Woche, die den 4. Januar enthält. Utility-Funktionen in lib/core/date_utils.dart auslagern für Testbarkeit (private Methoden in Widget-Klassen sind nicht direkt testbar).

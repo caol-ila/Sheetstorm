@@ -8,6 +8,7 @@ using Sheetstorm.Api.Controllers;
 using Sheetstorm.Domain.Auth;
 using Sheetstorm.Domain.Communication;
 using Sheetstorm.Domain.Exceptions;
+using Sheetstorm.Domain.Pagination;
 using Sheetstorm.Infrastructure.Communication;
 
 namespace Sheetstorm.Tests.Communication;
@@ -48,25 +49,25 @@ public class PostControllerTests
     public async Task GetAll_ReturnsOkWithList()
     {
         var posts = new List<PostDto> { MakePostDto(Guid.NewGuid(), _bandId) };
-        _postService.GetAllAsync(_bandId, _musicianId, Arg.Any<CancellationToken>())
-            .Returns(posts);
+        _postService.GetAllPaginatedAsync(_bandId, _musicianId, Arg.Any<PaginationRequest>(), Arg.Any<CancellationToken>())
+            .Returns(new PagedResult<PostDto>(posts, null, false, 20));
 
-        var result = await _sut.GetAll(_bandId, CancellationToken.None);
+        var result = await _sut.GetAll(_bandId);
 
         var ok = Assert.IsType<OkObjectResult>(result);
-        var returned = Assert.IsAssignableFrom<IReadOnlyList<PostDto>>(ok.Value);
-        Assert.Single(returned);
+        var returned = Assert.IsType<PagedResult<PostDto>>(ok.Value);
+        Assert.Single(returned.Items);
     }
 
     [Fact]
     public async Task GetAll_DelegatesCurrentUserId()
     {
-        _postService.GetAllAsync(_bandId, _musicianId, Arg.Any<CancellationToken>())
-            .Returns(new List<PostDto>());
+        _postService.GetAllPaginatedAsync(_bandId, _musicianId, Arg.Any<PaginationRequest>(), Arg.Any<CancellationToken>())
+            .Returns(new PagedResult<PostDto>(new List<PostDto>(), null, false, 20));
 
-        await _sut.GetAll(_bandId, CancellationToken.None);
+        await _sut.GetAll(_bandId);
 
-        await _postService.Received(1).GetAllAsync(_bandId, _musicianId, Arg.Any<CancellationToken>());
+        await _postService.Received(1).GetAllPaginatedAsync(_bandId, _musicianId, Arg.Any<PaginationRequest>(), Arg.Any<CancellationToken>());
     }
 
     // ── GET /Posts/{id} ───────────────────────────────────────────────────────

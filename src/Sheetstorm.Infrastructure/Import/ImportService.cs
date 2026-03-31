@@ -11,6 +11,7 @@ namespace Sheetstorm.Infrastructure.Import;
 
 public class ImportService(
     AppDbContext db,
+    IBandAuthorizationService bandAuth,
     IStorageService storageService,
     IAiMetadataService aiService,
     ILogger<ImportService> logger) : IImportService
@@ -26,7 +27,7 @@ public class ImportService(
         CancellationToken ct = default)
     {
         if (bandId.HasValue)
-            await RequireMembershipAsync(bandId.Value, musicianId);
+            await bandAuth.RequireMembershipAsync(bandId.Value, musicianId);
 
         // 1. Upload to storage
         var storageKey = await storageService.UploadAsync(fileStream, fileName, contentType, ct);
@@ -88,7 +89,7 @@ public class ImportService(
     public async Task<IReadOnlyList<PieceDto>> GetPiecesAsync(
         Guid bandId, Guid musicianId, CancellationToken ct = default)
     {
-        await RequireMembershipAsync(bandId, musicianId);
+        await bandAuth.RequireMembershipAsync(bandId, musicianId);
 
         return await db.Pieces
             .Where(s => s.BandId == bandId)
@@ -100,7 +101,7 @@ public class ImportService(
     public async Task<PieceDto> GetPieceAsync(
         Guid bandId, Guid pieceId, Guid musicianId, CancellationToken ct = default)
     {
-        await RequireMembershipAsync(bandId, musicianId);
+        await bandAuth.RequireMembershipAsync(bandId, musicianId);
 
         var piece = await db.Pieces
             .FirstOrDefaultAsync(s => s.Id == pieceId && s.BandId == bandId, ct)
@@ -112,7 +113,7 @@ public class ImportService(
     public async Task<PieceDto> CreatePieceAsync(
         Guid bandId, PieceCreateDto dto, Guid musicianId, CancellationToken ct = default)
     {
-        await RequireMembershipAsync(bandId, musicianId);
+        await bandAuth.RequireMembershipAsync(bandId, musicianId);
 
         var piece = new Piece
         {
@@ -137,7 +138,7 @@ public class ImportService(
     public async Task<PieceDto> UpdatePieceAsync(
         Guid bandId, Guid pieceId, PieceUpdateDto dto, Guid musicianId, CancellationToken ct = default)
     {
-        await RequireMembershipAsync(bandId, musicianId);
+        await bandAuth.RequireMembershipAsync(bandId, musicianId);
 
         var piece = await db.Pieces
             .FirstOrDefaultAsync(s => s.Id == pieceId && s.BandId == bandId, ct)
@@ -160,7 +161,7 @@ public class ImportService(
     public async Task DeletePieceAsync(
         Guid bandId, Guid pieceId, Guid musicianId, CancellationToken ct = default)
     {
-        await RequireMembershipAsync(bandId, musicianId);
+        await bandAuth.RequireMembershipAsync(bandId, musicianId);
 
         var piece = await db.Pieces
             .FirstOrDefaultAsync(s => s.Id == pieceId && s.BandId == bandId, ct)
@@ -184,15 +185,6 @@ public class ImportService(
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
-
-    private async Task RequireMembershipAsync(Guid bandId, Guid musicianId)
-    {
-        var isMember = await db.Memberships
-            .AnyAsync(m => m.BandId == bandId && m.MusicianId == musicianId && m.IsActive);
-
-        if (!isMember)
-            throw new DomainException("BAND_NOT_FOUND", "Band not found or no access.", 404);
-    }
 
     private static PieceDto ToDto(Piece s) => new(
         s.Id,

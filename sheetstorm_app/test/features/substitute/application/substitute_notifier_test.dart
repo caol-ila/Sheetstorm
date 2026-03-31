@@ -1,7 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:sheetstorm/features/substitute/application/substitute_notifier.dart';
 import 'package:sheetstorm/features/substitute/data/models/substitute_models.dart';
+import 'package:sheetstorm/features/substitute/data/services/substitute_service.dart';
+
+// ─── Mocks ────────────────────────────────────────────────────────────────────
+
+class MockSubstituteService extends Mock implements SubstituteService {}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -42,16 +48,38 @@ SubstituteLink _link({
       access: access ?? _access(),
     );
 
+// ─── Setup Helpers ────────────────────────────────────────────────────────────
+
+MockSubstituteService _defaultListService() {
+  final service = MockSubstituteService();
+  when(() => service.listAccess(any(), status: any(named: 'status')))
+      .thenAnswer((_) async => []);
+  return service;
+}
+
+(ProviderContainer, MockSubstituteService) _createContainer(
+    MockSubstituteService service) {
+  final container = ProviderContainer(
+    overrides: [substituteServiceProvider.overrideWithValue(service)],
+  );
+  addTearDown(container.dispose);
+  return (container, service);
+}
+
 void main() {
-  // Initialize Flutter bindings for all tests
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUpAll(() {
+    registerFallbackValue(DateTime(2024));
+    registerFallbackValue(SubstituteStatus.active);
+  });
 
   // ─── SubstituteListNotifier Tests ──────────────────────────────────────────
 
   group('SubstituteListNotifier — Access-Liste', () {
     test('Access-Liste wird initial geladen', () async {
-      final container = ProviderContainer();
-      addTearDown(container.dispose);
+      final service = _defaultListService();
+      final (container, _) = _createContainer(service);
 
       container.read(substituteListProvider('band1').notifier);
 
@@ -59,8 +87,23 @@ void main() {
     });
 
     test('createAccess erstellt neuen Zugang', () async {
-      final container = ProviderContainer();
-      addTearDown(container.dispose);
+      final service = _defaultListService();
+      when(() => service.createAccessLink(
+        any(),
+        name: any(named: 'name'),
+        instrument: any(named: 'instrument'),
+        voice: any(named: 'voice'),
+        eventId: any(named: 'eventId'),
+        expiresAt: any(named: 'expiresAt'),
+        note: any(named: 'note'),
+      )).thenAnswer((invocation) async => _link(
+            access: _access(
+              name: invocation.namedArguments[#name] as String,
+              instrument: invocation.namedArguments[#instrument] as String,
+              voice: invocation.namedArguments[#voice] as String,
+            ),
+          ));
+      final (container, _) = _createContainer(service);
 
       final notifier = container.read(substituteListProvider('band1').notifier);
 
@@ -76,8 +119,21 @@ void main() {
     });
 
     test('createAccess mit eventId bindet an Event', () async {
-      final container = ProviderContainer();
-      addTearDown(container.dispose);
+      final service = _defaultListService();
+      when(() => service.createAccessLink(
+        any(),
+        name: any(named: 'name'),
+        instrument: any(named: 'instrument'),
+        voice: any(named: 'voice'),
+        eventId: any(named: 'eventId'),
+        expiresAt: any(named: 'expiresAt'),
+        note: any(named: 'note'),
+      )).thenAnswer((invocation) async => _link(
+            access: _access(
+              eventId: invocation.namedArguments[#eventId] as String?,
+            ),
+          ));
+      final (container, _) = _createContainer(service);
 
       final notifier = container.read(substituteListProvider('band1').notifier);
 
@@ -93,8 +149,20 @@ void main() {
     });
 
     test('createAccess mit expiresAt setzt Ablaufdatum', () async {
-      final container = ProviderContainer();
-      addTearDown(container.dispose);
+      final service = _defaultListService();
+      when(() => service.createAccessLink(
+        any(),
+        name: any(named: 'name'),
+        instrument: any(named: 'instrument'),
+        voice: any(named: 'voice'),
+        eventId: any(named: 'eventId'),
+        expiresAt: any(named: 'expiresAt'),
+        note: any(named: 'note'),
+      )).thenAnswer((invocation) async {
+        final expiresAt = invocation.namedArguments[#expiresAt] as DateTime?;
+        return _link(access: _access(expiresAt: expiresAt));
+      });
+      final (container, _) = _createContainer(service);
 
       final notifier = container.read(substituteListProvider('band1').notifier);
       final expiresAt = DateTime.now().add(const Duration(days: 30));
@@ -111,8 +179,21 @@ void main() {
     });
 
     test('createAccess mit note speichert Notiz', () async {
-      final container = ProviderContainer();
-      addTearDown(container.dispose);
+      final service = _defaultListService();
+      when(() => service.createAccessLink(
+        any(),
+        name: any(named: 'name'),
+        instrument: any(named: 'instrument'),
+        voice: any(named: 'voice'),
+        eventId: any(named: 'eventId'),
+        expiresAt: any(named: 'expiresAt'),
+        note: any(named: 'note'),
+      )).thenAnswer((invocation) async => _link(
+            access: _access(
+              note: invocation.namedArguments[#note] as String?,
+            ),
+          ));
+      final (container, _) = _createContainer(service);
 
       final notifier = container.read(substituteListProvider('band1').notifier);
 
@@ -128,8 +209,10 @@ void main() {
     });
 
     test('revokeAccess widerruft Zugang', () async {
-      final container = ProviderContainer();
-      addTearDown(container.dispose);
+      final service = _defaultListService();
+      when(() => service.revokeAccess(any(), any()))
+          .thenAnswer((_) async {});
+      final (container, _) = _createContainer(service);
 
       final notifier = container.read(substituteListProvider('band1').notifier);
 
@@ -139,8 +222,10 @@ void main() {
     });
 
     test('revokeAccess mit unbekannter ID gibt false zurück', () async {
-      final container = ProviderContainer();
-      addTearDown(container.dispose);
+      final service = _defaultListService();
+      when(() => service.revokeAccess(any(), any()))
+          .thenThrow(Exception('Zugang nicht gefunden'));
+      final (container, _) = _createContainer(service);
 
       final notifier = container.read(substituteListProvider('band1').notifier);
 
@@ -150,8 +235,10 @@ void main() {
     });
 
     test('extendExpiry verlängert Ablaufdatum', () async {
-      final container = ProviderContainer();
-      addTearDown(container.dispose);
+      final service = _defaultListService();
+      when(() => service.extendExpiry(any(), any(), any()))
+          .thenAnswer((_) async => _access());
+      final (container, _) = _createContainer(service);
 
       final notifier = container.read(substituteListProvider('band1').notifier);
       final newExpiresAt = DateTime.now().add(const Duration(days: 60));
@@ -162,14 +249,14 @@ void main() {
     });
 
     test('refresh lädt Access-Liste neu', () async {
-      final container = ProviderContainer();
-      addTearDown(container.dispose);
+      final service = _defaultListService();
+      final (container, _) = _createContainer(service);
 
       final notifier = container.read(substituteListProvider('band1').notifier);
 
       await notifier.refresh();
 
-      expect(container.read(substituteListProvider('band1')).isLoading, isTrue);
+      expect(container.read(substituteListProvider('band1')).hasValue, isTrue);
     });
   });
 
@@ -286,8 +373,8 @@ void main() {
 
   group('activeSubstitutes Provider — Filter', () {
     test('Nur aktive Zugänge werden zurückgegeben', () async {
-      final container = ProviderContainer();
-      addTearDown(container.dispose);
+      final service = _defaultListService();
+      final (container, _) = _createContainer(service);
 
       final actives = container.read(activeSubstitutesProvider('band1'));
 
@@ -334,8 +421,10 @@ void main() {
     });
 
     test('Verlängerung verschiebt expiresAt', () async {
-      final container = ProviderContainer();
-      addTearDown(container.dispose);
+      final service = _defaultListService();
+      when(() => service.extendExpiry(any(), any(), any()))
+          .thenAnswer((_) async => _access());
+      final (container, _) = _createContainer(service);
 
       final notifier = container.read(substituteListProvider('band1').notifier);
       final newExpiry = DateTime.now().add(const Duration(days: 90));
@@ -407,8 +496,8 @@ void main() {
 
   group('Substitute Provider — Family-Scoping', () {
     test('Verschiedene bandId-Scopes sind unabhängig', () async {
-      final container = ProviderContainer();
-      addTearDown(container.dispose);
+      final service = _defaultListService();
+      final (container, _) = _createContainer(service);
 
       container.read(substituteListProvider('band1').notifier);
       container.read(substituteListProvider('band2').notifier);
@@ -418,11 +507,23 @@ void main() {
     });
 
     test('createAccess in band1 beeinflusst nicht band2', () async {
-      final container = ProviderContainer();
-      addTearDown(container.dispose);
+      final service = _defaultListService();
+      when(() => service.createAccessLink(
+        any(),
+        name: any(named: 'name'),
+        instrument: any(named: 'instrument'),
+        voice: any(named: 'voice'),
+        eventId: any(named: 'eventId'),
+        expiresAt: any(named: 'expiresAt'),
+        note: any(named: 'note'),
+      )).thenAnswer((_) async => _link());
+      final (container, _) = _createContainer(service);
 
       final notifier1 = container.read(substituteListProvider('band1').notifier);
-      final notifier2 = container.read(substituteListProvider('band2').notifier);
+      container.read(substituteListProvider('band2').notifier);
+
+      await container.read(substituteListProvider('band1').future);
+      await container.read(substituteListProvider('band2').future);
 
       await notifier1.createAccess(
         name: 'Band1 Aushilfe',
@@ -430,8 +531,9 @@ void main() {
         voice: 'Trompete 1',
       );
 
-      // band2 should remain independent
-      expect(container.read(substituteListProvider('band2')).isLoading, isTrue);
+      // band2 should remain independent (empty list from mock)
+      final band2State = container.read(substituteListProvider('band2')).value ?? [];
+      expect(band2State.isEmpty, isTrue);
     });
   });
 }

@@ -4,6 +4,7 @@ using Sheetstorm.Domain.Entities;
 using Sheetstorm.Domain.Enums;
 using Sheetstorm.Domain.Exceptions;
 using Sheetstorm.Infrastructure.Attendance;
+using Sheetstorm.Infrastructure.Auth;
 using Sheetstorm.Infrastructure.Persistence;
 
 namespace Sheetstorm.Tests.Attendance;
@@ -20,7 +21,7 @@ public class AttendanceServiceTests : IDisposable
             .Options;
 
         _db = new AppDbContext(options);
-        _sut = new AttendanceService(_db);
+        _sut = new AttendanceService(_db, new BandAuthorizationService(_db));
     }
 
     public void Dispose()

@@ -108,27 +108,32 @@ class BroadcastSession {
         'aktiveStueckTitel': aktiveStueckTitel,
       };
 
+  static const _sentinel = Object();
+
   BroadcastSession copyWith({
     String? sessionId,
     String? kapelleId,
     String? dirigentId,
-    String? dirigentName,
+    Object? dirigentName = _sentinel,
     BroadcastSessionStatus? status,
     DateTime? erstelltAm,
     int? verbundeneMusiker,
-    String? aktiveStueckId,
-    String? aktiveStueckTitel,
+    Object? aktiveStueckId = _sentinel,
+    Object? aktiveStueckTitel = _sentinel,
   }) =>
       BroadcastSession(
         sessionId: sessionId ?? this.sessionId,
         kapelleId: kapelleId ?? this.kapelleId,
         dirigentId: dirigentId ?? this.dirigentId,
-        dirigentName: dirigentName ?? this.dirigentName,
+        dirigentName:
+            dirigentName == _sentinel ? this.dirigentName : dirigentName as String?,
         status: status ?? this.status,
         erstelltAm: erstelltAm ?? this.erstelltAm,
         verbundeneMusiker: verbundeneMusiker ?? this.verbundeneMusiker,
-        aktiveStueckId: aktiveStueckId ?? this.aktiveStueckId,
-        aktiveStueckTitel: aktiveStueckTitel ?? this.aktiveStueckTitel,
+        aktiveStueckId:
+            aktiveStueckId == _sentinel ? this.aktiveStueckId : aktiveStueckId as String?,
+        aktiveStueckTitel:
+            aktiveStueckTitel == _sentinel ? this.aktiveStueckTitel : aktiveStueckTitel as String?,
       );
 }
 

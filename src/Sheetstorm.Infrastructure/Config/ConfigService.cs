@@ -8,13 +8,13 @@ using Sheetstorm.Infrastructure.Persistence;
 
 namespace Sheetstorm.Infrastructure.Config;
 
-public class ConfigService(AppDbContext db) : IConfigService
+public class ConfigService(AppDbContext db, IBandAuthorizationService bandAuth) : IConfigService
 {
     // ── Band Config ────────────────────────────────────────────────────────
 
     public async Task<IReadOnlyList<ConfigEntryResponse>> GetBandConfigAsync(Guid bandId, Guid musicianId)
     {
-        await RequireMembershipAsync(bandId, musicianId);
+        await bandAuth.RequireMembershipAsync(bandId, musicianId);
 
         var entries = await db.ConfigBand
             .Where(c => c.BandId == bandId)
@@ -30,7 +30,7 @@ public class ConfigService(AppDbContext db) : IConfigService
     public async Task<ConfigChangeResponse> SetBandConfigAsync(
         Guid bandId, string schluessel, SetConfigValueRequest request, Guid musicianId)
     {
-        await RequireAdminAsync(bandId, musicianId);
+        await bandAuth.RequireAdminAsync(bandId, musicianId);
 
         var def = ConfigKeyRegistry.Get(schluessel);
         if (def is null || def.Level != ConfigKeyRegistry.ConfigLevel.Band)
@@ -81,7 +81,7 @@ public class ConfigService(AppDbContext db) : IConfigService
 
     public async Task DeleteBandConfigAsync(Guid bandId, string schluessel, Guid musicianId)
     {
-        await RequireAdminAsync(bandId, musicianId);
+        await bandAuth.RequireAdminAsync(bandId, musicianId);
 
         var existing = await db.ConfigBand
             .FirstOrDefaultAsync(c => c.BandId == bandId && c.Key == schluessel);
@@ -107,7 +107,7 @@ public class ConfigService(AppDbContext db) : IConfigService
 
     public async Task<IReadOnlyList<ConfigPolicyEntryResponse>> GetPoliciesAsync(Guid bandId, Guid musicianId)
     {
-        await RequireAdminAsync(bandId, musicianId);
+        await bandAuth.RequireAdminAsync(bandId, musicianId);
 
         return await db.ConfigPolicies
             .Where(p => p.BandId == bandId)
@@ -121,7 +121,7 @@ public class ConfigService(AppDbContext db) : IConfigService
     public async Task<ConfigChangeResponse> SetPolicyAsync(
         Guid bandId, string schluessel, SetConfigValueRequest request, Guid musicianId)
     {
-        await RequireAdminAsync(bandId, musicianId);
+        await bandAuth.RequireAdminAsync(bandId, musicianId);
 
         var def = ConfigKeyRegistry.Get(schluessel);
         if (def is null || def.Level != ConfigKeyRegistry.ConfigLevel.Policy)
@@ -172,7 +172,7 @@ public class ConfigService(AppDbContext db) : IConfigService
 
     public async Task DeletePolicyAsync(Guid bandId, string schluessel, Guid musicianId)
     {
-        await RequireAdminAsync(bandId, musicianId);
+        await bandAuth.RequireAdminAsync(bandId, musicianId);
 
         var existing = await db.ConfigPolicies
             .FirstOrDefaultAsync(p => p.BandId == bandId && p.Key == schluessel);
@@ -371,7 +371,7 @@ public class ConfigService(AppDbContext db) : IConfigService
     public async Task<IReadOnlyList<ConfigResolvedEntry>> GetResolvedConfigAsync(
         Guid bandId, Guid musicianId)
     {
-        await RequireMembershipAsync(bandId, musicianId);
+        await bandAuth.RequireMembershipAsync(bandId, musicianId);
 
         // Load all 3 levels in parallel
         var bandConfigTask = db.ConfigBand
@@ -500,21 +500,4 @@ public class ConfigService(AppDbContext db) : IConfigService
         }
     }
 
-    private async Task<Membership> RequireMembershipAsync(Guid bandId, Guid musicianId)
-    {
-        var m = await db.Memberships
-            .FirstOrDefaultAsync(m => m.BandId == bandId && m.MusicianId == musicianId && m.IsActive);
-
-        return m ?? throw new DomainException("BAND_NOT_FOUND", "Band not found or no access.", 404);
-    }
-
-    private async Task<Membership> RequireAdminAsync(Guid bandId, Guid musicianId)
-    {
-        var m = await RequireMembershipAsync(bandId, musicianId);
-
-        if (m.Role != MemberRole.Administrator)
-            throw new AuthException("FORBIDDEN", "Only admins can perform this action.", 403);
-
-        return m;
-    }
 }

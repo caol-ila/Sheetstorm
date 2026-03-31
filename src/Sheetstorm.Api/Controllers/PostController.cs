@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Sheetstorm.Domain.Auth;
 using Sheetstorm.Domain.Communication;
+using Sheetstorm.Domain.Pagination;
 using Sheetstorm.Infrastructure.Communication;
 
 namespace Sheetstorm.Api.Controllers;
@@ -17,10 +18,16 @@ public class PostController(IPostService service) : ControllerBase
         Guid.Parse(User.FindFirstValue(JwtRegisteredClaimNames.Sub)!);
 
     [HttpGet]
-    [ProducesResponseType(typeof(IReadOnlyList<PostDto>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetAll(Guid bandId, CancellationToken ct)
+    [ProducesResponseType(typeof(PagedResult<PostDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetAll(
+        Guid bandId,
+        [FromQuery] string? cursor = null,
+        [FromQuery] int pageSize = 20,
+        CancellationToken ct = default)
     {
-        var result = await service.GetAllAsync(bandId, CurrentUserId, ct);
+        var request = new PaginationRequest(cursor, pageSize);
+        var result = await service.GetAllPaginatedAsync(bandId, CurrentUserId, request, ct);
         return Ok(result);
     }
 
@@ -102,6 +109,22 @@ public class PostController(IPostService service) : ControllerBase
 
         var result = await service.AddCommentAsync(bandId, postId, request, CurrentUserId, ct);
         return StatusCode(StatusCodes.Status201Created, result);
+    }
+
+    [HttpGet("{postId:guid}/comments")]
+    [ProducesResponseType(typeof(PagedResult<PostCommentDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetComments(
+        Guid bandId,
+        Guid postId,
+        [FromQuery] string? cursor = null,
+        [FromQuery] int pageSize = 20,
+        CancellationToken ct = default)
+    {
+        var request = new PaginationRequest(cursor, pageSize);
+        var result = await service.GetCommentsPaginatedAsync(bandId, postId, CurrentUserId, request, ct);
+        return Ok(result);
     }
 
     [HttpDelete("{postId:guid}/comments/{commentId:guid}")]

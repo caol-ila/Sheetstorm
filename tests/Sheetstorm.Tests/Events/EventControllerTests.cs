@@ -9,6 +9,7 @@ using Sheetstorm.Domain.Auth;
 using Sheetstorm.Domain.Enums;
 using Sheetstorm.Domain.Events;
 using Sheetstorm.Domain.Exceptions;
+using Sheetstorm.Domain.Pagination;
 using Sheetstorm.Infrastructure.Events;
 
 namespace Sheetstorm.Tests.Events;
@@ -53,35 +54,35 @@ public class EventControllerTests
             MakeEventDto(Guid.NewGuid(), "Event A"),
             MakeEventDto(Guid.NewGuid(), "Event B")
         };
-        _service.GetEventsAsync(_bandId, _musicianId, Arg.Any<CancellationToken>())
-            .Returns(events);
+        _service.GetEventsPaginatedAsync(_bandId, _musicianId, Arg.Any<PaginationRequest>(), Arg.Any<CancellationToken>())
+            .Returns(new PagedResult<EventDto>(events, null, false, 20));
 
-        var result = await _sut.GetEvents(_bandId, CancellationToken.None);
+        var result = await _sut.GetEvents(_bandId);
 
         var ok = Assert.IsType<OkObjectResult>(result);
-        var returned = Assert.IsAssignableFrom<IReadOnlyList<EventDto>>(ok.Value);
-        Assert.Equal(2, returned.Count);
+        var returned = Assert.IsType<PagedResult<EventDto>>(ok.Value);
+        Assert.Equal(2, returned.Items.Count);
     }
 
     [Fact]
     public async Task GetEvents_DelegatesCurrentUserIdToService()
     {
-        _service.GetEventsAsync(_bandId, _musicianId, Arg.Any<CancellationToken>())
-            .Returns(new List<EventDto>());
+        _service.GetEventsPaginatedAsync(_bandId, _musicianId, Arg.Any<PaginationRequest>(), Arg.Any<CancellationToken>())
+            .Returns(new PagedResult<EventDto>(new List<EventDto>(), null, false, 20));
 
-        await _sut.GetEvents(_bandId, CancellationToken.None);
+        await _sut.GetEvents(_bandId);
 
-        await _service.Received(1).GetEventsAsync(_bandId, _musicianId, Arg.Any<CancellationToken>());
+        await _service.Received(1).GetEventsPaginatedAsync(_bandId, _musicianId, Arg.Any<PaginationRequest>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task GetEvents_ServiceThrowsDomainException_Propagates()
     {
-        _service.GetEventsAsync(Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+        _service.GetEventsPaginatedAsync(Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<PaginationRequest>(), Arg.Any<CancellationToken>())
             .ThrowsAsync(new DomainException("NOT_FOUND", "Not found.", 404));
 
         await Assert.ThrowsAsync<DomainException>(
-            () => _sut.GetEvents(_bandId, CancellationToken.None));
+            () => _sut.GetEvents(_bandId));
     }
 
     // ── GetEvent ─────────────────────────────────────────────────────────────────
@@ -382,11 +383,11 @@ public class EventControllerTests
     public async Task BandScopedAccess_ServiceEnforcesIsolation_ControllerPropagatesException()
     {
         var foreignBandId = Guid.NewGuid();
-        _service.GetEventsAsync(foreignBandId, _musicianId, Arg.Any<CancellationToken>())
+        _service.GetEventsPaginatedAsync(foreignBandId, _musicianId, Arg.Any<PaginationRequest>(), Arg.Any<CancellationToken>())
             .ThrowsAsync(new DomainException("NOT_FOUND", "Band not found or no access.", 404));
 
         var ex = await Assert.ThrowsAsync<DomainException>(
-            () => _sut.GetEvents(foreignBandId, CancellationToken.None));
+            () => _sut.GetEvents(foreignBandId));
 
         Assert.Equal("NOT_FOUND", ex.ErrorCode);
         Assert.Equal(404, ex.StatusCode);

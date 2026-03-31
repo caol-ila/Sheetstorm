@@ -2,15 +2,14 @@ using System.Collections.Concurrent;
 using System.IdentityModel.Tokens.Jwt;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
-using Microsoft.EntityFrameworkCore;
 using Sheetstorm.Domain.Entities;
 using Sheetstorm.Domain.SongBroadcast;
-using Sheetstorm.Infrastructure.Persistence;
+using Sheetstorm.Infrastructure.Auth;
 
 namespace Sheetstorm.Api.Hubs;
 
 [Authorize]
-public class SongBroadcastHub(AppDbContext db) : Hub
+public class SongBroadcastHub(IBandAuthorizationService bandAuth) : Hub
 {
     // bandId → BroadcastState
     private static readonly ConcurrentDictionary<Guid, BroadcastState> ActiveBroadcasts = new();
@@ -31,29 +30,13 @@ public class SongBroadcastHub(AppDbContext db) : Hub
             ?? "Unknown";
     }
 
-    private async Task<Membership> RequireMembershipAsync(Guid bandId, Guid musicianId)
-    {
-        var m = await db.Set<Membership>()
-            .FirstOrDefaultAsync(m => m.BandId == bandId && m.MusicianId == musicianId && m.IsActive);
-
-        return m ?? throw new HubException("Not a member of this band.");
-    }
-
-    private async Task RequireConductorOrAdminAsync(Guid bandId, Guid musicianId)
-    {
-        var m = await RequireMembershipAsync(bandId, musicianId);
-
-        if (m.Role is not (MemberRole.Administrator or MemberRole.Conductor))
-            throw new HubException("Only conductors or admins can perform this action.");
-    }
-
     /// <summary>Start a broadcast session for a band. Only conductors/admins.</summary>
     public async Task StartBroadcast(Guid bandId)
     {
         var userId = GetUserId() ?? throw new HubException("User not authenticated.");
         var userName = GetUserName();
 
-        await RequireConductorOrAdminAsync(bandId, userId);
+        await bandAuth.RequireConductorOrAdminAsync(bandId, userId);
 
         if (ActiveBroadcasts.TryGetValue(bandId, out var existing) && existing.IsActive)
             throw new HubException($"A broadcast is already active for this band, started by {existing.ConductorName}.");
@@ -83,7 +66,7 @@ public class SongBroadcastHub(AppDbContext db) : Hub
         var userId = GetUserId() ?? throw new HubException("User not authenticated.");
         var userName = GetUserName();
 
-        await RequireConductorOrAdminAsync(bandId, userId);
+        await bandAuth.RequireConductorOrAdminAsync(bandId, userId);
 
         if (!ActiveBroadcasts.TryRemove(bandId, out _))
             throw new HubException("No active broadcast for this band.");
@@ -100,7 +83,7 @@ public class SongBroadcastHub(AppDbContext db) : Hub
     {
         var userId = GetUserId() ?? throw new HubException("User not authenticated.");
 
-        await RequireConductorOrAdminAsync(bandId, userId);
+        await bandAuth.RequireConductorOrAdminAsync(bandId, userId);
 
         if (!ActiveBroadcasts.TryGetValue(bandId, out var state) || !state.IsActive)
             throw new HubException("No active broadcast for this band.");
@@ -130,7 +113,7 @@ public class SongBroadcastHub(AppDbContext db) : Hub
     {
         var userId = GetUserId() ?? throw new HubException("User not authenticated.");
 
-        await RequireMembershipAsync(bandId, userId);
+        await bandAuth.RequireMembershipAsync(bandId, userId);
 
         await Groups.AddToGroupAsync(Context.ConnectionId, BandGroup(bandId));
         TrackConnection(bandId, Context.ConnectionId, userId);
@@ -153,7 +136,7 @@ public class SongBroadcastHub(AppDbContext db) : Hub
     public async Task LeaveBroadcast(Guid bandId)
     {
         var userId = GetUserId() ?? throw new HubException("User not authenticated.");
-        await RequireMembershipAsync(bandId, userId);
+        await bandAuth.RequireMembershipAsync(bandId, userId);
 
         await Groups.RemoveFromGroupAsync(Context.ConnectionId, BandGroup(bandId));
         RemoveConnection(bandId, Context.ConnectionId);

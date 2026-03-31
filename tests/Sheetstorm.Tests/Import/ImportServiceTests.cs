@@ -7,6 +7,7 @@ using Sheetstorm.Domain.Enums;
 using Sheetstorm.Domain.Exceptions;
 using Sheetstorm.Domain.Import;
 using Sheetstorm.Infrastructure.Import;
+using Sheetstorm.Infrastructure.Auth;
 using Sheetstorm.Infrastructure.Persistence;
 
 namespace Sheetstorm.Tests.Import;
@@ -29,7 +30,7 @@ public class ImportServiceTests : IDisposable
         _storage = Substitute.For<IStorageService>();
         _ai = Substitute.For<IAiMetadataService>();
         _logger = Substitute.For<ILogger<ImportService>>();
-        _sut = new ImportService(_db, _storage, _ai, _logger);
+        _sut = new ImportService(_db, new BandAuthorizationService(_db), _storage, _ai, _logger);
     }
 
     public void Dispose()
@@ -121,8 +122,8 @@ public class ImportServiceTests : IDisposable
         var ex = await Assert.ThrowsAsync<DomainException>(
             () => _sut.ImportAsync(stream, "test.pdf", "application/pdf", band.Id, Guid.NewGuid()));
 
-        Assert.Equal("BAND_NOT_FOUND", ex.ErrorCode);
-        Assert.Equal(404, ex.StatusCode);
+        Assert.Equal("FORBIDDEN", ex.ErrorCode);
+        Assert.Equal(403, ex.StatusCode);
     }
 
     [Fact]
@@ -140,7 +141,7 @@ public class ImportServiceTests : IDisposable
         var ex = await Assert.ThrowsAsync<DomainException>(
             () => _sut.ImportAsync(stream, "test.pdf", "application/pdf", band.Id, musician.Id));
 
-        Assert.Equal("BAND_NOT_FOUND", ex.ErrorCode);
+        Assert.Equal("FORBIDDEN", ex.ErrorCode);
     }
 
     // ── ImportAsync: State Machine ────────────────────────────────────────────

@@ -24,6 +24,12 @@ public class PostConfiguration : IEntityTypeConfiguration<Post>
         builder.Property(p => p.IsPinned)
             .IsRequired();
 
+        builder.Property(p => p.IsDeleted)
+            .IsRequired()
+            .HasDefaultValue(false);
+
+        builder.Property(p => p.DeletedAt);
+
         builder.HasOne(p => p.Band)
             .WithMany()
             .HasForeignKey(p => p.BandId)
@@ -44,6 +50,6 @@ public class PostConfiguration : IEntityTypeConfiguration<Post>
             .HasForeignKey(r => r.PostId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        builder.HasIndex(p => new { p.BandId, p.IsPinned, p.CreatedAt });
+        builder.HasIndex(p => new { p.BandId, p.IsDeleted, p.IsPinned, p.CreatedAt });
     }
 }

@@ -1,18 +1,61 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sheetstorm/core/theme/app_colors.dart';
 import 'package:sheetstorm/core/theme/app_tokens.dart';
+import 'package:sheetstorm/features/shifts/application/shift_notifier.dart';
 import 'package:sheetstorm/features/shifts/data/models/shift_models.dart';
 
-class ShiftDetailScreen extends StatelessWidget {
+/// Shift-Detail-Ansicht.
+///
+/// Empfängt bandId, planId und shiftId als Pfadparameter (kein state.extra).
+/// Liest den Shift aus dem bereits gecachten [shiftPlanProvider].
+class ShiftDetailScreen extends ConsumerWidget {
   const ShiftDetailScreen({
     super.key,
     required this.bandId,
     required this.planId,
-    required this.shift,
+    required this.shiftId,
   });
 
   final String bandId;
   final String planId;
+  final String shiftId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final planAsync = ref.watch(shiftPlanProvider(bandId, planId));
+
+    return planAsync.when(
+      data: (plan) {
+        final Shift? shift = plan.shifts
+            .where((s) => s.id == shiftId)
+            .cast<Shift?>()
+            .firstOrNull;
+
+        if (shift == null) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('Schicht-Details')),
+            body: const Center(child: Text('Schicht nicht gefunden')),
+          );
+        }
+
+        return _ShiftDetailContent(shift: shift);
+      },
+      loading: () => Scaffold(
+        appBar: AppBar(title: const Text('Schicht-Details')),
+        body: const Center(child: CircularProgressIndicator()),
+      ),
+      error: (error, _) => Scaffold(
+        appBar: AppBar(title: const Text('Schicht-Details')),
+        body: Center(child: Text('Fehler: $error')),
+      ),
+    );
+  }
+}
+
+class _ShiftDetailContent extends StatelessWidget {
+  const _ShiftDetailContent({required this.shift});
+
   final Shift shift;
 
   @override
@@ -107,6 +150,7 @@ class ShiftDetailScreen extends StatelessWidget {
                       trailing: IconButton(
                         icon: const Icon(Icons.remove_circle_outline,
                             color: AppColors.error),
+                        tooltip: 'Zuweisung entfernen',
                         onPressed: () {
                           // Handle remove assignment
                         },
@@ -167,3 +211,4 @@ class ShiftDetailScreen extends StatelessWidget {
     return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
   }
 }
+

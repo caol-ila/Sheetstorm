@@ -108,9 +108,11 @@ class Event {
             : null,
         createdAt: DateTime.parse(json['erstellt_am'] as String),
         createdByName:
-            (json['erstellt_von'] as Map<String, dynamic>)['name'] as String,
+            (json['erstellt_von'] as Map<String, dynamic>?)?['name']
+                as String? ??
+            '',
         statistics: EventStatistics.fromJson(
-          json['statistik'] as Map<String, dynamic>,
+          json['statistik'] as Map<String, dynamic>? ?? const {},
         ),
         myRsvpStatus: json['meine_teilnahme'] != null
             ? RsvpStatus.fromJson(json['meine_teilnahme'] as String)
@@ -137,6 +139,8 @@ class Event {
         'meine_teilnahme': myRsvpStatus.toJson(),
       };
 
+  static const _sentinel = Object();
+
   Event copyWith({
     String? id,
     String? bandId,
@@ -144,14 +148,14 @@ class Event {
     EventType? type,
     DateTime? date,
     String? startTime,
-    String? endTime,
-    String? location,
-    String? meetingPoint,
-    String? description,
-    String? setlistId,
-    String? setlistName,
-    String? dressCode,
-    DateTime? rsvpDeadline,
+    Object? endTime = _sentinel,
+    Object? location = _sentinel,
+    Object? meetingPoint = _sentinel,
+    Object? description = _sentinel,
+    Object? setlistId = _sentinel,
+    Object? setlistName = _sentinel,
+    Object? dressCode = _sentinel,
+    Object? rsvpDeadline = _sentinel,
     DateTime? createdAt,
     String? createdByName,
     EventStatistics? statistics,
@@ -164,14 +168,14 @@ class Event {
         type: type ?? this.type,
         date: date ?? this.date,
         startTime: startTime ?? this.startTime,
-        endTime: endTime ?? this.endTime,
-        location: location ?? this.location,
-        meetingPoint: meetingPoint ?? this.meetingPoint,
-        description: description ?? this.description,
-        setlistId: setlistId ?? this.setlistId,
-        setlistName: setlistName ?? this.setlistName,
-        dressCode: dressCode ?? this.dressCode,
-        rsvpDeadline: rsvpDeadline ?? this.rsvpDeadline,
+        endTime: endTime == _sentinel ? this.endTime : endTime as String?,
+        location: location == _sentinel ? this.location : location as String?,
+        meetingPoint: meetingPoint == _sentinel ? this.meetingPoint : meetingPoint as String?,
+        description: description == _sentinel ? this.description : description as String?,
+        setlistId: setlistId == _sentinel ? this.setlistId : setlistId as String?,
+        setlistName: setlistName == _sentinel ? this.setlistName : setlistName as String?,
+        dressCode: dressCode == _sentinel ? this.dressCode : dressCode as String?,
+        rsvpDeadline: rsvpDeadline == _sentinel ? this.rsvpDeadline : rsvpDeadline as DateTime?,
         createdAt: createdAt ?? this.createdAt,
         createdByName: createdByName ?? this.createdByName,
         statistics: statistics ?? this.statistics,

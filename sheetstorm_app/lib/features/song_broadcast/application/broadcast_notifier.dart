@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:sheetstorm/features/auth/application/auth_notifier.dart';
 import 'package:sheetstorm/features/band/application/band_notifier.dart';
 import 'package:sheetstorm/features/song_broadcast/data/models/broadcast_models.dart';
 import 'package:sheetstorm/features/song_broadcast/data/services/broadcast_service.dart';
@@ -63,16 +64,22 @@ class BroadcastState {
 class BroadcastNotifier extends _$BroadcastNotifier {
   final List<StreamSubscription<dynamic>> _subscriptions = [];
 
+  late BroadcastRestService _rest;
+  late BroadcastSignalRService _signalR;
+
   @override
   BroadcastState build() {
+    _rest = ref.read(broadcastRestServiceProvider);
+    _signalR = ref.read(broadcastSignalRServiceProvider);
     ref.onDispose(_cleanup);
     return const BroadcastState();
   }
 
-  BroadcastRestService get _rest => ref.read(broadcastRestServiceProvider);
-  BroadcastSignalRService get _signalR =>
-      ref.read(broadcastSignalRServiceProvider);
   String? get _bandId => ref.read(activeBandProvider);
+  String? get _musikerId {
+    final auth = ref.read(authProvider);
+    return auth is AuthAuthenticated ? auth.user.id : null;
+  }
 
   // ─── Conductor Actions ─────────────────────────────────────────────────
 
@@ -163,11 +170,18 @@ class BroadcastNotifier extends _$BroadcastNotifier {
   // ─── Musician Actions ──────────────────────────────────────────────────
 
   /// Join an active broadcast session as a musician.
-  Future<void> joinSession({required String musikerId}) async {
+  Future<void> joinSession() async {
     final bandId = _bandId;
     if (bandId == null) {
       state = state.copyWith(
           mode: BroadcastMode.error, error: 'Keine aktive Kapelle');
+      return;
+    }
+
+    final musikerId = _musikerId;
+    if (musikerId == null) {
+      state = state.copyWith(
+          mode: BroadcastMode.error, error: 'Nicht angemeldet');
       return;
     }
 
@@ -204,10 +218,11 @@ class BroadcastNotifier extends _$BroadcastNotifier {
   }
 
   /// Leave the current session as a musician.
-  Future<void> leaveSession({required String musikerId}) async {
+  Future<void> leaveSession() async {
     final sessionId = state.session?.sessionId;
     if (sessionId == null) return;
 
+    final musikerId = _musikerId ?? '';
     _signalR.leaveSession(sessionId, musikerId);
     await _signalR.disconnect();
     state = const BroadcastState();
