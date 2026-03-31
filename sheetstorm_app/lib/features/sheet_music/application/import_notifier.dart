@@ -18,6 +18,11 @@ class ImportIdle extends ImportState {
   const ImportIdle();
 }
 
+/// All files uploaded successfully.
+class ImportSuccess extends ImportState {
+  const ImportSuccess();
+}
+
 /// User has picked files and upload is in progress.
 class ImportUploading extends ImportState {
   const ImportUploading({
@@ -224,8 +229,8 @@ class ImportNotifier extends _$ImportNotifier {
         );
       }
 
-      // All files uploaded — mark complete
-      state = const ImportIdle();
+      // All files uploaded — show success, then reset
+      state = const ImportSuccess();
     } on Exception catch (e) {
       state = ImportError(
         message: 'Upload fehlgeschlagen: $e',

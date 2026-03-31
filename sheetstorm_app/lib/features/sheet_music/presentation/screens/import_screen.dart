@@ -19,16 +19,24 @@ class ImportScreen extends ConsumerStatefulWidget {
 }
 
 class _ImportScreenState extends ConsumerState<ImportScreen> {
-  ImportTarget _ziel = ImportTarget.personal;
   bool _isDragOver = false;
 
   @override
   Widget build(BuildContext context) {
     final importState = ref.watch(importProvider);
 
-    // Navigate when labeling is ready
+    // Navigate when labeling is ready or upload succeeds
     ref.listen<ImportState>(importProvider, (prev, next) {
-      if (next is ImportLabeling) {
+      if (next is ImportSuccess) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Noten erfolgreich importiert!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        ref.read(importProvider.notifier).reset();
+        context.pop();
+      } else if (next is ImportLabeling) {
         context.push(AppRoutes.importLabeling(next.uploadId));
       } else if (next is ImportError) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -60,9 +68,7 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
         ImportUploading() => _UploadingView(state: importState),
         ImportExtracting() => _ExtractingView(state: importState),
         _ => _SelectionView(
-            ziel: _ziel,
             isDragOver: _isDragOver,
-            onZielChanged: (z) => setState(() => _ziel = z),
             onFilesSelected: _onFilesSelected,
             onCameraPressed: _onCameraPressed,
             onDragOver: (v) => setState(() => _isDragOver = v),
@@ -108,7 +114,7 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
     if (!mounted) return;
     await ref.read(importProvider.notifier).upload(
           files: files,
-          ziel: _ziel,
+          ziel: ImportTarget.band,
           bandId: bandId,
         );
   }
@@ -169,7 +175,7 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
     }
     await ref.read(importProvider.notifier).upload(
           files: images,
-          ziel: _ziel,
+          ziel: ImportTarget.band,
           bandId: bandId,
         );
   }
@@ -179,17 +185,13 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
 
 class _SelectionView extends StatelessWidget {
   const _SelectionView({
-    required this.ziel,
     required this.isDragOver,
-    required this.onZielChanged,
     required this.onFilesSelected,
     required this.onCameraPressed,
     required this.onDragOver,
   });
 
-  final ImportTarget ziel;
   final bool isDragOver;
-  final ValueChanged<ImportTarget> onZielChanged;
   final VoidCallback onFilesSelected;
   final VoidCallback onCameraPressed;
   final ValueChanged<bool> onDragOver;
@@ -206,9 +208,6 @@ class _SelectionView extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // ── Ziel-Auswahl ─────────────────────────────────────────────────
-          _ZielAuswahl(ziel: ziel, onChanged: onZielChanged),
-
           const SizedBox(height: AppSpacing.lg),
 
           // ── Upload Zone ───────────────────────────────────────────────────
