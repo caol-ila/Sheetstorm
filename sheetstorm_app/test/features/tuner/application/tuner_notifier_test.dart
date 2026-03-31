@@ -26,27 +26,27 @@ void main() {
 
   group('TunerNotifier — Initialzustand', () {
     test('Startzustand: isListening ist false', () {
-      final (c, _, __) = _setup();
+      final (c, _, _) = _setup();
       expect(c.read(tunerProvider).isListening, isFalse);
     });
 
     test('Startzustand: kein erkannter Ton', () {
-      final (c, _, __) = _setup();
+      final (c, _, _) = _setup();
       expect(c.read(tunerProvider).note, isNull);
     });
 
     test('Startzustand: referenceFrequency ist 442 Hz', () {
-      final (c, _, __) = _setup();
+      final (c, _, _) = _setup();
       expect(c.read(tunerProvider).referenceFrequency, 442.0);
     });
 
     test('Startzustand: Transposition ist Concert', () {
-      final (c, _, __) = _setup();
+      final (c, _, _) = _setup();
       expect(c.read(tunerProvider).transposition, TranspositionMode.concert);
     });
 
     test('Startzustand: centDeviation ist 0', () {
-      final (c, _, __) = _setup();
+      final (c, _, _) = _setup();
       expect(c.read(tunerProvider).centDeviation, 0.0);
     });
   });

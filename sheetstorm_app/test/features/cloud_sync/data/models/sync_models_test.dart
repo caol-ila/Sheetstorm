@@ -46,7 +46,7 @@ void main() {
     });
 
     test('empty vectorClock is allowed', () {
-      final v = SyncVersion.fromJson({
+      final v = SyncVersion.fromJson(const {
         'deviceId': 'dev1',
         'timestamp': '2025-01-01T00:00:00.000Z',
       });

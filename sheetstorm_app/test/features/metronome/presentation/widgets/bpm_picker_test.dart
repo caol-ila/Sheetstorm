@@ -33,7 +33,7 @@ void main() {
     when(() => mockSignalR.connect()).thenAnswer((_) async {});
   });
 
-  ProviderContainer _makeContainer() {
+  ProviderContainer makeContainer() {
     final container = ProviderContainer(
       overrides: [
         metronomeSignalRServiceProvider.overrideWithValue(mockSignalR),
@@ -46,7 +46,7 @@ void main() {
 
   group('BpmPicker', () {
     testWidgets('shows current BPM', (tester) async {
-      final container = _makeContainer();
+      final container = makeContainer();
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
@@ -61,7 +61,7 @@ void main() {
     });
 
     testWidgets('has stepper buttons', (tester) async {
-      final container = _makeContainer();
+      final container = makeContainer();
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
@@ -79,7 +79,7 @@ void main() {
     });
 
     testWidgets('has slider', (tester) async {
-      final container = _makeContainer();
+      final container = makeContainer();
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
@@ -93,7 +93,7 @@ void main() {
     });
 
     testWidgets('has Tap Tempo button', (tester) async {
-      final container = _makeContainer();
+      final container = makeContainer();
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
@@ -107,7 +107,7 @@ void main() {
     });
 
     testWidgets('[+] increments BPM by 1', (tester) async {
-      final container = _makeContainer();
+      final container = makeContainer();
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
@@ -124,7 +124,7 @@ void main() {
     });
 
     testWidgets('[-] decrements BPM by 1', (tester) async {
-      final container = _makeContainer();
+      final container = makeContainer();
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
@@ -141,7 +141,7 @@ void main() {
     });
 
     testWidgets('[++] increments BPM by 5', (tester) async {
-      final container = _makeContainer();
+      final container = makeContainer();
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
@@ -158,7 +158,7 @@ void main() {
     });
 
     testWidgets('[--] decrements BPM by 5', (tester) async {
-      final container = _makeContainer();
+      final container = makeContainer();
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,

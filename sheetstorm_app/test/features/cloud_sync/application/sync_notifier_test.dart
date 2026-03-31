@@ -55,17 +55,17 @@ void main() {
 
   group('SyncNotifier — Initialzustand', () {
     test('Startzustand ist idle', () {
-      final (c, _, __) = _setup();
+      final (c, _, _) = _setup();
       expect(c.read(syncProvider).status, SyncStatus.idle);
     });
 
     test('Startzustand hat keine Konflikte', () {
-      final (c, _, __) = _setup();
+      final (c, _, _) = _setup();
       expect(c.read(syncProvider).conflicts, isEmpty);
     });
 
     test('Startzustand hat 0 pendingChanges', () {
-      final (c, _, __) = _setup();
+      final (c, _, _) = _setup();
       expect(c.read(syncProvider).pendingChanges, 0);
     });
   });

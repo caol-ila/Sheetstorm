@@ -91,11 +91,11 @@ class SetlistNavigationSheet extends StatelessWidget {
                     ),
                   ),
                   trailing: isCurrent
-                      ? Icon(Icons.play_arrow, color: AppColors.darkPrimary)
+                      ? const Icon(Icons.play_arrow, color: AppColors.darkPrimary)
                       : null,
                   selected: isCurrent,
                   selectedTileColor: AppColors.darkPrimary.withOpacity(0.1),
-                  shape: RoundedRectangleBorder(
+                  shape: const RoundedRectangleBorder(
                     borderRadius: AppSpacing.roundedMd,
                   ),
                   onTap: () {

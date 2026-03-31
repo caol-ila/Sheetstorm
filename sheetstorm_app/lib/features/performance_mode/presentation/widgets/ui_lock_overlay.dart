@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:sheetstorm/core/theme/app_colors.dart';
 import 'package:sheetstorm/core/theme/app_tokens.dart';
 
 /// UI-Lock indicator overlay (UX §14).
@@ -67,7 +66,7 @@ class _UiLockOverlayState extends State<UiLockOverlay> {
                       horizontal: AppSpacing.md,
                       vertical: AppSpacing.sm,
                     ),
-                    decoration: BoxDecoration(
+                    decoration: const BoxDecoration(
                       color: Colors.black54,
                       borderRadius: AppSpacing.roundedFull,
                     ),

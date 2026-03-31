@@ -19,9 +19,6 @@ import 'package:sheetstorm/features/performance_mode/presentation/widgets/perfor
 import 'package:sheetstorm/features/performance_mode/presentation/widgets/voice_bottom_sheet.dart';
 import 'package:sheetstorm/features/performance_mode/presentation/widgets/two_page_view.dart';
 import 'package:sheetstorm/features/performance_mode/presentation/widgets/ui_lock_overlay.dart';
-import 'package:sheetstorm/features/annotations/application/annotation_notifier.dart';
-import 'package:sheetstorm/features/annotations/presentation/widgets/annotation_layer.dart';
-import 'package:sheetstorm/features/annotations/presentation/widgets/layer_toggle_panel.dart';
 
 /// Performance-Modus Screen — Focus-First (ux-design.md § 1.1)
 ///

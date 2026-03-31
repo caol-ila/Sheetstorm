@@ -30,7 +30,7 @@ class SyncStatusIndicator extends StatelessWidget {
   Widget _buildIcon(BuildContext context) {
     switch (status) {
       case SyncStatus.syncing:
-        return CircularProgressIndicator(
+        return const CircularProgressIndicator(
           strokeWidth: 2.0,
           color: AppColors.primary,
         );

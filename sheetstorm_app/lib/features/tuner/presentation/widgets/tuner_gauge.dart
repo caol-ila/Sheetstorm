@@ -64,9 +64,9 @@ class TunerGauge extends StatelessWidget {
 class _ScaleLabels extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return const Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: const [
+      children: [
         Text('-50', style: TextStyle(fontSize: 10)),
         Text('-15', style: TextStyle(fontSize: 10)),
         Text('0', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),

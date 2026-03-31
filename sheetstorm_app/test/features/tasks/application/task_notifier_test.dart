@@ -204,7 +204,7 @@ void main() {
   group('TaskDetailNotifier — Details laden', () {
     test('Aufgaben-Details werden geladen', () async {
       final task = _task(id: 'task1', title: 'Detail Aufgabe');
-      final (c, _notifier, _service) = _setupDetail('task1', initialTask: task);
+      final (c, _, _) = _setupDetail('task1', initialTask: task);
 
       await c.read(taskDetailProvider('task1').future);
 

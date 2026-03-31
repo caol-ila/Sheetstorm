@@ -330,7 +330,7 @@ void main() {
     });
 
     test('delete-Notification enthält elementId + annotationId', () {
-      final notif = ElementChangeNotification(
+      final notif = const ElementChangeNotification(
         type: AnnotationOpType.delete,
         elementId: 'elem-1',
         annotationId: 'annot-1',
@@ -365,7 +365,7 @@ void main() {
     });
 
     test('toJson roundtrip für delete', () {
-      final original = ElementChangeNotification(
+      final original = const ElementChangeNotification(
         type: AnnotationOpType.delete,
         elementId: 'elem-99',
         annotationId: 'annot-5',

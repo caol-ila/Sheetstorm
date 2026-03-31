@@ -5,7 +5,6 @@ import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:sheetstorm/core/config/app_config.dart';
 import 'package:sheetstorm/features/auth/data/services/token_storage.dart';
-import 'package:sheetstorm/features/metronome/application/clock_sync_service.dart';
 import 'package:sheetstorm/features/metronome/data/models/metronome_models.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 

@@ -37,7 +37,7 @@ class NoteDisplay extends StatelessWidget {
           if (hasNote) ...[
             Text(
               '${note!.octave}',
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: AppTypography.fontSizeXl,
                 fontWeight: AppTypography.weightMedium,
                 color: AppColors.textSecondary,
@@ -46,7 +46,7 @@ class NoteDisplay extends StatelessWidget {
             const SizedBox(height: AppSpacing.sm),
             Text(
               '${note!.frequency.toStringAsFixed(1)} Hz',
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: AppTypography.fontSizeLg,
                 color: AppColors.textSecondary,
               ),

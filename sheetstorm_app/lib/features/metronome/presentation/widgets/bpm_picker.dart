@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sheetstorm/features/metronome/application/metronome_notifier.dart';
-import 'package:sheetstorm/features/metronome/data/models/metronome_models.dart';
 
 /// BPM picker with slider, stepper, and tap tempo.
 class BpmPicker extends ConsumerStatefulWidget {

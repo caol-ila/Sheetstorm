@@ -106,7 +106,7 @@ class _TunerScreenState extends ConsumerState<TunerScreen>
                       Expanded(
                         child: Text(
                           state.errorMessage!,
-                          style: TextStyle(color: AppColors.error),
+                          style: const TextStyle(color: AppColors.error),
                         ),
                       ),
                     ],

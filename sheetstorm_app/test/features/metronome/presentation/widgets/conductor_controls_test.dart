@@ -33,7 +33,7 @@ void main() {
     when(() => mockSignalR.connect()).thenAnswer((_) async {});
   });
 
-  ProviderContainer _makeContainer() {
+  ProviderContainer makeContainer() {
     final container = ProviderContainer(
       overrides: [
         metronomeSignalRServiceProvider.overrideWithValue(mockSignalR),
@@ -46,7 +46,7 @@ void main() {
 
   group('ConductorControls', () {
     testWidgets('shows BPM display', (tester) async {
-      final container = _makeContainer();
+      final container = makeContainer();
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
@@ -62,7 +62,7 @@ void main() {
     });
 
     testWidgets('shows Start button when stopped', (tester) async {
-      final container = _makeContainer();
+      final container = makeContainer();
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
@@ -77,7 +77,7 @@ void main() {
     });
 
     testWidgets('shows time signature chips', (tester) async {
-      final container = _makeContainer();
+      final container = makeContainer();
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
@@ -94,7 +94,7 @@ void main() {
     });
 
     testWidgets('shows Audio-Click toggle', (tester) async {
-      final container = _makeContainer();
+      final container = makeContainer();
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
@@ -109,7 +109,7 @@ void main() {
     });
 
     testWidgets('shows Tap Tempo button', (tester) async {
-      final container = _makeContainer();
+      final container = makeContainer();
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
@@ -123,7 +123,7 @@ void main() {
     });
 
     testWidgets('BPM stepper buttons change BPM', (tester) async {
-      final container = _makeContainer();
+      final container = makeContainer();
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
@@ -145,7 +145,7 @@ void main() {
     });
 
     testWidgets('selecting time signature chip updates state', (tester) async {
-      final container = _makeContainer();
+      final container = makeContainer();
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
@@ -164,7 +164,7 @@ void main() {
     });
 
     testWidgets('toggling audio click updates state', (tester) async {
-      final container = _makeContainer();
+      final container = makeContainer();
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,

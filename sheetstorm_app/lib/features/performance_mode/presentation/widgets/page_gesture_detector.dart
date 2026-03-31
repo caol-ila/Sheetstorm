@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:sheetstorm/core/theme/app_tokens.dart';
 
 /// Gesture detection layer for Spielmodus (AC-06..AC-12, UX §3.2, §3.3).
 ///

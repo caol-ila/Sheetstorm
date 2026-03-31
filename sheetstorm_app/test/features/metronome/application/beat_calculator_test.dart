@@ -6,7 +6,7 @@ void main() {
   group('BeatCalculator', () {
     group('beatIntervalUs', () {
       test('120 BPM = 500000 microseconds per beat', () {
-        final calc = BeatCalculator(
+        final calc = const BeatCalculator(
           bpm: 120,
           beatsPerMeasure: 4,
           startTimeUs: 0,
@@ -16,7 +16,7 @@ void main() {
       });
 
       test('60 BPM = 1000000 microseconds per beat', () {
-        final calc = BeatCalculator(
+        final calc = const BeatCalculator(
           bpm: 60,
           beatsPerMeasure: 4,
           startTimeUs: 0,
@@ -26,7 +26,7 @@ void main() {
       });
 
       test('240 BPM = 250000 microseconds per beat', () {
-        final calc = BeatCalculator(
+        final calc = const BeatCalculator(
           bpm: 240,
           beatsPerMeasure: 4,
           startTimeUs: 0,
@@ -38,7 +38,7 @@ void main() {
 
     group('getCurrentBeat', () {
       test('returns beat 0 before start time', () {
-        final calc = BeatCalculator(
+        final calc = const BeatCalculator(
           bpm: 120,
           beatsPerMeasure: 4,
           startTimeUs: 1000000,
@@ -52,7 +52,7 @@ void main() {
       });
 
       test('returns beat 0 at exactly start time', () {
-        final calc = BeatCalculator(
+        final calc = const BeatCalculator(
           bpm: 120,
           beatsPerMeasure: 4,
           startTimeUs: 1000000,
@@ -64,7 +64,7 @@ void main() {
       });
 
       test('returns correct beat number after start', () {
-        final calc = BeatCalculator(
+        final calc = const BeatCalculator(
           bpm: 120,
           beatsPerMeasure: 4,
           startTimeUs: 0,
@@ -80,7 +80,7 @@ void main() {
       });
 
       test('identifies downbeat correctly in 4/4', () {
-        final calc = BeatCalculator(
+        final calc = const BeatCalculator(
           bpm: 120,
           beatsPerMeasure: 4,
           startTimeUs: 0,
@@ -99,7 +99,7 @@ void main() {
       });
 
       test('identifies downbeat correctly in 3/4', () {
-        final calc = BeatCalculator(
+        final calc = const BeatCalculator(
           bpm: 120,
           beatsPerMeasure: 3,
           startTimeUs: 0,
@@ -116,7 +116,7 @@ void main() {
       });
 
       test('calculates measure number correctly', () {
-        final calc = BeatCalculator(
+        final calc = const BeatCalculator(
           bpm: 120,
           beatsPerMeasure: 4,
           startTimeUs: 0,
@@ -131,7 +131,7 @@ void main() {
       });
 
       test('calculates microseconds to next beat', () {
-        final calc = BeatCalculator(
+        final calc = const BeatCalculator(
           bpm: 120,
           beatsPerMeasure: 4,
           startTimeUs: 0,
@@ -144,7 +144,7 @@ void main() {
       });
 
       test('applies clock offset', () {
-        final calc = BeatCalculator(
+        final calc = const BeatCalculator(
           bpm: 120,
           beatsPerMeasure: 4,
           startTimeUs: 0,
@@ -157,7 +157,7 @@ void main() {
       });
 
       test('applies latency compensation', () {
-        final calc = BeatCalculator(
+        final calc = const BeatCalculator(
           bpm: 120,
           beatsPerMeasure: 4,
           startTimeUs: 0,
@@ -173,7 +173,7 @@ void main() {
 
     group('getBeatEvent', () {
       test('returns BeatEvent with all fields', () {
-        final calc = BeatCalculator(
+        final calc = const BeatCalculator(
           bpm: 120,
           beatsPerMeasure: 4,
           startTimeUs: 0,
@@ -189,7 +189,7 @@ void main() {
       });
 
       test('BeatEvent timestamp is the beat start time', () {
-        final calc = BeatCalculator(
+        final calc = const BeatCalculator(
           bpm: 120,
           beatsPerMeasure: 4,
           startTimeUs: 1000000,
@@ -205,7 +205,7 @@ void main() {
 
     group('progressInBeat', () {
       test('returns 0.0 at beat start', () {
-        final calc = BeatCalculator(
+        final calc = const BeatCalculator(
           bpm: 120,
           beatsPerMeasure: 4,
           startTimeUs: 0,
@@ -216,7 +216,7 @@ void main() {
       });
 
       test('returns 0.5 at midpoint', () {
-        final calc = BeatCalculator(
+        final calc = const BeatCalculator(
           bpm: 120,
           beatsPerMeasure: 4,
           startTimeUs: 0,
@@ -227,7 +227,7 @@ void main() {
       });
 
       test('returns close to 1.0 near end of beat', () {
-        final calc = BeatCalculator(
+        final calc = const BeatCalculator(
           bpm: 120,
           beatsPerMeasure: 4,
           startTimeUs: 0,
@@ -239,7 +239,7 @@ void main() {
       });
 
       test('returns 0.0 before start time', () {
-        final calc = BeatCalculator(
+        final calc = const BeatCalculator(
           bpm: 120,
           beatsPerMeasure: 4,
           startTimeUs: 1000000,
@@ -252,7 +252,7 @@ void main() {
 
     group('edge cases', () {
       test('very high BPM (300)', () {
-        final calc = BeatCalculator(
+        final calc = const BeatCalculator(
           bpm: 300,
           beatsPerMeasure: 4,
           startTimeUs: 0,
@@ -265,7 +265,7 @@ void main() {
       });
 
       test('very low BPM (20)', () {
-        final calc = BeatCalculator(
+        final calc = const BeatCalculator(
           bpm: 20,
           beatsPerMeasure: 4,
           startTimeUs: 0,
@@ -278,7 +278,7 @@ void main() {
       });
 
       test('negative clock offset', () {
-        final calc = BeatCalculator(
+        final calc = const BeatCalculator(
           bpm: 120,
           beatsPerMeasure: 4,
           startTimeUs: 0,

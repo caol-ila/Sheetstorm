@@ -244,19 +244,19 @@ void main() {
     });
 
     test('copyWith can clear nullable fields with null', () {
-      final state = MetronomeState(error: 'Some error');
+      final state = const MetronomeState(error: 'Some error');
       final cleared = state.copyWith(error: null);
       expect(cleared.error, isNull);
     });
 
     test('copyWith preserves nullable fields when not specified', () {
-      final state = MetronomeState(error: 'Some error');
+      final state = const MetronomeState(error: 'Some error');
       final updated = state.copyWith(bpm: 100);
       expect(updated.error, 'Some error');
     });
 
     test('copyWith can set session to null', () {
-      final session = MetronomeSession(
+      final session = const MetronomeSession(
         sessionId: 's1',
         bandId: 'b1',
         bpm: 120,

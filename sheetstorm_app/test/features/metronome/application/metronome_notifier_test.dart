@@ -35,7 +35,7 @@ void main() {
     when(() => mockSignalR.connect()).thenAnswer((_) async {});
   });
 
-  ProviderContainer _makeContainer({String? bandId = 'band-1'}) {
+  ProviderContainer makeContainer({String? bandId = 'band-1'}) {
     final container = ProviderContainer(
       overrides: [
         metronomeSignalRServiceProvider.overrideWithValue(mockSignalR),
@@ -46,15 +46,15 @@ void main() {
     return container;
   }
 
-  MetronomeNotifier _setupNotifier({String? bandId = 'band-1'}) {
-    final container = _makeContainer(bandId: bandId);
+  MetronomeNotifier setupNotifier({String? bandId = 'band-1'}) {
+    final container = makeContainer(bandId: bandId);
     return container.read(metronomeProvider.notifier);
   }
 
   group('MetronomeNotifier', () {
     group('initial state', () {
       test('has sensible defaults', () {
-        final container = _makeContainer();
+        final container = makeContainer();
         final state = container.read(metronomeProvider);
         expect(state.isPlaying, false);
         expect(state.bpm, 120);
@@ -66,7 +66,7 @@ void main() {
 
     group('conductor commands', () {
       test('startAsConductor sets conductor mode and connects', () async {
-        final container = _makeContainer();
+        final container = makeContainer();
         final notifier = container.read(metronomeProvider.notifier);
 
         await notifier.startAsConductor(
@@ -90,7 +90,7 @@ void main() {
       });
 
       test('startAsConductor does nothing without bandId', () async {
-        final notifier = _setupNotifier(bandId: null);
+        final notifier = setupNotifier(bandId: null);
         await notifier.startAsConductor(
           bpm: 120,
           timeSignature: TimeSignature.common,
@@ -99,7 +99,7 @@ void main() {
       });
 
       test('stop sends stop command and resets state', () async {
-        final container = _makeContainer();
+        final container = makeContainer();
         final notifier = container.read(metronomeProvider.notifier);
 
         await notifier.startAsConductor(
@@ -117,7 +117,7 @@ void main() {
       });
 
       test('changeBpm updates state and sends update', () async {
-        final container = _makeContainer();
+        final container = makeContainer();
         final notifier = container.read(metronomeProvider.notifier);
 
         await notifier.startAsConductor(
@@ -139,7 +139,7 @@ void main() {
       });
 
       test('changeBpm clamps to valid range', () async {
-        final container = _makeContainer();
+        final container = makeContainer();
         final notifier = container.read(metronomeProvider.notifier);
 
         await notifier.startAsConductor(
@@ -155,7 +155,7 @@ void main() {
       });
 
       test('changeTimeSignature updates and sends update', () async {
-        final container = _makeContainer();
+        final container = makeContainer();
         final notifier = container.read(metronomeProvider.notifier);
 
         await notifier.startAsConductor(
@@ -179,7 +179,7 @@ void main() {
 
     group('musician commands', () {
       test('joinAsMusician connects and joins', () async {
-        final notifier = _setupNotifier();
+        final notifier = setupNotifier();
         await notifier.joinAsMusician();
 
         verify(() => mockSignalR.connect()).called(1);
@@ -187,7 +187,7 @@ void main() {
       });
 
       test('joinAsMusician sets isConductor to false', () async {
-        final container = _makeContainer();
+        final container = makeContainer();
         final notifier = container.read(metronomeProvider.notifier);
         await notifier.joinAsMusician();
 
@@ -196,7 +196,7 @@ void main() {
       });
 
       test('leave sends leave and resets state', () async {
-        final container = _makeContainer();
+        final container = makeContainer();
         final notifier = container.read(metronomeProvider.notifier);
         await notifier.joinAsMusician();
 
@@ -211,7 +211,7 @@ void main() {
 
     group('settings', () {
       test('toggleAudioClick flips state', () {
-        final container = _makeContainer();
+        final container = makeContainer();
         final notifier = container.read(metronomeProvider.notifier);
 
         expect(container.read(metronomeProvider).audioClickEnabled, false);
@@ -222,7 +222,7 @@ void main() {
       });
 
       test('setLatencyCompensation clamps to range', () {
-        final container = _makeContainer();
+        final container = makeContainer();
         final notifier = container.read(metronomeProvider.notifier);
 
         notifier.setLatencyCompensation(50);
@@ -239,7 +239,7 @@ void main() {
       });
 
       test('setBpm clamps to valid range', () {
-        final container = _makeContainer();
+        final container = makeContainer();
         final notifier = container.read(metronomeProvider.notifier);
 
         notifier.setBpm(150);
@@ -253,7 +253,7 @@ void main() {
       });
 
       test('setTimeSignature updates state', () {
-        final container = _makeContainer();
+        final container = makeContainer();
         final notifier = container.read(metronomeProvider.notifier);
 
         notifier.setTimeSignature(TimeSignature.sixEight);
@@ -270,7 +270,7 @@ void main() {
         when(() => mockSignalR.onSessionStarted)
             .thenAnswer((_) => sessionController.stream);
 
-        final container = _makeContainer();
+        final container = makeContainer();
         final notifier = container.read(metronomeProvider.notifier);
         await notifier.joinAsMusician();
 
@@ -305,7 +305,7 @@ void main() {
         when(() => mockSignalR.onSessionStopped)
             .thenAnswer((_) => sessionStopController.stream);
 
-        final container = _makeContainer();
+        final container = makeContainer();
         final notifier = container.read(metronomeProvider.notifier);
         await notifier.joinAsMusician();
 
@@ -338,7 +338,7 @@ void main() {
         when(() => mockSignalR.onParticipantCountChanged)
             .thenAnswer((_) => countController.stream);
 
-        final container = _makeContainer();
+        final container = makeContainer();
         final notifier = container.read(metronomeProvider.notifier);
         await notifier.joinAsMusician();
 

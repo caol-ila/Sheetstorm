@@ -231,7 +231,7 @@ void main() {
       final container = ProviderContainer();
       addTearDown(container.dispose);
 
-      final syncNotifier = _syncNotifier(container);
+      _syncNotifier(container);
 
       // Simulate: private annotation → should NOT be queued
       const level = AnnotationLevel.private;
