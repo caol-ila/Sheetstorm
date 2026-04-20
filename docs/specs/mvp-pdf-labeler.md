@@ -45,7 +45,7 @@ The PDF Labeler MVP is a Windows desktop application that automates renaming of 
 |-------|-----------|-----------|
 | **UI Framework** | WinUI 3 (Windows App SDK 1.7) | Native Windows look/feel, modern XAML, file picker integration |
 | **Runtime** | .NET 10 LTS | Long-term support, latest C# features, Aspire-compatible |
-| **PDF Rendering** | PdfPig + SkiaSharp | Pure .NET, no native deps, SkiaSharp for high-quality PNG export |
+| **PDF Rendering** | Docnet.Core (PDFium) + SkiaSharp | Raster rendering via PDFium handles scanned PDFs, vector graphics, and fonts. SkiaSharp for PNG encoding and vision optimization. |
 | **AI Provider** | GitHub Models (openai/gpt-4o) | Free tier for prototyping, OpenAI-compatible, integrated PAT auth |
 | **AI SDK** | Azure.AI.Inference (primary) | Official Microsoft SDK, explicit GitHub Models support |
 | **HTTP Client** | HttpClient (fallback) | Fallback if SDK incompatibilities arise |
@@ -56,7 +56,7 @@ The PDF Labeler MVP is a Windows desktop application that automates renaming of 
 
 **Trade-offs:**
 - **GitHub Models vs. OpenAI Direct:** Free tier for MVP, familiar OpenAI API contract. Downside: lower rate limits vs. paid OpenAI.
-- **PdfPig vs. MuPDF/Poppler:** Pure .NET eliminates native binary deps, easier deployment. Downside: slower than native C libs.
+- **Docnet.Core vs. Pure .NET:** PDFium provides true raster rendering for scanned PDFs and complex layouts. Downside: native binaries bundled in NuGet package (larger deployment).
 - **Library-first vs. App-first:** Core logic in `Sheetstorm.PdfLabeling` library enables future CLI/API reuse. Downside: upfront interface design overhead.
 
 ---
@@ -111,7 +111,7 @@ The PDF Labeler MVP is a Windows desktop application that automates renaming of 
 │  │   └──────────────────────────────────────────┘              │
 │  │                                                              │
 │  └──> Dependencies:                                             │
-│       - IPdfFirstPageRenderer (PdfPig + SkiaSharp)              │
+│       - IPdfFirstPageRenderer (Docnet.Core + SkiaSharp)            │
 │       - ITitleRecognizer (GitHub Models)                        │
 │       - IFileNameSanitizer (regex-based)                        │
 │       - IFileTargetResolver (collision handling)                │
@@ -172,7 +172,7 @@ public record ProgressUpdate(
 // Abstraction Layer
 public interface IPdfFirstPageRenderer
 {
-    /// <summary>Renders first page of PDF to high-res PNG (300 DPI).</summary>
+    /// <summary>Renders first page of PDF to high-res PNG via raster rendering (default 300 DPI).</summary>
     Task<byte[]> RenderFirstPageAsync(string pdfPath, CancellationToken ct);
 }
 
@@ -233,7 +233,7 @@ public interface IPdfLabelingOrchestrator
 - `src/Sheetstorm.PdfLabeling/Abstractions/IFileTargetResolver.cs` — Collision resolver interface
 - `src/Sheetstorm.PdfLabeling/Abstractions/IProgressReporter.cs` — Progress callback interface
 - `src/Sheetstorm.PdfLabeling/Abstractions/IPdfLabelingOrchestrator.cs` — Main orchestrator interface
-- `src/Sheetstorm.PdfLabeling/Implementation/PdfFirstPageRenderer.cs` — PdfPig + SkiaSharp implementation
+- `src/Sheetstorm.PdfLabeling/Services/PdfFirstPageRenderer.cs` — Docnet.Core (PDFium) raster rendering
 - `src/Sheetstorm.PdfLabeling/Implementation/GitHubModelsTitleRecognizer.cs` — Azure.AI.Inference implementation
 - `src/Sheetstorm.PdfLabeling/Implementation/WindowsCredentialManagerTokenProvider.cs` — Win32 CredRead wrapper
 - `src/Sheetstorm.PdfLabeling/Implementation/FileNameSanitizer.cs` — Regex-based sanitizer
@@ -271,6 +271,47 @@ public interface IPdfLabelingOrchestrator
 - `Polly` (8.x) — Retry/rate-limit policies
 - `CommunityToolkit.Mvvm` (8.x) — MVVM helpers for WinUI
 - `Microsoft.Windows.SDK.Contracts` (10.x) — Windows Credential Manager APIs
+
+---
+
+## PDF Rendering
+
+**Summary:**
+
+The `IPdfFirstPageRenderer` interface provides raster-based PDF-to-PNG conversion using **Docnet.Core** (PDFium wrapper) for true page rendering. This approach handles all PDF types:
+
+- **Scanned documents:** Image-only PDFs without text layers (primary use case for sheet music)
+- **Digital documents:** PDFs with vector graphics, embedded fonts, and text layers
+- **Mixed content:** PDFs combining images, vectors, and text
+
+**Implementation Details:**
+
+- **Library:** Docnet.Core 2.6.0 (MIT license)
+- **Rendering Engine:** PDFium (Google's PDF renderer, same as Chrome/Chromium)
+- **Default DPI:** 300 (configurable via parameter)
+- **Vision Optimization:** Auto-resize to max 2000×2000 px (longest edge) to reduce GPT-4o Vision token costs while preserving readability
+  - A4 at 300 DPI = 2480×3508 px → scales to ~1140×1613 px
+  - Preserves aspect ratio, uses high-quality SkiaSharp resampling
+- **Output Format:** PNG with 100% quality (lossless)
+- **Resource Management:** Proper disposal of native PDFium handles via RAII pattern
+- **Error Handling:** Custom `PdfRenderingException` for corrupted/encrypted/invalid PDFs
+- **Cross-platform:** Native PDFium binaries bundled in NuGet package (Windows, Linux, macOS)
+
+**Why Docnet.Core?**
+
+1. **Scanned PDF Support:** PdfPig's text-extraction approach fails on image-only PDFs (no text layer → blank output)
+2. **Complete Rendering:** PDFium renders fonts, images, vector paths, transparency — all content types
+3. **Battle-Tested:** Same engine used in Chrome, proven on billions of PDFs
+4. **MIT License:** Commercial-friendly, no GPL contamination
+5. **Aspire-Compatible:** Works in containerized environments, no external dependencies beyond bundled natives
+
+**Manual Verification:**
+
+For smoke testing with real-world scanned PDFs:
+- Test harness: `tests/Sheetstorm.PdfLabeling.Tests/Manual/RenderScannedSmoke.cs` (implemented by Shuri in Phase 3)
+- Environment variable: `SHEETSTORM_SMOKE_PDF_FOLDER` (default: `C:\Temp\Noten-Smoke`)
+- Output folder: `C:\Temp\Noten-Smoke-Output`
+- Verifies: PNG size >10 KB, dimensions ≈ DPI scaling, visual quality via manual inspection
 
 ---
 
