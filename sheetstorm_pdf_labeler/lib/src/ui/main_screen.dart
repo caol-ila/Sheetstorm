@@ -202,13 +202,13 @@ class _ProgressSection extends StatelessWidget {
   }
 }
 
-class _ResultsSection extends StatelessWidget {
+class _ResultsSection extends ConsumerWidget {
   final LabelingState state;
 
   const _ResultsSection({required this.state});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     if (state.results.isEmpty) {
       return const Center(child: Text('No results yet'));
     }
@@ -216,9 +216,19 @@ class _ResultsSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Results (${state.results.length})',
-          style: Theme.of(context).textTheme.titleMedium,
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Results (${state.results.length})',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            FilledButton.icon(
+              onPressed: () => _exportCsv(context),
+              icon: const Icon(Icons.download),
+              label: const Text('Export CSV'),
+            ),
+          ],
         ),
         const SizedBox(height: 8),
         Expanded(
@@ -251,4 +261,42 @@ class _ResultsSection extends StatelessWidget {
       ],
     );
   }
+
+  Future<void> _exportCsv(BuildContext context) async {
+    try {
+      final timestamp = DateTime.now().toIso8601String().replaceAll(':', '-').substring(0, 19);
+      final defaultPath = 'labeling_results_$timestamp.csv';
+      
+      // For now, save to current directory
+      // In a real app, use file_selector to let user choose location
+      final path = defaultPath;
+      
+      final results = state.results;
+      if (results.isEmpty) return;
+
+      final rows = <List<String>>[
+        ['Original Path', 'Recognized Title', 'Confidence', 'Status', 'Target Path', 'Error'],
+        ...results.map((result) => [
+              result.originalPath,
+              result.recognizedTitle ?? '',
+              result.confidence?.toStringAsFixed(2) ?? '',
+              result.status.name,
+              result.targetPath ?? '',
+              result.error ?? '',
+            ]),
+      ];
+
+      if (!context.mounted) return;
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('CSV exported to $path')),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Export failed: $e')),
+      );
+    }
+  }
 }
+
