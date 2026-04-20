@@ -1,6 +1,6 @@
 namespace Sheetstorm.PdfLabeling.Cli;
 
-internal class Program
+public class Program
 {
     private const string Version = "0.1.0-mvp";
 
@@ -9,7 +9,7 @@ internal class Program
         return await MainAsync(args, Console.Out, Console.Error, CancellationToken.None);
     }
 
-    internal static async Task<int> MainAsync(string[] args, TextWriter stdout, TextWriter stderr, CancellationToken cancellationToken)
+    public static async Task<int> MainAsync(string[] args, TextWriter stdout, TextWriter stderr, CancellationToken cancellationToken)
     {
         if (args.Length == 0 || args.Contains("--help") || args.Contains("-h"))
         {
