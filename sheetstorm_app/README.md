@@ -66,6 +66,94 @@ flutter test
 flutter analyze
 ```
 
+### Build (Release)
+
+**Android APK:**
+
+```bash
+flutter build apk --release
+```
+
+**Android App Bundle:**
+
+```bash
+flutter build appbundle --release
+```
+
+**iOS (requires macOS + Xcode):**
+
+```bash
+flutter build ios --release
+```
+
+**Windows Desktop:**
+
+```bash
+flutter build windows --release
+```
+
+**Web:**
+
+```bash
+flutter build web --release
+```
+
+## i18n-Workflow
+
+Alle User-sichtbaren Strings MÜSSEN über ARB-Dateien externalisiert werden.
+
+### Neue Übersetzung hinzufügen
+
+1. **ARB-Datei editieren:** `lib/l10n/app_de.arb` (Deutsch, default) oder `app_en.arb` (Englisch)
+
+```json
+{
+  "welcomeMessage": "Willkommen bei Sheetstorm",
+  "@welcomeMessage": {
+    "description": "Begrüßungstext auf dem Home-Screen"
+  }
+}
+```
+
+2. **Code generieren:**
+
+```bash
+flutter gen-l10n
+```
+
+(Oder automatisch beim nächsten `flutter run`)
+
+3. **Im Code nutzen:**
+
+```dart
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+
+Text(AppLocalizations.of(context)!.welcomeMessage)
+```
+
+### Platzhalter/Parameter
+
+ARB unterstützt Platzhalter:
+
+```json
+{
+  "greetUser": "Hallo, {name}!",
+  "@greetUser": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  }
+}
+```
+
+Im Code:
+
+```dart
+Text(AppLocalizations.of(context)!.greetUser('Thomas'))
+```
+
 ## Architektur
 
 ```
@@ -94,3 +182,30 @@ API-Client: `lib/shared/services/api_client.dart`
 UI nutzt Material 3 (`useMaterial3: true`).
 
 Theme: `lib/core/theme/app_theme.dart`
+
+## E2E-Tests (Playwright)
+
+E2E-Tests für User-Workflows sind im `e2e/`-Verzeichnis.
+
+**Setup:**
+
+```bash
+npm install
+npx playwright install
+```
+
+**Ausführen:**
+
+```bash
+npm run test:e2e          # Headless
+npm run test:e2e:ui       # Interaktiv mit UI
+npm run test:e2e:headed   # Mit Browser-Fenster
+```
+
+**Voraussetzung:** Backend + Flutter Web müssen laufen (siehe Root-README).
+
+## Weitere Infos
+
+- **DevLoop-Guide:** `../docs/operations/devloop.md`
+- **Root-README:** `../README.md`
+- **Pubspec-Dependencies:** Siehe `pubspec.yaml`
