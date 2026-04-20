@@ -1,0 +1,58 @@
+{
+  "agents": {
+    "stark": {
+      "created_at": "2026-04-20T20:35:39.814Z",
+      "persistent_name": "Stark",
+      "universe": "Marvel",
+      "status": "active"
+    },
+    "parker": {
+      "created_at": "2026-04-20T20:35:39.814Z",
+      "persistent_name": "Parker",
+      "universe": "Marvel",
+      "status": "active"
+    },
+    "rogers": {
+      "created_at": "2026-04-20T20:35:39.814Z",
+      "persistent_name": "Rogers",
+      "universe": "Marvel",
+      "status": "active"
+    },
+    "romanoff": {
+      "created_at": "2026-04-20T20:35:39.814Z",
+      "persistent_name": "Romanoff",
+      "universe": "Marvel",
+      "status": "active"
+    },
+    "banner": {
+      "created_at": "2026-04-20T20:35:39.814Z",
+      "persistent_name": "Banner",
+      "universe": "Marvel",
+      "status": "active"
+    },
+    "scribe": {
+      "created_at": "2026-04-20T20:35:39.814Z",
+      "persistent_name": "Scribe",
+      "universe": "Marvel",
+      "status": "active"
+    },
+    "ralph": {
+      "created_at": "2026-04-20T20:35:39.814Z",
+      "persistent_name": "Ralph",
+      "universe": "Marvel",
+      "status": "active"
+    },
+    "pepper": {
+      "created_at": "2026-04-20T20:38:32.000Z",
+      "persistent_name": "Pepper",
+      "universe": "Marvel",
+      "status": "active"
+    },
+    "shuri": {
+      "created_at": "2026-04-20T20:38:32.000Z",
+      "persistent_name": "Shuri",
+      "universe": "Marvel",
+      "status": "active"
+    }
+  }
+}
