@@ -38,8 +38,14 @@ void main() {
 
     final handle = tester.ensureSemantics();
 
+    // Verify text is present
     expect(find.text('Sheetstorm'), findsOneWidget);
     expect(find.text('Start'), findsOneWidget);
+
+    // Verify semantic structure (Framework-Spec §4.2: Every widget test needs semantics check)
+    final semantics = tester.getSemantics(find.text('Sheetstorm'));
+    expect(semantics, isNotNull);
+    expect(semantics.label, contains('Sheetstorm'));
 
     handle.dispose();
   });
