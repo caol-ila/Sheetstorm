@@ -102,3 +102,33 @@
 - **Single Response:** SetResponse() für Nicht-Retry-Tests
 - **Request Capture:** LastRequest, LastRequestBody, CallCount → Assertable in Tests
 - **Einfach:** Kein NSubstitute für HttpMessageHandler nötig, simpler Custom-Handler
+
+
+## Learnings — 2026-04-21 (Manual Smoke Harness)
+
+### Environment-Variable-Gated Manual Tests Pattern
+- **Purpose:** Real-world integration tests that need external resources (files, APIs) not available in CI
+- **Gate Pattern:** `Environment.GetEnvironmentVariable("SHEETSTORM_RUN_MANUAL") == "1"` → Early return if not set
+- **Skip Behavior:** Clean skip (no assertions fired) if env var missing → CI passes without overhead
+- **Trait Marking:** `[Trait("Category", "Manual")]` allows filtering with `dotnet test --filter "Category=Manual"`
+- **Default Folders:** Provide sensible defaults (`C:\Temp\Noten-Smoke`) with env var override option
+- **Rationale:** Unit tests can't verify vision pipeline against real scanned PDFs → Manual harness needed for User acceptance
+
+### Smoke Harness Design Principles
+- **Per-File Error Handling:** One PDF failure doesn't abort entire test → catch exceptions per file, log to CSV
+- **CSV Export:** Machine-readable results (`filename,png_bytes,width,height,title,confidence,duration_ms,error`) for batch analysis
+- **Optional Components:** Title recognition only if `GITHUB_TOKEN` set → Harness useful even without API key (rendering-only mode)
+- **Minimal Assertions:** Only assert "at least 1 file processed AND success rate > 0" → proves harness not broken, doesn't enforce 100% success
+- **Output Persistence:** Deliberately don't clean output folder → User inspects PNGs + CSV manually after test run
+
+### StaticTokenProvider for Smoke Tests
+- **Problem:** WindowsCredentialManager not available in sandbox/CI
+- **Solution:** Simple `ITitleRecognizerTokenProvider` impl that returns env var → no Win32 dependencies in smoke test
+- **Not for Production:** Clearly documented as test-only (production uses WindowsCredentialManagerTokenProvider)
+- **Testability Win:** Shows ITitleRecognizer abstraction works with any token provider
+
+### Documentation for User-Run Tests
+- **Copy-Paste Ready:** PowerShell commands formatted for direct execution (no placeholders)
+- **3-Step Structure:** 1) Prepare Input, 2) Run Test, 3) Inspect Results → Clear workflow
+- **Expected Output:** Explicit table of env vars + defaults → No guessing
+- **Reality Check:** Explicitly state "This won't run in sandbox" → Sets User expectations correctly

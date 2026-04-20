@@ -182,3 +182,80 @@
 
 ---
 
+
+---
+
+### 2026-04-20: Foundation Scaffold - Backend 3-Schichten + Aspire Stub
+
+**Context:** Issue #126 - App Foundation Skeleton Setup im Worktree \eat/app-scaffold\.
+
+**Delivered:**
+- **Solution Structure:** Sheetstorm.slnx mit 6 Projekten (Domain, Infrastructure, Api, 3 Test-Projekte)
+- **ServiceDefaults + AppHost:** Stub-Setup ohne Aspire SDK (TODOs für spätere Integration)
+- **CI Workflows:** 4 GitHub Actions YAML-Dateien (backend, flutter, e2e, pr-multi-model-review)
+- **Build:** ✅ Grün (alle Projekte kompilieren)
+- **Tests:** 2/3 grün (Domain, Infrastructure pass; Api-Test benötigt Docker)
+
+**Package Decisions:**
+- **.NET 9 Packages statt .NET 10:** Keine stabilen .NET 10 NuGet-Packages verfügbar. EF Core 9.0.0, Npgsql 9.0.1, ASP.NET Core 9.0.0 genutzt. Projects bleiben \
+et10.0\ Target Framework.
+- **FluentAssertions 7.0.0:** Downgrade wegen FluentAssertions.Web 1.9.5 Kompatibilität (\< 8.0.0\ required).
+- **Testcontainers.PostgreSql 4.5.0:** Benötigt Docker lokal. Integration-Test \PingEndpointTests\ schlägt ohne Docker fehl (401 auf npipe://./pipe/docker_engine).
+
+**Aspire SDK nicht verfügbar:**
+- \dotnet new aspire-apphost\ Template fehlt → AppHost als reguläres Web-Projekt erstellt.
+- ServiceDefaults als Web SDK Library (\Microsoft.NET.Sdk.Web\ mit \OutputType=Library\) wegen \WebApplicationBuilder\ Dependency.
+- Minimale \AddServiceDefaults()\ Extension (nur Logging) statt voller Aspire-Features (OpenTelemetry, ServiceDiscovery, Resilience).
+- **TODO-Kommentare** in AppHost/Program.cs für \DistributedApplication\ Setup nach SDK-Installation.
+
+**NuGet-Feed-Problem erneut:**
+- Azure DevOps Feed \pkgs.dev.azure.com/devdiv/_packaging/Cascade\ 401 Unauthorized (wie in PDF Labeler Session).
+- Lokale \
+uget.config\ mit \<clear />\ + nur \
+uget.org\ (wie History-Entry vom 2026-04-20 dokumentiert).
+- Packages **manuell** in .csproj eingefügt da \dotnet add package\ unzuverlässig bei Feed-Fehlern.
+
+**Program.cs Features (Api):**
+1. **OpenAPI:** \AddOpenApi()\ (.NET 10 native, kein Swashbuckle)
+2. **HealthChecks:** \AddHealthChecks()\ ohne \AddDbContextCheck\ (benötigt extra Package)
+3. **JWT Auth Stub:** \AddAuthentication(JwtBearerDefaults).AddJwtBearer()\ mit TODO-Kommentar (kein Flow)
+4. **CORS:** \WithOrigins("http://localhost:8080")\ für Flutter-Web
+5. **Localization:** \AddLocalization()\, \UseRequestLocalization()\ de-DE default, en-US zweite
+6. **GlobalExceptionHandler:** \IExceptionHandler\ Implementierung mit ProblemDetails
+7. **Ping-Endpoint:** \MapGet("/ping")\ → \{ "message": "Hallo Blaskapelle" }\
+8. **ServiceDefaults:** \uilder.AddServiceDefaults()\ Integration
+
+**DbContext Setup:**
+- \SheetstormDbContext\ mit \DbSet<Band>\ (leeres \OnModelCreating\)
+- \SheetstormDbContextFactory\ für \dotnet ef migrations\ (Design-Time Factory)
+- Connection String: \Host=localhost;Database=sheetstorm;Username=postgres;Password=postgres\ (Stub)
+
+**Tests (TDD):**
+- \BandTests\: Konstruktor-Smoke-Test (Domain) → **GREEN**
+- \SheetstormDbContextTests\: DbContext-Erstellung mit InMemory-Provider → **GREEN**
+- \PingEndpointTests\: Integration-Test mit \WebApplicationFactory\ + Testcontainers-Postgres → **RED** (kein Docker)
+  - Test ist korrekt (nutzt \IAsyncLifetime\, startet PostgreSQL-Container, überschreibt DbContext-Registration)
+  - Scheitert lokal wegen \Failed to connect to Docker endpoint\ (npipe timeout)
+  - Würde in GitHub Actions Ubuntu-Runner grün sein (Docker vorinstalliert)
+
+**CI Workflows:**
+- **ci-backend.yml:** Matrix (Ubuntu + Windows), \dotnet restore/build/test\
+- **ci-flutter.yml:** Ubuntu, \lutter pub get/analyze/test\ in \sheetstorm_app/\
+- **ci-e2e.yml:** \workflow_dispatch\ Trigger, TODO stub
+- **pr-multi-model-review.yml:** TODO stub für Multi-Model-Review (Framework-Spec §7.3)
+
+**Commits:**
+1. \eat: scaffold backend 3-layer structure (#126)\
+2. \eat: add Aspire AppHost + ServiceDefaults (#126)\
+3. \chore: add CI workflow stubs (#126)\
+
+**Learnings:**
+- **.NET 10 Ecosystem noch unreif:** Keine stabilen Packages → .NET 9 Packages nutzen.
+- **Aspire SDK Optional:** Spec erlaubt Platzhalter-Kommentare wenn SDK nicht installiert → Stub-Setup ist valide.
+- **Testcontainers Docker-Dependency:** Integration-Tests benötigen klare Dokumentation zu Voraussetzungen.
+- **Manual .csproj Editing robuster:** Bei Feed-Fehlern \dotnet add package\ skippen, direkt PackageReferences einfügen.
+- **FluentAssertions.Web Versioning:** Immer \< 8.0.0\ bei Web 1.9.5 nutzen (Downgrade zu 7.0.0 notwendig).
+
+**Decision Log:** \.squad/decisions/inbox/rogers-backend-stack.md\ (EF Core Version, Aspire SDK Fallback, Testcontainers, NuGet-Feed, FluentAssertions Downgrade)
+
+<!-- Append learnings below -->
