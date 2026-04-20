@@ -29,3 +29,34 @@ secrets.json
 sheetstorm_app/.dart_tool/
 sheetstorm_app/.flutter-plugins
 sheetstorm_app/.flutter-plugins-dependencies
+sheetstorm_app/build/
+sheetstorm_app/.flutter-plugins.bak
+sheetstorm_app/ios/Pods/
+sheetstorm_app/ios/.symlinks/
+sheetstorm_app/android/.gradle/
+sheetstorm_app/android/app/build/
+sheetstorm_app/android/build/
+
+# IDE / editor local state
+.idea/
+*.iml
+*.swp
+*~
+
+# AI tooling user-specific caches (not shared via repo)
+.claude/
+
+# Node / npm (Playwright e2e lives in sheetstorm_app/)
+node_modules/
+sheetstorm_app/node_modules/
+sheetstorm_app/playwright-report/
+sheetstorm_app/test-results/
+
+# Test / coverage output
+TestResults/
+coverage/
+*.coverage
+*.coveragexml
+
+# OS junk
+Thumbs.db
