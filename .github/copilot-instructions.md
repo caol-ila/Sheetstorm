@@ -175,6 +175,27 @@ docs/                         # Spezifikation, UX, Architektur
 .squad/                       # AI-Team Setup (Squad Framework)
 ```
 
+## Git Worktrees für paralleles Arbeiten
+
+Mehrere Squad-Agenten arbeiten potenziell gleichzeitig. Um Index-Races, Build-Kollisionen und verlorene Edits zu vermeiden, wird **jede issue-gebundene Feature-/Bugfix-Arbeit in einem eigenen Git-Worktree** erledigt.
+
+- **Pfad:** `C:\Privat\Sheetstorm-worktrees\{branch-slug}` — Sibling zum Haupt-Repo, **nie** darin verschachtelt.
+- **Branch:** `{type}/{issue-nr}-{kebab-slug}` (z.B. `feat/124-pdf-labeler-mvp`). 1 Worktree = 1 Branch = 1 Issue.
+- **Coordinator-Pflicht:** Worktree **vor** dem Spawn eines Agenten anlegen und den absoluten Pfad als `WORKTREE ROOT` im Spawn-Prompt mitgeben.
+- **Agenten-Pflicht:** Arbeiten ausschließlich im zugewiesenen Worktree. Kein Schreibzugriff im Haupt-Repo. `TEAM ROOT` = aktuelles Worktree (jedes Worktree hat seine eigene `.squad/`-Kopie; `merge=union` reconciled append-only Dateien beim Merge).
+- **Pflicht:** Issue-Feature-Arbeit, parallele Agenten, Review-Vorbereitung.
+- **Nicht nötig:** Read-only-Recherche, Session-Artefakte außerhalb des Repos.
+
+```powershell
+git worktree add C:\Privat\Sheetstorm-worktrees\feat-124-pdf-labeler-mvp -b feat/124-pdf-labeler-mvp origin/main
+Set-Location   C:\Privat\Sheetstorm-worktrees\feat-124-pdf-labeler-mvp
+git worktree list
+git worktree remove C:\Privat\Sheetstorm-worktrees\feat-124-pdf-labeler-mvp
+git worktree prune
+```
+
+Vollständige Policy (inkl. Anti-Patterns, Windows-Spezifika, End-to-End-Beispiel): **`.squad/skills/git-worktree/SKILL.md`**.
+
 ## File-Structure-Mapping vor Task-Dekomposition
 
 **Bevor** eine Aufgabe in Teilaufgaben zerlegt wird, MUSS ein File-Structure-Mapping erstellt werden:
