@@ -1,0 +1,14 @@
+name: E2E Tests
+
+on:
+  workflow_dispatch:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: TODO E2E
+        run: echo "TODO: Full E2E wiring (Aspire + Flutter Web + Playwright)"

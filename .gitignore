@@ -1,8 +1,8 @@
-# Squad: ignore runtime state (logs, inbox, sessions)
+# Squad: ignore runtime state (logs, sessions)
 .squad/orchestration-log/
 .squad/log/
-.squad/decisions/inbox/
 .squad/sessions/
+# NOTE: .squad/decisions/inbox/ is committed for human review
 # Squad: SubSquad activation file (local to this machine)
 .squad-workstream
 

@@ -1,0 +1,15 @@
+{
+  "@@locale": "de",
+  "appTitle": "Sheetstorm",
+  "@appTitle": {
+    "description": "App-Titel"
+  },
+  "helloBand": "Hallo Blaskapelle",
+  "@helloBand": {
+    "description": "Willkommens-String auf der Home-Seite"
+  },
+  "homeNavLabel": "Start",
+  "@homeNavLabel": {
+    "description": "Navigation Label für Home"
+  }
+}
