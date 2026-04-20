@@ -8,6 +8,30 @@
 
 ## Learnings
 
+### Foundation Scaffold Phase 1 + 7 — 2026-04-20
+
+**Phase 1 (Decision Scope):**
+- Documented branch strategy (feat/app-scaffold off main, not off feat/124)
+- Monorepo rationale: sheetstorm_app/ subfolder aligns with Aspire orchestration
+- 3-Schichten structure (src/, tests/, sheetstorm_app/) = clear separation
+- Decided inbox files for operational decisions (not MADR ADRs)
+
+**Phase 7 (README + DevLoop + PR):**
+- Root README: Quick-start with `.\start.ps1 -Web` for full stack
+- DevLoop guide: Local Aspire, Flutter, E2E orchestration
+- PR #127 draft ready; awaits Thomas approval on 3 open design questions
+- Lesson: Clear handoff documentation prevents onboarding friction
+
+**Open Questions for Thomas:**
+1. Monorepo long-term or split Flutter later?
+2. Solution file in root (Rider/VS integration) or Directory.Build.props?
+3. global.json SDK pin for .NET 10?
+
+**Coordination Learnings:**
+- 5 agents + 7 phases → natural parallelism (Phase 1 → Phases 2–6 parallel → Phase 7)
+- Decision consolidation essential: 11 inbox files → 1 decisions.md
+- Escalation grades prevent "is this done?" ambiguity
+
 <!-- Append learnings below -->
 
 ### PDF Labeler MVP — 2026-04-20 23:15

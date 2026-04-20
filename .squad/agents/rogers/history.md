@@ -41,6 +41,32 @@
 
 ---
 
+### Foundation Scaffold Phase 2 + 3 + 6 — 2026-04-20
+
+**Phase 2 (Backend 3-Layer):**
+- Created Sheetstorm.sln with Api, Domain, Infrastructure projects
+- /ping endpoint returns "Hallo Blaskapelle" (integration point with Flutter frontend)
+- TestApiFactory for WebApplicationFactory pattern (integration test fixture)
+- Package decisions: .NET 9 stable (no .NET 10 packages yet), FluentAssertions 7.0.0 downgrade for Web compat
+- Build GREEN; 2/3 tests pass (PingEndpointTests pending Docker)
+
+**Phase 3 (Aspire Stubs):**
+- AppHost + ServiceDefaults scaffolded with TODO comments
+- Design ready for SDK installation + DistributedApplication implementation
+- Minimal AddServiceDefaults() (Logging only; future: health checks, tracing, metrics)
+
+**Phase 6 (CI Workflows):**
+- backend.yml: dotnet restore → build → test with Docker service for PostgreSQL
+- frontend.yml + e2e.yml: Stubs for later implementation
+- Status: Build GREEN on GitHub Actions (once merged)
+
+**Lessons Learned:**
+1. NuGet feed authorization: Local nuget.config (nuget.org only) prevents Azure DevOps 401
+2. FluentAssertions version pinning: Check transitive dependencies (FluentAssertions.Web → exact version range)
+3. Testcontainers Docker dependency: Acceptable for CI; document local workaround (skip test or docker run)
+
+---
+
 ### 2026-04-20: FileNameSanitizer & FileTargetResolver Implementation (GREEN)
 
 **Context:** Implemented both services to make all 56 RED tests pass on `feat/124-pdf-labeler-mvp` branch.
