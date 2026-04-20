@@ -45,7 +45,8 @@ Replace text-only `PdfFirstPageRenderer` with **Docnet.Core** for true raster-ba
 
 **Scope:** Architecture for WinUI 3 Desktop UI (#124, UI-Teil)  
 **Owner:** Pepper (Desktop Dev)  
-**Status:** ACTIVE (pending approval)
+**Status:** SUPERSEDED (2026-04-21, Flutter Desktop chosen instead)  
+**Superseded By:** Tech Switch WinUI 3 → Flutter Desktop (see below)
 
 Use **CommunityToolkit.Mvvm** with source generators for Desktop ViewModel architecture.
 
@@ -71,7 +72,9 @@ Use **CommunityToolkit.Mvvm** with source generators for Desktop ViewModel archi
 - Test COM Initialization: WinUI 3 tests require Windows Runtime setup
 - Source Generator Variability: Generated code depends on exact toolkit version
 
-**Blockers:** XAML x:Bind compiler errors, COM init in Desktop tests, CredentialStore ownership TBD
+**Blockers:** XAML x:Bind compiler errors (MSB3073), COM init in Desktop tests, CredentialStore ownership TBD
+
+**Archive Note:** This decision remains in the record for historical reference. WinUI 3 implementation was attempted; XAML compiler tooling proved intractable (2+ days unresolved). Flutter Desktop offers better consistency with sheetstorm_app and avoids tooling friction.
 
 ---
 
@@ -391,19 +394,183 @@ Minimum confidence 0.6 for acceptance; 0.8 for auto-accept; 0.6–0.8 flagged wi
 
 #### Decision: Tech Switch — WinUI 3 → Flutter Desktop
 
-PDF Labeler UI NOT in WinUI 3 (Pepper abandoned). Instead: Flutter Desktop (separate project `sheetstorm_pdf_labeler`).
+**Status:** ACTIVE  
+**Date:** 2026-04-21  
+**Owner:** Stark (Architecture Lead)
+
+PDF Labeler UI NOT in WinUI 3 (Pepper's branch abandoned). Instead: Flutter Desktop (separate project `sheetstorm_pdf_labeler`).
 
 **Rationale:**
-- WinUI 3 XAML tooling failed (MSB3073 compiler errors)
-- Flutter Desktop = consistent with sheetstorm_app stack
-- Parker expertise in Flutter, not WinUI
+- **Tooling failure:** WinUI 3 XAML compiler (MSB3073) blocked for 2+ days; root cause unresolved despite troubleshooting
+- **Stack consistency:** Flutter Desktop aligns with sheetstorm_app tech stack (Framework Spec §3.4 mandate)
+- **Team expertise:** Parker proven in Flutter; WinUI 3 learning curve inefficient
+- **Future platform support:** Flutter Windows → macOS/Linux trivial; WinUI locked to Windows
 
 **New Architecture:**
-- `Sheetstorm.PdfLabeling` — C# library (core logic)
-- `Sheetstorm.PdfLabeling.Cli` — CLI wrapper (NDJSON on stdout)
-- `sheetstorm_pdf_labeler` — Flutter Desktop UI (reads CLI output)
+- `Sheetstorm.PdfLabeling` (C# library) — Core logic, unchanged, 83 tests ✅
+- `Sheetstorm.PdfLabeling.Cli` (C# console) — CLI wrapper, NDJSON events on stdout (Rogers, TDD complete ✅)
+- `sheetstorm_pdf_labeler` (Flutter Windows) — Desktop UI, Process.start() + stream parsing (Parker, TDD complete ✅)
 
-**Consequence:** WinUI 3 MVVM stack decision archived (superseded); Flutter Desktop is now primary PDF Labeler UI
+**Integration Pattern:**
+1. Flutter: `Process.start('Sheetstorm.PdfLabeling.Cli.exe', args, env={'SHEETSTORM_PAT': pat})`
+2. CLI: Reads PAT from environment, invokes library, emits NDJSON on stdout
+3. Flutter: Parses stream, updates UI state via Riverpod providers
+4. Security: PAT never in argv (process list safe), encrypted at-rest via Credential Manager
+
+**Consequence:** 
+- WinUI 3 MVVM stack (above) marked SUPERSEDED (preserved for history, not deleted)
+- Pepper's WinUI branch archived (code available if future need)
+- Core library reusable for CLI/API without domain rework (abstraction boundaries held)
+
+**References:**
+- **Spec:** `docs/specs/mvp-pdf-labeler.md` (updated 2026-04-21)
+- **CLI ADR:** `.squad/decisions/stark-cli-wrapper-pattern.md` (pattern details)
+- **Flutter ADR:** `.squad/decisions/parker-flutter-cli-integration.md` (Flutter integration)
+- **Issue:** #124 (triage comment https://github.com/caol-ila/Sheetstorm/issues/124#issuecomment-4284596300)
+
+---
+
+#### Decision: CLI-Wrapper Pattern for Flutter Desktop Integration
+
+**Status:** ACTIVE  
+**Date:** 2026-04-21  
+**Owner:** Stark (Architecture Lead), Rogers (Backend)  
+**Scope:** PDF Labeler (#124) — Flutter Desktop ↔ C# Library integration
+
+Use **CLI Wrapper emitting NDJSON on stdout** as integration layer between Flutter Desktop UI and C# business logic. Avoids FFI complexity, HTTP server overhead, and unnamed pipe discovery burden.
+
+**Rationale:**
+1. **Simplicity:** `Process.start()` + `stdout.transform(LineSplitter())` in Dart; no FFI bindings, no HTTP client setup
+2. **Security:** PAT via environment variable (never argv → invisible to `ps`/Task Manager)
+3. **Testability:** CLI standalone testable; Flutter side mockable; E2E via golden files
+4. **Progress Streaming:** NDJSON = one event per line → natural `Stream<T>` in Dart → Riverpod `StreamProvider`
+5. **Cancellation:** Graceful (SIGINT) or programmatic (`--cancel-file` polling)
+
+**Pattern Components:**
+
+C# CLI:
+- System.CommandLine for args
+- Manual parsing (avoided beta for stability)
+- DI: Microsoft.Extensions.DependencyInjection
+- Token: `--pat-env <varname>` (e.g., `SHEETSTORM_PAT`)
+- Output: NDJSON on stdout (`{"type":"progress",...}`, `{"type":"result",...}`, `{"type":"done",...}`)
+- Exit codes: 0=success, 1=invalid args, 2=PAT missing, 3=I/O, ≥10=unhandled
+
+Flutter:
+- `Process.start(cliPath, args, environment: {'SHEETSTORM_PAT': pat})`
+- Stream parsing: `stdout.transform(utf8.decoder).transform(LineSplitter())`
+- Typed events: `ProgressEvent`, `ResultEvent`, `ErrorEvent`, `DoneEvent`
+- Riverpod: `StreamProvider` for real-time updates
+
+**Alternatives Rejected:**
+- **FFI:** Complex GC/marshalling, callback pinning, debug nightmares
+- **HTTP Server:** Startup overhead (~200–500ms), CORS/auth complexity, firewall prompts
+- **Named Pipes:** Discovery complexity, platform variance, framing protocol needed
+
+**Trade-offs:**
+
+Pros:
+- Simplest integration (no native code, no HTTP stack, no pipe discovery)
+- Secure by default (PAT in env, isolated processes)
+- Testable at every layer (CLI standalone, Flutter mocked, E2E golden)
+- Real-time streaming (NDJSON → Stream<T> → Riverpod)
+
+Cons:
+- Process startup overhead (~50–100ms, acceptable for batch workload)
+- No shared memory (every message serialized to JSON)
+- Parsing cost (JSON decode per event)
+
+**When to Use:**
+✅ Flutter Desktop + C# library integration  
+✅ Batch processing workflows (file conversion, import/export)  
+✅ Progress reporting needed  
+✅ PAT/secrets required  
+❌ Real-time bidirectional (<10ms latency)  
+❌ High-throughput binary (MB/s)  
+❌ Tight loops (CLI per keystroke)
+
+**Consequence:** NDJSON contract locked in spec; CLI tests validate contract; Flutter tests mock events
+
+---
+
+#### Decision: PAT Security — Environment Variable Only
+
+**Status:** ACTIVE  
+**Date:** 2026-04-21  
+**Scope:** #124 (PDF Labeler MVP)
+
+PAT (Personal Access Token) for GitHub Models API NEVER transmitted via command-line arguments. Always use environment variables or Windows Credential Manager.
+
+**Rationale:**
+- **Process List Leak:** `ps aux` or Task Manager → process command-line visible to all users (security risk)
+- **History Files:** `.bash_history`, PowerShell `$PROFILE` → CLI commands logged
+- **Monitoring Tools:** APM, container logs, security audits → might capture full command-line
+
+**Pattern:**
+1. Flutter reads PAT from secure storage: `flutter_secure_storage` → Windows Credential Manager (DPAPI encrypted)
+2. Flutter passes PAT via environment variable only: `Process.start(..., environment: {'SHEETSTORM_PAT': pat})`
+3. CLI reads: `var pat = Environment.GetEnvironmentVariable("SHEETSTORM_PAT")`
+4. CLI never logs PAT, never includes in exception messages, never prints to console
+
+**Consequence:**
+- CLI: `--pat-env <varname>` option (default: `SHEETSTORM_PAT`)
+- Flutter: No `--token-arg` or `--pat` arguments (design-level security)
+- Tests: Mocked token provider (no real GitHub API in unit tests)
+
+---
+
+#### Decision: NDJSON Event Schema (CLI Contract)
+
+**Status:** ACTIVE  
+**Date:** 2026-04-21  
+**Scope:** #124 (PDF Labeler MVP) — CLI stdout contract
+
+CLI emits newline-delimited JSON (NDJSON) on stdout. Each line is a complete JSON object representing one event.
+
+**Event Types:**
+
+1. **Progress Event** (per file processed)
+   ```json
+   {"type":"progress","current":1,"total":50,"file":"example.pdf"}
+   ```
+
+2. **Result Event** (successful or skipped file)
+   ```json
+   {"type":"result","original":"example.pdf","renamed":"example-title.pdf","title":"Symphony No. 5","confidence":0.95,"status":"Success"}
+   ```
+   or
+   ```json
+   {"type":"result","original":"scanned.pdf","title":null,"confidence":0.0,"status":"Skipped"}
+   ```
+
+3. **Error Event** (non-fatal, processing continues)
+   ```json
+   {"type":"error","file":"corrupted.pdf","message":"PDF parsing failed: invalid stream"}
+   ```
+
+4. **Done Event** (final summary)
+   ```json
+   {"type":"done","processed":50,"succeeded":48,"skipped":2,"failed":0,"duration_ms":12500}
+   ```
+
+**Exit Codes:**
+- `0`: Success (at least 1 file processed)
+- `1`: Invalid arguments
+- `2`: PAT missing or invalid
+- `3`: I/O error (folder not found, write permission denied)
+- `≥10`: Unhandled exception (bug)
+
+**Parsing Contract:**
+- UTF-8 encoded
+- One event per line (LF = `\n`)
+- No partial objects (Flutter must not process incomplete JSON)
+- No interleaved stderr (CLI logs to stderr separately; stdout reserved for NDJSON only)
+
+**Cancellation:**
+- **Graceful:** SIGINT (Ctrl+C) → CLI emits partial `"done"` event, exits 0
+- **Programmatic:** `--cancel-file <path>` → CLI polls file existence every 100ms, stops after current file, emits `"done"`
+
+**Consequence:** Flutter tests validate event parsing; spec defines schema; CI validates contract with `echo` + pipe tests
 
 ---
 

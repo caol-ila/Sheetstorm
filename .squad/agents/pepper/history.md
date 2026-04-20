@@ -43,8 +43,13 @@
 3. CredentialStore ownership unclear
 4. TDD practices not followed in first iteration
 
-## Ready For
+## Status Update — 2026-04-21
 
-- Parallel work (squad-impl-124 proceeds independently)
-- Branch correction and rebase if needed
-- XAML investigation once strategy is clarified
+**Tech Switch Decision:** WinUI 3 path SUPERSEDED. Flutter Desktop chosen for PDF Labeler UI (#124). 
+
+**Reason:** MSB3073 XAML compiler blocked progress; Framework Spec §3.4 mandates Flutter for UI consistency; Parker (Flutter expertise) proceeding with `sheetstorm_pdf_labeler` desktop app.
+
+**WinUI 3 Work Status:** Code archived on feat-124-ui-pepper branch (not deleted, available if future need). No new code in WinUI direction. Pepper paused pending new assignment.
+
+**Key Insight:** Library-first architecture enabled this switch cleanly. Core `Sheetstorm.PdfLabeling` logic unchanged; only UI integration shifted. CommunityToolkit.Mvvm decision remains in record for historical reference.
+

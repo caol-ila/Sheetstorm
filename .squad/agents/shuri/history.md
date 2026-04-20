@@ -132,3 +132,9 @@
 - **3-Step Structure:** 1) Prepare Input, 2) Run Test, 3) Inspect Results → Clear workflow
 - **Expected Output:** Explicit table of env vars + defaults → No guessing
 - **Reality Check:** Explicitly state "This won't run in sandbox" → Sets User expectations correctly
+
+## Session Note — 2026-04-21
+
+**Tech Switch Outcome:** Shuri's GitHubModelsTitleRecognizer work unaffected by WinUI 3 → Flutter switch. Library-first architecture isolated recognizer as `ITitleRecognizer` interface (testable without UI). Rogers wraps via CLI; Parker consumes via Process.start(). All work parallel, no blocking dependencies.
+
+**Decision Merged:** Shuri's inbox decisions (PAT pattern, confidence thresholds, GitHub Models choice) already merged into decisions.md. No redundant inbox file needed.

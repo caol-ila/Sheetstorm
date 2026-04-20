@@ -85,4 +85,26 @@
 
 **Status:** DONE — MVP complete, tests green, ready for Rogers's CLI integration
 
+### Session Wrap: Flutter Tech Switch (#124) — 2026-04-21 02:30
+
+**Context:** User triggered WinUI 3 → Flutter switch after Pepper's XAML compiler blocked 2+ days. Stark spec updated, Rogers CLI delivered, Parker Flutter app completed in parallel.
+
+**Execution:**
+- Scaffold → i18n → TDD (RED/GREEN) → UI → CSV export in 6 commits (18 tests total, 17 unit passing)
+- Process.start() + NDJSON parsing validated via mocks (Rogers's real CLI tested separately)
+- Secure storage integrated (Windows Credential Manager via flutter_secure_storage)
+- All strings externalized (30+ i18n keys, zero hardcoded)
+
+**Blockers:**
+- Windows Developer Mode required for `flutter build windows --release` (symlink support) — code ready, platform issue
+- Platform channel mocking incompatible with secure_storage in test environment — unit tests sufficient for MVP, widget tests deferred
+
+**Outcome:** ✅ Flutter desktop app code-complete, 17 unit tests passing, ready for E2E integration with Rogers's real CLI once both verified independently.
+
+**Learnings:**
+- Riverpod AsyncNotifier with sealed events = predictable state machine
+- NDJSON streaming natural fit for Dart Stream<T> + Riverpod StreamProvider
+- Process.start() robustness requires careful stdout/stderr handling + error cleanup
+- Secure storage testing requires integration test (not widget test) or platform mocks
+
 <!-- Append learnings below -->
