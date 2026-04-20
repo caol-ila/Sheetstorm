@@ -1,0 +1,151 @@
+{
+  "@@locale": "de",
+  "appTitle": "Sheetstorm PDF Labeler",
+  "@appTitle": {
+    "description": "The title of the application"
+  },
+  "sourcePickerLabel": "Quellordner",
+  "@sourcePickerLabel": {
+    "description": "Label for the source folder picker"
+  },
+  "sourcePickerHint": "PDF-Ordner auswählen oder hierher ziehen",
+  "@sourcePickerHint": {
+    "description": "Hint text for source folder picker"
+  },
+  "targetPickerLabel": "Zielordner",
+  "@targetPickerLabel": {
+    "description": "Label for the target folder picker"
+  },
+  "targetPickerHint": "Zielordner für umbenannte PDFs",
+  "@targetPickerHint": {
+    "description": "Hint text for target folder picker"
+  },
+  "patLabel": "GitHub Personal Access Token (PAT)",
+  "@patLabel": {
+    "description": "Label for PAT input field"
+  },
+  "patHint": "Token für GitHub Models API",
+  "@patHint": {
+    "description": "Hint for PAT input"
+  },
+  "rememberPat": "Token sicher speichern",
+  "@rememberPat": {
+    "description": "Checkbox label to remember PAT"
+  },
+  "startButton": "Labeling starten",
+  "@startButton": {
+    "description": "Start button text"
+  },
+  "cancelButton": "Abbrechen",
+  "@cancelButton": {
+    "description": "Cancel button text"
+  },
+  "exportCsvButton": "CSV exportieren",
+  "@exportCsvButton": {
+    "description": "Export CSV button text"
+  },
+  "progressLabel": "{current} von {total}",
+  "@progressLabel": {
+    "description": "Progress indicator",
+    "placeholders": {
+      "current": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "currentFileLabel": "Aktuelle Datei: {filename}",
+  "@currentFileLabel": {
+    "description": "Currently processing file",
+    "placeholders": {
+      "filename": {
+        "type": "String"
+      }
+    }
+  },
+  "pdfsFound": "{count, plural, =0{Keine PDFs gefunden} =1{1 PDF gefunden} other{{count} PDFs gefunden}}",
+  "@pdfsFound": {
+    "description": "Number of PDFs found in source",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "columnOriginal": "Original",
+  "@columnOriginal": {
+    "description": "Column header for original filename"
+  },
+  "columnTitle": "Erkannter Titel",
+  "@columnTitle": {
+    "description": "Column header for recognized title"
+  },
+  "columnConfidence": "Konfidenz",
+  "@columnConfidence": {
+    "description": "Column header for confidence score"
+  },
+  "columnStatus": "Status",
+  "@columnStatus": {
+    "description": "Column header for status"
+  },
+  "columnTarget": "Zielpfad",
+  "@columnTarget": {
+    "description": "Column header for target path"
+  },
+  "statusRecognized": "Erkannt",
+  "@statusRecognized": {
+    "description": "Status for recognized files (high confidence)"
+  },
+  "statusLowConfidence": "Niedrige Konfidenz",
+  "@statusLowConfidence": {
+    "description": "Status for low confidence recognition"
+  },
+  "statusError": "Fehler",
+  "@statusError": {
+    "description": "Status for errors"
+  },
+  "confidenceThreshold": "Mindest-Konfidenz: {threshold}",
+  "@confidenceThreshold": {
+    "description": "Confidence threshold setting",
+    "placeholders": {
+      "threshold": {
+        "type": "double",
+        "format": "decimalPercentPattern"
+      }
+    }
+  },
+  "errorSourceRequired": "Bitte Quellordner auswählen",
+  "@errorSourceRequired": {
+    "description": "Error when source folder not selected"
+  },
+  "errorTargetRequired": "Bitte Zielordner auswählen",
+  "@errorTargetRequired": {
+    "description": "Error when target folder not selected"
+  },
+  "errorPatRequired": "Bitte PAT eingeben",
+  "@errorPatRequired": {
+    "description": "Error when PAT not provided"
+  },
+  "errorSameFolder": "Quell- und Zielordner müssen unterschiedlich sein",
+  "@errorSameFolder": {
+    "description": "Error when source and target are the same"
+  },
+  "errorTargetNotWritable": "Zielordner ist nicht schreibbar",
+  "@errorTargetNotWritable": {
+    "description": "Error when target folder is not writable"
+  },
+  "browseButton": "Durchsuchen...",
+  "@browseButton": {
+    "description": "Browse button text"
+  },
+  "completedSuccessfully": "Erfolgreich abgeschlossen",
+  "@completedSuccessfully": {
+    "description": "Message when labeling completes successfully"
+  },
+  "pickFolderSemantic": "Ordner auswählen",
+  "@pickFolderSemantic": {
+    "description": "Semantic label for folder picker button"
+  }
+}
