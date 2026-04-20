@@ -1,23 +1,25 @@
+using Docnet.Core;
+using Docnet.Core.Models;
 using Sheetstorm.PdfLabeling.Abstractions;
 using SkiaSharp;
-using UglyToad.PdfPig;
 
 namespace Sheetstorm.PdfLabeling.Services;
 
 /// <summary>
-/// Renders the first page of a PDF as a PNG image.
-/// Uses PdfPig for PDF parsing and SkiaSharp for rasterization.
+/// Renders the first page of a PDF as a PNG image using raster rendering.
+/// Uses Docnet.Core (PDFium) for true PDF rasterization and SkiaSharp for post-processing.
 /// </summary>
 /// <remarks>
-/// PRAGMATIC RENDERING APPROACH:
-/// This implementation creates a white bitmap at the target DPI dimensions and renders
-/// extracted text content onto it. While not a full PDF→raster renderer (which would
-/// require vector graphics, images, etc.), it's sufficient for AI title recognition
-/// where the model needs to see text as pixels. For MVP purposes, this approach balances
-/// complexity with functionality.
+/// RASTER RENDERING APPROACH:
+/// This implementation uses PDFium (via Docnet.Core) to render PDFs as raster images.
+/// This handles all PDF types: scanned documents (image-only), digital documents with
+/// vector graphics and fonts, and mixed content. The output is optimized for AI vision
+/// models with automatic resizing to reduce token costs while preserving readability.
 /// </remarks>
 public sealed class PdfFirstPageRenderer : IPdfFirstPageRenderer
 {
+    private const int MaxVisionDimension = 2000;
+
     public async Task<byte[]> RenderFirstPageAsPngAsync(
         string pdfPath,
         int dpi = 300,
@@ -32,70 +34,76 @@ public sealed class PdfFirstPageRenderer : IPdfFirstPageRenderer
         // Check cancellation at entry
         ct.ThrowIfCancellationRequested();
 
-        // Wrap synchronous PdfPig/SkiaSharp work in Task.Run to avoid blocking
+        // Wrap synchronous Docnet/SkiaSharp work in Task.Run to avoid blocking
         return await Task.Run(() =>
         {
             ct.ThrowIfCancellationRequested();
 
             try
             {
-                using var document = PdfDocument.Open(pdfPath);
+                // Calculate scaling factor from DPI
+                // Standard PDF DPI is 72, so scaling = targetDPI / 72
+                var scalingFactor = dpi / 72.0;
                 
-                if (document.NumberOfPages == 0)
+                using var docReader = DocLib.Instance.GetDocReader(
+                    pdfPath,
+                    new PageDimensions(scalingFactor));
+                
+                if (docReader.GetPageCount() == 0)
                 {
-                    throw new InvalidDataException($"PDF file contains no pages: {pdfPath}");
+                    throw new PdfRenderingException($"PDF file contains no pages: {pdfPath}");
                 }
 
-                var page = document.GetPage(1);
+                using var pageReader = docReader.GetPageReader(0); // First page (0-indexed)
                 
-                // Get page size in points (1 point = 1/72 inch)
-                var pageWidth = page.Width;
-                var pageHeight = page.Height;
-
-                // Convert to pixels: pixels = points * dpi / 72
-                var pixelWidth = (int)Math.Ceiling(pageWidth * dpi / 72.0);
-                var pixelHeight = (int)Math.Ceiling(pageHeight * dpi / 72.0);
+                var rawBytes = pageReader.GetImage(); // BGRA format
+                var width = pageReader.GetPageWidth();
+                var height = pageReader.GetPageHeight();
 
                 ct.ThrowIfCancellationRequested();
 
-                // Create bitmap with white background
-                using var bitmap = new SKBitmap(pixelWidth, pixelHeight);
-                using var canvas = new SKCanvas(bitmap);
+                // Convert BGRA bytes to SKBitmap
+                using var bitmap = new SKBitmap();
+                var imageInfo = new SKImageInfo(
+                    width,
+                    height,
+                    SKColorType.Bgra8888,
+                    SKAlphaType.Unpremul);
                 
-                // Fill with white background
-                canvas.Clear(SKColors.White);
-
-                // Extract and render text content
-                var letters = page.Letters;
-                if (letters.Any())
+                var handle = System.Runtime.InteropServices.GCHandle.Alloc(
+                    rawBytes,
+                    System.Runtime.InteropServices.GCHandleType.Pinned);
+                
+                try
                 {
-                    using var paint = new SKPaint
-                    {
-                        Color = SKColors.Black,
-                        IsAntialias = true,
-                        TextSize = 12 * dpi / 72f, // Scale text size with DPI
-                        Typeface = SKTypeface.FromFamilyName("Arial")
-                    };
+                    bitmap.InstallPixels(
+                        imageInfo,
+                        handle.AddrOfPinnedObject(),
+                        imageInfo.RowBytes);
 
-                    // Render letters at their positions
-                    // PdfPig coordinates: origin at bottom-left
-                    // SkiaSharp coordinates: origin at top-left
-                    foreach (var letter in letters)
+                    ct.ThrowIfCancellationRequested();
+
+                    // Vision optimization: resize if too large
+                    var finalBitmap = ApplyVisionResize(bitmap);
+                    try
                     {
-                        var x = (float)(letter.Location.X * dpi / 72.0);
-                        // Flip Y coordinate (PDF origin is bottom-left, SKCanvas is top-left)
-                        var y = (float)((pageHeight - letter.Location.Y) * dpi / 72.0);
-                        
-                        canvas.DrawText(letter.Value, x, y, paint);
+                        // Encode to PNG
+                        using var image = SKImage.FromBitmap(finalBitmap);
+                        using var data = image.Encode(SKEncodedImageFormat.Png, 100);
+                        return data.ToArray();
+                    }
+                    finally
+                    {
+                        if (finalBitmap != bitmap)
+                        {
+                            finalBitmap.Dispose();
+                        }
                     }
                 }
-
-                ct.ThrowIfCancellationRequested();
-
-                // Encode to PNG
-                using var image = SKImage.FromBitmap(bitmap);
-                using var data = image.Encode(SKEncodedImageFormat.Png, 100);
-                return data.ToArray();
+                finally
+                {
+                    handle.Free();
+                }
             }
             catch (OperationCanceledException)
             {
@@ -105,11 +113,42 @@ public sealed class PdfFirstPageRenderer : IPdfFirstPageRenderer
             {
                 throw;
             }
-            catch (Exception ex) when (ex is not InvalidDataException)
+            catch (PdfRenderingException)
             {
-                // Wrap PdfPig exceptions (or any other unexpected exceptions) as InvalidDataException
-                throw new InvalidDataException($"File is not a valid PDF or could not be processed: {pdfPath}", ex);
+                throw;
+            }
+            catch (Exception ex)
+            {
+                // Wrap Docnet/PDFium exceptions as PdfRenderingException
+                throw new PdfRenderingException(
+                    $"Failed to render PDF: {pdfPath}. The file may be corrupted, encrypted, or invalid.",
+                    ex);
             }
         }, ct);
+    }
+
+    /// <summary>
+    /// Resizes image if longest edge exceeds MaxVisionDimension to reduce GPT-4o Vision costs.
+    /// Preserves aspect ratio. Returns original bitmap if no resize needed.
+    /// </summary>
+    private static SKBitmap ApplyVisionResize(SKBitmap original)
+    {
+        var maxDimension = Math.Max(original.Width, original.Height);
+        
+        if (maxDimension <= MaxVisionDimension)
+        {
+            return original; // No resize needed
+        }
+
+        // Calculate new dimensions preserving aspect ratio
+        var scale = (double)MaxVisionDimension / maxDimension;
+        var newWidth = (int)(original.Width * scale);
+        var newHeight = (int)(original.Height * scale);
+
+        var resized = original.Resize(
+            new SKImageInfo(newWidth, newHeight),
+            SKSamplingOptions.Default);
+
+        return resized ?? original;
     }
 }
