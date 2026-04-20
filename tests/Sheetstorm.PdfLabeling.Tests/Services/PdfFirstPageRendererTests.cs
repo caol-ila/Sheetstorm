@@ -157,8 +157,8 @@ public class PdfFirstPageRendererTests : IDisposable
         var pdfPath = Path.Combine(_tempDir, "scanned-sample.pdf");
         await File.WriteAllBytesAsync(pdfPath, pdfBytes);
 
-        // Act
-        var result = await _sut.RenderFirstPageAsPngAsync(pdfPath, dpi: 300);
+        // Act - Use 150 DPI to avoid vision resize
+        var result = await _sut.RenderFirstPageAsPngAsync(pdfPath, dpi: 150);
 
         // Assert
         result.Should().NotBeEmpty();
@@ -167,12 +167,11 @@ public class PdfFirstPageRendererTests : IDisposable
         var sizeKb = result.Length / 1024.0;
         Console.WriteLine($"Rendered PNG size: {result.Length} bytes ({sizeKb:F1} KB)");
         
-        // CRITICAL: Text-only renderer produces blank white PNG for text-less PDF (very small, ~800 bytes)
+        // CRITICAL: Text-only renderer produces blank white PNG for text-less PDF (tiny, <1 KB)
         // Real raster renderer must produce realistic A4 image size
-        // A4 at 300 DPI = 2480×3508 px, even blank should be several KB due to PNG format overhead
-        // With proper raster rendering, even minimal page structure produces >10 KB
-        result.Length.Should().BeGreaterThan(10_000, 
-            "because raster-rendered PDF (even blank) produces larger PNG than text-only rendering. " +
+        // A4 at 150 DPI ≈ 1240×1753 px, even blank should be several KB due to PNG format overhead
+        result.Length.Should().BeGreaterThan(5_000, 
+            "because raster-rendered PDF produces larger PNG than text-only rendering. " +
             $"Actual size: {sizeKb:F1} KB");
     }
 
@@ -184,8 +183,8 @@ public class PdfFirstPageRendererTests : IDisposable
         var pdfPath = Path.Combine(_tempDir, "dpi-test.pdf");
         await File.WriteAllBytesAsync(pdfPath, pdfBytes);
 
-        // Act
-        var result = await _sut.RenderFirstPageAsPngAsync(pdfPath, dpi: 300);
+        // Act - Use 150 DPI to avoid Vision resize kicking in
+        var result = await _sut.RenderFirstPageAsPngAsync(pdfPath, dpi: 150);
 
         // Assert
         result.Should().NotBeEmpty();
@@ -196,10 +195,11 @@ public class PdfFirstPageRendererTests : IDisposable
         bitmap.Should().NotBeNull("because PNG should be decodable");
         
         // A4 page: 595×842 points = 8.27×11.69 inches
-        // At 300 DPI: 8.27*300 = 2481 px width, 11.69*300 = 3507 px height
+        // At 150 DPI: 8.27*150 = 1240 px width, 11.69*150 = 1753 px height
+        // This is under MaxVisionDimension so no resize occurs
         // Allow ±10% tolerance
-        bitmap!.Width.Should().BeInRange(2230, 2730, "because A4 width at 300 DPI ≈ 2480 px");
-        bitmap.Height.Should().BeInRange(3156, 3856, "because A4 height at 300 DPI ≈ 3506 px");
+        bitmap!.Width.Should().BeInRange(1116, 1364, "because A4 width at 150 DPI ≈ 1240 px");
+        bitmap.Height.Should().BeInRange(1577, 1929, "because A4 height at 150 DPI ≈ 1753 px");
     }
 
     [Fact]
