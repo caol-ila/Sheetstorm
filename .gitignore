@@ -29,3 +29,8 @@ secrets.json
 sheetstorm_app/.dart_tool/
 sheetstorm_app/.flutter-plugins
 sheetstorm_app/.flutter-plugins-dependencies
+sheetstorm_pdf_labeler/.dart_tool/
+sheetstorm_pdf_labeler/.flutter-plugins
+sheetstorm_pdf_labeler/.flutter-plugins-dependencies
+sheetstorm_pdf_labeler/build/
+sheetstorm_pdf_labeler/*.g.dart
