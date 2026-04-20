@@ -4,8 +4,12 @@ using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.EntityFrameworkCore;
 using Sheetstorm.Infrastructure.Data;
+using Sheetstorm.ServiceDefaults;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Aspire ServiceDefaults
+builder.AddServiceDefaults();
 
 // Localization
 builder.Services.AddLocalization();

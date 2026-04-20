@@ -15,6 +15,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Sheetstorm.Domain\Sheetstorm.Domain.csproj" />
     <ProjectReference Include="..\Sheetstorm.Infrastructure\Sheetstorm.Infrastructure.csproj" />
+    <ProjectReference Include="..\Sheetstorm.ServiceDefaults\Sheetstorm.ServiceDefaults.csproj" />
   </ItemGroup>
 
 </Project>
