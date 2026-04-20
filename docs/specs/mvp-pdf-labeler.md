@@ -307,11 +307,62 @@ The `IPdfFirstPageRenderer` interface provides raster-based PDF-to-PNG conversio
 
 **Manual Verification:**
 
-For smoke testing with real-world scanned PDFs:
-- Test harness: `tests/Sheetstorm.PdfLabeling.Tests/Manual/RenderScannedSmoke.cs` (implemented by Shuri in Phase 3)
-- Environment variable: `SHEETSTORM_SMOKE_PDF_FOLDER` (default: `C:\Temp\Noten-Smoke`)
-- Output folder: `C:\Temp\Noten-Smoke-Output`
-- Verifies: PNG size >10 KB, dimensions ≈ DPI scaling, visual quality via manual inspection
+For smoke testing with real-world scanned PDFs, a manual test harness is available:
+
+**Location:** `tests/Sheetstorm.PdfLabeling.Tests/Manual/RenderScannedSmoke.cs`
+
+**Purpose:**
+- Integration reality-check for AI-facing features with actual sheet music scans
+- NOT part of automated CI — gated by environment variable to prevent accidental runs
+- Processes all PDFs in a folder, renders to PNG, optionally runs title recognition
+- Exports CSV with results for analysis
+
+**How to Run:**
+
+1. **Prepare Input Folder:**
+   ```powershell
+   # Create folder and copy your scanned PDFs
+   New-Item -ItemType Directory -Path "C:\Temp\Noten-Smoke" -Force
+   # Copy your test PDFs to C:\Temp\Noten-Smoke\
+   ```
+
+2. **Run Smoke Test:**
+   ```powershell
+   # Enable manual test execution
+   $env:SHEETSTORM_RUN_MANUAL = "1"
+   
+   # Optional: Customize input/output folders
+   $env:SHEETSTORM_SMOKE_PDF_FOLDER = "C:\Temp\Noten-Smoke"
+   $env:SHEETSTORM_SMOKE_OUTPUT_FOLDER = "C:\Temp\Noten-Smoke-Output"
+   
+   # Optional: Enable title recognition (requires GitHub PAT with models:read scope)
+   $env:GITHUB_TOKEN = "ghp_your_token_here"
+   
+   # Run the smoke test
+   cd C:\Privat\Sheetstorm\tests\Sheetstorm.PdfLabeling.Tests
+   dotnet test --filter "Category=Manual"
+   ```
+
+3. **Inspect Results:**
+   - **PNGs:** `C:\Temp\Noten-Smoke-Output\{filename}.png` (300 DPI renders)
+   - **CSV Report:** `C:\Temp\Noten-Smoke-Output\recognition-results.csv`
+     - Columns: `filename,png_bytes,width,height,recognized_title,confidence,duration_ms,error`
+     - Verify: PNG sizes reasonable (>10 KB), dimensions ≈ DPI scaling, no errors
+
+**Behavior:**
+- Skips cleanly if `SHEETSTORM_RUN_MANUAL != "1"` (safe for CI)
+- Skips cleanly if input folder missing or empty
+- Processes each PDF independently — one file error doesn't abort entire test
+- Asserts: at least 1 file processed AND success rate > 0 (ensures harness not broken)
+
+**Environment Variables:**
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SHEETSTORM_RUN_MANUAL` | — | Must be `"1"` to enable execution |
+| `SHEETSTORM_SMOKE_PDF_FOLDER` | `C:\Temp\Noten-Smoke` | Input folder with `*.pdf` files |
+| `SHEETSTORM_SMOKE_OUTPUT_FOLDER` | `C:\Temp\Noten-Smoke-Output` | Output folder for PNGs + CSV |
+| `GITHUB_TOKEN` | — | (Optional) GitHub PAT for title recognition |
 
 ---
 
