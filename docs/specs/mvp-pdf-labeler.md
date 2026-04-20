@@ -17,8 +17,8 @@ The PDF Labeler MVP is a Windows desktop application that automates renaming of 
 ## MVP Scope
 
 **IN SCOPE:**
-- ✅ Windows desktop app (.NET 10 + WinUI 3)
-- ✅ Folder selection (WinUI file picker)
+- ✅ Windows desktop app (.NET 10 + Flutter Desktop) — ~~WinUI 3~~ (superseded, see Architecture)
+- ✅ Folder selection (Flutter file picker) — ~~WinUI file picker~~ (superseded)
 - ✅ First-page PDF→PNG rendering (high-res, 300 DPI)
 - ✅ Title extraction via GitHub Models GPT-4o Vision API
 - ✅ Confidence-based auto-labeling (≥0.8 auto, 0.6–0.8 warn, <0.6 skip)
@@ -43,7 +43,8 @@ The PDF Labeler MVP is a Windows desktop application that automates renaming of 
 
 | Layer | Technology | Rationale |
 |-------|-----------|-----------|
-| **UI Framework** | WinUI 3 (Windows App SDK 1.7) | Native Windows look/feel, modern XAML, file picker integration |
+| **UI** | Flutter Desktop (Windows) via `sheetstorm_pdf_labeler` | Cross-stack consistency (§3.4), team expertise (Parker), escape WinUI tooling issues |
+| ~~**UI Framework**~~ | ~~WinUI 3 (Windows App SDK 1.7)~~ | ~~Native Windows look/feel, modern XAML, file picker integration~~ **(Superseded)** |
 | **Runtime** | .NET 10 LTS | Long-term support, latest C# features, Aspire-compatible |
 | **PDF Rendering** | PdfPig + SkiaSharp | Pure .NET, no native deps, SkiaSharp for high-quality PNG export |
 | **AI Provider** | GitHub Models (openai/gpt-4o) | Free tier for prototyping, OpenAI-compatible, integrated PAT auth |
@@ -51,10 +52,12 @@ The PDF Labeler MVP is a Windows desktop application that automates renaming of 
 | **HTTP Client** | HttpClient (fallback) | Fallback if SDK incompatibilities arise |
 | **Resiliency** | Polly 8.x | Retry with exponential backoff, rate-limit handling |
 | **Authentication** | Windows Credential Manager | Secure PAT storage, no appsettings.json secrets |
-| **Orchestration** | .NET Aspire 10 | Local dev dashboard, telemetry, configuration |
+| **CLI Wrapper** | `Sheetstorm.PdfLabeling.Cli` (.NET 10 console) | Exposes library via NDJSON on stdout, no WinUI dependency |
+| ~~**Orchestration**~~ | ~~.NET Aspire 10~~ | ~~Local dev dashboard, telemetry, configuration~~ **(Superseded for MVP)** |
 | **Testing** | xUnit + FluentAssertions + Moq | Standard .NET test stack |
 
 **Trade-offs:**
+- **Flutter Desktop vs. WinUI 3:** Cross-stack consistency, team expertise, no XAML compiler issues. Downside: CLI wrapper overhead, NDJSON parsing.
 - **GitHub Models vs. OpenAI Direct:** Free tier for MVP, familiar OpenAI API contract. Downside: lower rate limits vs. paid OpenAI.
 - **PdfPig vs. MuPDF/Poppler:** Pure .NET eliminates native binary deps, easier deployment. Downside: slower than native C libs.
 - **Library-first vs. App-first:** Core logic in `Sheetstorm.PdfLabeling` library enables future CLI/API reuse. Downside: upfront interface design overhead.
@@ -63,11 +66,209 @@ The PDF Labeler MVP is a Windows desktop application that automates renaming of 
 
 ## Architecture
 
-### Component Diagram
+### Architektur: CLI-Wrapper + Flutter Desktop
+
+**Context:** Initial WinUI 3 implementation (Pepper) blocked on MSB3073 XAML compiler errors despite multiple troubleshooting attempts. Framework Specification §3.4 prioritizes cross-stack consistency (Flutter for all UI). Parker (Frontend lead) has Flutter expertise; Rogers (Backend) owns C# library.
+
+**Decision:** Tech switch from WinUI 3 → Flutter Desktop (Windows). Core library `Sheetstorm.PdfLabeling` unchanged; new CLI wrapper bridges library to UI.
+
+**Components:**
+
+1. **`Sheetstorm.PdfLabeling` (C# Library, unchanged)**  
+   - Core business logic: PDF rendering, AI title recognition, file operations
+   - Abstractions: `IPdfLabelingOrchestrator`, `ITitleRecognizer`, etc.
+   - No UI dependency, fully testable in isolation
+
+2. **`Sheetstorm.PdfLabeling.Cli` (C# .NET 10 Console, new)**  
+   - Thin wrapper around `IPdfLabelingOrchestrator`
+   - Accepts args: `--folder <path> --template <pattern> [--dry-run] [--pat-env <var>] [--cancel-file <path>]`
+   - Emits **NDJSON** (newline-delimited JSON) on `stdout` for progress/results
+   - Reads PAT from environment variable `SHEETSTORM_PAT` or `--pat-env` override (NEVER from argv)
+   - Exit codes: `0` = success, `!=0` = fatal error (invalid args, missing PAT, etc.)
+   - Graceful cancellation via SIGINT/Ctrl+C or `--cancel-file` polling
+
+3. **`sheetstorm_pdf_labeler` (Flutter Windows App, new)**  
+   - Riverpod state management: `LabelingJobProvider`, `LabelingResultsProvider`
+   - UI: Folder picker, template selector, progress bar, result list
+   - Integration: `Process.start('Sheetstorm.PdfLabeling.Cli.exe', args)` + `stdout` stream parsing
+   - Security: PAT from `flutter_secure_storage` → env var `SHEETSTORM_PAT` (or Windows Credential Manager via FFI)
+   - Cancellation: Write to temp `cancel.txt` file monitored by CLI
+
+**Integration Flow:**
+
+```
+┌───────────────────────────────────────────────────────────────┐
+│ sheetstorm_pdf_labeler (Flutter Desktop)                      │
+│                                                               │
+│  User Input → FolderPicker + TemplateSelector + StartButton  │
+│       ↓                                                       │
+│  LabelingJobProvider.start()                                 │
+│       ↓                                                       │
+│  Process.start(                                              │
+│    'Sheetstorm.PdfLabeling.Cli.exe',                         │
+│    ['--folder', path, '--template', tpl, '--dry-run']        │
+│    environment: {'SHEETSTORM_PAT': await secureStorage...}   │
+│  )                                                            │
+│       ↓                                                       │
+│  stdout.transform(utf8.decoder).transform(LineSplitter())    │
+│       ↓                                                       │
+│  for each line: jsonDecode(line) → handle event              │
+│    - "progress" → update ProgressProvider                    │
+│    - "result" → append to ResultsProvider                    │
+│    - "error" → show snackbar                                 │
+│    - "done" → finalize UI                                    │
+└───────────────────────────────────────────────────────────────┘
+                           │
+                           ▼
+┌───────────────────────────────────────────────────────────────┐
+│ Sheetstorm.PdfLabeling.Cli (C# Console)                      │
+│                                                               │
+│  Main() → Parse args → IPdfLabelingOrchestrator.LabelAsync() │
+│       ↓                                                       │
+│  IProgress<ProgressUpdate> callback:                         │
+│    Console.WriteLine(                                        │
+│      JsonSerializer.Serialize(new {                          │
+│        type = "progress",                                    │
+│        file = update.CurrentFile,                            │
+│        index = update.ProcessedFiles,                        │
+│        total = update.TotalFiles                             │
+│      })                                                      │
+│    );                                                        │
+│       ↓                                                       │
+│  foreach (result in results):                                │
+│    Console.WriteLine(                                        │
+│      JsonSerializer.Serialize(new {                          │
+│        type = "result",                                      │
+│        original = result.OriginalPath,                       │
+│        title = result.Recognition?.Title,                    │
+│        confidence = result.Recognition?.Confidence,          │
+│        targetPath = result.NewPath,                          │
+│        status = result.Status.ToString()                     │
+│      })                                                      │
+│    );                                                        │
+│       ↓                                                       │
+│  Console.WriteLine(                                          │
+│    JsonSerializer.Serialize(new {                            │
+│      type = "done",                                          │
+│      processed = results.Length,                             │
+│      recognized = successCount,                              │
+│      fallback = skippedCount                                 │
+│    })                                                        │
+│  );                                                          │
+│       ↓                                                       │
+│  Exit(0)                                                     │
+└───────────────────────────────────────────────────────────────┘
+                           │
+                           ▼
+┌───────────────────────────────────────────────────────────────┐
+│ Sheetstorm.PdfLabeling (C# Library, unchanged)               │
+│                                                               │
+│  IPdfLabelingOrchestrator.LabelAsync(job, progress)          │
+│    → IPdfFirstPageRenderer.RenderAsync()                     │
+│    → ITitleRecognizer.RecognizeAsync()                       │
+│    → IFileNameSanitizer.Sanitize()                           │
+│    → IFileTargetResolver.Resolve()                           │
+│    → File.Move() if !dryRun                                  │
+│    → progress.Report(update)                                 │
+└───────────────────────────────────────────────────────────────┘
+```
+
+**Security:**
+
+- **PAT Storage (UI side):**  
+  - Flutter: `flutter_secure_storage` (Windows: DPAPI, target: `sheetstorm.pdflabeler.pat`)  
+  - Alternative: Windows Credential Manager via FFI (target: `Sheetstorm.PdfLabeler.GitHubToken`)
+  
+- **PAT Transmission:**  
+  - UI → CLI via environment variable `SHEETSTORM_PAT` (NEVER in argv — prevents `ps` leakage)
+  - CLI reads `Environment.GetEnvironmentVariable("SHEETSTORM_PAT")` or `--pat-env <varname>` override
+  - CLI NEVER logs PAT, NEVER includes in exception messages
+  
+- **Cancellation:**  
+  - Graceful: SIGINT/Ctrl+C → CLI stops processing, emits partial `"done"` event
+  - Programmatic: Flutter writes to `--cancel-file` (e.g., temp file), CLI polls every N files
+
+**Why Flutter Desktop (vs. WinUI 3):**
+
+1. **Tooling Stability:** MSB3073 XAML compiler errors in WinUI 3 blocked Pepper for 2+ days (unresolved despite clean builds, SDK reinstalls, manifest edits)
+2. **Framework Consistency:** Framework Specification §3.4 mandates Flutter for all UI layers → reduces cognitive overhead, shared patterns (Riverpod, GoRouter, etc.)
+3. **Team Expertise:** Parker (Frontend lead) has production Flutter experience; Pepper's WinUI expertise siloed (no fallback if blocked again)
+4. **Cross-Platform Potential:** While MVP is Windows-only, Flutter Desktop enables future macOS/Linux support with minimal rework (vs. WinUI 3 locked to Windows)
+5. **Testability:** Flutter widget tests > WinUI 3 UI automation tests (faster, no COM init, no packaged app deployment)
+
+**Trade-off:** CLI wrapper adds process overhead (~50–100ms startup) + NDJSON parsing complexity. Acceptable for batch workload (hundreds of files, minutes of runtime).
+
+### CLI-Kontrakt (NDJSON)
+
+All CLI output on `stdout` is **NDJSON** (newline-delimited JSON, one event per line). `stderr` reserved for fatal errors.
+
+**Event Types:**
+
+1. **`progress`** — Emitted during processing (per file or batch)
+   ```json
+   {
+     "type": "progress",
+     "file": "scan_003.pdf",
+     "index": 3,
+     "total": 100
+   }
+   ```
+
+2. **`result`** — Emitted per processed file
+   ```json
+   {
+     "type": "result",
+     "original": "C:\\PDFs\\scan_042.pdf",
+     "title": "Böhmischer Traum",
+     "confidence": 0.92,
+     "targetPath": "C:\\PDFs\\Böhmischer Traum.pdf",
+     "status": "Success"
+   }
+   ```
+   - `status`: `"Success"` | `"SuccessWithWarning"` | `"Skipped"` | `"Error"`
+   - `title` / `confidence` / `targetPath` may be `null` if status = `"Skipped"` or `"Error"`
+
+3. **`error`** — Emitted on per-file errors (non-fatal, processing continues)
+   ```json
+   {
+     "type": "error",
+     "file": "corrupt.pdf",
+     "message": "PDF rendering failed: Invalid xref stream"
+   }
+   ```
+
+4. **`done`** — Emitted once at end (success or cancellation)
+   ```json
+   {
+     "type": "done",
+     "processed": 100,
+     "recognized": 87,
+     "fallback": 13
+   }
+   ```
+   - `recognized`: Files with `Success` or `SuccessWithWarning`
+   - `fallback`: Files `Skipped` (manual rename required)
+
+**Exit Codes:**
+
+- `0`: Normal completion (all files processed, or cancelled gracefully)
+- `1`: Invalid arguments (missing `--folder`, invalid template, etc.)
+- `2`: PAT missing or invalid (env var not set, Credential Manager read failed)
+- `3`: Fatal I/O error (folder not found, permission denied)
+- `>= 10`: Unhandled exception
+
+**Cancellation:**
+
+- **SIGINT/Ctrl+C:** CLI catches, stops processing, emits `"done"` with partial counts, exits `0`
+- **`--cancel-file <path>`:** CLI checks `File.Exists(path)` every N files; if exists, stops and exits `0`
+
+### Component Diagram — WinUI 3 Version (Superseded)
+
+**Note:** This diagram represents the original WinUI 3 architecture. Superseded by CLI-Wrapper + Flutter Desktop (see above).
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  Sheetstorm.PdfLabeler.Desktop (WinUI 3)                        │
+│  Sheetstorm.PdfLabeler.Desktop (WinUI 3) — SUPERSEDED          │
 │  ┌────────────────────────────────────────────────────────┐     │
 │  │  MainWindow.xaml                                       │     │
 │  │  - Folder Picker                                       │     │
@@ -241,19 +442,37 @@ public interface IPdfLabelingOrchestrator
 - `src/Sheetstorm.PdfLabeling/Implementation/PdfLabelingOrchestrator.cs` — Main orchestration logic
 - `src/Sheetstorm.PdfLabeling/DependencyInjection/ServiceCollectionExtensions.cs` — `AddPdfLabeling()` extension
 
-**Desktop App (Sheetstorm.PdfLabeler.Desktop):**
-- `src/Sheetstorm.PdfLabeler.Desktop/Sheetstorm.PdfLabeler.Desktop.csproj` — WinUI 3 project, targets net10.0-windows10.0.22621.0
-- `src/Sheetstorm.PdfLabeler.Desktop/App.xaml` — Application definition
-- `src/Sheetstorm.PdfLabeler.Desktop/App.xaml.cs` — DI setup, Aspire host builder
-- `src/Sheetstorm.PdfLabeler.Desktop/MainWindow.xaml` — Main UI layout
-- `src/Sheetstorm.PdfLabeler.Desktop/MainWindow.xaml.cs` — Code-behind
-- `src/Sheetstorm.PdfLabeler.Desktop/ViewModels/MainViewModel.cs` — MVVM logic, commands, progress binding
-- `src/Sheetstorm.PdfLabeler.Desktop/Converters/StatusToColorConverter.cs` — Value converter for result status coloring
-- `src/Sheetstorm.PdfLabeler.Desktop/Package.appxmanifest` — WinUI 3 packaging manifest
+**CLI Wrapper (Sheetstorm.PdfLabeling.Cli):**
+- `src/Sheetstorm.PdfLabeling.Cli/Sheetstorm.PdfLabeling.Cli.csproj` — Console project, targets net10.0
+- `src/Sheetstorm.PdfLabeling.Cli/Program.cs` — Entrypoint, arg parsing, NDJSON emission
+- `src/Sheetstorm.PdfLabeling.Cli/CliOptions.cs` — Command-line options record
+- `src/Sheetstorm.PdfLabeling.Cli/NdjsonProgressReporter.cs` — IProgress<ProgressUpdate> → stdout NDJSON
 
-**Aspire Orchestration:**
-- `src/Sheetstorm.AppHost/Program.cs` — **MODIFY:** Add `.AddProject<Projects.Sheetstorm_PdfLabeler_Desktop>("pdflabeler")`
-- `src/Sheetstorm.ServiceDefaults/Extensions.cs` — **MODIFY:** Ensure telemetry excludes `Authorization` headers from logs
+**Flutter Desktop App (sheetstorm_pdf_labeler):**
+- `sheetstorm_pdf_labeler/pubspec.yaml` — Flutter project manifest
+- `sheetstorm_pdf_labeler/lib/main.dart` — App entrypoint, MaterialApp setup
+- `sheetstorm_pdf_labeler/lib/features/labeling/providers/labeling_job_provider.dart` — Riverpod state for CLI process
+- `sheetstorm_pdf_labeler/lib/features/labeling/providers/labeling_results_provider.dart` — Results list state
+- `sheetstorm_pdf_labeler/lib/features/labeling/widgets/folder_picker.dart` — Folder selection widget
+- `sheetstorm_pdf_labeler/lib/features/labeling/widgets/template_selector.dart` — Template dropdown
+- `sheetstorm_pdf_labeler/lib/features/labeling/widgets/progress_view.dart` — Progress bar + status
+- `sheetstorm_pdf_labeler/lib/features/labeling/widgets/results_list.dart` — Results table
+- `sheetstorm_pdf_labeler/lib/features/labeling/services/cli_service.dart` — Process.start() wrapper, NDJSON parsing
+- `sheetstorm_pdf_labeler/lib/shared/services/secure_storage_service.dart` — flutter_secure_storage wrapper for PAT
+
+~~**Desktop App (Sheetstorm.PdfLabeler.Desktop):**~~ **(Superseded by Flutter)**
+- ~~`src/Sheetstorm.PdfLabeler.Desktop/Sheetstorm.PdfLabeler.Desktop.csproj`~~ — ~~WinUI 3 project, targets net10.0-windows10.0.22621.0~~
+- ~~`src/Sheetstorm.PdfLabeler.Desktop/App.xaml`~~ — ~~Application definition~~
+- ~~`src/Sheetstorm.PdfLabeler.Desktop/App.xaml.cs`~~ — ~~DI setup, Aspire host builder~~
+- ~~`src/Sheetstorm.PdfLabeler.Desktop/MainWindow.xaml`~~ — ~~Main UI layout~~
+- ~~`src/Sheetstorm.PdfLabeler.Desktop/MainWindow.xaml.cs`~~ — ~~Code-behind~~
+- ~~`src/Sheetstorm.PdfLabeler.Desktop/ViewModels/MainViewModel.cs`~~ — ~~MVVM logic, commands, progress binding~~
+- ~~`src/Sheetstorm.PdfLabeler.Desktop/Converters/StatusToColorConverter.cs`~~ — ~~Value converter for result status coloring~~
+- ~~`src/Sheetstorm.PdfLabeler.Desktop/Package.appxmanifest`~~ — ~~WinUI 3 packaging manifest~~
+
+~~**Aspire Orchestration:**~~ **(Deferred for MVP)**
+- ~~`src/Sheetstorm.AppHost/Program.cs`~~ — ~~**MODIFY:** Add `.AddProject<Projects.Sheetstorm_PdfLabeler_Desktop>("pdflabeler")`~~
+- ~~`src/Sheetstorm.ServiceDefaults/Extensions.cs`~~ — ~~**MODIFY:** Ensure telemetry excludes `Authorization` headers from logs~~
 
 **Tests:**
 - `tests/Sheetstorm.PdfLabeling.Tests/Sheetstorm.PdfLabeling.Tests.csproj` — Test project
@@ -269,8 +488,8 @@ public interface IPdfLabelingOrchestrator
 - `SkiaSharp` (2.88+) — PNG rendering
 - `Azure.AI.Inference` (1.0.0+) — GitHub Models client
 - `Polly` (8.x) — Retry/rate-limit policies
-- `CommunityToolkit.Mvvm` (8.x) — MVVM helpers for WinUI
-- `Microsoft.Windows.SDK.Contracts` (10.x) — Windows Credential Manager APIs
+- ~~`CommunityToolkit.Mvvm` (8.x)~~ — ~~MVVM helpers for WinUI~~ **(Superseded: Flutter UI)**
+- `Microsoft.Windows.SDK.Contracts` (10.x) — Windows Credential Manager APIs (CLI only)
 
 ---
 
