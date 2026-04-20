@@ -1,6 +1,0 @@
-{
-  "version": 1,
-  "agentModelOverrides": {
-    "stark": "claude-opus-4.6-1m"
-  }
-}
