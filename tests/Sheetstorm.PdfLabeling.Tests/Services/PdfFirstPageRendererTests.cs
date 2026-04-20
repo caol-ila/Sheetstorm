@@ -1,5 +1,8 @@
 using FluentAssertions;
+using Sheetstorm.PdfLabeling.Abstractions;
 using Sheetstorm.PdfLabeling.Services;
+using Sheetstorm.PdfLabeling.Tests.Fixtures;
+using SkiaSharp;
 using UglyToad.PdfPig.Content;
 using UglyToad.PdfPig.Writer;
 using Xunit;
@@ -142,5 +145,134 @@ public class PdfFirstPageRendererTests : IDisposable
         // Two pages would be significantly larger
         result.Length.Should().BeGreaterThan(0);
         result.Length.Should().BeLessThan(2_000_000); // Less than 2MB is reasonable for one page
+    }
+
+    // ========== NEW TESTS FOR RASTER-BASED RENDERING ==========
+    
+    [Fact]
+    public async Task RendersScannedPageAsRasterImage_WithRealisticSize()
+    {
+        // Arrange - Scanned PDF with NO text layer (simulates real scanned document)
+        var pdfBytes = TestPdfGenerator.CreateScannedPdf();
+        var pdfPath = Path.Combine(_tempDir, "scanned-sample.pdf");
+        await File.WriteAllBytesAsync(pdfPath, pdfBytes);
+
+        // Act
+        var result = await _sut.RenderFirstPageAsPngAsync(pdfPath, dpi: 300);
+
+        // Assert
+        result.Should().NotBeEmpty();
+        
+        // Log actual size for debugging
+        var sizeKb = result.Length / 1024.0;
+        Console.WriteLine($"Rendered PNG size: {result.Length} bytes ({sizeKb:F1} KB)");
+        
+        // CRITICAL: Text-only renderer produces blank white PNG for text-less PDF (very small, ~800 bytes)
+        // Real raster renderer must produce realistic A4 image size
+        // A4 at 300 DPI = 2480×3508 px, even blank should be several KB due to PNG format overhead
+        // With proper raster rendering, even minimal page structure produces >10 KB
+        result.Length.Should().BeGreaterThan(10_000, 
+            "because raster-rendered PDF (even blank) produces larger PNG than text-only rendering. " +
+            $"Actual size: {sizeKb:F1} KB");
+    }
+
+    [Fact]
+    public async Task RendersAtConfiguredDpi()
+    {
+        // Arrange
+        var pdfBytes = TestPdfGenerator.CreateDigitalPdf();
+        var pdfPath = Path.Combine(_tempDir, "dpi-test.pdf");
+        await File.WriteAllBytesAsync(pdfPath, pdfBytes);
+
+        // Act
+        var result = await _sut.RenderFirstPageAsPngAsync(pdfPath, dpi: 300);
+
+        // Assert
+        result.Should().NotBeEmpty();
+        
+        // Decode PNG to verify actual dimensions
+        using var stream = new MemoryStream(result);
+        using var bitmap = SKBitmap.Decode(stream);
+        bitmap.Should().NotBeNull("because PNG should be decodable");
+        
+        // A4 page: 595×842 points = 8.27×11.69 inches
+        // At 300 DPI: 8.27*300 = 2481 px width, 11.69*300 = 3507 px height
+        // Allow ±10% tolerance
+        bitmap!.Width.Should().BeInRange(2230, 2730, "because A4 width at 300 DPI ≈ 2480 px");
+        bitmap.Height.Should().BeInRange(3156, 3856, "because A4 height at 300 DPI ≈ 3506 px");
+    }
+
+    [Fact]
+    public async Task PreservesImageContent_ForDigitalPdf()
+    {
+        // Arrange - Digital PDF with text content
+        var pdfBytes = TestPdfGenerator.CreateDigitalPdf();
+        var pdfPath = Path.Combine(_tempDir, "digital-content.pdf");
+        await File.WriteAllBytesAsync(pdfPath, pdfBytes);
+
+        // Act
+        var result = await _sut.RenderFirstPageAsPngAsync(pdfPath, dpi: 150);
+
+        // Assert
+        result.Should().NotBeEmpty();
+        
+        // Decode and verify non-white content (should have black text)
+        using var stream = new MemoryStream(result);
+        using var bitmap = SKBitmap.Decode(stream);
+        bitmap.Should().NotBeNull();
+        
+        // Calculate average grayscale value - should NOT be pure white (255)
+        long totalGray = 0;
+        int pixelCount = 0;
+        
+        for (int y = 0; y < bitmap!.Height; y += 10) // Sample every 10th pixel for performance
+        {
+            for (int x = 0; x < bitmap.Width; x += 10)
+            {
+                var color = bitmap.GetPixel(x, y);
+                var gray = (color.Red + color.Green + color.Blue) / 3;
+                totalGray += gray;
+                pixelCount++;
+            }
+        }
+        
+        var averageGray = totalGray / pixelCount;
+        averageGray.Should().BeLessThan(250, 
+            "because digital PDF contains text content, not pure white background");
+    }
+
+    [Fact]
+    public async Task HandlesMultiPagePdf_OnlyFirstPage()
+    {
+        // Arrange
+        var pdfBytes = TestPdfGenerator.CreateMultiPagePdf(pageCount: 3);
+        var pdfPath = Path.Combine(_tempDir, "multipage-raster.pdf");
+        await File.WriteAllBytesAsync(pdfPath, pdfBytes);
+
+        // Act - Render twice to ensure stability
+        var result1 = await _sut.RenderFirstPageAsPngAsync(pdfPath, dpi: 150);
+        var result2 = await _sut.RenderFirstPageAsPngAsync(pdfPath, dpi: 150);
+
+        // Assert
+        result1.Should().NotBeEmpty();
+        result2.Should().NotBeEmpty();
+        
+        // Results should be identical (deterministic rendering)
+        result1.Should().Equal(result2, "because rendering same PDF page should be deterministic");
+    }
+
+    [Fact]
+    public async Task ThrowsOnCorruptedPdf()
+    {
+        // Arrange
+        var garbageBytes = TestPdfGenerator.CreateCorruptedPdf();
+        var pdfPath = Path.Combine(_tempDir, "corrupted.pdf");
+        await File.WriteAllBytesAsync(pdfPath, garbageBytes);
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<PdfRenderingException>(
+            () => _sut.RenderFirstPageAsPngAsync(pdfPath));
+        
+        ex.Message.Should().Contain("PDF", "exception message should mention PDF format issue");
     }
 }
