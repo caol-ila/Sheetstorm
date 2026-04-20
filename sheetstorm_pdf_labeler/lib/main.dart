@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:sheetstorm_pdf_labeler/src/ui/main_screen.dart';
 
 void main() {
-  runApp(const PdfLabelerApp());
+  runApp(const ProviderScope(child: PdfLabelerApp()));
 }
 
 class PdfLabelerApp extends StatelessWidget {
@@ -26,11 +28,7 @@ class PdfLabelerApp extends StatelessWidget {
         useMaterial3: true,
       ),
       themeMode: ThemeMode.system,
-      home: const Scaffold(
-        body: Center(
-          child: Text('PDF Labeler - Coming Soon'),
-        ),
-      ),
+      home: const MainScreen(),
     );
   }
 }

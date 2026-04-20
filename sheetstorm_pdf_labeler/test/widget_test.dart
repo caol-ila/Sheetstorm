@@ -11,8 +11,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sheetstorm_pdf_labeler/main.dart';
 
 void main() {
-  testWidgets('App smoke test', (WidgetTester tester) async {
+  testWidgets('App loads successfully', (WidgetTester tester) async {
+    // Build the app
     await tester.pumpWidget(const PdfLabelerApp());
-    expect(find.text('PDF Labeler - Coming Soon'), findsOneWidget);
+    
+    // Verify it doesn't crash and shows the app title
+    expect(find.text('Sheetstorm PDF Labeler'), findsWidgets);
   });
 }
+
