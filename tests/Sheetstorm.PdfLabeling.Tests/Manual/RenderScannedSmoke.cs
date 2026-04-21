@@ -99,7 +99,7 @@ public sealed class RenderScannedSmoke : IDisposable
         {
             var httpClient = new HttpClient
             {
-                BaseAddress = new Uri("https://models.inference.ai.azure.com"),
+                BaseAddress = new Uri("https://models.github.ai/"),
                 Timeout = TimeSpan.FromSeconds(60)
             };
             
@@ -177,10 +177,11 @@ public sealed class RenderScannedSmoke : IDisposable
                 }
                 catch (Exception ex)
                 {
-                    // Recognition failed, but rendering succeeded — log error, don't fail
+                    // Recognition failed, but rendering succeeded — track separately so it does not
+                    // count as a render failure in the success metric.
                     result.RecognizedTitle = "";
                     result.Confidence = 0.0;
-                    result.Error = $"Recognition failed: {ex.Message}";
+                    result.RecognitionError = $"Recognition failed: {ex.Message}";
                 }
             }
 
@@ -207,9 +208,9 @@ public sealed class RenderScannedSmoke : IDisposable
         {
             // CSV-escape title and error (handle commas/quotes)
             var title = EscapeCsv(r.RecognizedTitle ?? "");
-            var error = EscapeCsv(r.Error ?? "");
+            var error = EscapeCsv(r.Error ?? r.RecognitionError ?? "");
 
-            csv.AppendLine($"{r.FileName},{r.PngBytes},{r.Width},{r.Height},{title},{r.Confidence:F2},{r.DurationMs},{error}");
+            csv.AppendLine($"{r.FileName},{r.PngBytes},{r.Width},{r.Height},{title},{r.Confidence.ToString("F2", CultureInfo.InvariantCulture)},{r.DurationMs},{error}");
         }
 
         await File.WriteAllTextAsync(csvPath, csv.ToString(), Encoding.UTF8);
@@ -234,6 +235,7 @@ public sealed class RenderScannedSmoke : IDisposable
         public double Confidence { get; set; }
         public int DurationMs { get; set; }
         public string? Error { get; set; }
+        public string? RecognitionError { get; set; }
     }
 
     /// <summary>
