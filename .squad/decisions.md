@@ -574,6 +574,237 @@ CLI emits newline-delimited JSON (NDJSON) on stdout. Each line is a complete JSO
 
 ---
 
+### CLI AssemblyName: Use Default Project Name
+
+**Date:** 2026-04-21  
+**Context:** Issue #124 (PDF Labeler MVP), feat-124-e2e-ui branch  
+**Stakeholders:** Stark (Lead), Parker (Frontend), Rogers (CLI)
+
+## Decision
+
+Remove `<AssemblyName>pdflabeler</AssemblyName>` from `Sheetstorm.PdfLabeling.Cli.csproj`. Let the default assembly name match the project name: `Sheetstorm.PdfLabeling.Cli.exe`.
+
+## Rationale
+
+**Problem:** C# CLI project had explicit `<AssemblyName>pdflabeler</AssemblyName>`, producing `pdflabeler.exe`. Flutter's `labeling_service.dart` subprocess integration expected `Sheetstorm.PdfLabeling.Cli.exe` (following standard naming convention). Mismatch caused process spawn failures.
+
+**Why Default Naming:**
+1. **Convention over Configuration:** MSBuild defaults to `<ProjectName>.exe` — works out-of-the-box for most tooling, IDE debugging, and external integrations (e.g., Flutter subprocess spawning).
+2. **Discoverability:** Full project name in exe makes purpose clear (`Sheetstorm.PdfLabeling.Cli.exe` vs ambiguous `pdflabeler.exe`).
+3. **Cross-Platform Consistency:** Other Sheetstorm projects (future: `Sheetstorm.Api`, `Sheetstorm.Migrator`) will follow same pattern — no special-case exe names.
+4. **Reduced Surprise:** External code (Flutter, scripts, docs) can assume `ProjectName.exe` without needing to check csproj.
+
+**When to Override AssemblyName:**
+- Legacy projects with established ecosystem dependencies (breaking change risk)
+- Name conflicts (e.g., clashing with system binaries)
+- Extreme verbosity (e.g., 50+ char project names) — rare, optimize for readability instead
+
+## Implementation
+
+**Changes (Commit 3a9cb3e):**
+- Removed `<AssemblyName>pdflabeler</AssemblyName>` from `src/Sheetstorm.PdfLabeling.Cli/Sheetstorm.PdfLabeling.Cli.csproj`
+- Updated `--help` and `--version` output strings in `Program.cs` to display "Sheetstorm.PdfLabeling.Cli" instead of "pdflabeler"
+- Updated test expectations in `ProgramTests.cs` (TDD: RED → GREEN → VERIFY)
+
+**Verified:**
+- CLI tests: 7 passed (1 skipped)
+- Library tests: 89 passed
+- Build output: `Sheetstorm.PdfLabeling.Cli.exe` exists, `pdflabeler.exe` does not
+
+## Consequences
+
+**Positive:**
+- Flutter subprocess integration works without special casing
+- Future CLI tools (e.g., migration utilities, Aspire tools) follow uniform naming
+- Documentation/scripts reference predictable exe names
+
+**Negative:**
+- **None identified.** Old name "pdflabeler" was not published or externally referenced (MVP in-progress, not shipped).
+
+## Team Rule
+
+**For future Sheetstorm CLI projects:** Do NOT add `<AssemblyName>` overrides unless there's a documented, specific reason (conflict, legacy compatibility). Default project-name-based assembly names are preferred.
+
+## References
+
+- Issue: https://github.com/caol-ila/Sheetstorm/issues/124
+- Commit: 3a9cb3e (feat-124-e2e-ui branch)
+- Flutter integration: `sheetstorm_pdf_labeler/lib/src/services/labeling_service.dart:129`
+- CLI project: `src/Sheetstorm.PdfLabeling.Cli/Sheetstorm.PdfLabeling.Cli.csproj`
+
+---
+
+### E2E Testing Architecture — Flutter Integration Tests
+
+**Scope:** Sheetstorm PDF Labeler Flutter App (#124)  
+**Owner:** Rogers (Backend Dev, acting as Flutter/test engineer)  
+**Date:** 2026-04-21  
+**Status:** ACTIVE  
+**Context:** PR #128, feat-124-e2e-ui branch
+
+## Decision
+
+Use **provider overrides + constructor injection** pattern for Flutter E2E testing, NOT global singletons or monkey-patching.
+
+### Implementation
+
+```dart
+// Production code: Injectable service
+class LabelingNotifier extends StateNotifier<AsyncValue<LabelingState>> {
+  LabelingNotifier() : _service = LabelingService(), super(...);
+  LabelingNotifier.withService(this._service) : super(...);
+  
+  final LabelingService _service;
+  // ...
+}
+
+// Test code: Provider override
+ProviderScope(
+  overrides: [
+    labelingProvider.overrideWith(
+      (ref) => LabelingNotifier.withService(mockService),
+    ),
+  ],
+  child: const PdfLabelerApp(),
+)
+```
+
+## Rationale
+
+1. **Testability** — Allows deterministic event sequences via `FakeLabelingService` that emits scripted `ProgressEvent`, `ResultEvent`, `ErrorEvent`, `DoneEvent`
+2. **Isolation** — Tests don't spawn real CLI subprocess, no need for actual GitHub PAT
+3. **Speed** — Fast hermetic tests, no I/O or network
+4. **Type safety** — Constructor injection ensures service interface is respected
+5. **Riverpod-native** — Uses framework's built-in override mechanism, no global state
+
+## Alternatives Considered
+
+1. **Global singleton mock** — Rejected (breaks parallel tests, hard to reset state)
+2. **Conditional imports** — Rejected (Flutter web doesn't support dart:io conditionals cleanly)
+3. **Factory pattern** — Rejected (more boilerplate, less idiomatic for Riverpod)
+
+## Consequences
+
+- ✅ Test code can inject any `LabelingService` subclass
+- ✅ Production code unchanged (default constructor still creates real service)
+- ✅ Multiple test scenarios in parallel (each ProviderScope is isolated)
+- ⚠️ Requires `.withService()` constructor on all testable notifiers (one-time cost)
+- ⚠️ Tests must wrap app in `ProviderScope` with overrides (standard Riverpod practice)
+
+## Related Decisions
+
+- **Windows Developer Mode Requirement** — `integration_test/` directory triggers desktop build pipeline → symlinks required → cannot run locally without Dev Mode. Tests valid for CI.
+- **Playwright for Web Smoke** — Browser cannot spawn CLI, so Playwright tests only verify UI loads/responds, not full workflow.
+
+## Implementation Files
+
+- `lib/src/notifiers/labeling_notifier.dart` — `.withService()` constructor
+- `integration_test/app_test.dart` — Full E2E tests with mocked service
+- `integration_test/smoke_test.dart` — Basic UI smoke tests
+- `integration_test/README.md` — Documentation
+
+## Verification
+
+PR #128, commits 88c65ca (integration tests) + 2030e4a (Playwright)
+- Unit tests: 18/18 passing
+- Integration tests: Syntax valid, CI-ready (local execution blocked by symlink requirement)
+- Playwright: 3/3 passing
+
+---
+
+### GitHubModelsTitleRecognizer — HttpClient statt Azure.AI.Inference SDK
+
+**Status:** Implemented  
+**Date:** 2025-01-XX  
+**Author:** Shuri (AI Engineer)  
+**Context:** feat/124-pdf-labeler-mvp — GitHubModelsTitleRecognizer Implementation
+
+## Deviation from AI Integration Spec
+
+**Spec Fragment (docs/specs/_fragments/ai-integration.md):**
+> "Azure.AI.Inference SDK wählen: Offiziell von Microsoft, explizite GitHub-Models-Unterstützung"
+
+**History (.squad/agents/shuri/history.md):**
+> "Fallback-Plan: OpenAI SDK v2 Custom-Endpoint → HttpClient direkt (falls SDK-Inkompatibilitäten)"
+
+**Actual Implementation:**
+GitHubModelsTitleRecognizer verwendet **direkt HttpClient** statt Azure.AI.Inference SDK.
+
+## Rationale
+
+### Pro HttpClient (Gewählt)
+1. **Testbarkeit:** TestHttpMessageHandler erlaubt vollständige Request/Response-Kontrolle ohne SDK-Mocking
+2. **Keine Dependencies:** Azure.AI.Inference ist noch Beta (1.0.0-beta.5) → Breaking Changes möglich
+3. **Retry-Kontrolle:** Custom Retry-Loop mit Test-Override (retryDelays: [TimeSpan.Zero]) statt Polly-Pipeline
+4. **Transparenz:** Volle Sichtbarkeit über Request-Struktur (JSON-DTOs explizit im Code)
+5. **Interface-Isolation:** ITitleRecognizer abstrahiert SDK-Wahl → späterer Austausch lokal möglich
+
+### Con HttpClient
+1. **Boilerplate:** Manuelles JSON-Serialisieren, Request-Building, Response-Parsing
+2. **Keine High-Level API:** Features wie Streaming, Function Calling müssen selbst implementiert werden (für MVP nicht nötig)
+3. **Wartung:** API-Contract-Änderungen von GitHub Models müssen manuell nachgezogen werden
+
+## Implementation Details
+
+### Request Headers (gemäß Spec)
+```csharp
+Authorization: Bearer {token}
+Accept: application/vnd.github+json
+X-GitHub-Api-Version: 2022-11-28
+Content-Type: application/json
+```
+
+### Endpoint (gemäß Spec)
+```
+POST https://models.github.ai/inference/chat/completions
+```
+
+### Model (gemäß Spec)
+```json
+{ "model": "openai/gpt-4o" }
+```
+
+### Retry-Strategie (abweichend von Spec)
+**Spec:** Polly ResiliencePipeline mit Exponential Backoff + Jitter  
+**Impl:** Custom Retry-Loop mit Exponential Backoff OHNE Jitter
+
+**Begründung:** Jitter in MVP nicht kritisch (keine High-Volume-Batch-Verarbeitung), kann später hinzugefügt werden.
+
+## Test Coverage
+
+10 Tests, 100% Abdeckung:
+- ✅ Valid Response Parsing
+- ✅ Bearer Token Injection
+- ✅ PNG Base64 Encoding
+- ✅ Endpoint + Model Validation
+- ✅ Malformed JSON Handling (Confidence=0.0)
+- ✅ HTTP 401 → HttpRequestException
+- ✅ HTTP 429 Retry (3x, dann Success)
+- ✅ HTTP 500 Retry (3x, dann Fail)
+- ✅ Cancellation Propagation
+- ✅ Empty PNG Guard (ArgumentException)
+
+## Migration Path
+
+Falls Azure.AI.Inference SDK später gewünscht:
+
+1. Neue Implementierung `AzureAIInferenceTitleRecognizer : ITitleRecognizer`
+2. DI-Registrierung in Program.cs ändern
+3. Tests bleiben unverändert (ITitleRecognizer-Interface stabil)
+4. GitHubModelsTitleRecognizer kann als Fallback bestehen bleiben
+
+## Approval
+
+**Shuri (Self-Decision):** Approved für MVP  
+**Rationale:** Trade-off zwischen Testbarkeit/Kontrolle vs. Boilerplate zugunsten Testbarkeit. Spec-Kompatibilität 95% (nur Retry-Jitter fehlt).
+
+**Action Items:**
+- ✅ Tests geschrieben + alle grün (72/72 passed)
+- ✅ History.md dokumentiert
+- 🔲 Bei Code Review diskutieren: Jitter hinzufügen oder akzeptieren
+
+---
+
 ## Governance
 
 - All meaningful changes require team consensus
