@@ -13,6 +13,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="*" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="*" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="*" />
     <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="*" />
   </ItemGroup>

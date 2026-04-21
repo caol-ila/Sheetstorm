@@ -120,7 +120,11 @@ public class Program
 
         // Register services from library
         services.AddSingleton<IPdfFirstPageRenderer, PdfFirstPageRenderer>();
-        services.AddSingleton<ITitleRecognizer, GitHubModelsTitleRecognizer>();
+        services.AddHttpClient<ITitleRecognizer, GitHubModelsTitleRecognizer>(client =>
+        {
+            client.BaseAddress = new Uri("https://models.github.ai/");
+            client.Timeout = TimeSpan.FromSeconds(60);
+        });
         services.AddSingleton<IFileNameSanitizer, FileNameSanitizer>();
         services.AddSingleton<IFileTargetResolver, FileTargetResolver>();
         services.AddSingleton<IPdfLabelingOrchestrator, PdfLabelingOrchestrator>();
