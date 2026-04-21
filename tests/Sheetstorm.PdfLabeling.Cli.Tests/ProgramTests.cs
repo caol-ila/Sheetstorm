@@ -42,7 +42,7 @@ public class ProgramTests : IDisposable
         // Assert
         exitCode.Should().Be(0);
         var output = stdout.ToString();
-        output.Should().Contain("pdflabeler");
+        output.Should().Contain("Sheetstorm.PdfLabeling.Cli");
         output.Should().Contain("--source");
         output.Should().Contain("--target");
         stderr.ToString().Should().BeEmpty();
@@ -60,7 +60,7 @@ public class ProgramTests : IDisposable
 
         // Assert
         exitCode.Should().Be(0);
-        stdout.ToString().Should().MatchRegex(@"pdflabeler \d+\.\d+\.\d+");
+        stdout.ToString().Should().MatchRegex(@"Sheetstorm\.PdfLabeling\.Cli \d+\.\d+\.\d+");
         stderr.ToString().Should().BeEmpty();
     }
 

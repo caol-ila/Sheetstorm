@@ -27,7 +27,7 @@ public class Program
         // Handle --version
         if (args.Contains("--version") || args.Contains("-v"))
         {
-            await stdout.WriteLineAsync($"pdflabeler {Version}");
+            await stdout.WriteLineAsync($"Sheetstorm.PdfLabeling.Cli {Version}");
             return 0;
         }
 
@@ -143,10 +143,10 @@ public class Program
 
     private static void PrintHelp(TextWriter stdout)
     {
-        stdout.WriteLine("pdflabeler - Batch PDF labeling using AI title recognition");
+        stdout.WriteLine("Sheetstorm.PdfLabeling.Cli - Batch PDF labeling using AI title recognition");
         stdout.WriteLine();
         stdout.WriteLine("Usage:");
-        stdout.WriteLine("  pdflabeler --source <dir> --target <dir> [options]");
+        stdout.WriteLine("  Sheetstorm.PdfLabeling.Cli --source <dir> --target <dir> [options]");
         stdout.WriteLine();
         stdout.WriteLine("Options:");
         stdout.WriteLine("  --source <dir>          Source directory containing PDF files");
