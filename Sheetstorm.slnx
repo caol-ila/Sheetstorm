@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Sheetstorm.PdfLabeling/Sheetstorm.PdfLabeling.csproj" />
+    <Project Path="src/Sheetstorm.PdfLabeling.Cli/Sheetstorm.PdfLabeling.Cli.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Sheetstorm.PdfLabeling.Tests/Sheetstorm.PdfLabeling.Tests.csproj" />
+    <Project Path="tests/Sheetstorm.PdfLabeling.Cli.Tests/Sheetstorm.PdfLabeling.Cli.Tests.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,57 @@
+name: sheetstorm_pdf_labeler
+description: "PDF Labeler desktop app for Sheetstorm - AI-powered PDF title recognition"
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.5.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  
+  # State Management
+  flutter_riverpod: ^2.6.1
+  riverpod_annotation: ^2.6.1
+  
+  # File System
+  file_selector: ^1.0.3
+  desktop_drop: ^0.4.4
+  path: ^1.9.0
+  
+  # Data
+  csv: ^6.0.0
+  
+  # Localization
+  intl: any
+  
+  # Security
+  flutter_secure_storage: ^9.2.2
+  
+  # Logging
+  logging: ^1.2.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  integration_test:
+    sdk: flutter
+  
+  # Code Generation
+  build_runner: ^2.4.13
+  riverpod_generator: ^2.6.2
+  
+  # Linting
+  flutter_lints: ^4.0.0
+  custom_lint: ^0.7.0
+  riverpod_lint: ^2.6.2
+  
+  # Testing
+  mocktail: ^1.0.4
+
+flutter:
+  uses-material-design: true
+  generate: true
