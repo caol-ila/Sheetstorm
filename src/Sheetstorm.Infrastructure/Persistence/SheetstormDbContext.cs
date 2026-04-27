@@ -24,6 +24,7 @@ public sealed class SheetstormDbContext(DbContextOptions<SheetstormDbContext> op
     public DbSet<EventAttendance> EventAttendances => Set<EventAttendance>();
     public DbSet<SetList> SetLists => Set<SetList>();
     public DbSet<SetListItem> SetListItems => Set<SetListItem>();
+    public DbSet<EventSyncSession> EventSyncSessions => Set<EventSyncSession>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -171,6 +172,15 @@ public sealed class SheetstormDbContext(DbContextOptions<SheetstormDbContext> op
             e.HasOne<SetList>().WithMany(s => s.Items).HasForeignKey(x => x.SetListId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(x => x.Piece).WithMany().HasForeignKey(x => x.PieceId).OnDelete(DeleteBehavior.Restrict);
             e.HasIndex(x => new { x.SetListId, x.Position });
+        });
+
+        b.Entity<EventSyncSession>(e =>
+        {
+            e.ToTable("EventSyncSessions");
+            e.Property(x => x.CurrentPieceId).HasMaxLength(40);
+            e.Property(x => x.CurrentPieceTitle).HasMaxLength(300);
+            e.HasOne(x => x.Event).WithMany().HasForeignKey(x => x.EventId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => x.EventId);
         });
     }
 }

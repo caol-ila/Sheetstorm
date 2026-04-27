@@ -1,0 +1,208 @@
+@page "/Bands/{slug}/conduct/{eventId:guid}"
+@layout MainLayout
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject UserManager<ApplicationUser> UserManager
+@inject SheetstormDbContext Db
+@inject EventService EventService
+@inject ConductorSyncService SyncService
+@inject PieceService PieceService
+@inject AuthenticationStateProvider AuthState
+@inject NavigationManager Navigation
+@implements IDisposable
+
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using Sheetstorm.Domain.Identity
+@using Sheetstorm.Domain.Events
+@using Sheetstorm.Domain.Music
+@using Sheetstorm.Infrastructure.Persistence
+@using Sheetstorm.Web.Application
+
+<PageTitle>Sync — @(ev?.Title ?? "")</PageTitle>
+
+@if (ev is null)
+{
+    <p>Lädt…</p>
+}
+else
+{
+    <p><a href="/Bands/@slug/events" data-testid="conduct-back">← Zurück zu Terminen</a></p>
+    <h1 data-testid="conduct-event-title">Sync: @ev.Title</h1>
+
+    @if (canConduct)
+    {
+        <div class="card mb-3" data-testid="conductor-controls">
+            <div class="card-body">
+                <h2>Dirigenten-Pult</h2>
+                @if (sessionState is null || !sessionState.Active)
+                {
+                    <button class="btn btn-primary" data-testid="start-session" @onclick="StartSessionAsync">Sync-Session starten</button>
+                }
+                else
+                {
+                    <p class="text-success" data-testid="session-active">Session aktiv</p>
+                    @if (setListItems.Count == 0)
+                    {
+                        <p>Keine Setlist verknüpft.</p>
+                    }
+                    else
+                    {
+                        <p>Stück öffnen:</p>
+                        <ul class="list-group" data-testid="conductor-pieces">
+                            @foreach (var item in setListItems)
+                            {
+                                <li class="list-group-item d-flex justify-content-between" data-testid="conductor-piece" data-pieceid="@item.PieceId">
+                                    <span>@item.Position. @item.Piece.Title</span>
+                                    <button class="btn btn-sm btn-outline-primary" data-testid="conductor-open-piece"
+                                            @onclick="() => OpenPieceAsync(item.PieceId, item.Piece.Title)">
+                                        Öffnen
+                                    </button>
+                                </li>
+                            }
+                        </ul>
+                    }
+                }
+            </div>
+        </div>
+    }
+
+    <div class="card" data-testid="follower-panel">
+        <div class="card-body">
+            <h2>Empfang</h2>
+            @if (sessionState is null || !sessionState.Active)
+            {
+                <p data-testid="follower-idle">Es läuft keine Sync-Session für diesen Termin.</p>
+            }
+            else if (sessionState.CurrentPieceId is null)
+            {
+                <p data-testid="follower-waiting">Warte auf erstes Stück…</p>
+            }
+            else
+            {
+                <div class="alert alert-info" data-testid="now-playing">
+                    Dirigent öffnet: <strong data-testid="now-playing-title">@sessionState.CurrentPieceTitle</strong>
+                </div>
+                @if (myPart is not null)
+                {
+                    <p>Deine Stimme: <strong data-testid="follower-part-name">@myPart.DisplayName</strong>@(myPart.IsPreferredForUser ? " (bevorzugt)" : "")</p>
+                    @foreach (var f in myPart.Files)
+                    {
+                        <p>
+                            <a href="/files/parts/@myPart.Id/@f.Id" target="_blank" data-testid="follower-file-link">@f.OriginalFileName</a>
+                        </p>
+                    }
+                }
+                else if (allParts.Count > 0)
+                {
+                    <p data-testid="follower-pick">Wähle eine Stimme:
+                        <select class="form-select" data-testid="follower-part-select" @onchange="OnPartPickedAsync">
+                            <option value="">— Stimme —</option>
+                            @foreach (var p in allParts)
+                            {
+                                <option value="@p.Id">@(p.IsPreferredForUser ? "⭐ " : "")@p.DisplayName</option>
+                            }
+                        </select>
+                    </p>
+                }
+                else
+                {
+                    <p data-testid="follower-no-parts">Keine Stimmen für dieses Werk hinterlegt.</p>
+                }
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string slug { get; set; } = default!;
+    [Parameter] public Guid eventId { get; set; }
+
+    private Event? ev;
+    private bool canConduct;
+    private Guid currentUserId;
+    private Guid bandId;
+    private SyncSessionState? sessionState;
+    private List<SetListItem> setListItems = new();
+    private List<PartViewItem> allParts = new();
+    private PartViewItem? myPart;
+    private System.Threading.Timer? pollTimer;
+    private Guid? lastShownPieceId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        var u = await UserManager.GetUserAsync(auth.User);
+        if (u is null) { Navigation.NavigateTo("/Account/Login"); return; }
+        currentUserId = u.Id;
+
+        var band = await Db.Bands.FirstOrDefaultAsync(b => b.Slug == slug);
+        if (band is null) { Navigation.NavigateTo("/Bands"); return; }
+        bandId = band.Id;
+
+        var myMem = await Db.Memberships.FirstOrDefaultAsync(m => m.BandId == bandId && m.UserId == currentUserId);
+        if (myMem is null) { Navigation.NavigateTo("/Bands"); return; }
+        canConduct = myMem.HasRole(BandRole.Dirigent) || myMem.HasRole(BandRole.Admin) || myMem.HasRole(BandRole.Owner);
+
+        ev = await EventService.GetAsync(eventId);
+        if (ev is null || ev.BandId != bandId) { Navigation.NavigateTo($"/Bands/{slug}/events"); return; }
+        setListItems = ev.SetList?.Items.OrderBy(i => i.Position).ToList() ?? new();
+
+        await RefreshFromServerAsync();
+
+        // Poll alle 1.5s nach State-Updates
+        pollTimer = new System.Threading.Timer(async _ =>
+        {
+            try { await RefreshFromServerAsync(); await InvokeAsync(StateHasChanged); }
+            catch { /* circuit gone */ }
+        }, null, TimeSpan.FromSeconds(1.5), TimeSpan.FromSeconds(1.5));
+    }
+
+    private async Task RefreshFromServerAsync()
+    {
+        // Eigener DbContext-Scope — Timer-Ticks teilen sich keine DI-Scope mit dem Circuit.
+        using var scope = ScopeFactory.CreateScope();
+        var s = scope.ServiceProvider.GetRequiredService<ConductorSyncService>();
+        sessionState = await s.GetActiveAsync(eventId);
+        var newPieceId = sessionState?.CurrentPieceId;
+        if (newPieceId is not null && newPieceId != lastShownPieceId)
+        {
+            var ps = scope.ServiceProvider.GetRequiredService<PieceService>();
+            allParts = await ps.GetSortedPartsForUserAsync(newPieceId.Value, bandId, currentUserId);
+            myPart = allParts.FirstOrDefault(p => p.IsPreferredForUser) ?? allParts.FirstOrDefault();
+            lastShownPieceId = newPieceId;
+        }
+    }
+
+    [Inject] private IServiceScopeFactory ScopeFactory { get; set; } = default!;
+
+    private async Task StartSessionAsync()
+    {
+        sessionState = await SyncService.StartAsync(eventId, currentUserId);
+    }
+
+    private async Task OpenPieceAsync(Guid pieceId, string title)
+    {
+        sessionState = await SyncService.OpenPieceAsync(eventId, pieceId, title);
+        if (sessionState?.CurrentPieceId is not null)
+        {
+            allParts = await PieceService.GetSortedPartsForUserAsync(pieceId, bandId, currentUserId);
+            myPart = allParts.FirstOrDefault(p => p.IsPreferredForUser) ?? allParts.FirstOrDefault();
+            lastShownPieceId = pieceId;
+        }
+    }
+
+    private void OnPartPickedAsync(ChangeEventArgs args)
+    {
+        var sid = args.Value?.ToString();
+        if (string.IsNullOrEmpty(sid)) return;
+        myPart = allParts.FirstOrDefault(p => p.Id == Guid.Parse(sid));
+    }
+
+    public void Dispose()
+    {
+        pollTimer?.Dispose();
+    }
+}

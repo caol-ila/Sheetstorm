@@ -53,7 +53,10 @@ builder.Services.AddScoped<BandService>();
 builder.Services.AddScoped<PieceService>();
 builder.Services.AddScoped<EventService>();
 builder.Services.AddScoped<SetListService>();
+builder.Services.AddScoped<ConductorSyncService>();
 builder.Services.AddSingleton<LocalFileStore>();
+
+builder.Services.AddSignalR();
 
 // Active band scope (per-circuit)
 builder.Services.AddScoped<ActiveBandState>();
@@ -113,6 +116,9 @@ app.MapGet("/files/parts/{partId:guid}/{fileId:guid}", async (
     var stream = store.OpenRead(f.BlobKey);
     return Results.File(stream, store.GetMimeType(f.OriginalFileName), f.OriginalFileName, enableRangeProcessing: true);
 }).RequireAuthorization();
+
+// SignalR Hub
+app.MapHub<Sheetstorm.Web.Hubs.ConductorSyncHub>("/hubs/conductor-sync").RequireAuthorization();
 
 app.MapDefaultEndpoints();
 

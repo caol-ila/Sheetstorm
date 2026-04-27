@@ -11,8 +11,8 @@ test.describe('Iteration 0 — Foundation Smoke', () => {
     await expect(heading).toHaveText('Sheetstorm');
 
     const status = page.getByTestId('iteration-status');
-    await expect(status).toContainText('3');
-    await expect(status).toContainText('Setlists');
+    await expect(status).toContainText('4');
+    await expect(status).toContainText('Conductor');
   });
 
   test('Counter-Seite ist nicht öffentlich (entfernt in iter-1) — anonymer Zugriff auf "/" funktioniert', async ({ page }) => {
