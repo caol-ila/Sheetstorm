@@ -1,0 +1,190 @@
+@page "/Bands/{slug}/events"
+@layout MainLayout
+@attribute [Authorize]
+@inject UserManager<ApplicationUser> UserManager
+@inject SheetstormDbContext Db
+@inject EventService EventService
+@inject SetListService SetListService
+@inject AuthenticationStateProvider AuthState
+@inject NavigationManager Navigation
+
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using Sheetstorm.Domain.Identity
+@using Sheetstorm.Domain.Events
+@using Sheetstorm.Infrastructure.Persistence
+@using Sheetstorm.Web.Application
+
+<PageTitle>Termine — @(band?.Name ?? slug)</PageTitle>
+
+@if (band is null)
+{
+    <p>Lädt…</p>
+}
+else
+{
+    <h1 data-testid="events-heading">Termine — @band.Name</h1>
+
+    @if (canEdit)
+    {
+        <EditForm Model="CreateInput" OnValidSubmit="CreateAsync" FormName="create-event" class="row g-2 mb-4">
+            <DataAnnotationsValidator />
+            <div class="col-md-2">
+                <select @bind="CreateInput!.Type" name="CreateInput.Type" class="form-select" data-testid="newevent-type">
+                    <option value="Konzert">Konzert</option>
+                    <option value="Probe">Probe</option>
+                    <option value="Arbeitseinsatz">Arbeitseinsatz</option>
+                    <option value="Sonstiges">Sonstiges</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <InputText @bind-Value="CreateInput.Title" data-testid="newevent-title" class="form-control" placeholder="Titel" />
+                <ValidationMessage For="() => CreateInput.Title" class="text-danger" />
+            </div>
+            <div class="col-md-2">
+                <InputDate Type="InputDateType.DateTimeLocal" @bind-Value="CreateInput.Start" data-testid="newevent-start" class="form-control" />
+            </div>
+            <div class="col-md-2">
+                <InputDate Type="InputDateType.DateTimeLocal" @bind-Value="CreateInput.End" data-testid="newevent-end" class="form-control" />
+            </div>
+            <div class="col-md-2">
+                <select @bind="CreateInput.SetListId" name="CreateInput.SetListId" class="form-select" data-testid="newevent-setlist">
+                    <option value="">— ohne Setlist —</option>
+                    @foreach (var s in setLists)
+                    {
+                        <option value="@s.Id">@s.Name</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-1">
+                <button type="submit" class="btn btn-primary w-100" data-testid="newevent-submit">Anlegen</button>
+            </div>
+        </EditForm>
+    }
+
+    @if (events.Count == 0)
+    {
+        <p data-testid="events-empty">Keine kommenden Termine.</p>
+    }
+    else
+    {
+        <ul class="list-group" data-testid="events-list">
+            @foreach (var ev in events)
+            {
+                <li class="list-group-item" data-testid="event-row" data-id="@ev.Id">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <span class="badge bg-secondary me-2">@ev.Type</span>
+                            <strong data-testid="event-title">@ev.Title</strong>
+                            <div class="text-muted">
+                                @ev.StartUtc.LocalDateTime.ToString("dd.MM.yyyy HH:mm")
+                                @if (!string.IsNullOrEmpty(ev.Location)) { <span> · @ev.Location</span> }
+                            </div>
+                            <div>
+                                <span class="badge bg-success" data-testid="att-yes-count">@ev.YesCount Zusagen</span>
+                                <span class="badge bg-warning text-dark ms-1" data-testid="att-maybe-count">@ev.MaybeCount Vielleicht</span>
+                                <span class="badge bg-danger ms-1" data-testid="att-no-count">@ev.NoCount Absagen</span>
+                            </div>
+                        </div>
+                        <div>
+                            <span class="me-2" data-testid="my-status">Mein Status: <strong>@ev.MyStatus</strong></span>
+                            <EditForm Model="RespondInput" OnValidSubmit="(() => RespondAsync(ev.Id, AttendanceStatus.Yes))" FormName="@($"yes-{ev.Id}")" class="d-inline">
+                                <input type="hidden" name="RespondInput.EventId" value="@ev.Id" />
+                                <button type="submit" class="btn btn-sm btn-success" data-testid="respond-yes">Zusagen</button>
+                            </EditForm>
+                            <EditForm Model="RespondInput" OnValidSubmit="(() => RespondAsync(ev.Id, AttendanceStatus.Maybe))" FormName="@($"maybe-{ev.Id}")" class="d-inline ms-1">
+                                <input type="hidden" name="RespondInput.EventId" value="@ev.Id" />
+                                <button type="submit" class="btn btn-sm btn-warning" data-testid="respond-maybe">Vielleicht</button>
+                            </EditForm>
+                            <EditForm Model="RespondInput" OnValidSubmit="(() => RespondAsync(ev.Id, AttendanceStatus.No))" FormName="@($"no-{ev.Id}")" class="d-inline ms-1">
+                                <input type="hidden" name="RespondInput.EventId" value="@ev.Id" />
+                                <button type="submit" class="btn btn-sm btn-danger" data-testid="respond-no">Absagen</button>
+                            </EditForm>
+                            @if (ev.SetListId is not null)
+                            {
+                                <a class="btn btn-sm btn-outline-primary ms-2" href="/Bands/@slug/perform/@ev.Id" data-testid="event-perform">Konzert-Modus</a>
+                            }
+                        </div>
+                    </div>
+                </li>
+            }
+        </ul>
+    }
+
+    <p class="mt-3"><a href="/Bands/@slug/sets" data-testid="sets-link">Setlists verwalten →</a></p>
+}
+
+@code {
+    [Parameter] public string slug { get; set; } = default!;
+
+    private Band? band;
+    private bool canEdit;
+    private Guid currentUserId;
+    private List<EventListItem> events = new();
+    private List<SetListSummary> setLists = new();
+
+    [SupplyParameterFromForm(FormName = "create-event")]
+    private CreateInputModel? CreateInput { get; set; }
+
+    [SupplyParameterFromForm]
+    private RespondInputModel? RespondInput { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        CreateInput ??= new();
+        RespondInput ??= new();
+
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        var u = await UserManager.GetUserAsync(auth.User);
+        if (u is null) { Navigation.NavigateTo("/Account/Login"); return; }
+        currentUserId = u.Id;
+
+        band = await Db.Bands.FirstOrDefaultAsync(x => x.Slug == slug);
+        if (band is null) { Navigation.NavigateTo("/Bands"); return; }
+
+        var myMem = await Db.Memberships.FirstOrDefaultAsync(m => m.BandId == band.Id && m.UserId == currentUserId);
+        if (myMem is null) { Navigation.NavigateTo("/Bands"); return; }
+        canEdit = myMem.HasRole(BandRole.Admin) || myMem.HasRole(BandRole.Owner) || myMem.HasRole(BandRole.Dirigent);
+
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        events = await EventService.GetUpcomingAsync(band!.Id, currentUserId);
+        setLists = await SetListService.GetForBandAsync(band.Id);
+    }
+
+    private async Task CreateAsync()
+    {
+        if (string.IsNullOrWhiteSpace(CreateInput?.Title)) return;
+        var start = CreateInput.Start ?? DateTime.Now.AddDays(7);
+        var end = CreateInput.End ?? start.AddHours(2);
+        Guid? setId = string.IsNullOrEmpty(CreateInput.SetListId) ? null : Guid.Parse(CreateInput.SetListId);
+        var type = Enum.TryParse<EventType>(CreateInput.Type, out var t) ? t : EventType.Probe;
+        await EventService.CreateAsync(band!.Id, type, CreateInput.Title, start.ToUniversalTime(), end.ToUniversalTime(), currentUserId, null, setId);
+        CreateInput.Title = "";
+        await LoadAsync();
+    }
+
+    private async Task RespondAsync(Guid eventId, AttendanceStatus status)
+    {
+        await EventService.RespondAsync(eventId, currentUserId, status, null);
+        await LoadAsync();
+    }
+
+    private sealed class CreateInputModel
+    {
+        public string Type { get; set; } = "Probe";
+        [System.ComponentModel.DataAnnotations.Required, System.ComponentModel.DataAnnotations.StringLength(300, MinimumLength = 2)]
+        public string Title { get; set; } = "";
+        public DateTime? Start { get; set; } = DateTime.Now.AddDays(7);
+        public DateTime? End { get; set; } = DateTime.Now.AddDays(7).AddHours(2);
+        public string? SetListId { get; set; }
+    }
+
+    private sealed class RespondInputModel { public Guid EventId { get; set; } }
+}

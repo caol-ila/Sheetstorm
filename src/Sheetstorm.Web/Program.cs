@@ -51,6 +51,8 @@ builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
 // Application services
 builder.Services.AddScoped<BandService>();
 builder.Services.AddScoped<PieceService>();
+builder.Services.AddScoped<EventService>();
+builder.Services.AddScoped<SetListService>();
 builder.Services.AddSingleton<LocalFileStore>();
 
 // Active band scope (per-circuit)

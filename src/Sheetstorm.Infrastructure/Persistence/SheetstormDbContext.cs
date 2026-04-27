@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Sheetstorm.Domain.Events;
 using Sheetstorm.Domain.Identity;
 using Sheetstorm.Domain.Music;
 
@@ -19,6 +20,10 @@ public sealed class SheetstormDbContext(DbContextOptions<SheetstormDbContext> op
     public DbSet<Piece> Pieces => Set<Piece>();
     public DbSet<Part> Parts => Set<Part>();
     public DbSet<PartFile> PartFiles => Set<PartFile>();
+    public DbSet<Event> Events => Set<Event>();
+    public DbSet<EventAttendance> EventAttendances => Set<EventAttendance>();
+    public DbSet<SetList> SetLists => Set<SetList>();
+    public DbSet<SetListItem> SetListItems => Set<SetListItem>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -132,6 +137,40 @@ public sealed class SheetstormDbContext(DbContextOptions<SheetstormDbContext> op
             e.Property(x => x.BlobKey).HasMaxLength(500).IsRequired();
             e.Property(x => x.OriginalFileName).HasMaxLength(300).IsRequired();
             e.HasIndex(x => x.PartId);
+        });
+
+        b.Entity<Event>(e =>
+        {
+            e.ToTable("Events");
+            e.Property(x => x.Type).HasConversion<int>();
+            e.Property(x => x.Title).HasMaxLength(300).IsRequired();
+            e.Property(x => x.Location).HasMaxLength(300);
+            e.Property(x => x.DressCode).HasMaxLength(120);
+            e.HasIndex(x => new { x.BandId, x.StartUtc });
+            e.HasOne(x => x.SetList).WithMany().HasForeignKey(x => x.SetListId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        b.Entity<EventAttendance>(e =>
+        {
+            e.ToTable("EventAttendances");
+            e.Property(x => x.Status).HasConversion<int>();
+            e.HasOne(x => x.Event).WithMany(x => x.Attendances).HasForeignKey(x => x.EventId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => new { x.EventId, x.UserId }).IsUnique();
+        });
+
+        b.Entity<SetList>(e =>
+        {
+            e.ToTable("SetLists");
+            e.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            e.HasIndex(x => x.BandId);
+        });
+
+        b.Entity<SetListItem>(e =>
+        {
+            e.ToTable("SetListItems");
+            e.HasOne<SetList>().WithMany(s => s.Items).HasForeignKey(x => x.SetListId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Piece).WithMany().HasForeignKey(x => x.PieceId).OnDelete(DeleteBehavior.Restrict);
+            e.HasIndex(x => new { x.SetListId, x.Position });
         });
     }
 }
