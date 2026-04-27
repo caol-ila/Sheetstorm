@@ -1,0 +1,115 @@
+@page "/Account/Profile"
+@layout MainLayout
+@attribute [Authorize]
+@inject UserManager<ApplicationUser> UserManager
+@inject SheetstormDbContext Db
+@inject BandService BandService
+@inject AuthenticationStateProvider AuthState
+
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using Sheetstorm.Domain.Identity
+@using Sheetstorm.Infrastructure.Persistence
+@using Sheetstorm.Web.Application
+
+<PageTitle>Profil — Sheetstorm</PageTitle>
+
+<h1>Mein Profil</h1>
+
+@if (user is null)
+{
+    <p>Lädt…</p>
+}
+else
+{
+    <p>Eingeloggt als <strong data-testid="profile-email">@user.Email</strong> (<span data-testid="profile-displayname">@user.DisplayName</span>)</p>
+
+    <h2>Bevorzugte Stimme pro Verein</h2>
+    @if (memberships.Count == 0)
+    {
+        <p data-testid="profile-no-memberships">Du bist in keinem Verein.</p>
+    }
+    else
+    {
+        @foreach (var m in memberships)
+        {
+            var current = m.Instruments.FirstOrDefault(i => i.IsPrimary);
+            <div class="card mb-3" data-testid="profile-membership" data-bandid="@m.BandId">
+                <div class="card-body">
+                    <h5 class="card-title">@m.Band.Name</h5>
+                    <EditForm Model="PrefInput" OnValidSubmit="SetPrimaryAsync" FormName="@($"prefset-{m.Id}")">
+                        <input type="hidden" name="PrefInput.MembershipId" value="@m.Id" />
+                        <label class="form-label">Bevorzugte Stimme:</label>
+                        <select name="PrefInput.InstrumentKey" class="form-select" data-testid="primary-instrument-select">
+                            <option value="">— wählen —</option>
+                            @foreach (var grp in instruments.GroupBy(i => i.Family))
+                            {
+                                <optgroup label="@grp.Key">
+                                    @foreach (var i in grp.OrderBy(x => x.Name))
+                                    {
+                                        var key = $"{i.Id}|{i.DefaultTransposition}";
+                                        var label = i.DefaultTransposition is null ? i.Name : $"{i.Name} (in {i.DefaultTransposition})";
+                                        var isSelected = current is not null && current.InstrumentId == i.Id && current.Transposition == i.DefaultTransposition;
+                                        <option value="@key" selected="@isSelected">@label</option>
+                                    }
+                                </optgroup>
+                            }
+                        </select>
+                        <button type="submit" class="btn btn-sm btn-primary mt-2" data-testid="primary-instrument-save">Speichern</button>
+                    </EditForm>
+                    @if (current is not null)
+                    {
+                        <p class="mt-2 mb-0 text-success" data-testid="primary-instrument-current">Aktuell: @current.Instrument.Name@(current.Transposition is null ? "" : $" (in {current.Transposition})")</p>
+                    }
+                </div>
+            </div>
+        }
+    }
+}
+
+@code {
+    private ApplicationUser? user;
+    private List<Membership> memberships = new();
+    private List<Instrument> instruments = new();
+
+    [SupplyParameterFromForm]
+    private PrefInputModel? PrefInput { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        PrefInput ??= new();
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        user = await UserManager.GetUserAsync(auth.User);
+        if (user is null) return;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        memberships = await Db.Memberships
+            .Where(m => m.UserId == user!.Id && m.Status == MembershipStatus.Active)
+            .Include(m => m.Band)
+            .Include(m => m.Instruments).ThenInclude(i => i.Instrument)
+            .ToListAsync();
+        instruments = await Db.Instruments.OrderBy(i => i.Family).ThenBy(i => i.Name).ToListAsync();
+    }
+
+    private async Task SetPrimaryAsync()
+    {
+        if (PrefInput?.MembershipId is null || string.IsNullOrEmpty(PrefInput.InstrumentKey)) return;
+        var parts = PrefInput.InstrumentKey.Split('|', 2);
+        var instrumentId = Guid.Parse(parts[0]);
+        var transposition = parts.Length > 1 && parts[1].Length > 0 ? parts[1] : null;
+        await BandService.SetPreferredInstrumentAsync(PrefInput.MembershipId.Value, instrumentId, transposition);
+        await LoadAsync();
+    }
+
+    private sealed class PrefInputModel
+    {
+        public Guid? MembershipId { get; set; }
+        public string InstrumentKey { get; set; } = "";
+    }
+}

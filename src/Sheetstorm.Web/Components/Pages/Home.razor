@@ -1,4 +1,5 @@
 @page "/"
+@layout MainLayout
 
 <PageTitle>Sheetstorm — Notenmanagement für Blasmusikvereine</PageTitle>
 
@@ -6,10 +7,20 @@
 
 <p class="lead">Notenmanagement für Blasmusikvereine.</p>
 
-<p>
-    Willkommen bei Sheetstorm. Diese Anwendung ist im Aufbau —
-    Iteration 0 (Foundation) ist live: der Aspire-Stack läuft mit
-    PostgreSQL, API und Web-Frontend.
-</p>
+<AuthorizeView>
+    <Authorized>
+        <p data-testid="home-greeting">Willkommen, <strong>@context.User.Identity?.Name</strong>!</p>
+        <p>
+            <a class="btn btn-primary" href="/Bands">Meine Vereine</a>
+            <a class="btn btn-outline-secondary ms-2" href="/Account/Profile">Profil</a>
+        </p>
+    </Authorized>
+    <NotAuthorized>
+        <p data-testid="home-anonymous">
+            <a class="btn btn-primary" href="/Account/Register">Registrieren</a>
+            <a class="btn btn-outline-primary ms-2" href="/Account/Login">Anmelden</a>
+        </p>
+    </NotAuthorized>
+</AuthorizeView>
 
-<p data-testid="iteration-status">Aktuelle Iteration: <strong>0 — Foundation</strong></p>
+<p data-testid="iteration-status" class="mt-4 text-muted"><small>Aktuelle Iteration: <strong>1 — Identität & Mitgliedschaft</strong></small></p>

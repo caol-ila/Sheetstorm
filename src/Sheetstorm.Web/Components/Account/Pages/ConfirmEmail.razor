@@ -1,0 +1,67 @@
+@page "/Account/ConfirmEmail"
+@layout MainLayout
+@inject UserManager<ApplicationUser> UserManager
+@inject IdentityRedirectManager RedirectManager
+
+@using System.Text
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.WebUtilities
+@using Sheetstorm.Infrastructure.Persistence
+@using Sheetstorm.Web.Components.Account
+
+<PageTitle>E-Mail bestätigen — Sheetstorm</PageTitle>
+
+<h1>E-Mail bestätigen</h1>
+
+<StatusMessage Message="@statusMessage" />
+
+@if (confirmed)
+{
+    <p data-testid="email-confirmed">Deine E-Mail-Adresse wurde bestätigt. Du kannst dich jetzt <a href="Account/Login">einloggen</a>.</p>
+}
+
+@code {
+    private string? statusMessage;
+    private bool confirmed;
+
+    [SupplyParameterFromQuery]
+    private string? UserId { get; set; }
+
+    [SupplyParameterFromQuery]
+    private string? Code { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (UserId is null || Code is null)
+        {
+            RedirectManager.RedirectTo("");
+            return;
+        }
+
+        var user = await UserManager.FindByIdAsync(UserId);
+        if (user is null)
+        {
+            statusMessage = $"Fehler: User mit ID '{UserId}' nicht gefunden.";
+            return;
+        }
+
+        try
+        {
+            var code = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(Code));
+            var result = await UserManager.ConfirmEmailAsync(user, code);
+            if (result.Succeeded)
+            {
+                confirmed = true;
+                statusMessage = "Vielen Dank! Deine E-Mail ist bestätigt.";
+            }
+            else
+            {
+                statusMessage = "Fehler beim Bestätigen.";
+            }
+        }
+        catch
+        {
+            statusMessage = "Ungültiger Bestätigungs-Code.";
+        }
+    }
+}

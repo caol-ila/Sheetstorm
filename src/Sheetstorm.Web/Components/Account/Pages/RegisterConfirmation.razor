@@ -1,0 +1,29 @@
+@page "/Account/RegisterConfirmation"
+@layout MainLayout
+@inject UserManager<ApplicationUser> UserManager
+@inject IdentityRedirectManager RedirectManager
+
+@using Microsoft.AspNetCore.Identity
+@using Sheetstorm.Infrastructure.Persistence
+@using Sheetstorm.Web.Components.Account
+
+<PageTitle>Registrierung bestätigen — Sheetstorm</PageTitle>
+
+<h1>Registrierung erhalten</h1>
+
+<p data-testid="register-confirmation">
+    Wir haben dir eine E-Mail an <strong>@Email</strong> geschickt. Bitte klicke auf den Bestätigungs-Link.
+</p>
+
+@code {
+    [SupplyParameterFromQuery]
+    private string? Email { get; set; }
+
+    protected override void OnInitialized()
+    {
+        if (Email is null)
+        {
+            RedirectManager.RedirectTo("");
+        }
+    }
+}

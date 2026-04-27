@@ -1,0 +1,117 @@
+@page "/Account/Register"
+@layout MainLayout
+@inject UserManager<ApplicationUser> UserManager
+@inject IUserStore<ApplicationUser> UserStore
+@inject SignInManager<ApplicationUser> SignInManager
+@inject IEmailSender<ApplicationUser> EmailSender
+@inject ILogger<Register> Logger
+@inject NavigationManager NavigationManager
+@inject IdentityRedirectManager RedirectManager
+
+@using System.ComponentModel.DataAnnotations
+@using System.Text
+@using System.Text.Encodings.Web
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.Identity.UI.Services
+@using Microsoft.AspNetCore.WebUtilities
+@using Sheetstorm.Infrastructure.Persistence
+@using Sheetstorm.Web.Components.Account
+
+<PageTitle>Registrieren — Sheetstorm</PageTitle>
+
+<h1>Konto erstellen</h1>
+
+<div class="row">
+    <div class="col-md-6">
+        <StatusMessage Message="@Message" />
+        <EditForm Model="Input" asp-route-returnUrl="@ReturnUrl" method="post" OnValidSubmit="RegisterUser" FormName="register">
+            <DataAnnotationsValidator />
+            <ValidationSummary class="text-danger" role="alert" />
+
+            <div class="form-floating mb-3">
+                <InputText id="Input.DisplayName" data-testid="input-displayname" @bind-Value="Input.DisplayName" class="form-control" autocomplete="name" placeholder="Anzeigename" />
+                <label for="Input.DisplayName">Anzeigename</label>
+                <ValidationMessage For="() => Input.DisplayName" class="text-danger" />
+            </div>
+
+            <div class="form-floating mb-3">
+                <InputText id="Input.Email" data-testid="input-email" @bind-Value="Input.Email" class="form-control" autocomplete="username" aria-required="true" placeholder="name@example.com" />
+                <label for="Input.Email">E-Mail</label>
+                <ValidationMessage For="() => Input.Email" class="text-danger" />
+            </div>
+
+            <div class="form-floating mb-3">
+                <InputText type="password" id="Input.Password" data-testid="input-password" @bind-Value="Input.Password" class="form-control" autocomplete="new-password" aria-required="true" placeholder="Passwort" />
+                <label for="Input.Password">Passwort</label>
+                <ValidationMessage For="() => Input.Password" class="text-danger" />
+            </div>
+
+            <button type="submit" data-testid="register-submit" class="w-100 btn btn-lg btn-primary">Registrieren</button>
+        </EditForm>
+    </div>
+</div>
+
+@code {
+    private IEnumerable<IdentityError>? identityErrors;
+
+    [SupplyParameterFromForm]
+    private InputModel? Input { get; set; }
+
+    [SupplyParameterFromQuery]
+    private string? ReturnUrl { get; set; }
+
+    private string? Message => identityErrors is null ? null : $"Fehler: {string.Join(", ", identityErrors.Select(e => e.Description))}";
+
+    protected override void OnInitialized() => Input ??= new();
+
+    public async Task RegisterUser(EditContext editContext)
+    {
+        var user = new ApplicationUser
+        {
+            UserName = Input!.Email,
+            Email = Input.Email,
+            DisplayName = Input.DisplayName,
+        };
+        await UserStore.SetUserNameAsync(user, Input.Email, CancellationToken.None);
+        var emailStore = (IUserEmailStore<ApplicationUser>)UserStore;
+        await emailStore.SetEmailAsync(user, Input.Email, CancellationToken.None);
+
+        var result = await UserManager.CreateAsync(user, Input.Password);
+
+        if (!result.Succeeded)
+        {
+            identityErrors = result.Errors;
+            return;
+        }
+
+        Logger.LogInformation("Neuer User {Email} registriert.", Input.Email);
+
+        var userId = await UserManager.GetUserIdAsync(user);
+        var code = await UserManager.GenerateEmailConfirmationTokenAsync(user);
+        code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(code));
+        var callbackUrl = NavigationManager.GetUriWithQueryParameters(
+            NavigationManager.ToAbsoluteUri("Account/ConfirmEmail").AbsoluteUri,
+            new Dictionary<string, object?> { ["userId"] = userId, ["code"] = code, ["returnUrl"] = ReturnUrl });
+
+        await EmailSender.SendConfirmationLinkAsync(user, Input.Email, HtmlEncoder.Default.Encode(callbackUrl));
+
+        RedirectManager.RedirectTo("Account/RegisterConfirmation",
+            new() { ["email"] = Input.Email, ["returnUrl"] = ReturnUrl });
+    }
+
+    private sealed class InputModel
+    {
+        [Required(ErrorMessage = "Anzeigename ist Pflicht")]
+        [StringLength(60, MinimumLength = 2)]
+        public string DisplayName { get; set; } = "";
+
+        [Required(ErrorMessage = "E-Mail ist Pflicht")]
+        [EmailAddress(ErrorMessage = "Ungültige E-Mail")]
+        public string Email { get; set; } = "";
+
+        [Required(ErrorMessage = "Passwort ist Pflicht")]
+        [StringLength(100, MinimumLength = 8, ErrorMessage = "Passwort muss mindestens 8 Zeichen haben")]
+        [DataType(DataType.Password)]
+        public string Password { get; set; } = "";
+    }
+}

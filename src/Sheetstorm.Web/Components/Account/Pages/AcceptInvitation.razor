@@ -1,0 +1,59 @@
+@page "/Account/AcceptInvitation"
+@layout MainLayout
+@attribute [Authorize]
+@inject UserManager<ApplicationUser> UserManager
+@inject BandService BandService
+@inject AuthenticationStateProvider AuthState
+@inject NavigationManager Navigation
+
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Sheetstorm.Infrastructure.Persistence
+@using Sheetstorm.Web.Application
+
+<PageTitle>Einladung annehmen — Sheetstorm</PageTitle>
+
+<h1>Einladung annehmen</h1>
+
+@if (status is null)
+{
+    <p>Verarbeitet…</p>
+}
+else
+{
+    <p data-testid="invite-status">@status</p>
+    @if (acceptedBandId is not null)
+    {
+        <a href="/Bands" class="btn btn-primary" data-testid="invite-success">Zu meinen Vereinen</a>
+    }
+}
+
+@code {
+    [SupplyParameterFromQuery] private string? Token { get; set; }
+    private string? status;
+    private Guid? acceptedBandId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (string.IsNullOrEmpty(Token))
+        {
+            status = "Kein Token angegeben.";
+            return;
+        }
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(auth.User);
+        if (user is null) { Navigation.NavigateTo($"/Account/Login?ReturnUrl=/Account/AcceptInvitation?token={Token}"); return; }
+
+        var bandId = await BandService.AcceptInvitationAsync(Token, user.Id, user.Email!);
+        if (bandId is null)
+        {
+            status = "Einladung ist ungültig, abgelaufen oder nicht für deine E-Mail-Adresse.";
+        }
+        else
+        {
+            acceptedBandId = bandId;
+            status = "Einladung akzeptiert! Du bist jetzt Mitglied.";
+        }
+    }
+}

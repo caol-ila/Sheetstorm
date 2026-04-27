@@ -11,12 +11,12 @@ test.describe('Iteration 0 — Foundation Smoke', () => {
     await expect(heading).toHaveText('Sheetstorm');
 
     const status = page.getByTestId('iteration-status');
-    await expect(status).toContainText('0');
-    await expect(status).toContainText('Foundation');
+    await expect(status).toContainText('1');
+    await expect(status).toContainText('Identität');
   });
 
-  test('Counter-Seite ist erreichbar (Blazor-Routing funktioniert)', async ({ page }) => {
-    await page.goto('/counter');
-    await expect(page.getByRole('heading', { name: /counter/i })).toBeVisible();
+  test('Counter-Seite ist nicht öffentlich (entfernt in iter-1) — anonymer Zugriff auf "/" funktioniert', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByTestId('home-anonymous')).toBeVisible();
   });
 });
