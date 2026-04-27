@@ -50,6 +50,8 @@ builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
 
 // Application services
 builder.Services.AddScoped<BandService>();
+builder.Services.AddScoped<PieceService>();
+builder.Services.AddSingleton<LocalFileStore>();
 
 // Active band scope (per-circuit)
 builder.Services.AddScoped<ActiveBandState>();
@@ -94,6 +96,21 @@ app.MapRazorComponents<App>()
 
 // Identity-Endpoints für Logout etc. (Razor-Form-Posts)
 app.MapAdditionalIdentityEndpoints();
+
+// Datei-Download (PDFs, etc.)
+app.MapGet("/files/parts/{partId:guid}/{fileId:guid}", async (
+    Guid partId, Guid fileId,
+    Sheetstorm.Infrastructure.Persistence.SheetstormDbContext db,
+    Sheetstorm.Web.Services.LocalFileStore store,
+    CancellationToken ct) =>
+{
+    var f = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+        .FirstOrDefaultAsync(db.PartFiles.Where(x => x.Id == fileId && x.PartId == partId), ct);
+    if (f is null) return Results.NotFound();
+    if (!store.Exists(f.BlobKey)) return Results.NotFound();
+    var stream = store.OpenRead(f.BlobKey);
+    return Results.File(stream, store.GetMimeType(f.OriginalFileName), f.OriginalFileName, enableRangeProcessing: true);
+}).RequireAuthorization();
 
 app.MapDefaultEndpoints();
 

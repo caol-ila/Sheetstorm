@@ -1,0 +1,223 @@
+@page "/Bands/{slug}/pieces/{pieceId:guid}"
+@layout MainLayout
+@attribute [Authorize]
+@inject UserManager<ApplicationUser> UserManager
+@inject SheetstormDbContext Db
+@inject PieceService PieceService
+@inject AuthenticationStateProvider AuthState
+@inject NavigationManager Navigation
+
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using Sheetstorm.Domain.Identity
+@using Sheetstorm.Domain.Music
+@using Sheetstorm.Infrastructure.Persistence
+@using Sheetstorm.Web.Application
+
+<PageTitle>@(piece?.Title ?? "Werk") — Sheetstorm</PageTitle>
+
+@if (piece is null)
+{
+    <p>Lädt…</p>
+}
+else
+{
+    <p><a href="/Bands/@slug/pieces" data-testid="piece-back">← Zurück</a></p>
+    <h1 data-testid="piece-title">@piece.Title</h1>
+    @if (!string.IsNullOrEmpty(piece.Composer)) { <p class="text-muted" data-testid="piece-composer">@piece.Composer</p> }
+
+    <h2>Stimmen</h2>
+
+    @if (sortedParts.Count == 0)
+    {
+        <p data-testid="parts-empty">Noch keine Stimmen hinterlegt.</p>
+    }
+    else
+    {
+        <div class="row g-2 mb-3">
+            <div class="col-md-6">
+                <label class="form-label">Stimme wählen:</label>
+                <EditForm Model="SelectInput" OnValidSubmit="SelectPartAsync" FormName="select-part">
+                    <select @bind="SelectInput!.PartId" name="SelectInput.PartId" class="form-select" data-testid="part-select">
+                        @foreach (var pv in sortedParts)
+                        {
+                            var label = pv.IsPreferredForUser ? $"⭐ {pv.DisplayName}" : pv.DisplayName;
+                            <option value="@pv.Id">@label</option>
+                        }
+                    </select>
+                    <button type="submit" class="btn btn-primary mt-2" data-testid="part-show">Anzeigen</button>
+                </EditForm>
+            </div>
+        </div>
+
+        @if (selectedPart is not null)
+        {
+            <h3 data-testid="selected-part-name">@selectedPart.DisplayName</h3>
+            @if (selectedPart.Files.Count == 0)
+            {
+                <p data-testid="selected-part-no-files">Keine Datei hochgeladen.</p>
+            }
+            else
+            {
+                @foreach (var f in selectedPart.Files)
+                {
+                    <p>
+                        <a href="/files/parts/@selectedPart.Id/@f.Id" target="_blank" data-testid="part-file-link">
+                            @f.OriginalFileName (@(f.SizeBytes / 1024) KB)
+                        </a>
+                    </p>
+                    @if (f.Kind == PartFileKind.Pdf)
+                    {
+                        <embed src="/files/parts/@selectedPart.Id/@f.Id" type="application/pdf" width="100%" height="600" data-testid="pdf-embed" />
+                    }
+                }
+            }
+        }
+    }
+
+    @if (canEdit)
+    {
+        <hr/>
+        <h2>Stimme hinzufügen</h2>
+        <EditForm Model="AddPartInput" OnValidSubmit="AddPartAsync" FormName="add-part" class="row g-2 mb-3" enctype="multipart/form-data">
+            <div class="col-md-4">
+                <select @bind="AddPartInput!.InstrumentKey" name="AddPartInput.InstrumentKey" class="form-select" data-testid="addpart-instrument">
+                    <option value="">— Instrument wählen —</option>
+                    @foreach (var grp in instruments.GroupBy(i => i.Family))
+                    {
+                        <optgroup label="@grp.Key">
+                            @foreach (var i in grp.OrderBy(x => x.Name))
+                            {
+                                var key = $"{i.Id}|{i.DefaultTransposition}";
+                                var label = i.DefaultTransposition is null ? i.Name : $"{i.Name} (in {i.DefaultTransposition})";
+                                <option value="@key">@label</option>
+                            }
+                        </optgroup>
+                    }
+                </select>
+            </div>
+            <div class="col-md-3">
+                <InputText @bind-Value="AddPartInput.DisplayName" data-testid="addpart-displayname" class="form-control" placeholder="Anzeigename z.B. Klarinette 1 in B" />
+            </div>
+            <div class="col-md-3">
+                <input type="file" name="UploadedFile" data-testid="addpart-file" class="form-control" accept=".pdf" />
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100" data-testid="addpart-submit">Hinzufügen</button>
+            </div>
+        </EditForm>
+
+        @if (uploadError is not null)
+        {
+            <div class="alert alert-danger" data-testid="addpart-error">@uploadError</div>
+        }
+    }
+}
+
+@code {
+    [Parameter] public string slug { get; set; } = default!;
+    [Parameter] public Guid pieceId { get; set; }
+
+    private Piece? piece;
+    private bool canEdit;
+    private Guid currentUserId;
+    private Guid bandId;
+    private List<PartViewItem> sortedParts = new();
+    private PartViewItem? selectedPart;
+    private List<Instrument> instruments = new();
+    private string? uploadError;
+
+    [SupplyParameterFromForm(FormName = "select-part")]
+    private SelectInputModel? SelectInput { get; set; }
+
+    [SupplyParameterFromForm(FormName = "add-part")]
+    private AddPartInputModel? AddPartInput { get; set; }
+
+    [SupplyParameterFromForm(FormName = "add-part", Name = "UploadedFile")]
+    private IFormFile? UploadedFile { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        SelectInput ??= new();
+        AddPartInput ??= new();
+
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        var u = await UserManager.GetUserAsync(auth.User);
+        if (u is null) { Navigation.NavigateTo("/Account/Login"); return; }
+        currentUserId = u.Id;
+
+        var band = await Db.Bands.FirstOrDefaultAsync(x => x.Slug == slug);
+        if (band is null) { Navigation.NavigateTo("/Bands"); return; }
+        bandId = band.Id;
+
+        var myMem = await Db.Memberships.FirstOrDefaultAsync(m => m.BandId == bandId && m.UserId == currentUserId);
+        if (myMem is null) { Navigation.NavigateTo("/Bands"); return; }
+        canEdit = myMem.HasRole(BandRole.Admin) || myMem.HasRole(BandRole.Owner) || myMem.HasRole(BandRole.Dirigent);
+
+        piece = await PieceService.GetAsync(pieceId);
+        if (piece is null || piece.BandId != bandId) { Navigation.NavigateTo($"/Bands/{slug}/pieces"); return; }
+
+        instruments = await Db.Instruments.OrderBy(i => i.Family).ThenBy(i => i.Name).ToListAsync();
+        await ReloadPartsAsync();
+    }
+
+    private async Task ReloadPartsAsync()
+    {
+        sortedParts = await PieceService.GetSortedPartsForUserAsync(pieceId, bandId, currentUserId);
+        // Default-Auswahl: bevorzugte Stimme oder erste
+        var preselect = SelectInput?.PartId is { } sid && sid != Guid.Empty
+            ? sortedParts.FirstOrDefault(p => p.Id == sid)
+            : sortedParts.FirstOrDefault();
+        selectedPart = preselect;
+        if (preselect is not null) SelectInput!.PartId = preselect.Id;
+    }
+
+    private Task SelectPartAsync()
+    {
+        selectedPart = sortedParts.FirstOrDefault(p => p.Id == SelectInput!.PartId);
+        return Task.CompletedTask;
+    }
+
+    private void OnFileChanged(InputFileChangeEventArgs args)
+    {
+        // wird in static SSR nicht aufgerufen; siehe UploadedFile via SupplyParameterFromForm
+    }
+
+    private async Task AddPartAsync()
+    {
+        try
+        {
+            uploadError = null;
+            if (string.IsNullOrEmpty(AddPartInput?.InstrumentKey)) { uploadError = "Bitte Instrument wählen."; return; }
+            if (string.IsNullOrWhiteSpace(AddPartInput.DisplayName)) { uploadError = "Bitte Anzeigename angeben."; return; }
+            if (UploadedFile is null || UploadedFile.Length == 0) { uploadError = "Bitte PDF auswählen."; return; }
+
+            var parts = AddPartInput.InstrumentKey.Split('|', 2);
+            var instrumentId = Guid.Parse(parts[0]);
+            var transposition = parts.Length > 1 && parts[1].Length > 0 ? parts[1] : null;
+
+            var part = await PieceService.AddPartAsync(pieceId, instrumentId, AddPartInput.DisplayName, transposition);
+
+            await using var s = UploadedFile.OpenReadStream();
+            await PieceService.AttachPartFileAsync(part.Id, s, UploadedFile.FileName, PartFileKind.Pdf);
+
+            AddPartInput.InstrumentKey = "";
+            AddPartInput.DisplayName = "";
+            await ReloadPartsAsync();
+        }
+        catch (Exception ex)
+        {
+            uploadError = ex.Message;
+        }
+    }
+
+    private sealed class SelectInputModel { public Guid PartId { get; set; } }
+    private sealed class AddPartInputModel
+    {
+        public string InstrumentKey { get; set; } = "";
+        public string DisplayName { get; set; } = "";
+    }
+}

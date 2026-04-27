@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Sheetstorm.Domain.Identity;
+using Sheetstorm.Domain.Music;
 
 namespace Sheetstorm.Infrastructure.Persistence;
 
@@ -15,6 +16,9 @@ public sealed class SheetstormDbContext(DbContextOptions<SheetstormDbContext> op
     public DbSet<BandInvitation> BandInvitations => Set<BandInvitation>();
     public DbSet<BandJoinCode> BandJoinCodes => Set<BandJoinCode>();
     public DbSet<BandJoinRequest> BandJoinRequests => Set<BandJoinRequest>();
+    public DbSet<Piece> Pieces => Set<Piece>();
+    public DbSet<Part> Parts => Set<Part>();
+    public DbSet<PartFile> PartFiles => Set<PartFile>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -92,6 +96,42 @@ public sealed class SheetstormDbContext(DbContextOptions<SheetstormDbContext> op
             e.HasOne(x => x.Band).WithMany()
                 .HasForeignKey(x => x.BandId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(x => new { x.BandId, x.UserId, x.JoinCodeId }).IsUnique();
+        });
+
+        b.Entity<Piece>(e =>
+        {
+            e.ToTable("Pieces");
+            e.Property(x => x.Title).HasMaxLength(300).IsRequired();
+            e.Property(x => x.Subtitle).HasMaxLength(300);
+            e.Property(x => x.Composer).HasMaxLength(200);
+            e.Property(x => x.Arranger).HasMaxLength(200);
+            e.Property(x => x.Publisher).HasMaxLength(200);
+            e.Property(x => x.PublisherNumber).HasMaxLength(80);
+            e.Property(x => x.KeySignature).HasMaxLength(20);
+            e.Property(x => x.TimeSignature).HasMaxLength(20);
+            e.Property(x => x.Genre).HasMaxLength(80);
+            e.Property(x => x.Tags).HasMaxLength(500);
+            e.HasIndex(x => new { x.BandId, x.Title });
+            e.HasIndex(x => x.BandId);
+        });
+
+        b.Entity<Part>(e =>
+        {
+            e.ToTable("Parts");
+            e.Property(x => x.DisplayName).HasMaxLength(200).IsRequired();
+            e.Property(x => x.Transposition).HasMaxLength(8);
+            e.Property(x => x.Register).HasMaxLength(20);
+            e.HasOne(x => x.Piece).WithMany(x => x.Parts).HasForeignKey(x => x.PieceId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Instrument).WithMany().HasForeignKey(x => x.InstrumentId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        b.Entity<PartFile>(e =>
+        {
+            e.ToTable("PartFiles");
+            e.Property(x => x.Kind).HasConversion<int>();
+            e.Property(x => x.BlobKey).HasMaxLength(500).IsRequired();
+            e.Property(x => x.OriginalFileName).HasMaxLength(300).IsRequired();
+            e.HasIndex(x => x.PartId);
         });
     }
 }

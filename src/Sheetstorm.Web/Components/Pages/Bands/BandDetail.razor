@@ -27,6 +27,10 @@ else
     <h1 data-testid="band-title">@band.Name</h1>
     <p class="text-muted">/@band.Slug</p>
 
+    <p>
+        <a href="/Bands/@band.Slug/pieces" class="btn btn-primary" data-testid="band-pieces-link">📜 Noten verwalten</a>
+    </p>
+
     @if (lastCode is not null)
     {
         <div class="alert alert-info" data-testid="generated-code">Code: <strong data-testid="generated-code-value">@lastCode</strong></div>
