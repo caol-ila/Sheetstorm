@@ -65,6 +65,7 @@ builder.Services.AddIdentityCore<ApplicationUser>(options =>
     .AddDefaultTokenProviders();
 
 builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection("Smtp"));
+builder.Services.Configure<VapidOptions>(builder.Configuration.GetSection("Vapid"));
 builder.Services.AddSingleton<IEmailSender<ApplicationUser>, SmtpEmailSender>();
 builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
 
@@ -77,6 +78,8 @@ builder.Services.AddScoped<ConductorSyncService>();
 builder.Services.AddScoped<OfflineService>();
 builder.Services.AddScoped<OmrService>();
 builder.Services.AddScoped<AnnotationService>();
+builder.Services.AddScoped<ShiftService>();
+builder.Services.AddScoped<PushNotificationService>();
 
 // OMR-Engine: wenn Audiveris-URL konfiguriert -> echter Adapter, sonst Stub
 var audiverisUrl = builder.Configuration["Audiveris:BaseUrl"]
@@ -92,6 +95,7 @@ else
 }
 
 builder.Services.AddHostedService<OmrBackgroundWorker>();
+builder.Services.AddHostedService<EventReminderWorker>();
 builder.Services.AddSingleton<LocalFileStore>();
 
 builder.Services.AddSignalR();
@@ -193,6 +197,11 @@ app.MapGet("/api/bands/{slug}/calendar.ics", async (
 }).RequireAuthorization();
 
 // Push-Subscription registrieren (für Phase 2 echte Web-Push-Anbindung)
+app.MapGet("/api/push/vapid-public-key", (Sheetstorm.Web.Application.PushNotificationService svc) =>
+{
+    return svc.PublicKey is null ? Results.NoContent() : Results.Text(svc.PublicKey);
+});
+
 app.MapPost("/api/push/subscribe", async (
     Sheetstorm.Web.PushSubscriptionDto dto,
     System.Security.Claims.ClaimsPrincipal user,

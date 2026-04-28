@@ -19,6 +19,14 @@ export default defineConfig({
     ignoreHTTPSErrors: true,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
+    // Onboarding-Tour vor jedem Test ausblenden
+    storageState: {
+      cookies: [],
+      origins: [{
+        origin: process.env.E2E_WEB_URL ?? 'https://localhost:7242',
+        localStorage: [{ name: 'sheetstorm-tour-done', value: '1' }],
+      }],
+    },
   },
   projects: [
     { name: 'chromium', use: { browserName: 'chromium' } },

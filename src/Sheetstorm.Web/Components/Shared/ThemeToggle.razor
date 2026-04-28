@@ -1,0 +1,37 @@
+@inject IJSRuntime JS
+
+<button type="button" class="ss-logout-btn" @onclick="ToggleAsync" data-testid="theme-toggle" title="@(isDark ? "Hell" : "Dunkel")">
+    @(isDark ? "☀" : "🌙")
+</button>
+
+@code {
+    private bool isDark;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                var saved = await JS.InvokeAsync<string?>("eval", "localStorage.getItem('sheetstorm-theme')");
+                isDark = saved == "dark";
+                if (isDark) await JS.InvokeVoidAsync("eval", "document.documentElement.setAttribute('data-theme','dark')");
+                StateHasChanged();
+            }
+            catch { }
+        }
+    }
+
+    private async Task ToggleAsync()
+    {
+        isDark = !isDark;
+        if (isDark)
+        {
+            await JS.InvokeVoidAsync("eval", "document.documentElement.setAttribute('data-theme','dark');localStorage.setItem('sheetstorm-theme','dark')");
+        }
+        else
+        {
+            await JS.InvokeVoidAsync("eval", "document.documentElement.removeAttribute('data-theme');localStorage.setItem('sheetstorm-theme','light')");
+        }
+    }
+}

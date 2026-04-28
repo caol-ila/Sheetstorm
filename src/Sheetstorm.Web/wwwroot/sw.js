@@ -61,6 +61,26 @@ self.addEventListener('message', (event) => {
   }
 });
 
+self.addEventListener('push', (event) => {
+  let payload = { title: 'Sheetstorm', body: '' };
+  try { if (event.data) payload = event.data.json(); } catch { /* keep default */ }
+  event.waitUntil(self.registration.showNotification(payload.title || 'Sheetstorm', {
+    body: payload.body || '',
+    icon: '/favicon.png',
+    badge: '/favicon.png',
+    data: { url: payload.url || '/' },
+  }));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = event.notification.data?.url || '/';
+  event.waitUntil(clients.matchAll({ type: 'window' }).then(list => {
+    for (const c of list) { if (c.url.includes(url) && 'focus' in c) return c.focus(); }
+    if (clients.openWindow) return clients.openWindow(url);
+  }));
+});
+
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;

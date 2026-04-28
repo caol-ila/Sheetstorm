@@ -110,9 +110,15 @@ else
         }
     }
 
+    <h2 class="mt-4">Push-Benachrichtigungen</h2>
+    <div class="ss-card" data-testid="push-card">
+        <p>Lass dich an Termine erinnern oder informieren wenn der Dirigent ein Stück öffnet.</p>
+        <PushEnableButton @rendermode="InteractiveServer" />
+    </div>
+
     <h2 class="text-danger mt-5">Gefahrenzone</h2>
     <div class="ss-card border-danger">
-        <p>Wenn du dein Konto löscht, gehen alle deine Annotationen, Anwesenheits-Antworten und persönlichen Einstellungen verloren. Vereins-Daten und Werke bleiben erhalten.</p>
+        <p>Wenn du dein Konto löschst, gehen alle deine Annotationen, Anwesenheits-Antworten und persönlichen Einstellungen verloren. Vereins-Daten und Werke bleiben erhalten.</p>
         <EditForm Model="DeleteInput" OnValidSubmit="DeleteAccountAsync" FormName="profile-delete">
             <div class="d-flex gap-2">
                 <InputText @bind-Value="DeleteInput!.ConfirmText" data-testid="profile-delete-confirm" class="form-control" placeholder="Tippe LÖSCHEN um zu bestätigen" />

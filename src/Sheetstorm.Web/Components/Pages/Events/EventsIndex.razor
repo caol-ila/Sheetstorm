@@ -108,6 +108,7 @@ else
                                 <a class="btn btn-sm btn-outline-primary ms-2" href="/Bands/@slug/perform/@ev.Id" data-testid="event-perform">Konzert-Modus</a>
                                 <a class="btn btn-sm btn-primary ms-2" href="/Bands/@slug/conduct/@ev.Id" data-testid="event-conduct">🎵 Sync</a>
                             }
+                            <a class="btn btn-sm btn-outline-secondary ms-2" href="/Bands/@slug/events/@ev.Id/shifts" data-testid="event-shifts">📋 Schichten</a>
                             @if (canEdit)
                             {
                                 <EditForm Model="CancelInput" OnValidSubmit="CancelEventAsync" FormName="@($"cancel-{ev.Id}")" class="d-inline ms-2">

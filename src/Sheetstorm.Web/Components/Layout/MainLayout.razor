@@ -51,6 +51,7 @@
                 </nav>
 
                 <div class="ss-user-menu">
+                    <ThemeToggle @rendermode="InteractiveServer" />
                     <a href="/Account/Profile" class="ss-user-link" data-testid="user-profile" title="Mein Profil">
                         <span class="ss-user-avatar">@(UserInitial(context.User.Identity?.Name))</span>
                         <span class="ss-user-name">@(context.User.Identity?.Name)</span>
@@ -77,7 +78,8 @@
     </main>
 
     <AuthorizeView>
-        <Authorized>
+        <Authorized Context="userCtx">
+            <OnboardingTour @rendermode="InteractiveServer" />
             @if (currentBandSlug is not null)
             {
                 <nav class="ss-bottom-tabs" data-testid="bottom-tabs">

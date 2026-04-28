@@ -417,3 +417,87 @@ h3 { font-size: 1.1rem; font-weight: 600; margin: 1rem 0 0.5rem; }
     box-shadow: var(--ss-shadow);
     font-weight: 600;
 }
+
+/* ── Dark Mode ─────────────────────────────────── */
+[data-theme="dark"] {
+    --ss-bg: #0f172a;
+    --ss-surface: #1e293b;
+    --ss-border: #334155;
+    --ss-text: #f1f5f9;
+    --ss-text-muted: #94a3b8;
+    --ss-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --ss-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+[data-theme="dark"] .alert-info { background: #1e3a5f; border-color: #3b82f6; color: #bfdbfe; }
+[data-theme="dark"] .alert-success { background: #14532d; border-color: #22c55e; color: #bbf7d0; }
+[data-theme="dark"] .alert-warning { background: #422006; border-color: #d97706; color: #fde68a; }
+[data-theme="dark"] .alert-danger { background: #450a0a; border-color: #dc2626; color: #fecaca; }
+[data-theme="dark"] .form-control, [data-theme="dark"] .form-select { background: #0f172a; color: #f1f5f9; border-color: #334155; }
+[data-theme="dark"] .ss-viewer-host { background: #1e293b !important; }
+
+/* ── Loading Skeletons ─────────────────────────── */
+@keyframes ss-skel-shimmer {
+  0% { background-position: -1000px 0; }
+  100% { background-position: 1000px 0; }
+}
+
+.ss-skel {
+  display: block;
+  background: linear-gradient(90deg, #e5e7eb 0px, #f3f4f6 200px, #e5e7eb 400px);
+  background-size: 1200px 100%;
+  animation: ss-skel-shimmer 1.5s infinite linear;
+  border-radius: 0.4rem;
+  height: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+[data-theme="dark"] .ss-skel {
+  background: linear-gradient(90deg, #1e293b 0px, #334155 200px, #1e293b 400px);
+}
+
+.ss-skel-line { height: 1rem; }
+.ss-skel-line.short { width: 40%; }
+.ss-skel-line.medium { width: 70%; }
+.ss-skel-card { height: 6rem; }
+
+/* ── Onboarding-Tour ───────────────────────────── */
+.ss-tour-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.ss-tour-card {
+  background: var(--ss-surface);
+  border-radius: var(--ss-radius);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+  padding: 1.5rem;
+  max-width: 500px;
+  width: 100%;
+}
+
+.ss-tour-step-icon {
+  font-size: 3rem;
+  text-align: center;
+}
+
+.ss-tour-progress {
+  display: flex;
+  gap: 0.3rem;
+  justify-content: center;
+  margin-bottom: 0.75rem;
+}
+
+.ss-tour-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ss-border);
+}
+.ss-tour-dot.active { background: var(--ss-primary); }

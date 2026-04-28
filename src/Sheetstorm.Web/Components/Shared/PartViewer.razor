@@ -1,0 +1,164 @@
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+@using Sheetstorm.Domain.Music
+@using Sheetstorm.Web.Application
+
+@if (Part is null)
+{
+    <p data-testid="viewer-no-part">Keine Stimme gewählt.</p>
+}
+else if (Part.Files.Count == 0)
+{
+    <div class="ss-empty" data-testid="viewer-no-files">
+        <div class="ss-empty-icon">📄</div>
+        <div class="ss-empty-title">Keine Datei für diese Stimme.</div>
+    </div>
+}
+else
+{
+    <div class="ss-viewer-toolbar mb-2 d-flex flex-wrap gap-2 align-items-center" data-testid="viewer-toolbar">
+        @if (HasMusicXml)
+        {
+            <div class="btn-group btn-group-sm" role="group">
+                <button type="button" class="btn @(viewMode == "score" ? "btn-primary" : "btn-outline-primary")"
+                        @onclick='() => SetMode("score")' data-testid="viewer-mode-score">🎼 Noten</button>
+                <button type="button" class="btn @(viewMode == "pdf" ? "btn-primary" : "btn-outline-primary")"
+                        @onclick='() => SetMode("pdf")' data-testid="viewer-mode-pdf">📄 Original-PDF</button>
+            </div>
+        }
+
+        <div class="btn-group btn-group-sm ms-auto" role="group" aria-label="Annotation-Werkzeug">
+            <button type="button" class="btn @(tool == "pen" ? "btn-secondary" : "btn-outline-secondary")"
+                    @onclick='() => SetTool("pen")' data-testid="tool-pen" title="Stift">✒</button>
+            <button type="button" class="btn @(tool == "marker" ? "btn-secondary" : "btn-outline-secondary")"
+                    @onclick='() => SetTool("marker")' data-testid="tool-marker" title="Textmarker">🖍</button>
+            <button type="button" class="btn @(tool == "text" ? "btn-secondary" : "btn-outline-secondary")"
+                    @onclick='() => SetTool("text")' data-testid="tool-text" title="Notiz">📝</button>
+            <button type="button" class="btn @(tool == "eraser" ? "btn-secondary" : "btn-outline-secondary")"
+                    @onclick='() => SetTool("eraser")' data-testid="tool-eraser" title="Radieren">🧽</button>
+        </div>
+        <input type="color" value="@color" @onchange="OnColorChanged" data-testid="tool-color" title="Farbe" style="width:2.4rem;height:2rem;padding:0;border:1px solid #ccc;border-radius:.25rem" />
+        <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="UndoAsync" data-testid="tool-undo" title="Rückgängig">↩</button>
+        <button type="button" class="btn btn-sm btn-outline-danger" @onclick="ClearAsync" data-testid="tool-clear" title="Annotationen löschen">🗑</button>
+        @if (saving)
+        {
+            <span class="badge bg-info text-dark" data-testid="viewer-saving">Speichert…</span>
+        }
+        else
+        {
+            <span class="badge bg-success" data-testid="viewer-saved">Gespeichert</span>
+        }
+    </div>
+
+    <div class="ss-viewer-host" id="@hostId" data-testid="viewer-host" style="border:1px solid var(--ss-border, #e5e7eb);border-radius:.5rem;padding:.5rem;min-height:400px;background:white;">
+        @if (viewMode == "pdf" && PdfFile is not null)
+        {
+            <embed src="/files/parts/@Part.Id/@PdfFile.Id" type="application/pdf" width="100%" height="600" data-testid="pdf-embed" />
+        }
+    </div>
+
+    <p class="text-muted small mt-2" data-testid="viewer-files-info">
+        Verfügbare Dateien: @Part.Files.Count
+        @foreach (var f in Part.Files)
+        {
+            <span class="badge bg-light text-dark ms-1">@f.Kind: @f.OriginalFileName</span>
+        }
+    </p>
+}
+
+@code {
+    [Parameter, EditorRequired] public PartViewItem? Part { get; set; }
+
+    private string hostId = "viewer-" + Guid.NewGuid().ToString("N").Substring(0, 8);
+    private string viewMode = "score";
+    private string tool = "pen";
+    private string color = "#dc2626";
+    private bool saving;
+    private bool jsAttached;
+    private DotNetObjectReference<PartViewer>? selfRef;
+
+    private bool HasMusicXml => Part?.Files.Any(f => f.Kind == PartFileKind.MusicXml) == true;
+    private PartFileViewItem? MusicXmlFile => Part?.Files.FirstOrDefault(f => f.Kind == PartFileKind.MusicXml);
+    private PartFileViewItem? PdfFile => Part?.Files.FirstOrDefault(f => f.Kind == PartFileKind.Pdf);
+
+    protected override void OnInitialized()
+    {
+        if (!HasMusicXml) viewMode = "pdf";
+        selfRef = DotNetObjectReference.Create(this);
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (!HasMusicXml) viewMode = "pdf";
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (Part is null) return;
+        if (viewMode == "score" && MusicXmlFile is not null)
+        {
+            await JS.InvokeVoidAsync("SheetstormOsmd.render", new
+            {
+                containerId = hostId,
+                musicXmlUrl = $"/files/parts/{Part.Id}/{MusicXmlFile.Id}",
+                zoom = 1.0,
+            });
+        }
+
+        if (!jsAttached)
+        {
+            await JS.InvokeAsync<object>("SheetstormAnnotations.attach", new
+            {
+                hostId,
+                partId = Part.Id,
+                page = 1,
+                dotnetRef = selfRef,
+            });
+            jsAttached = true;
+        }
+    }
+
+    [JSInvokable]
+    public Task OnAnnotationSaved()
+    {
+        saving = false;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private void SetMode(string m)
+    {
+        viewMode = m;
+        jsAttached = false;
+    }
+
+    private async Task SetTool(string t)
+    {
+        tool = t;
+        await JS.InvokeVoidAsync("SheetstormAnnotations.setTool", hostId, t);
+    }
+
+    private async Task OnColorChanged(ChangeEventArgs args)
+    {
+        color = args.Value?.ToString() ?? "#dc2626";
+        await JS.InvokeVoidAsync("SheetstormAnnotations.setColor", hostId, color);
+    }
+
+    private async Task UndoAsync()
+    {
+        saving = true;
+        await JS.InvokeVoidAsync("SheetstormAnnotations.undo", hostId);
+    }
+
+    private async Task ClearAsync()
+    {
+        saving = true;
+        await JS.InvokeVoidAsync("SheetstormAnnotations.clear", hostId);
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        selfRef?.Dispose();
+        return ValueTask.CompletedTask;
+    }
+}

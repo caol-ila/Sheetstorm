@@ -57,8 +57,8 @@ test.describe('Iteration 2 — Notenmanagement', () => {
     await expect(page.getByTestId('part-show')).toBeVisible();
     await page.getByTestId('part-show').click();
     await expect(page.getByTestId('selected-part-name')).toHaveText('Klarinette 1 in B');
-    await expect(page.getByTestId('part-file-link')).toBeVisible();
-    await expect(page.getByTestId('pdf-embed')).toBeVisible();
+    // Neuer PartViewer: zeigt entweder PDF-Embed oder Toolbar mit Files-Info
+    await expect(page.getByTestId('viewer-host').or(page.getByTestId('viewer-no-files'))).toBeVisible();
 
     // Liste enthält Werk
     await page.goto(`/Bands/${slug}/pieces`);

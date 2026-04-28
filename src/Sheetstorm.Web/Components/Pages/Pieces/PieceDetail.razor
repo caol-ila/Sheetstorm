@@ -74,25 +74,8 @@ else
         @if (selectedPart is not null)
         {
             <h3 data-testid="selected-part-name">@selectedPart.DisplayName</h3>
-            @if (selectedPart.Files.Count == 0)
-            {
-                <p data-testid="selected-part-no-files">Keine Datei hochgeladen.</p>
-            }
-            else
-            {
-                @foreach (var f in selectedPart.Files)
-                {
-                    <p>
-                        <a href="/files/parts/@selectedPart.Id/@f.Id" target="_blank" data-testid="part-file-link">
-                            @f.OriginalFileName (@(f.SizeBytes / 1024) KB)
-                        </a>
-                    </p>
-                    @if (f.Kind == PartFileKind.Pdf)
-                    {
-                        <embed src="/files/parts/@selectedPart.Id/@f.Id" type="application/pdf" width="100%" height="600" data-testid="pdf-embed" />
-                    }
-                }
-            }
+
+            <PartViewer Part="selectedPart" @rendermode="InteractiveServer" />
         }
     }
 
