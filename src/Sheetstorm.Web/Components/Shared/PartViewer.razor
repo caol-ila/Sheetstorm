@@ -188,16 +188,10 @@ else
     private async Task SetTool(string t)
     {
         tool = t;
-        // Default-Farbe + Breite pro Tool spiegeln (UI-Sync)
-        switch (t)
-        {
-            case "pen":    color = "#dc2626"; width = 2;  break;
-            case "marker": color = "#fde047"; width = 14; break;
-            case "text":   color = "#1f2937"; width = 2;  break;
-        }
+        // Farbe und Breite NICHT hier hartcodiert ueberschreiben — JS pflegt
+        // pro Tool den User-State (Default-Farbe nur beim ersten Aktivieren),
+        // der dann via OnToolChanged-Callback zurueck nach Razor gespiegelt wird.
         await JS.InvokeVoidAsync("SheetstormAnnotations.setTool", stageId, t);
-        await JS.InvokeVoidAsync("SheetstormAnnotations.setColor", stageId, color);
-        await JS.InvokeVoidAsync("SheetstormAnnotations.setWidth", stageId, width);
     }
 
     private async Task OnColorChanged(ChangeEventArgs args)

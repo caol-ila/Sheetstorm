@@ -22,6 +22,7 @@ public sealed class OmrJob
     public string? DetectedPartsJson { get; private set; }
     public string? SuggestedTitle { get; private set; }
     public string? SuggestedComposer { get; private set; }
+    public bool IsStub { get; private set; }
     public Guid? CreatedPieceId { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? StartedAt { get; private set; }
@@ -52,13 +53,14 @@ public sealed class OmrJob
 
     public void UpdateProgress(int percent) => Progress = Math.Clamp(percent, 0, 100);
 
-    public void MarkDone(string detectedPartsJson, string? suggestedTitle, string? suggestedComposer)
+    public void MarkDone(string detectedPartsJson, string? suggestedTitle, string? suggestedComposer, bool isStub = false)
     {
         Status = OmrJobStatus.Done;
         Progress = 100;
         DetectedPartsJson = detectedPartsJson;
         SuggestedTitle = suggestedTitle;
         SuggestedComposer = suggestedComposer;
+        IsStub = isStub;
         CompletedAt = DateTimeOffset.UtcNow;
     }
 

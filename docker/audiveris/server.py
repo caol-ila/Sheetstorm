@@ -3,12 +3,13 @@ Sheetstorm Audiveris HTTP Wrapper.
 
 Endpoints:
 - GET  /health         → "ok"
-- POST /recognize      → multipart 'pdf' file, returns MusicXML
+- POST /recognize      → multipart 'pdf' file, returns MusicXML (plain XML)
 
 Implementation:
 - Schreibt PDF in temp-Dir
-- Ruft `audiveris -batch -export -output <tmp>` auf
-- Sucht nach .xml-Datei im Output, liest + sendet zurück
+- Ruft `Audiveris -batch -export -output <tmp>` auf
+- Audiveris liefert .mxl (gezippte MusicXML); wir packen es aus und liefern das
+  unkomprimierte plain MusicXML, damit OSMD im Browser es direkt rendern kann.
 - Räumt auf
 
 Robustheit: Audiveris ist langsam (5-60s pro PDF), daher request-timeout 5min.
@@ -18,6 +19,7 @@ import shutil
 import subprocess
 import tempfile
 import logging
+import zipfile
 from pathlib import Path
 from flask import Flask, request, jsonify, Response
 from waitress import serve
@@ -30,6 +32,38 @@ app = Flask(__name__)
 @app.get("/health")
 def health():
     return "ok", 200
+
+
+def extract_plain_musicxml(file_path: Path) -> bytes | None:
+    """Falls .mxl: ZIP entpacken, das eigentliche .xml-Rootfile lesen."""
+    if file_path.suffix.lower() == ".mxl":
+        try:
+            with zipfile.ZipFile(file_path, "r") as zf:
+                # MXL hat META-INF/container.xml mit <rootfile full-path="..."/>
+                names = zf.namelist()
+                root = None
+                if "META-INF/container.xml" in names:
+                    container = zf.read("META-INF/container.xml").decode("utf-8", errors="ignore")
+                    import re
+                    m = re.search(r'full-path="([^"]+)"', container)
+                    if m:
+                        root = m.group(1)
+                # Fallback: erstes .xml im Archiv ausserhalb META-INF
+                if root is None:
+                    for n in names:
+                        if n.endswith(".xml") and not n.startswith("META-INF/"):
+                            root = n
+                            break
+                if root is None:
+                    log.error("MXL hat kein XML-Rootfile: %s", names)
+                    return None
+                log.info("MXL entpackt: rootfile=%s", root)
+                return zf.read(root)
+        except zipfile.BadZipFile:
+            # .mxl war wider Erwarten kein ZIP (manche Audiveris-Versionen schreiben raw .xml mit Endung .mxl)
+            return file_path.read_bytes()
+    return file_path.read_bytes()
+
 
 @app.post("/recognize")
 def recognize():
@@ -45,7 +79,7 @@ def recognize():
         log.info("Recognize: %s (%d bytes)", in_path, in_path.stat().st_size)
 
         cmd = [
-            "audiveris", "-batch",
+            "Audiveris", "-batch",
             "-export", "-output", str(out_dir),
             str(in_path),
         ]
@@ -60,24 +94,27 @@ def recognize():
             return jsonify({"error": "audiveris failed", "stderr": res.stderr[-1000:]}), 500
 
         # Audiveris legt MusicXML als .mxl (gezippt) oder .xml ab
-        xml_files = list(out_dir.rglob("*.xml")) + list(out_dir.rglob("*.mxl"))
-        if not xml_files:
+        files = list(out_dir.rglob("*.mxl")) + list(out_dir.rglob("*.xml"))
+        # OMR-internen 'omr.zip' Output ignorieren
+        files = [p for p in files if not p.name.endswith(".omr")]
+        if not files:
+            log.error("Audiveris produzierte keine MusicXML; out_dir=%s", list(out_dir.rglob("*")))
             return jsonify({"error": "no MusicXML produced"}), 500
 
-        # Größtes .xml (oder erstes .mxl) zurückgeben
-        xml_files.sort(key=lambda p: p.stat().st_size, reverse=True)
-        out_file = xml_files[0]
+        # Größtes File zuerst (Hauptscore vor Annexen)
+        files.sort(key=lambda p: p.stat().st_size, reverse=True)
+        out_file = files[0]
         log.info("Recognize: success, %s (%d bytes)", out_file.name, out_file.stat().st_size)
 
-        if out_file.suffix == ".mxl":
-            mime = "application/vnd.recordare.musicxml"
-            data = out_file.read_bytes()
-            return Response(data, mimetype=mime)
-        else:
-            return Response(out_file.read_bytes(), mimetype="application/vnd.recordare.musicxml+xml")
+        body = extract_plain_musicxml(out_file)
+        if body is None:
+            return jsonify({"error": "could not extract musicxml"}), 500
+        log.info("Returning %d bytes plain MusicXML", len(body))
+        return Response(body, mimetype="application/vnd.recordare.musicxml+xml")
 
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "8080"))
     log.info("Audiveris-Server hört auf :%d", port)
     serve(app, host="0.0.0.0", port=port, threads=2, expose_tracebacks=False)
+

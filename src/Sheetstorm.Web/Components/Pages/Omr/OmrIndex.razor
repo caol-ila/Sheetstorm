@@ -4,6 +4,7 @@
 @inject UserManager<ApplicationUser> UserManager
 @inject SheetstormDbContext Db
 @inject OmrService OmrService
+@inject IOmrEngine OmrEngine
 @inject AuthenticationStateProvider AuthState
 @inject NavigationManager Navigation
 
@@ -39,6 +40,18 @@ else
         Erkennung lückenhaft sein — du kannst die Stimm-Zuordnung jederzeit
         manuell anpassen.
     </div>
+
+    @if (OmrEngine is StubOmrEngine)
+    {
+        <div class="alert alert-warning" data-testid="omr-stub-banner">
+            ⚠ <strong>Echte Audiveris-Erkennung ist nicht aktiviert.</strong>
+            Hochgeladene PDFs werden mit einer Demo-Heuristik analysiert, die
+            unabhängig vom Inhalt Standard-Stimmen vorschlägt. Für echte OMR:
+            AppHost mit <code>--enable-audiveris</code> starten oder
+            <code>Audiveris__BaseUrl</code> setzen. Empfehlung solange:
+            Werke direkt unter „Lieder" anlegen und PDFs pro Stimme dort hochladen.
+        </div>
+    }
 
     @if (canEdit)
     {

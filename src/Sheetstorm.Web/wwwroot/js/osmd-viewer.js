@@ -59,6 +59,7 @@ window.SheetstormOsmd = {
     const container = document.getElementById(contentId);
     if (!container) return { ok: false, error: 'Container nicht gefunden: ' + contentId };
     container.innerHTML = '';
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
     const osmd = new window.opensheetmusicdisplay.OpenSheetMusicDisplay(container, {
       autoResize: true,
       drawTitle: true,
@@ -66,13 +67,20 @@ window.SheetstormOsmd = {
       drawComposer: true,
       drawCredits: false,
       backend: 'svg',
+      darkMode: isDark,
     });
     osmd.zoom = zoom;
+    // Letzten Render-Aufruf merken, damit wir bei Theme-Wechsel re-rendern können.
+    container.__sheetstormScore = { musicXmlUrl, zoom };
     try {
       const r = await fetch(musicXmlUrl, { credentials: 'include' });
       if (!r.ok) throw new Error('MusicXML-Download fehlgeschlagen: ' + r.status);
       const xml = await r.text();
       await osmd.load(xml);
+      // Manche OSMD-Versionen wenden darkMode erst nach load richtig an.
+      if (typeof osmd.setOptions === 'function') {
+        try { osmd.setOptions({ darkMode: isDark }); } catch { }
+      }
       osmd.render();
       // Layer-Resize triggern
       const stage = container.closest('.ss-stage');
@@ -84,6 +92,16 @@ window.SheetstormOsmd = {
     }
   },
 };
+
+// Bei Theme-Wechsel alle aktuell sichtbaren OSMD-Score-Container re-rendern.
+document.addEventListener('sheetstorm:theme', () => {
+  document.querySelectorAll('.ss-content').forEach((c) => {
+    const cfg = c.__sheetstormScore;
+    if (cfg) {
+      window.SheetstormOsmd.render({ contentId: c.id, ...cfg }).catch(() => { });
+    }
+  });
+});
 
 /** Tool-Defaults — können per setColor/setWidth überschrieben werden. */
 const TOOL_DEFAULTS = {

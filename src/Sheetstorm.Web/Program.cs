@@ -79,6 +79,8 @@ builder.Services.AddScoped<OfflineService>();
 builder.Services.AddScoped<OmrService>();
 builder.Services.AddScoped<AnnotationService>();
 builder.Services.AddScoped<ShiftService>();
+builder.Services.AddScoped<EventOrgaService>();
+builder.Services.AddScoped<PollService>();
 builder.Services.AddScoped<PushNotificationService>();
 
 // OMR-Engine: wenn Audiveris-URL konfiguriert -> echter Adapter, sonst Stub
@@ -212,6 +214,20 @@ app.MapGet("/api/push/vapid-public-key", (Sheetstorm.Web.Application.PushNotific
 {
     return svc.PublicKey is null ? Results.NoContent() : Results.Text(svc.PublicKey);
 });
+
+// Poll-CSV-Export
+app.MapGet("/api/polls/{pollId:guid}/export.csv", async (
+    Guid pollId,
+    Sheetstorm.Web.Application.PollService polls,
+    System.Security.Claims.ClaimsPrincipal user,
+    Microsoft.AspNetCore.Identity.UserManager<Sheetstorm.Infrastructure.Persistence.ApplicationUser> userManager,
+    CancellationToken ct) =>
+{
+    var u = await userManager.GetUserAsync(user);
+    if (u is null) return Results.Unauthorized();
+    var csv = await polls.ExportCsvAsync(pollId, ct);
+    return Results.Text(csv, "text/csv; charset=utf-8");
+}).RequireAuthorization();
 
 app.MapPost("/api/push/subscribe", async (
     Sheetstorm.Web.PushSubscriptionDto dto,

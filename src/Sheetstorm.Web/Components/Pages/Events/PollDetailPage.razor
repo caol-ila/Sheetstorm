@@ -1,0 +1,212 @@
+@page "/Bands/{slug}/events/{eventId:guid}/orga/polls/{pollId:guid}"
+@layout MainLayout
+@attribute [Authorize]
+@inject UserManager<ApplicationUser> UserManager
+@inject SheetstormDbContext Db
+@inject PollService Polls
+@inject AuthenticationStateProvider AuthState
+@inject NavigationManager Navigation
+
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using Sheetstorm.Domain.Identity
+@using Sheetstorm.Domain.Events
+@using Sheetstorm.Infrastructure.Persistence
+@using Sheetstorm.Web.Application
+
+<PageTitle>Umfrage @(poll?.Title ?? "")</PageTitle>
+
+<p><a href="/Bands/@slug/events/@eventId/orga" data-testid="poll-back">← Orga</a></p>
+
+@if (poll is null)
+{
+    <p>Lädt…</p>
+}
+else
+{
+    <h1 data-testid="poll-heading">@poll.Title</h1>
+    <p class="text-muted">
+        <span class="badge bg-light text-dark me-2">@KindLabel(poll.Kind)</span>
+        @poll.CreatedAt.LocalDateTime.ToString("dd.MM.yyyy HH:mm")
+        @if (poll.IsClosed) { <span class="badge bg-secondary ms-2">geschlossen</span> }
+        @if (poll.AnonymousResults) { <span class="badge bg-info text-dark ms-2">anonym</span> }
+    </p>
+    @if (!string.IsNullOrWhiteSpace(poll.Description)) { <p>@poll.Description</p> }
+
+    @if (poll.Kind == PollKind.DateFinder)
+    {
+        <h2>Verfügbarkeiten</h2>
+        <div class="ss-help-tip">💡 Klicke auf eine Zelle, um deine Verfügbarkeit zu setzen (Ja/Vielleicht/Nein).</div>
+        <table class="table" data-testid="poll-datefinder-table">
+            <thead>
+                <tr>
+                    <th>Option</th>
+                    <th class="text-center">Ja</th>
+                    <th class="text-center">Vielleicht</th>
+                    <th class="text-center">Nein</th>
+                    <th>Mein</th>
+                </tr>
+            </thead>
+            <tbody>
+            @foreach (var o in poll.Options)
+            {
+                var my = poll.Responses.FirstOrDefault(r => r.UserId == currentUserId && r.OptionId == o.Id);
+                <tr data-testid="poll-option-row">
+                    <td>@o.Label</td>
+                    <td class="text-center"><span class="badge bg-success">@o.Yes</span></td>
+                    <td class="text-center"><span class="badge bg-warning text-dark">@o.Maybe</span></td>
+                    <td class="text-center"><span class="badge bg-danger">@o.No</span></td>
+                    <td>
+                        <form method="post" @formname='$"vote-{o.Id}-yes"' @onsubmit="() => RespondAsync(o.Id, PollAnswer.Yes)" data-enhance class="d-inline">
+                            <AntiforgeryToken />
+                            <button class="ss-btn ss-btn-sm @(my?.Answer == PollAnswer.Yes ? "ss-btn-success" : "ss-btn-secondary")" data-testid="vote-yes">Ja</button>
+                        </form>
+                        <form method="post" @formname='$"vote-{o.Id}-maybe"' @onsubmit="() => RespondAsync(o.Id, PollAnswer.Maybe)" data-enhance class="d-inline">
+                            <AntiforgeryToken />
+                            <button class="ss-btn ss-btn-sm @(my?.Answer == PollAnswer.Maybe ? "ss-btn-warning" : "ss-btn-secondary")" data-testid="vote-maybe">?</button>
+                        </form>
+                        <form method="post" @formname='$"vote-{o.Id}-no"' @onsubmit="() => RespondAsync(o.Id, PollAnswer.No)" data-enhance class="d-inline">
+                            <AntiforgeryToken />
+                            <button class="ss-btn ss-btn-sm @(my?.Answer == PollAnswer.No ? "ss-btn-danger" : "ss-btn-secondary")" data-testid="vote-no">Nein</button>
+                        </form>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    }
+    else if (poll.Kind == PollKind.Vote)
+    {
+        <h2>Abstimmung</h2>
+        <ul class="list-group" data-testid="poll-vote-list">
+        @foreach (var o in poll.Options)
+        {
+            var pct = totalVotes == 0 ? 0 : o.Yes * 100 / totalVotes;
+            var my = poll.Responses.FirstOrDefault(r => r.UserId == currentUserId && r.OptionId == o.Id);
+            <li class="list-group-item" data-testid="poll-option-row">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div><strong>@o.Label</strong></div>
+                    <div>
+                        <span class="text-muted small me-2">@o.Yes Stimme(n) · @pct %</span>
+                        <form method="post" @formname='$"vote-{o.Id}"' @onsubmit="() => RespondAsync(o.Id, PollAnswer.Yes)" data-enhance class="d-inline">
+                            <AntiforgeryToken />
+                            <button class="ss-btn ss-btn-sm @(my is not null ? "ss-btn-success" : "ss-btn-primary")" data-testid="vote-pick">@(my is not null ? "✓ deine Wahl" : "Wählen")</button>
+                        </form>
+                    </div>
+                </div>
+                <div class="progress mt-2" style="height: 6px;"><div class="progress-bar" style="width: @(pct)%"></div></div>
+            </li>
+        }
+        </ul>
+    }
+    else if (poll.Kind == PollKind.DemandSurvey)
+    {
+        <h2>Bedarfs-Umfrage</h2>
+        <EditForm Model="DemandInput" OnValidSubmit="SubmitDemandAsync" FormName="poll-demand">
+            <div class="row g-2">
+                <div class="col-md-3">
+                    <label class="form-label">Größe</label>
+                    <InputText @bind-Value="DemandInput!.Size" class="form-control" data-testid="demand-size" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Anzahl</label>
+                    <InputNumber @bind-Value="DemandInput.Quantity" class="form-control" data-testid="demand-quantity" />
+                </div>
+                <div class="col-md-5">
+                    <label class="form-label">Anmerkung</label>
+                    <InputText @bind-Value="DemandInput.FreeTextAnswer" class="form-control" data-testid="demand-text" />
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button class="ss-btn ss-btn-primary" data-testid="demand-submit">Absenden</button>
+                </div>
+            </div>
+        </EditForm>
+
+        @if (canEdit)
+        {
+            <h3 class="mt-3">Antworten</h3>
+            @if (poll.Responses.Count == 0)
+            {
+                <p class="text-muted">Noch keine Antworten.</p>
+            }
+            else
+            {
+                <table class="table" data-testid="poll-demand-table">
+                    <thead><tr><th>User</th><th>Größe</th><th>Anzahl</th><th>Anmerkung</th><th>Wann</th></tr></thead>
+                    <tbody>
+                    @foreach (var r in poll.Responses)
+                    {
+                        <tr><td>@(r.UserDisplayName ?? "?")</td><td>@r.Size</td><td>@r.Quantity</td><td>@r.FreeTextAnswer</td><td>@r.RespondedAt.LocalDateTime.ToString("dd.MM. HH:mm")</td></tr>
+                    }
+                    </tbody>
+                </table>
+                <a href="/api/polls/@pollId/export.csv" class="ss-btn ss-btn-secondary" data-testid="poll-export">CSV-Export</a>
+            }
+        }
+    }
+}
+
+@code {
+    [Parameter] public string slug { get; set; } = default!;
+    [Parameter] public Guid eventId { get; set; }
+    [Parameter] public Guid pollId { get; set; }
+
+    private PollDetailView? poll;
+    private Guid currentUserId;
+    private bool canEdit;
+    private int totalVotes;
+
+    [SupplyParameterFromForm(FormName = "poll-demand")] private DemandInputModel? DemandInput { get; set; }
+
+    public class DemandInputModel { public string? Size { get; set; } public int? Quantity { get; set; } public string? FreeTextAnswer { get; set; } }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        var u = await UserManager.GetUserAsync(auth.User);
+        if (u is null) { Navigation.NavigateTo("/", true); return; }
+        currentUserId = u.Id;
+
+        var band = await Db.Bands.FirstOrDefaultAsync(b => b.Slug == slug);
+        if (band is null) return;
+        var membership = await Db.Memberships.FirstOrDefaultAsync(m => m.BandId == band.Id && m.UserId == currentUserId);
+        canEdit = membership is not null && (membership.Roles.HasFlag(BandRole.Admin) || membership.Roles.HasFlag(BandRole.Dirigent) || membership.Roles.HasFlag(BandRole.Owner));
+
+        DemandInput ??= new DemandInputModel();
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        poll = await Polls.GetAsync(pollId, currentUserId);
+        totalVotes = poll?.Options.Sum(o => o.Yes) ?? 0;
+        if (poll?.Kind == PollKind.DemandSurvey)
+        {
+            var mine = poll.Responses.FirstOrDefault(r => r.UserId == currentUserId);
+            if (mine is not null && DemandInput is not null)
+            {
+                DemandInput.Size = mine.Size;
+                DemandInput.Quantity = mine.Quantity;
+                DemandInput.FreeTextAnswer = mine.FreeTextAnswer;
+            }
+        }
+    }
+
+    private static string KindLabel(PollKind k) => k switch { PollKind.DateFinder => "Datums-Findung", PollKind.Vote => "Abstimmung", PollKind.DemandSurvey => "Bedarfs-Umfrage", _ => "?" };
+
+    private async Task RespondAsync(Guid optionId, PollAnswer answer)
+    {
+        await Polls.RespondAsync(pollId, currentUserId, optionId, answer);
+        await ReloadAsync();
+    }
+
+    private async Task SubmitDemandAsync()
+    {
+        if (DemandInput is null) return;
+        await Polls.RespondAsync(pollId, currentUserId, null, PollAnswer.Yes, DemandInput.FreeTextAnswer, DemandInput.Size, DemandInput.Quantity);
+        await ReloadAsync();
+    }
+}

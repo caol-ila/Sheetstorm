@@ -31,6 +31,13 @@ public sealed class SheetstormDbContext(DbContextOptions<SheetstormDbContext> op
     public DbSet<EventSyncSession> EventSyncSessions => Set<EventSyncSession>();
     public DbSet<EventShift> EventShifts => Set<EventShift>();
     public DbSet<ShiftAssignment> ShiftAssignments => Set<ShiftAssignment>();
+    public DbSet<EventDay> EventDays => Set<EventDay>();
+    public DbSet<EventStation> EventStations => Set<EventStation>();
+    public DbSet<EventContribution> EventContributions => Set<EventContribution>();
+    public DbSet<EventContributionPledge> EventContributionPledges => Set<EventContributionPledge>();
+    public DbSet<EventPoll> EventPolls => Set<EventPoll>();
+    public DbSet<PollOption> PollOptions => Set<PollOption>();
+    public DbSet<PollResponse> PollResponses => Set<PollResponse>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -228,7 +235,11 @@ public sealed class SheetstormDbContext(DbContextOptions<SheetstormDbContext> op
         {
             e.ToTable("EventShifts");
             e.Property(x => x.Title).HasMaxLength(200).IsRequired();
+            e.Property(x => x.Notes).HasMaxLength(2000);
             e.HasOne(x => x.Event).WithMany().HasForeignKey(x => x.EventId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => x.EventId);
+            e.HasIndex(x => x.EventDayId);
+            e.HasIndex(x => x.StationId);
         });
 
         b.Entity<ShiftAssignment>(e =>
@@ -236,6 +247,65 @@ public sealed class SheetstormDbContext(DbContextOptions<SheetstormDbContext> op
             e.ToTable("ShiftAssignments");
             e.HasOne(x => x.Shift).WithMany(s => s.Assignments).HasForeignKey(x => x.ShiftId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(x => new { x.ShiftId, x.UserId }).IsUnique();
+        });
+
+        b.Entity<EventDay>(e =>
+        {
+            e.ToTable("EventDays");
+            e.Property(x => x.Theme).HasMaxLength(200);
+            e.HasIndex(x => x.EventId);
+        });
+
+        b.Entity<EventStation>(e =>
+        {
+            e.ToTable("EventStations");
+            e.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            e.Property(x => x.Description).HasMaxLength(1000);
+            e.Property(x => x.IconKey).HasMaxLength(64);
+            e.HasIndex(x => x.EventId);
+        });
+
+        b.Entity<EventContribution>(e =>
+        {
+            e.ToTable("EventContributions");
+            e.Property(x => x.Title).HasMaxLength(200).IsRequired();
+            e.Property(x => x.Description).HasMaxLength(1000);
+            e.HasIndex(x => x.EventId);
+        });
+
+        b.Entity<EventContributionPledge>(e =>
+        {
+            e.ToTable("EventContributionPledges");
+            e.Property(x => x.What).HasMaxLength(500);
+            e.HasOne(x => x.Contribution).WithMany(c => c.Pledges).HasForeignKey(x => x.ContributionId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => new { x.ContributionId, x.UserId });
+        });
+
+        b.Entity<EventPoll>(e =>
+        {
+            e.ToTable("EventPolls");
+            e.Property(x => x.Title).HasMaxLength(300).IsRequired();
+            e.Property(x => x.Description).HasMaxLength(2000);
+            e.HasIndex(x => x.EventId);
+            e.HasIndex(x => x.BandId);
+        });
+
+        b.Entity<PollOption>(e =>
+        {
+            e.ToTable("PollOptions");
+            e.Property(x => x.Label).HasMaxLength(300).IsRequired();
+            e.HasOne(x => x.Poll).WithMany(p => p.Options).HasForeignKey(x => x.PollId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => x.PollId);
+        });
+
+        b.Entity<PollResponse>(e =>
+        {
+            e.ToTable("PollResponses");
+            e.Property(x => x.FreeTextAnswer).HasMaxLength(2000);
+            e.Property(x => x.Size).HasMaxLength(40);
+            e.HasOne(x => x.Poll).WithMany(p => p.Responses).HasForeignKey(x => x.PollId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Option).WithMany().HasForeignKey(x => x.OptionId).OnDelete(DeleteBehavior.SetNull);
+            e.HasIndex(x => new { x.PollId, x.UserId });
         });
     }
 }

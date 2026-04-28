@@ -7,9 +7,9 @@ using Sheetstorm.Web.Services;
 
 namespace Sheetstorm.Web.Application;
 
-public sealed record DetectedPart(string DisplayName, string InstrumentFamily, Guid InstrumentId, string? Transposition, int FromPage, int ToPage, double Confidence);
+public sealed record DetectedPart(string DisplayName, string InstrumentFamily, Guid InstrumentId, string? Transposition, int FromPage, int ToPage, double Confidence, string? MusicXmlBlobKey = null);
 
-public sealed record OmrResult(string? SuggestedTitle, string? SuggestedComposer, IReadOnlyList<DetectedPart> Parts);
+public sealed record OmrResult(string? SuggestedTitle, string? SuggestedComposer, IReadOnlyList<DetectedPart> Parts, bool IsStub = false);
 
 public interface IOmrEngine
 {
@@ -69,8 +69,8 @@ public sealed class StubOmrEngine(LocalFileStore store, ILogger<StubOmrEngine> l
             pageOffset++;
         }
 
-        log.LogInformation("Stub-OMR fuer {File}: {PartCount} Stimmen vorgeschlagen", originalFileName, detectedParts.Count);
-        return new OmrResult(title, composer, detectedParts);
+        log.LogInformation("Stub-OMR fuer {File}: {PartCount} Stimmen vorgeschlagen (DEMO!)", originalFileName, detectedParts.Count);
+        return new OmrResult(title, composer, detectedParts, IsStub: true);
     }
 }
 
@@ -103,28 +103,24 @@ public sealed class OmrService(SheetstormDbContext db, LocalFileStore store, IWe
         db.Pieces.Add(piece);
         await db.SaveChangesAsync(ct);
 
-        // Demo-MusicXML aus wwwroot/samples — der Stub-OMR-Pfad liefert noch keine
-        // echte MusicXML; damit OSMD trotzdem etwas anzuzeigen hat, haengen wir
-        // einen Demo-Score an jede Stimme. Audiveris-Pfad wuerde echte MusicXML
-        // pro Stimme aus dem PDF extrahieren.
-        var sampleMxlPath = Path.Combine(env.WebRootPath, "samples", "demo-score.musicxml");
-        var hasSample = File.Exists(sampleMxlPath);
-
+        // WICHTIG: An User-Uploads haengen wir KEINE Demo-MusicXML mehr an.
+        // Frueher hatten Stub-Erkennung + Auto-Anhang dazu gefuehrt, dass
+        // bestaetigte Werke immer dieselbe Demo-Tonleiter zeigten — das war
+        // der gemeldete "Dummy-Eintrag-statt-Lied"-Bug. Das Original-PDF
+        // bleibt pro Stimme verlinkt; echte MusicXML kommt nur via Audiveris.
         foreach (var p in partsToCreate)
         {
             var part = Part.Create(piece.Id, p.InstrumentId, p.DisplayName, p.Transposition);
             db.Parts.Add(part);
             await db.SaveChangesAsync(ct);
 
-            using (var pdfStream = store.OpenRead(job.InputBlobKey))
-            {
-                var partBlobKey = await store.SaveAsync(pdfStream, $"parts/{part.Id}", $"{title}-{p.DisplayName}.pdf", ct);
-                db.PartFiles.Add(PartFile.Create(part.Id, PartFileKind.Pdf, partBlobKey, $"{title} - {p.DisplayName}.pdf", store.GetSize(partBlobKey)));
-            }
+            using var pdfStream = store.OpenRead(job.InputBlobKey);
+            var partBlobKey = await store.SaveAsync(pdfStream, $"parts/{part.Id}", $"{title}-{p.DisplayName}.pdf", ct);
+            db.PartFiles.Add(PartFile.Create(part.Id, PartFileKind.Pdf, partBlobKey, $"{title} - {p.DisplayName}.pdf", store.GetSize(partBlobKey)));
 
-            if (hasSample)
+            if (!string.IsNullOrEmpty(p.MusicXmlBlobKey) && store.Exists(p.MusicXmlBlobKey))
             {
-                using var mxlStream = File.OpenRead(sampleMxlPath);
+                using var mxlStream = store.OpenRead(p.MusicXmlBlobKey);
                 var mxlBlobKey = await store.SaveAsync(mxlStream, $"parts/{part.Id}", $"{title}-{p.DisplayName}.musicxml", ct);
                 db.PartFiles.Add(PartFile.Create(part.Id, PartFileKind.MusicXml, mxlBlobKey, $"{title} - {p.DisplayName}.musicxml", store.GetSize(mxlBlobKey)));
             }
@@ -181,9 +177,9 @@ public sealed class OmrBackgroundWorker(IServiceScopeFactory scopeFactory, ILogg
             var instruments = await db.Instruments.ToListAsync(ct);
             var result = await engine.RecognizeAsync(job.InputBlobKey, job.OriginalFileName, instruments, ct);
             var json = JsonSerializer.Serialize(result.Parts);
-            job.MarkDone(json, result.SuggestedTitle, result.SuggestedComposer);
+            job.MarkDone(json, result.SuggestedTitle, result.SuggestedComposer, result.IsStub);
             await db.SaveChangesAsync(ct);
-            log.LogInformation("OMR-Job {Id} fertig — {Parts} Stimmen", job.Id, result.Parts.Count);
+            log.LogInformation("OMR-Job {Id} fertig — {Parts} Stimmen{Stub}", job.Id, result.Parts.Count, result.IsStub ? " (STUB!)" : "");
         }
         catch (Exception ex)
         {

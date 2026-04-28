@@ -7,6 +7,33 @@
     <base href="/" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="theme-color" content="#0d6efd" />
+    <script>
+        // Theme VOR dem Render anwenden, damit beim Navigieren zwischen
+        // SSR-Pages kein Flicker entsteht und das Theme nicht "verloren" geht.
+        // Setzt data-theme synchron im <html>, bevor irgendwelches CSS greift.
+        (function () {
+            try {
+                var t = localStorage.getItem('sheetstorm-theme');
+                if (t === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+                else document.documentElement.removeAttribute('data-theme');
+            } catch (e) { }
+            window.SheetstormTheme = {
+                get current() {
+                    return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+                },
+                set: function (mode) {
+                    if (mode === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+                    else document.documentElement.removeAttribute('data-theme');
+                    try { localStorage.setItem('sheetstorm-theme', mode); } catch (e) { }
+                    document.dispatchEvent(new CustomEvent('sheetstorm:theme', { detail: { mode: mode } }));
+                },
+                toggle: function () {
+                    this.set(this.current === 'dark' ? 'light' : 'dark');
+                    return this.current;
+                },
+            };
+        })();
+    </script>
     <link rel="stylesheet" href="@Assets["lib/bootstrap/dist/css/bootstrap.min.css"]" />
     <link rel="stylesheet" href="@Assets["app.css"]" />
     <link rel="stylesheet" href="@Assets["Sheetstorm.Web.styles.css"]" />

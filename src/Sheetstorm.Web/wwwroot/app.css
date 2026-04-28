@@ -436,6 +436,23 @@ h3 { font-size: 1.1rem; font-weight: 600; margin: 1rem 0 0.5rem; }
 [data-theme="dark"] .form-control, [data-theme="dark"] .form-select { background: #0f172a; color: #f1f5f9; border-color: #334155; }
 [data-theme="dark"] .ss-viewer-host { background: #1e293b !important; }
 
+/* Score-Stage im Dark-Mode: dunkler Hintergrund + helles SVG.
+   OSMD>=1.9 hat eine darkMode-Option, die Notenkoepfe/Liniaturen weiss faerbt;
+   dazu invertieren wir Farben in der Score-Box, damit auch aeltere Layouts
+   und PDF-Fallback (iframe) lesbar bleiben. */
+[data-theme="dark"] .ss-stage { background: #0b1220 !important; border-color: #334155 !important; }
+[data-theme="dark"] .ss-stage .ss-content { color: #e2e8f0; }
+[data-theme="dark"] .ss-stage .ss-content svg text { fill: #e2e8f0 !important; }
+[data-theme="dark"] .ss-stage .ss-content svg path,
+[data-theme="dark"] .ss-stage .ss-content svg line,
+[data-theme="dark"] .ss-stage .ss-content svg rect { stroke: #e2e8f0; }
+[data-theme="dark"] .ss-stage .ss-content svg path[fill]:not([fill="none"]) { fill: #e2e8f0; }
+/* PDF-Fallback im Dark-Mode optisch dunkel (Browser invertiert Farben). */
+[data-theme="dark"] .ss-stage iframe { filter: invert(0.92) hue-rotate(180deg); background: #1e293b; }
+/* Annotation-Text-Boxen lesbar halten: weisser Hintergrund-Pad bleibt,
+   aber Schrift in dark mode an den User-Farbwert angeleichen. */
+[data-theme="dark"] .ss-text-box { background: rgba(15, 23, 42, 0.72) !important; }
+
 /* ── Loading Skeletons ─────────────────────────── */
 @keyframes ss-skel-shimmer {
   0% { background-position: -1000px 0; }

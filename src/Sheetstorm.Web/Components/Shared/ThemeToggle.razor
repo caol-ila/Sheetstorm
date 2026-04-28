@@ -13,9 +13,8 @@
         {
             try
             {
-                var saved = await JS.InvokeAsync<string?>("eval", "localStorage.getItem('sheetstorm-theme')");
-                isDark = saved == "dark";
-                if (isDark) await JS.InvokeVoidAsync("eval", "document.documentElement.setAttribute('data-theme','dark')");
+                var current = await JS.InvokeAsync<string?>("eval", "window.SheetstormTheme && window.SheetstormTheme.current");
+                isDark = current == "dark";
                 StateHasChanged();
             }
             catch { }
@@ -24,14 +23,8 @@
 
     private async Task ToggleAsync()
     {
+        var next = isDark ? "light" : "dark";
         isDark = !isDark;
-        if (isDark)
-        {
-            await JS.InvokeVoidAsync("eval", "document.documentElement.setAttribute('data-theme','dark');localStorage.setItem('sheetstorm-theme','dark')");
-        }
-        else
-        {
-            await JS.InvokeVoidAsync("eval", "document.documentElement.removeAttribute('data-theme');localStorage.setItem('sheetstorm-theme','light')");
-        }
+        await JS.InvokeVoidAsync("SheetstormTheme.set", next);
     }
 }

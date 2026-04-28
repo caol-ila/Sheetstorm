@@ -67,9 +67,22 @@ else
     @if (job.Status == OmrJobStatus.Done && detectedParts is not null)
     {
         <h2>Erkennung prüfen und bestätigen</h2>
-        <div class="ss-help-tip">
-            💡 Prüfe die vorgeschlagenen Stimmen. Du kannst sie deaktivieren oder den Anzeigenamen ändern.
-        </div>
+        @if (job.IsStub)
+        {
+            <div class="alert alert-warning" data-testid="omr-stub-warning">
+                ⚠ <strong>Demo-Erkennung aktiv:</strong> Audiveris läuft nicht, daher wurden
+                Standard-Blasmusik-Stimmen vorgeschlagen — sie passen <em>nicht</em> zwingend
+                zum hochgeladenen PDF. Hake nur die Stimmen ab, die du wirklich anlegen willst,
+                oder entferne alle und lege das Werk später unter „Lieder" manuell an.
+                <br/>Für echte Erkennung: AppHost mit <code>--enable-audiveris</code> starten.
+            </div>
+        }
+        else
+        {
+            <div class="ss-help-tip">
+                💡 Prüfe die vorgeschlagenen Stimmen. Du kannst sie deaktivieren oder den Anzeigenamen ändern.
+            </div>
+        }
 
         <EditForm Model="ConfirmInput" OnValidSubmit="ConfirmAsync" FormName="omr-confirm">
             <div class="ss-card">
