@@ -1,26 +1,120 @@
 @page "/"
 @layout MainLayout
+@inject UserManager<ApplicationUser> UserManager
+@inject SheetstormDbContext Db
+@inject AuthenticationStateProvider AuthState
+@inject NavigationManager Navigation
+
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using Sheetstorm.Domain.Identity
+@using Sheetstorm.Infrastructure.Persistence
 
 <PageTitle>Sheetstorm — Notenmanagement für Blasmusikvereine</PageTitle>
 
-<h1 data-testid="home-heading">Sheetstorm</h1>
-
-<p class="lead">Notenmanagement für Blasmusikvereine.</p>
-
 <AuthorizeView>
     <Authorized>
-        <p data-testid="home-greeting">Willkommen, <strong>@context.User.Identity?.Name</strong>!</p>
-        <p>
-            <a class="btn btn-primary" href="/Bands">Meine Vereine</a>
-            <a class="btn btn-outline-secondary ms-2" href="/Account/Profile">Profil</a>
-        </p>
+        <h1 data-testid="home-heading">Hallo @(DisplayName(context.User.Identity?.Name)) 👋</h1>
+        <p class="ss-page-intro" data-testid="home-greeting">Eingeloggt als @context.User.Identity?.Name</p>
+
+        @if (bands is null)
+        {
+            <p>Lädt…</p>
+        }
+        else if (bands.Count == 0)
+        {
+            <div class="ss-empty" data-testid="home-no-bands">
+                <div class="ss-empty-icon">🏛</div>
+                <div class="ss-empty-title">Du bist noch in keinem Verein.</div>
+                <div class="ss-empty-hint">
+                    Lege einen eigenen an oder tritt einem mit einem Beitrittscode bei.
+                </div>
+                <a href="/Bands" class="ss-btn ss-btn-primary" data-testid="home-bands-cta">Vereine verwalten</a>
+            </div>
+        }
+        else
+        {
+            <div class="row g-3">
+                @foreach (var b in bands)
+                {
+                    <div class="col-12 col-md-6 col-lg-4">
+                        <a href="/Bands/@b.Slug/pieces" class="ss-card text-decoration-none d-block" data-testid="home-band-card">
+                            <h3 class="mb-1" data-testid="home-band-name">@b.Name</h3>
+                            <small class="text-muted">/@b.Slug</small>
+                            <div class="mt-3 d-flex flex-wrap gap-2">
+                                <span class="badge bg-light text-dark">📜 Noten</span>
+                                <span class="badge bg-light text-dark">📅 Termine</span>
+                                <span class="badge bg-light text-dark">🎵 Sync</span>
+                            </div>
+                        </a>
+                    </div>
+                }
+            </div>
+        }
     </Authorized>
+
     <NotAuthorized>
-        <p data-testid="home-anonymous">
-            <a class="btn btn-primary" href="/Account/Register">Registrieren</a>
-            <a class="btn btn-outline-primary ms-2" href="/Account/Login">Anmelden</a>
-        </p>
+        <div class="ss-card text-center" style="padding: 3rem 1.5rem;">
+            <div style="font-size: 4rem;">🎵</div>
+            <h1 class="mb-2">Sheetstorm</h1>
+            <p class="lead text-muted mb-4">Notenmanagement für Blasmusikvereine.<br/>Vereinsverwaltung, Noten und Live-Konzert-Sync in einer App.</p>
+
+            <div class="d-flex gap-2 justify-content-center flex-wrap">
+                <a href="/Account/Register" class="ss-btn ss-btn-primary" data-testid="home-register-cta">Kostenlos registrieren</a>
+                <a href="/Account/Login" class="ss-btn ss-btn-ghost" data-testid="home-login-cta">Anmelden</a>
+                <a href="/demo" class="ss-btn ss-btn-ghost" data-testid="home-demo-cta">🎬 Demo ansehen</a>
+            </div>
+
+            <div class="row g-3 mt-4">
+                <div class="col-12 col-md-4">
+                    <div class="ss-card text-start">
+                        <h3>📜 Noten zentral</h3>
+                        <small class="text-muted">PDFs hochladen, Stimmen verwalten, immer dabei.</small>
+                    </div>
+                </div>
+                <div class="col-12 col-md-4">
+                    <div class="ss-card text-start">
+                        <h3>📅 Termine planen</h3>
+                        <small class="text-muted">Konzerte, Proben, Anwesenheit, Setlists.</small>
+                    </div>
+                </div>
+                <div class="col-12 col-md-4">
+                    <div class="ss-card text-start">
+                        <h3>🎵 Live-Sync</h3>
+                        <small class="text-muted">Dirigent öffnet Stück — alle Musiker springen mit.</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <p data-testid="home-anonymous" class="d-none">anonym</p>
     </NotAuthorized>
 </AuthorizeView>
 
-<p data-testid="iteration-status" class="mt-4 text-muted"><small>Aktuelle Iteration: <strong>6 — Offline-Bibliothek</strong></small></p>
+<p data-testid="iteration-status" class="text-muted text-center mt-4"><small>Sheetstorm — Iteration 7 (UX & Demo)</small></p>
+
+@code {
+    private List<BandSummary>? bands;
+
+    private record BandSummary(Guid Id, string Slug, string Name);
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        var u = await UserManager.GetUserAsync(auth.User);
+        if (u is null) return;
+
+        bands = await Db.Memberships
+            .Where(m => m.UserId == u.Id && m.Status == MembershipStatus.Active)
+            .OrderBy(m => m.Band.Name)
+            .Select(m => new BandSummary(m.Band.Id, m.Band.Slug, m.Band.Name))
+            .ToListAsync();
+    }
+
+    private static string DisplayName(string? username)
+    {
+        if (string.IsNullOrEmpty(username)) return "Musiker";
+        return username.Split('@')[0];
+    }
+}

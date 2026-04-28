@@ -1,23 +1,184 @@
 ﻿@inherits LayoutComponentBase
+@inject IServiceScopeFactory ScopeFactory
+@inject AuthenticationStateProvider AuthState
+@inject NavigationManager Navigation
 
-<div class="page">
-    <div class="sidebar">
-        <NavMenu />
-    </div>
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using Sheetstorm.Domain.Identity
+@using Sheetstorm.Infrastructure.Persistence
 
-    <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
-        </div>
+<div class="ss-layout">
+    <header class="ss-topbar">
+        <a href="/" class="ss-brand" data-testid="brand">
+            <span class="ss-brand-icon">🎵</span>
+            <span class="ss-brand-name">Sheetstorm</span>
+        </a>
 
-        <article class="content px-4">
+        <AuthorizeView>
+            <Authorized>
+                @if (bands is not null && bands.Count > 0)
+                {
+                    <div class="ss-band-switcher" data-testid="band-switcher">
+                        <span class="ss-band-current-label">Verein:</span>
+                        <select class="ss-band-select" data-testid="band-switcher-select"
+                                @onchange="OnBandChanged">
+                            @foreach (var b in bands)
+                            {
+                                <option value="@b.Slug" selected="@(IsCurrentBand(b.Slug))">@b.Name</option>
+                            }
+                        </select>
+                    </div>
+                }
+
+                <nav class="ss-topnav" data-testid="topnav">
+                    @if (currentBandSlug is not null)
+                    {
+                        <a href="/Bands/@currentBandSlug/pieces" class="ss-topnav-link" data-testid="topnav-pieces">
+                            <span class="ss-topnav-icon">📜</span><span class="ss-topnav-text">Noten</span>
+                        </a>
+                        <a href="/Bands/@currentBandSlug/events" class="ss-topnav-link" data-testid="topnav-events">
+                            <span class="ss-topnav-icon">📅</span><span class="ss-topnav-text">Termine</span>
+                        </a>
+                        <a href="/Bands/@currentBandSlug/sets" class="ss-topnav-link" data-testid="topnav-sets">
+                            <span class="ss-topnav-icon">🎼</span><span class="ss-topnav-text">Setlists</span>
+                        </a>
+                    }
+                    <a href="/Bands" class="ss-topnav-link" data-testid="topnav-bands">
+                        <span class="ss-topnav-icon">🏛</span><span class="ss-topnav-text">Vereine</span>
+                    </a>
+                </nav>
+
+                <div class="ss-user-menu">
+                    <a href="/Account/Profile" class="ss-user-link" data-testid="user-profile" title="Mein Profil">
+                        <span class="ss-user-avatar">@(UserInitial(context.User.Identity?.Name))</span>
+                        <span class="ss-user-name">@(context.User.Identity?.Name)</span>
+                    </a>
+                    <form action="Account/Logout" method="post" class="d-inline">
+                        <AntiforgeryToken />
+                        <button type="submit" class="ss-logout-btn" data-testid="logout-button" title="Abmelden">↪</button>
+                    </form>
+                </div>
+            </Authorized>
+            <NotAuthorized>
+                <div class="ss-auth-actions">
+                    <a href="/Account/Login" class="ss-btn ss-btn-ghost" data-testid="nav-login">Anmelden</a>
+                    <a href="/Account/Register" class="ss-btn ss-btn-primary" data-testid="nav-register">Registrieren</a>
+                </div>
+            </NotAuthorized>
+        </AuthorizeView>
+    </header>
+
+    <main class="ss-main">
+        <article class="ss-content">
             @Body
         </article>
     </main>
+
+    <AuthorizeView>
+        <Authorized>
+            @if (currentBandSlug is not null)
+            {
+                <nav class="ss-bottom-tabs" data-testid="bottom-tabs">
+                    <a href="/Bands/@currentBandSlug/pieces" class="ss-bottom-tab">
+                        <span class="ss-bottom-tab-icon">📜</span>
+                        <span class="ss-bottom-tab-label">Noten</span>
+                    </a>
+                    <a href="/Bands/@currentBandSlug/events" class="ss-bottom-tab">
+                        <span class="ss-bottom-tab-icon">📅</span>
+                        <span class="ss-bottom-tab-label">Termine</span>
+                    </a>
+                    <a href="/Bands/@currentBandSlug/sets" class="ss-bottom-tab">
+                        <span class="ss-bottom-tab-icon">🎼</span>
+                        <span class="ss-bottom-tab-label">Setlists</span>
+                    </a>
+                    <a href="/Account/Profile" class="ss-bottom-tab">
+                        <span class="ss-bottom-tab-icon">👤</span>
+                        <span class="ss-bottom-tab-label">Profil</span>
+                    </a>
+                </nav>
+            }
+        </Authorized>
+    </AuthorizeView>
 </div>
 
 <div id="blazor-error-ui">
-    An unhandled error has occurred.
-    <a href="" class="reload">Reload</a>
+    Ups, da ist was schiefgegangen.
+    <a href="" class="reload">Neu laden</a>
     <a class="dismiss">🗙</a>
 </div>
+
+@code {
+    private List<BandSummary>? bands;
+    private string? currentBandSlug;
+
+    private record BandSummary(Guid Id, string Slug, string Name);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ReloadBandsAsync();
+        DetectCurrentBandFromUrl();
+        Navigation.LocationChanged += OnLocationChanged;
+    }
+
+    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        DetectCurrentBandFromUrl();
+        InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ReloadBandsAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+
+        // Eigener Scope, damit kein DbContext-Race mit der gerenderten Seite entsteht.
+        // Auch UserManager muss aus dem Inner-Scope kommen, weil er denselben DbContext nutzt.
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var u = await userManager.GetUserAsync(auth.User);
+        if (u is null) { bands = null; return; }
+
+        var db = scope.ServiceProvider.GetRequiredService<SheetstormDbContext>();
+        bands = await db.Memberships
+            .Where(m => m.UserId == u.Id && m.Status == MembershipStatus.Active)
+            .OrderBy(m => m.Band.Name)
+            .Select(m => new BandSummary(m.Band.Id, m.Band.Slug, m.Band.Name))
+            .ToListAsync();
+    }
+
+    private void DetectCurrentBandFromUrl()
+    {
+        var path = Navigation.ToBaseRelativePath(Navigation.Uri).Trim('/');
+        // /Bands/{slug}/...
+        var parts = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length >= 2 && string.Equals(parts[0], "Bands", StringComparison.OrdinalIgnoreCase))
+        {
+            var slugPart = parts[1].Split('?', '#')[0];
+            currentBandSlug = string.IsNullOrEmpty(slugPart) ? null : slugPart;
+        }
+        else
+        {
+            // Behalte zuletzt aktiven Verein, sonst ersten der Liste
+            currentBandSlug ??= bands?.FirstOrDefault()?.Slug;
+        }
+    }
+
+    private bool IsCurrentBand(string slug) => string.Equals(currentBandSlug, slug, StringComparison.OrdinalIgnoreCase);
+
+    private void OnBandChanged(ChangeEventArgs args)
+    {
+        var slug = args.Value?.ToString();
+        if (string.IsNullOrEmpty(slug)) return;
+        Navigation.NavigateTo($"/Bands/{slug}/pieces");
+    }
+
+    private static string UserInitial(string? username)
+    {
+        if (string.IsNullOrEmpty(username)) return "?";
+        var local = username.Split('@')[0];
+        return string.IsNullOrEmpty(local) ? "?" : local[0].ToString().ToUpperInvariant();
+    }
+
+    public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
+}

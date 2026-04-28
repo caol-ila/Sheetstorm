@@ -10,8 +10,7 @@ test.describe('Iteration 1 — Identität', () => {
     await login(page, email);
 
     await expect(page.getByTestId('home-greeting')).toContainText(email);
-    await expect(page.getByTestId('nav-bands')).toBeVisible();
-    await expect(page.getByTestId('nav-profile')).toBeVisible();
+    await expect(page.getByTestId('home-no-bands')).toBeVisible();
   });
 
   test('Nicht-eingeloggter User wird auf Login umgeleitet', async ({ page }) => {
