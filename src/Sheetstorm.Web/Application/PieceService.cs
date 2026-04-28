@@ -82,6 +82,15 @@ public sealed class PieceService(SheetstormDbContext db, LocalFileStore store)
         await db.SaveChangesAsync(ct);
     }
 
+    public async Task UpdateMetadataAsync(Guid pieceId, string title, string? composer, string? genre, int? difficulty, string? notes, CancellationToken ct = default)
+    {
+        var p = await db.Pieces.FirstOrDefaultAsync(x => x.Id == pieceId, ct);
+        if (p is null) return;
+        p.UpdateMetadata(title, p.Subtitle, composer, p.Arranger, p.Publisher, p.PublisherNumber,
+            p.KeySignature, p.TimeSignature, p.Tempo, p.DurationSeconds, difficulty, genre, p.Tags, notes);
+        await db.SaveChangesAsync(ct);
+    }
+
     public async Task<Part> AddPartAsync(Guid pieceId, Guid instrumentId, string displayName, string? transposition, CancellationToken ct = default)
     {
         var part = Part.Create(pieceId, instrumentId, displayName, transposition);

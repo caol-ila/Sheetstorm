@@ -31,7 +31,40 @@ else
         <a href="/Bands/@band.Slug/pieces" class="btn btn-primary" data-testid="band-pieces-link">📜 Noten verwalten</a>
         <a href="/Bands/@band.Slug/events" class="btn btn-primary ms-2" data-testid="band-events-link">📅 Termine</a>
         <a href="/Bands/@band.Slug/sets" class="btn btn-outline-primary ms-2" data-testid="band-sets-link">🎼 Setlists</a>
+        <a href="/api/bands/@band.Slug/calendar.ics" class="btn btn-outline-secondary ms-2" data-testid="band-ical-link" target="_blank">📅 iCal-Export</a>
     </p>
+
+    @if (canManage)
+    {
+        <div class="ss-card mt-3">
+            <h2 class="mt-0">Verein-Profil bearbeiten</h2>
+            <EditForm Model="EditBandInput" OnValidSubmit="UpdateBandAsync" FormName="band-edit">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Name</label>
+                        <InputText @bind-Value="EditBandInput!.Name" data-testid="band-edit-name" class="form-control" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">PLZ</label>
+                        <InputText @bind-Value="EditBandInput.PostalCode" data-testid="band-edit-postal" class="form-control" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Stadt</label>
+                        <InputText @bind-Value="EditBandInput.City" data-testid="band-edit-city" class="form-control" />
+                    </div>
+                    <div class="col-md-12">
+                        <label class="form-label">Beschreibung</label>
+                        <InputTextArea @bind-Value="EditBandInput.Description" data-testid="band-edit-description" class="form-control" rows="2" />
+                    </div>
+                    <div class="col-md-12">
+                        <label class="form-label">Verband</label>
+                        <InputText @bind-Value="EditBandInput.AssociationName" data-testid="band-edit-association" class="form-control" />
+                    </div>
+                </div>
+                <button type="submit" class="ss-btn ss-btn-primary mt-3" data-testid="band-edit-save">Profil speichern</button>
+            </EditForm>
+        </div>
+    }
 
     @if (lastCode is not null)
     {
@@ -61,12 +94,17 @@ else
                     <td>
                         @if (canManage && m.UserId != band.OwnerId)
                         {
-                            <EditForm Model="ToggleInput" OnValidSubmit="ToggleConductorAsync" FormName="@($"toggle-{m.UserId}")">
+                            <EditForm Model="ToggleInput" OnValidSubmit="ToggleConductorAsync" FormName="@($"toggle-{m.UserId}")" class="d-inline">
                                 <input type="hidden" name="ToggleInput.MemberUserId" value="@m.UserId" />
                                 <input type="hidden" name="ToggleInput.Action" value="@(m.HasRole(BandRole.Dirigent) ? "revoke" : "grant")" />
                                 <button type="submit" class="btn btn-sm btn-outline-secondary" data-testid="toggle-conductor">
                                     @(m.HasRole(BandRole.Dirigent) ? "Dirigent entziehen" : "Dirigent gewähren")
                                 </button>
+                            </EditForm>
+                            <EditForm Model="RemoveMemberInput" OnValidSubmit="RemoveMemberAsync" FormName="@($"remove-{m.UserId}")" class="d-inline ms-1">
+                                <input type="hidden" name="RemoveMemberInput.UserId" value="@m.UserId" />
+                                <button type="submit" class="btn btn-sm btn-outline-danger" data-testid="remove-member"
+                                        onclick="return confirm('Mitglied wirklich entfernen?');">Entfernen</button>
                             </EditForm>
                         }
                     </td>
@@ -141,21 +179,37 @@ else
     [SupplyParameterFromForm]
     private ToggleInputModel? ToggleInput { get; set; }
 
+    [SupplyParameterFromForm]
+    private RemoveMemberInputModel? RemoveMemberInput { get; set; }
+
     [SupplyParameterFromForm(FormName = "gen-code")]
     private CodeInputModel? CodeInput { get; set; }
+
+    [SupplyParameterFromForm(FormName = "band-edit")]
+    private EditBandInputModel? EditBandInput { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
         InviteInput ??= new();
         DecideInput ??= new();
         ToggleInput ??= new();
+        RemoveMemberInput ??= new();
         CodeInput ??= new();
+        EditBandInput ??= new();
 
         var auth = await AuthState.GetAuthenticationStateAsync();
         var u = await UserManager.GetUserAsync(auth.User);
         if (u is null) { Navigation.NavigateTo("/Account/Login"); return; }
         currentUserId = u.Id;
         await LoadAsync();
+        if (band is not null && string.IsNullOrEmpty(EditBandInput.Name))
+        {
+            EditBandInput.Name = band.Name;
+            EditBandInput.City = band.City;
+            EditBandInput.PostalCode = band.PostalCode;
+            EditBandInput.AssociationName = band.AssociationName;
+            EditBandInput.Description = band.Description;
+        }
     }
 
     private async Task LoadAsync()
@@ -210,8 +264,31 @@ else
         lastCode = c.Code;
     }
 
+    private async Task RemoveMemberAsync()
+    {
+        if (RemoveMemberInput?.UserId is null) return;
+        await BandService.RemoveMemberAsync(band!.Id, RemoveMemberInput.UserId.Value);
+        await LoadAsync();
+    }
+
+    private async Task UpdateBandAsync()
+    {
+        if (band is null || EditBandInput is null || string.IsNullOrWhiteSpace(EditBandInput.Name)) return;
+        await BandService.UpdateBandProfileAsync(band.Id, EditBandInput.Name, EditBandInput.Description, EditBandInput.City, EditBandInput.PostalCode, EditBandInput.AssociationName);
+        await LoadAsync();
+    }
+
     private sealed class InviteInputModel { public string Email { get; set; } = ""; }
     private sealed class DecideInputModel { public Guid? RequestId { get; set; } }
     private sealed class ToggleInputModel { public Guid? MemberUserId { get; set; } public string Action { get; set; } = "grant"; }
+    private sealed class RemoveMemberInputModel { public Guid? UserId { get; set; } }
     private sealed class CodeInputModel { }
+    private sealed class EditBandInputModel
+    {
+        public string Name { get; set; } = "";
+        public string? Description { get; set; }
+        public string? City { get; set; }
+        public string? PostalCode { get; set; }
+        public string? AssociationName { get; set; }
+    }
 }

@@ -76,6 +76,7 @@ builder.Services.AddScoped<SetListService>();
 builder.Services.AddScoped<ConductorSyncService>();
 builder.Services.AddScoped<OfflineService>();
 builder.Services.AddScoped<OmrService>();
+builder.Services.AddScoped<AnnotationService>();
 builder.Services.AddScoped<IOmrEngine, StubOmrEngine>();
 builder.Services.AddHostedService<OmrBackgroundWorker>();
 builder.Services.AddSingleton<LocalFileStore>();
@@ -151,6 +152,80 @@ app.MapGet("/files/parts/{partId:guid}/{fileId:guid}", async (
 
 // SignalR Hub
 app.MapHub<Sheetstorm.Web.Hubs.ConductorSyncHub>("/hubs/conductor-sync").RequireAuthorization();
+
+// iCal-Export pro Verein (Token-basiert wäre Phase 2; aktuell Auth-required)
+app.MapGet("/api/bands/{slug}/calendar.ics", async (
+    string slug,
+    System.Security.Claims.ClaimsPrincipal user,
+    Microsoft.AspNetCore.Identity.UserManager<Sheetstorm.Infrastructure.Persistence.ApplicationUser> userManager,
+    Sheetstorm.Infrastructure.Persistence.SheetstormDbContext db,
+    CancellationToken ct) =>
+{
+    var u = await userManager.GetUserAsync(user);
+    if (u is null) return Results.Unauthorized();
+
+    var band = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+        .FirstOrDefaultAsync(db.Bands.Where(b => b.Slug == slug), ct);
+    if (band is null) return Results.NotFound();
+
+    var isMember = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+        .AnyAsync(db.Memberships.Where(m => m.BandId == band.Id && m.UserId == u.Id), ct);
+    if (!isMember) return Results.Forbid();
+
+    var events = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+        .ToListAsync(db.Events.Where(e => e.BandId == band.Id).OrderBy(e => e.StartUtc), ct);
+
+    var ics = Sheetstorm.Web.Application.ICalExporter.Build(band.Name, events);
+    return Results.Text(ics, "text/calendar; charset=utf-8");
+}).RequireAuthorization();
+
+// Push-Subscription registrieren (für Phase 2 echte Web-Push-Anbindung)
+app.MapPost("/api/push/subscribe", async (
+    Sheetstorm.Web.PushSubscriptionDto dto,
+    System.Security.Claims.ClaimsPrincipal user,
+    Microsoft.AspNetCore.Identity.UserManager<Sheetstorm.Infrastructure.Persistence.ApplicationUser> userManager,
+    Sheetstorm.Infrastructure.Persistence.SheetstormDbContext db,
+    CancellationToken ct) =>
+{
+    var u = await userManager.GetUserAsync(user);
+    if (u is null) return Results.Unauthorized();
+    var existing = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+        .FirstOrDefaultAsync(db.PushSubscriptions.Where(p => p.Endpoint == dto.Endpoint), ct);
+    if (existing is null)
+    {
+        db.PushSubscriptions.Add(Sheetstorm.Domain.Identity.PushSubscription.Create(u.Id, dto.Endpoint, dto.P256dh, dto.Auth));
+        await db.SaveChangesAsync(ct);
+    }
+    return Results.NoContent();
+}).RequireAuthorization();
+
+// Annotationen (CRUD via REST)
+app.MapGet("/api/parts/{partId:guid}/annotations/{page:int}", async (
+    Guid partId, int page,
+    System.Security.Claims.ClaimsPrincipal user,
+    Microsoft.AspNetCore.Identity.UserManager<Sheetstorm.Infrastructure.Persistence.ApplicationUser> userManager,
+    Sheetstorm.Web.Application.AnnotationService svc,
+    CancellationToken ct) =>
+{
+    var u = await userManager.GetUserAsync(user);
+    if (u is null) return Results.Unauthorized();
+    var a = await svc.GetAsync(partId, u.Id, page, ct);
+    return a is null ? Results.NotFound() : Results.Ok(new { layerJson = a.LayerJson, version = a.Version });
+}).RequireAuthorization();
+
+app.MapPut("/api/parts/{partId:guid}/annotations/{page:int}", async (
+    Guid partId, int page,
+    Sheetstorm.Web.AnnotationSaveDto dto,
+    System.Security.Claims.ClaimsPrincipal user,
+    Microsoft.AspNetCore.Identity.UserManager<Sheetstorm.Infrastructure.Persistence.ApplicationUser> userManager,
+    Sheetstorm.Web.Application.AnnotationService svc,
+    CancellationToken ct) =>
+{
+    var u = await userManager.GetUserAsync(user);
+    if (u is null) return Results.Unauthorized();
+    await svc.SaveAsync(partId, u.Id, page, dto.LayerJson, ct);
+    return Results.NoContent();
+}).RequireAuthorization();
 
 // Offline-API für Service Worker
 app.MapGet("/api/offline/urls", async (

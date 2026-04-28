@@ -108,6 +108,14 @@ else
                                 <a class="btn btn-sm btn-outline-primary ms-2" href="/Bands/@slug/perform/@ev.Id" data-testid="event-perform">Konzert-Modus</a>
                                 <a class="btn btn-sm btn-primary ms-2" href="/Bands/@slug/conduct/@ev.Id" data-testid="event-conduct">🎵 Sync</a>
                             }
+                            @if (canEdit)
+                            {
+                                <EditForm Model="CancelInput" OnValidSubmit="CancelEventAsync" FormName="@($"cancel-{ev.Id}")" class="d-inline ms-2">
+                                    <input type="hidden" name="CancelInput.EventId" value="@ev.Id" />
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" data-testid="event-cancel"
+                                            onclick="return confirm('Termin wirklich absagen?');">Absagen</button>
+                                </EditForm>
+                            }
                         </div>
                     </div>
                 </li>
@@ -133,10 +141,14 @@ else
     [SupplyParameterFromForm]
     private RespondInputModel? RespondInput { get; set; }
 
+    [SupplyParameterFromForm]
+    private CancelInputModel? CancelInput { get; set; }
+
     protected override async Task OnInitializedAsync()
     {
         CreateInput ??= new();
         RespondInput ??= new();
+        CancelInput ??= new();
 
         var auth = await AuthState.GetAuthenticationStateAsync();
         var u = await UserManager.GetUserAsync(auth.User);
@@ -177,6 +189,13 @@ else
         await LoadAsync();
     }
 
+    private async Task CancelEventAsync()
+    {
+        if (CancelInput?.EventId is null) return;
+        await EventService.CancelAsync(CancelInput.EventId.Value);
+        await LoadAsync();
+    }
+
     private sealed class CreateInputModel
     {
         public string Type { get; set; } = "Probe";
@@ -188,4 +207,5 @@ else
     }
 
     private sealed class RespondInputModel { public Guid EventId { get; set; } }
+    private sealed class CancelInputModel { public Guid? EventId { get; set; } }
 }

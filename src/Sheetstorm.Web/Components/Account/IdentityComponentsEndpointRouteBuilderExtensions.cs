@@ -19,6 +19,13 @@ internal static class IdentityComponentsEndpointRouteBuilderExtensions
             return TypedResults.LocalRedirect("~/");
         });
 
+        // GET-Variante: nach Account-Löschung wo User nichts mehr hat
+        accountGroup.MapGet("/Logout-After-Delete", async (SignInManager<ApplicationUser> signInManager) =>
+        {
+            await signInManager.SignOutAsync();
+            return TypedResults.LocalRedirect("~/?deleted=1");
+        });
+
         return accountGroup;
     }
 }

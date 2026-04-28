@@ -27,6 +27,49 @@ else
 {
     <p>Eingeloggt als <strong data-testid="profile-email">@user.Email</strong> (<span data-testid="profile-displayname">@user.DisplayName</span>)</p>
 
+    @if (statusMessage is not null)
+    {
+        <div class="alert alert-success" data-testid="profile-status">@statusMessage</div>
+    }
+    @if (errorMessage is not null)
+    {
+        <div class="alert alert-danger" data-testid="profile-error">@errorMessage</div>
+    }
+
+    <h2>Persönliche Daten</h2>
+    <div class="ss-card">
+        <EditForm Model="ProfileInput" OnValidSubmit="UpdateProfileAsync" FormName="profile-edit">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label">Anzeigename</label>
+                    <InputText @bind-Value="ProfileInput!.DisplayName" data-testid="profile-displayname-input" class="form-control" />
+                </div>
+            </div>
+            <button type="submit" class="ss-btn ss-btn-primary mt-3" data-testid="profile-save">Speichern</button>
+        </EditForm>
+    </div>
+
+    <h2>Passwort ändern</h2>
+    <div class="ss-card">
+        <EditForm Model="PwInput" OnValidSubmit="ChangePasswordAsync" FormName="profile-pw">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">Aktuelles Passwort</label>
+                    <InputText type="password" @bind-Value="PwInput!.OldPassword" data-testid="profile-pw-old" class="form-control" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Neues Passwort</label>
+                    <InputText type="password" @bind-Value="PwInput.NewPassword" data-testid="profile-pw-new" class="form-control" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Bestätigen</label>
+                    <InputText type="password" @bind-Value="PwInput.ConfirmPassword" data-testid="profile-pw-confirm" class="form-control" />
+                </div>
+            </div>
+            <button type="submit" class="ss-btn ss-btn-primary mt-3" data-testid="profile-pw-submit">Passwort ändern</button>
+        </EditForm>
+    </div>
+
     <h2>Bevorzugte Stimme pro Verein</h2>
     @if (memberships.Count == 0)
     {
@@ -37,43 +80,63 @@ else
         @foreach (var m in memberships)
         {
             var current = m.Instruments.FirstOrDefault(i => i.IsPrimary);
-            <div class="card mb-3" data-testid="profile-membership" data-bandid="@m.BandId">
-                <div class="card-body">
-                    <h5 class="card-title">@m.Band.Name</h5>
-                    <EditForm Model="PrefInput" OnValidSubmit="SetPrimaryAsync" FormName="@($"prefset-{m.Id}")">
-                        <input type="hidden" name="PrefInput.MembershipId" value="@m.Id" />
-                        <label class="form-label">Bevorzugte Stimme:</label>
-                        <select name="PrefInput.InstrumentKey" class="form-select" data-testid="primary-instrument-select">
-                            <option value="">— wählen —</option>
-                            @foreach (var grp in instruments.GroupBy(i => i.Family))
-                            {
-                                <optgroup label="@grp.Key">
-                                    @foreach (var i in grp.OrderBy(x => x.Name))
-                                    {
-                                        var key = $"{i.Id}|{i.DefaultTransposition}";
-                                        var label = i.DefaultTransposition is null ? i.Name : $"{i.Name} (in {i.DefaultTransposition})";
-                                        var isSelected = current is not null && current.InstrumentId == i.Id && current.Transposition == i.DefaultTransposition;
-                                        <option value="@key" selected="@isSelected">@label</option>
-                                    }
-                                </optgroup>
-                            }
-                        </select>
-                        <button type="submit" class="btn btn-sm btn-primary mt-2" data-testid="primary-instrument-save">Speichern</button>
-                    </EditForm>
-                    @if (current is not null)
-                    {
-                        <p class="mt-2 mb-0 text-success" data-testid="primary-instrument-current">Aktuell: @current.Instrument.Name@(current.Transposition is null ? "" : $" (in {current.Transposition})")</p>
-                    }
-                </div>
+            <div class="ss-card mb-3" data-testid="profile-membership" data-bandid="@m.BandId">
+                <h5 class="card-title">@m.Band.Name</h5>
+                <EditForm Model="PrefInput" OnValidSubmit="SetPrimaryAsync" FormName="@($"prefset-{m.Id}")">
+                    <input type="hidden" name="PrefInput.MembershipId" value="@m.Id" />
+                    <label class="form-label">Bevorzugte Stimme:</label>
+                    <select name="PrefInput.InstrumentKey" class="form-select" data-testid="primary-instrument-select">
+                        <option value="">— wählen —</option>
+                        @foreach (var grp in instruments.GroupBy(i => i.Family))
+                        {
+                            <optgroup label="@grp.Key">
+                                @foreach (var i in grp.OrderBy(x => x.Name))
+                                {
+                                    var key = $"{i.Id}|{i.DefaultTransposition}";
+                                    var label = i.DefaultTransposition is null ? i.Name : $"{i.Name} (in {i.DefaultTransposition})";
+                                    var isSelected = current is not null && current.InstrumentId == i.Id && current.Transposition == i.DefaultTransposition;
+                                    <option value="@key" selected="@isSelected">@label</option>
+                                }
+                            </optgroup>
+                        }
+                    </select>
+                    <button type="submit" class="btn btn-sm btn-primary mt-2" data-testid="primary-instrument-save">Speichern</button>
+                </EditForm>
+                @if (current is not null)
+                {
+                    <p class="mt-2 mb-0 text-success" data-testid="primary-instrument-current">Aktuell: @current.Instrument.Name@(current.Transposition is null ? "" : $" (in {current.Transposition})")</p>
+                }
             </div>
         }
     }
+
+    <h2 class="text-danger mt-5">Gefahrenzone</h2>
+    <div class="ss-card border-danger">
+        <p>Wenn du dein Konto löscht, gehen alle deine Annotationen, Anwesenheits-Antworten und persönlichen Einstellungen verloren. Vereins-Daten und Werke bleiben erhalten.</p>
+        <EditForm Model="DeleteInput" OnValidSubmit="DeleteAccountAsync" FormName="profile-delete">
+            <div class="d-flex gap-2">
+                <InputText @bind-Value="DeleteInput!.ConfirmText" data-testid="profile-delete-confirm" class="form-control" placeholder="Tippe LÖSCHEN um zu bestätigen" />
+                <button type="submit" class="ss-btn" style="background:#dc2626;color:white" data-testid="profile-delete-submit" disabled="@(DeleteInput.ConfirmText != "LÖSCHEN")">Konto löschen</button>
+            </div>
+        </EditForm>
+    </div>
 }
 
 @code {
     private ApplicationUser? user;
     private List<Membership> memberships = new();
     private List<Instrument> instruments = new();
+    private string? statusMessage;
+    private string? errorMessage;
+
+    [SupplyParameterFromForm(FormName = "profile-edit")]
+    private ProfileInputModel? ProfileInput { get; set; }
+
+    [SupplyParameterFromForm(FormName = "profile-pw")]
+    private PwInputModel? PwInput { get; set; }
+
+    [SupplyParameterFromForm(FormName = "profile-delete")]
+    private DeleteInputModel? DeleteInput { get; set; }
 
     [SupplyParameterFromForm]
     private PrefInputModel? PrefInput { get; set; }
@@ -81,9 +144,15 @@ else
     protected override async Task OnInitializedAsync()
     {
         PrefInput ??= new();
+        ProfileInput ??= new();
+        PwInput ??= new();
+        DeleteInput ??= new();
+
         var auth = await AuthState.GetAuthenticationStateAsync();
         user = await UserManager.GetUserAsync(auth.User);
         if (user is null) return;
+
+        if (string.IsNullOrEmpty(ProfileInput.DisplayName)) ProfileInput.DisplayName = user.DisplayName;
         await LoadAsync();
     }
 
@@ -105,11 +174,66 @@ else
         var transposition = parts.Length > 1 && parts[1].Length > 0 ? parts[1] : null;
         await BandService.SetPreferredInstrumentAsync(PrefInput.MembershipId.Value, instrumentId, transposition);
         await LoadAsync();
+        statusMessage = "Stimme aktualisiert.";
     }
+
+    private async Task UpdateProfileAsync()
+    {
+        if (user is null || string.IsNullOrWhiteSpace(ProfileInput?.DisplayName)) return;
+        user.DisplayName = ProfileInput.DisplayName.Trim();
+        var r = await UserManager.UpdateAsync(user);
+        if (r.Succeeded) statusMessage = "Profil gespeichert.";
+        else errorMessage = string.Join(", ", r.Errors.Select(e => e.Description));
+    }
+
+    private async Task ChangePasswordAsync()
+    {
+        if (user is null || PwInput is null) return;
+        if (PwInput.NewPassword != PwInput.ConfirmPassword)
+        {
+            errorMessage = "Passwörter stimmen nicht überein.";
+            return;
+        }
+        var r = await UserManager.ChangePasswordAsync(user, PwInput.OldPassword, PwInput.NewPassword);
+        if (r.Succeeded)
+        {
+            statusMessage = "Passwort geändert.";
+            PwInput.OldPassword = PwInput.NewPassword = PwInput.ConfirmPassword = "";
+        }
+        else
+        {
+            errorMessage = string.Join(", ", r.Errors.Select(e => e.Description));
+        }
+    }
+
+    private async Task DeleteAccountAsync()
+    {
+        if (user is null || DeleteInput?.ConfirmText != "LÖSCHEN") return;
+        var r = await UserManager.DeleteAsync(user);
+        if (r.Succeeded)
+        {
+            // Logout via redirect (Cookie-Sweep)
+            Navigation.NavigateTo("/Account/Logout-After-Delete", forceLoad: true);
+        }
+        else
+        {
+            errorMessage = string.Join(", ", r.Errors.Select(e => e.Description));
+        }
+    }
+
+    [Inject] private NavigationManager Navigation { get; set; } = default!;
 
     private sealed class PrefInputModel
     {
         public Guid? MembershipId { get; set; }
         public string InstrumentKey { get; set; } = "";
     }
+    private sealed class ProfileInputModel { public string DisplayName { get; set; } = ""; }
+    private sealed class PwInputModel
+    {
+        public string OldPassword { get; set; } = "";
+        public string NewPassword { get; set; } = "";
+        public string ConfirmPassword { get; set; } = "";
+    }
+    private sealed class DeleteInputModel { public string ConfirmText { get; set; } = ""; }
 }

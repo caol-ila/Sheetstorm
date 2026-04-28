@@ -28,6 +28,12 @@ else
 {
     <p><a href="/Bands/@slug/pieces" data-testid="piece-back">← Zurück</a></p>
     <h1 data-testid="piece-detail-title">@piece.Title</h1>
+    @if (canEdit)
+    {
+        <p>
+            <a href="/Bands/@slug/pieces/@pieceId/edit" class="ss-btn ss-btn-ghost" data-testid="piece-edit-link">✏ Bearbeiten</a>
+        </p>
+    }
     @if (!string.IsNullOrEmpty(piece.Composer)) { <p class="text-muted" data-testid="piece-composer">@piece.Composer</p> }
 
     <EditForm Model="OfflineInput" OnValidSubmit="ToggleOfflineAsync" FormName="toggle-offline" class="mb-3">

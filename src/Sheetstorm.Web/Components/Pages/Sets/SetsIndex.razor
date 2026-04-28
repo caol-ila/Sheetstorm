@@ -51,14 +51,24 @@ else
             <ol class="list-group list-group-numbered mb-3" data-testid="set-items">
                 @foreach (var it in selectedSet.Items.OrderBy(x => x.Position))
                 {
-                    <li class="list-group-item d-flex justify-content-between" data-testid="set-item">
+                    <li class="list-group-item d-flex justify-content-between align-items-center" data-testid="set-item">
                         <span>@it.Piece.Title @if (!string.IsNullOrEmpty(it.Piece.Composer)) { <small class="text-muted">— @it.Piece.Composer</small> }</span>
                         @if (canEdit)
                         {
-                            <EditForm Model="RemoveInput" OnValidSubmit="RemoveItemAsync" FormName="@($"rm-{it.Id}")">
-                                <input type="hidden" name="RemoveInput.ItemId" value="@it.Id" />
-                                <button type="submit" class="btn btn-sm btn-outline-danger" data-testid="remove-item">Entfernen</button>
-                            </EditForm>
+                            <span class="d-flex gap-1">
+                                <EditForm Model="MoveInput" OnValidSubmit="MoveUpAsync" FormName="@($"up-{it.Id}")">
+                                    <input type="hidden" name="MoveInput.ItemId" value="@it.Id" />
+                                    <button type="submit" class="btn btn-sm btn-outline-secondary" data-testid="set-item-up" title="Hoch">↑</button>
+                                </EditForm>
+                                <EditForm Model="MoveInput" OnValidSubmit="MoveDownAsync" FormName="@($"down-{it.Id}")">
+                                    <input type="hidden" name="MoveInput.ItemId" value="@it.Id" />
+                                    <button type="submit" class="btn btn-sm btn-outline-secondary" data-testid="set-item-down" title="Runter">↓</button>
+                                </EditForm>
+                                <EditForm Model="RemoveInput" OnValidSubmit="RemoveItemAsync" FormName="@($"rm-{it.Id}")">
+                                    <input type="hidden" name="RemoveInput.ItemId" value="@it.Id" />
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" data-testid="remove-item">Entfernen</button>
+                                </EditForm>
+                            </span>
                         }
                     </li>
                 }
@@ -122,11 +132,15 @@ else
     [SupplyParameterFromForm]
     private RemoveInputModel? RemoveInput { get; set; }
 
+    [SupplyParameterFromForm]
+    private MoveInputModel? MoveInput { get; set; }
+
     protected override async Task OnInitializedAsync()
     {
         CreateInput ??= new();
         AddPieceInput ??= new();
         RemoveInput ??= new();
+        MoveInput ??= new();
 
         var auth = await AuthState.GetAuthenticationStateAsync();
         var u = await UserManager.GetUserAsync(auth.User);
@@ -181,7 +195,18 @@ else
         await LoadAsync();
     }
 
+    private Task MoveUpAsync() => MoveAsync(-1);
+    private Task MoveDownAsync() => MoveAsync(1);
+
+    private async Task MoveAsync(int direction)
+    {
+        if (MoveInput?.ItemId is null) return;
+        await SetListService.MoveItemAsync(MoveInput.ItemId.Value, direction);
+        await LoadAsync();
+    }
+
     private sealed class CreateInputModel { public string Name { get; set; } = ""; }
     private sealed class AddPieceInputModel { public Guid? SetListId { get; set; } public Guid? PieceId { get; set; } }
     private sealed class RemoveInputModel { public Guid? ItemId { get; set; } }
+    private sealed class MoveInputModel { public Guid? ItemId { get; set; } }
 }

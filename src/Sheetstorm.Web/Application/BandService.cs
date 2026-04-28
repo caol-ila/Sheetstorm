@@ -38,6 +38,23 @@ public sealed class BandService(SheetstormDbContext db)
         return band;
     }
 
+    public async Task UpdateBandProfileAsync(Guid bandId, string name, string? description, string? city, string? postalCode, string? association, CancellationToken ct = default)
+    {
+        var b = await db.Bands.FirstOrDefaultAsync(x => x.Id == bandId, ct);
+        if (b is null) return;
+        b.UpdateProfile(name, description, city, postalCode, association);
+        await db.SaveChangesAsync(ct);
+    }
+
+    public async Task<bool> RemoveMemberAsync(Guid bandId, Guid memberUserId, CancellationToken ct = default)
+    {
+        var m = await db.Memberships.FirstOrDefaultAsync(x => x.BandId == bandId && x.UserId == memberUserId, ct);
+        if (m is null || m.HasRole(BandRole.Owner)) return false;
+        db.Memberships.Remove(m);
+        await db.SaveChangesAsync(ct);
+        return true;
+    }
+
     public async Task<List<Membership>> GetMembershipsAsync(Guid bandId, CancellationToken ct = default)
         => await db.Memberships.Where(m => m.BandId == bandId).ToListAsync(ct);
 

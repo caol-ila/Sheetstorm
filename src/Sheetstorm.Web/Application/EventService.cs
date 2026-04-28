@@ -55,6 +55,29 @@ public sealed class EventService(SheetstormDbContext db)
         }
         await db.SaveChangesAsync(ct);
     }
+    public async Task UpdateAsync(Guid id, string title, string? description, string? location, DateTimeOffset startUtc, DateTimeOffset endUtc, DateTimeOffset? meetUtc, string? dressCode, Guid? setListId, CancellationToken ct = default)
+    {
+        var ev = await db.Events.FirstOrDefaultAsync(x => x.Id == id, ct);
+        if (ev is null) return;
+        ev.Update(title, description, location, startUtc, endUtc, meetUtc, dressCode, setListId);
+        await db.SaveChangesAsync(ct);
+    }
+
+    public async Task CancelAsync(Guid id, CancellationToken ct = default)
+    {
+        var ev = await db.Events.FirstOrDefaultAsync(x => x.Id == id, ct);
+        if (ev is null) return;
+        ev.Cancel();
+        await db.SaveChangesAsync(ct);
+    }
+
+    public async Task DeleteAsync(Guid id, CancellationToken ct = default)
+    {
+        var ev = await db.Events.FirstOrDefaultAsync(x => x.Id == id, ct);
+        if (ev is null) return;
+        db.Events.Remove(ev);
+        await db.SaveChangesAsync(ct);
+    }
 }
 
 public sealed record SetListSummary(Guid Id, string Name, int ItemCount);
@@ -94,6 +117,21 @@ public sealed class SetListService(SheetstormDbContext db)
         var item = await db.SetListItems.FirstOrDefaultAsync(i => i.Id == itemId, ct);
         if (item is null) return;
         db.SetListItems.Remove(item);
+        await db.SaveChangesAsync(ct);
+    }
+
+    public async Task MoveItemAsync(Guid itemId, int direction, CancellationToken ct = default)
+    {
+        var item = await db.SetListItems.FirstOrDefaultAsync(i => i.Id == itemId, ct);
+        if (item is null) return;
+        var siblings = await db.SetListItems.Where(i => i.SetListId == item.SetListId).OrderBy(i => i.Position).ToListAsync(ct);
+        var idx = siblings.FindIndex(i => i.Id == itemId);
+        var newIdx = Math.Clamp(idx + direction, 0, siblings.Count - 1);
+        if (newIdx == idx) return;
+        var swap = siblings[newIdx];
+        var tmp = item.Position;
+        item.SetPosition(swap.Position);
+        swap.SetPosition(tmp);
         await db.SaveChangesAsync(ct);
     }
 }

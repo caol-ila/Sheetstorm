@@ -22,11 +22,15 @@ public sealed class SheetstormDbContext(DbContextOptions<SheetstormDbContext> op
     public DbSet<PartFile> PartFiles => Set<PartFile>();
     public DbSet<OfflineWish> OfflineWishes => Set<OfflineWish>();
     public DbSet<OmrJob> OmrJobs => Set<OmrJob>();
+    public DbSet<Annotation> Annotations => Set<Annotation>();
+    public DbSet<PushSubscription> PushSubscriptions => Set<PushSubscription>();
     public DbSet<Event> Events => Set<Event>();
     public DbSet<EventAttendance> EventAttendances => Set<EventAttendance>();
     public DbSet<SetList> SetLists => Set<SetList>();
     public DbSet<SetListItem> SetListItems => Set<SetListItem>();
     public DbSet<EventSyncSession> EventSyncSessions => Set<EventSyncSession>();
+    public DbSet<EventShift> EventShifts => Set<EventShift>();
+    public DbSet<ShiftAssignment> ShiftAssignments => Set<ShiftAssignment>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -202,6 +206,36 @@ public sealed class SheetstormDbContext(DbContextOptions<SheetstormDbContext> op
             e.Property(x => x.SuggestedComposer).HasMaxLength(200);
             e.HasIndex(x => new { x.BandId, x.Status });
             e.HasIndex(x => x.CreatedById);
+        });
+
+        b.Entity<Annotation>(e =>
+        {
+            e.ToTable("Annotations");
+            e.HasIndex(x => new { x.PartId, x.UserId, x.Page }).IsUnique();
+        });
+
+        b.Entity<PushSubscription>(e =>
+        {
+            e.ToTable("PushSubscriptions");
+            e.Property(x => x.Endpoint).HasMaxLength(500).IsRequired();
+            e.Property(x => x.P256dhKey).HasMaxLength(200).IsRequired();
+            e.Property(x => x.AuthKey).HasMaxLength(200).IsRequired();
+            e.HasIndex(x => x.UserId);
+            e.HasIndex(x => x.Endpoint).IsUnique();
+        });
+
+        b.Entity<EventShift>(e =>
+        {
+            e.ToTable("EventShifts");
+            e.Property(x => x.Title).HasMaxLength(200).IsRequired();
+            e.HasOne(x => x.Event).WithMany().HasForeignKey(x => x.EventId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<ShiftAssignment>(e =>
+        {
+            e.ToTable("ShiftAssignments");
+            e.HasOne(x => x.Shift).WithMany(s => s.Assignments).HasForeignKey(x => x.ShiftId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => new { x.ShiftId, x.UserId }).IsUnique();
         });
     }
 }
