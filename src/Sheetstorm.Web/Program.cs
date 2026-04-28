@@ -77,7 +77,20 @@ builder.Services.AddScoped<ConductorSyncService>();
 builder.Services.AddScoped<OfflineService>();
 builder.Services.AddScoped<OmrService>();
 builder.Services.AddScoped<AnnotationService>();
-builder.Services.AddScoped<IOmrEngine, StubOmrEngine>();
+
+// OMR-Engine: wenn Audiveris-URL konfiguriert -> echter Adapter, sonst Stub
+var audiverisUrl = builder.Configuration["Audiveris:BaseUrl"]
+    ?? builder.Configuration["ConnectionStrings:audiveris"];
+if (!string.IsNullOrEmpty(audiverisUrl))
+{
+    builder.Services.AddHttpClient("audiveris", c => c.BaseAddress = new Uri(audiverisUrl));
+    builder.Services.AddScoped<IOmrEngine, AudiverisOmrEngine>();
+}
+else
+{
+    builder.Services.AddScoped<IOmrEngine, StubOmrEngine>();
+}
+
 builder.Services.AddHostedService<OmrBackgroundWorker>();
 builder.Services.AddSingleton<LocalFileStore>();
 
