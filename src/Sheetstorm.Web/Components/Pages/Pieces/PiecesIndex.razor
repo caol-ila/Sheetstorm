@@ -27,6 +27,13 @@ else
 {
     <h1 data-testid="pieces-heading">Noten — @band.Name</h1>
 
+    @if (canEdit)
+    {
+        <p>
+            <a href="/Bands/@slug/omr" class="ss-btn ss-btn-ghost" data-testid="pieces-omr-link">📥 PDF mit Auto-Stimm-Erkennung hochladen</a>
+        </p>
+    }
+
     <EditForm Model="FilterInput" OnValidSubmit="ApplyFilterAsync" FormName="filter" class="row g-2 mb-3">
         <div class="col-md-4">
             <InputText @bind-Value="FilterInput!.Query" data-testid="filter-query" class="form-control" placeholder="Titel oder Komponist suchen" />

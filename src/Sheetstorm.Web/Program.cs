@@ -75,6 +75,9 @@ builder.Services.AddScoped<EventService>();
 builder.Services.AddScoped<SetListService>();
 builder.Services.AddScoped<ConductorSyncService>();
 builder.Services.AddScoped<OfflineService>();
+builder.Services.AddScoped<OmrService>();
+builder.Services.AddScoped<IOmrEngine, StubOmrEngine>();
+builder.Services.AddHostedService<OmrBackgroundWorker>();
 builder.Services.AddSingleton<LocalFileStore>();
 
 builder.Services.AddSignalR();

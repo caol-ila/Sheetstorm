@@ -21,6 +21,7 @@ public sealed class SheetstormDbContext(DbContextOptions<SheetstormDbContext> op
     public DbSet<Part> Parts => Set<Part>();
     public DbSet<PartFile> PartFiles => Set<PartFile>();
     public DbSet<OfflineWish> OfflineWishes => Set<OfflineWish>();
+    public DbSet<OmrJob> OmrJobs => Set<OmrJob>();
     public DbSet<Event> Events => Set<Event>();
     public DbSet<EventAttendance> EventAttendances => Set<EventAttendance>();
     public DbSet<SetList> SetLists => Set<SetList>();
@@ -189,6 +190,18 @@ public sealed class SheetstormDbContext(DbContextOptions<SheetstormDbContext> op
             e.ToTable("OfflineWishes");
             e.HasIndex(x => new { x.UserId, x.PieceId }).IsUnique();
             e.HasIndex(x => x.UserId);
+        });
+
+        b.Entity<OmrJob>(e =>
+        {
+            e.ToTable("OmrJobs");
+            e.Property(x => x.Status).HasConversion<int>();
+            e.Property(x => x.OriginalFileName).HasMaxLength(300).IsRequired();
+            e.Property(x => x.InputBlobKey).HasMaxLength(500).IsRequired();
+            e.Property(x => x.SuggestedTitle).HasMaxLength(300);
+            e.Property(x => x.SuggestedComposer).HasMaxLength(200);
+            e.HasIndex(x => new { x.BandId, x.Status });
+            e.HasIndex(x => x.CreatedById);
         });
     }
 }

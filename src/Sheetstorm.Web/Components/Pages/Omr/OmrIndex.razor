@@ -1,0 +1,150 @@
+@page "/Bands/{slug}/omr"
+@layout MainLayout
+@attribute [Authorize]
+@inject UserManager<ApplicationUser> UserManager
+@inject SheetstormDbContext Db
+@inject OmrService OmrService
+@inject AuthenticationStateProvider AuthState
+@inject NavigationManager Navigation
+
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using Sheetstorm.Domain.Identity
+@using Sheetstorm.Domain.Music
+@using Sheetstorm.Infrastructure.Persistence
+@using Sheetstorm.Web.Application
+
+<PageTitle>Noten digitalisieren — @(band?.Name ?? slug)</PageTitle>
+
+@if (band is null)
+{
+    <p>Lädt…</p>
+}
+else
+{
+    <h1 data-testid="omr-heading">📥 Noten digitalisieren</h1>
+    <p class="ss-page-intro">
+        Lade ein PDF mit allen Stimmen eines Werks hoch. Sheetstorm erkennt
+        die Stimmen automatisch und schlägt eine Zuordnung vor — du kannst
+        diese vor dem Speichern prüfen und korrigieren.
+    </p>
+
+    <div class="ss-help-tip">
+        <span class="ss-help-tip-icon">💡</span>
+        Die automatische Erkennung funktioniert am besten bei sauberen
+        Verlags-PDFs. Bei eingescannten/handschriftlichen Noten kann die
+        Erkennung lückenhaft sein — du kannst die Stimm-Zuordnung jederzeit
+        manuell anpassen.
+    </div>
+
+    @if (canEdit)
+    {
+        <div class="ss-card mt-3">
+            <h2 class="mt-0">PDF hochladen</h2>
+            <EditForm Model="UploadInput" OnValidSubmit="UploadAsync" FormName="omr-upload" enctype="multipart/form-data">
+                <div class="mb-3">
+                    <input type="file" name="OmrPdf" data-testid="omr-pdf-input" class="form-control" accept=".pdf" required />
+                </div>
+                <button type="submit" class="ss-btn ss-btn-primary" data-testid="omr-upload-submit">Erkennung starten</button>
+            </EditForm>
+        </div>
+    }
+    else
+    {
+        <div class="alert alert-warning">Nur Dirigenten und Admins können Werke hochladen.</div>
+    }
+
+    <h2>Letzte Aufträge</h2>
+    @if (jobs.Count == 0)
+    {
+        <div class="ss-empty" data-testid="omr-empty">
+            <div class="ss-empty-icon">📂</div>
+            <div class="ss-empty-title">Noch keine Erkennungs-Aufträge</div>
+            <div class="ss-empty-hint">Lade oben ein PDF hoch, um zu starten.</div>
+        </div>
+    }
+    else
+    {
+        <div class="list-group" data-testid="omr-jobs-list">
+            @foreach (var j in jobs)
+            {
+                <a href="/Bands/@slug/omr/@j.Id" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center" data-testid="omr-job-row" data-id="@j.Id">
+                    <div>
+                        <strong data-testid="omr-job-name">@j.OriginalFileName</strong>
+                        <div class="text-muted small">@j.CreatedAt.LocalDateTime.ToString("dd.MM.yyyy HH:mm")</div>
+                    </div>
+                    <span class="badge @StatusBadgeClass(j.Status)" data-testid="omr-job-status">@StatusLabel(j.Status)</span>
+                </a>
+            }
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public string slug { get; set; } = default!;
+
+    private Band? band;
+    private bool canEdit;
+    private Guid currentUserId;
+    private List<OmrJob> jobs = new();
+
+    [SupplyParameterFromForm(FormName = "omr-upload")]
+    private UploadInputModel? UploadInput { get; set; }
+
+    [SupplyParameterFromForm(FormName = "omr-upload", Name = "OmrPdf")]
+    private IFormFile? OmrPdf { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        UploadInput ??= new();
+
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        var u = await UserManager.GetUserAsync(auth.User);
+        if (u is null) { Navigation.NavigateTo("/Account/Login"); return; }
+        currentUserId = u.Id;
+
+        band = await Db.Bands.FirstOrDefaultAsync(x => x.Slug == slug);
+        if (band is null) { Navigation.NavigateTo("/Bands"); return; }
+
+        var myMem = await Db.Memberships.FirstOrDefaultAsync(m => m.BandId == band.Id && m.UserId == currentUserId);
+        if (myMem is null) { Navigation.NavigateTo("/Bands"); return; }
+        canEdit = myMem.HasRole(BandRole.Admin) || myMem.HasRole(BandRole.Owner) || myMem.HasRole(BandRole.Dirigent);
+
+        await LoadJobsAsync();
+    }
+
+    private async Task LoadJobsAsync() => jobs = await OmrService.GetForBandAsync(band!.Id);
+
+    private async Task UploadAsync()
+    {
+        if (OmrPdf is null || OmrPdf.Length == 0) return;
+        await using var s = OmrPdf.OpenReadStream();
+        var job = await OmrService.CreateJobAsync(band!.Id, currentUserId, s, OmrPdf.FileName);
+        Navigation.NavigateTo($"/Bands/{slug}/omr/{job.Id}");
+    }
+
+    private static string StatusLabel(OmrJobStatus s) => s switch
+    {
+        OmrJobStatus.Queued => "⏳ Warte",
+        OmrJobStatus.Running => "⚙ Läuft",
+        OmrJobStatus.Done => "✅ Bereit zur Bestätigung",
+        OmrJobStatus.Failed => "❌ Fehlgeschlagen",
+        OmrJobStatus.Confirmed => "🎼 Werk angelegt",
+        _ => s.ToString(),
+    };
+
+    private static string StatusBadgeClass(OmrJobStatus s) => s switch
+    {
+        OmrJobStatus.Queued => "bg-secondary",
+        OmrJobStatus.Running => "bg-info text-dark",
+        OmrJobStatus.Done => "bg-success",
+        OmrJobStatus.Failed => "bg-danger",
+        OmrJobStatus.Confirmed => "bg-primary",
+        _ => "bg-light text-dark",
+    };
+
+    private sealed class UploadInputModel { }
+}
