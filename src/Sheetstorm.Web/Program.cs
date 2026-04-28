@@ -128,7 +128,7 @@ using (var scope = app.Services.CreateScope())
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
         var fileStore = scope.ServiceProvider.GetRequiredService<LocalFileStore>();
         var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-        await DemoSeed.RunAsync(db, userManager, fileStore, logger);
+        await DemoSeed.RunAsync(db, userManager, fileStore, logger, app.Environment);
     }
 }
 
@@ -155,6 +155,7 @@ app.MapAdditionalIdentityEndpoints();
 // Datei-Download (PDFs, etc.)
 app.MapGet("/files/parts/{partId:guid}/{fileId:guid}", async (
     Guid partId, Guid fileId,
+    HttpContext http,
     Sheetstorm.Infrastructure.Persistence.SheetstormDbContext db,
     Sheetstorm.Web.Services.LocalFileStore store,
     CancellationToken ct) =>
@@ -164,7 +165,17 @@ app.MapGet("/files/parts/{partId:guid}/{fileId:guid}", async (
     if (f is null) return Results.NotFound();
     if (!store.Exists(f.BlobKey)) return Results.NotFound();
     var stream = store.OpenRead(f.BlobKey);
-    return Results.File(stream, store.GetMimeType(f.OriginalFileName), f.OriginalFileName, enableRangeProcessing: true);
+    var mime = store.GetMimeType(f.OriginalFileName);
+    var asDownload = http.Request.Query.ContainsKey("download");
+    if (asDownload)
+    {
+        return Results.File(stream, mime, f.OriginalFileName, enableRangeProcessing: true);
+    }
+    // Default: inline serving (kein Content-Disposition: attachment) — wichtig fuer
+    // <embed>/<iframe>-PDF-Anzeige und MusicXML-Fetch ohne Browser-Download.
+    var safe = System.Net.WebUtility.UrlEncode(f.OriginalFileName);
+    http.Response.Headers["Content-Disposition"] = $"inline; filename=\"{safe}\"; filename*=UTF-8''{safe}";
+    return Results.File(stream, mime, enableRangeProcessing: true);
 }).RequireAuthorization();
 
 // SignalR Hub

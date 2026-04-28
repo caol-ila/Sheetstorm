@@ -41,6 +41,7 @@ public static class DemoSeed
         UserManager<ApplicationUser> userManager,
         LocalFileStore fileStore,
         ILogger logger,
+        IWebHostEnvironment env,
         CancellationToken ct = default)
     {
         // Idempotent: nur seeden wenn Demo-Verein noch nicht existiert
@@ -129,6 +130,8 @@ public static class DemoSeed
         };
 
         var pdfBytes = MakeTinyPdf();
+        var sampleMxlPath = Path.Combine(env.WebRootPath, "samples", "demo-score.musicxml");
+        var sampleMxlBytes = File.Exists(sampleMxlPath) ? await File.ReadAllBytesAsync(sampleMxlPath, ct) : null;
 
         foreach (var (title, composer, genre, difficulty) in demoWorks)
         {
@@ -143,10 +146,20 @@ public static class DemoSeed
                 db.Parts.Add(part);
                 await db.SaveChangesAsync(ct);
 
-                using var ms = new MemoryStream(pdfBytes);
-                var blobKey = await fileStore.SaveAsync(ms, $"parts/{part.Id}", $"{title}-{displayName}.pdf", ct);
-                db.PartFiles.Add(PartFile.Create(part.Id, PartFileKind.Pdf, blobKey,
-                    $"{title} - {displayName}.pdf", pdfBytes.Length));
+                using (var ms = new MemoryStream(pdfBytes))
+                {
+                    var blobKey = await fileStore.SaveAsync(ms, $"parts/{part.Id}", $"{title}-{displayName}.pdf", ct);
+                    db.PartFiles.Add(PartFile.Create(part.Id, PartFileKind.Pdf, blobKey,
+                        $"{title} - {displayName}.pdf", pdfBytes.Length));
+                }
+
+                if (sampleMxlBytes is not null)
+                {
+                    using var mxlMs = new MemoryStream(sampleMxlBytes);
+                    var mxlKey = await fileStore.SaveAsync(mxlMs, $"parts/{part.Id}", $"{title}-{displayName}.musicxml", ct);
+                    db.PartFiles.Add(PartFile.Create(part.Id, PartFileKind.MusicXml, mxlKey,
+                        $"{title} - {displayName}.musicxml", sampleMxlBytes.Length));
+                }
             }
             await db.SaveChangesAsync(ct);
         }

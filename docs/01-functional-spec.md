@@ -259,3 +259,37 @@ HID-Pedale) als Eingabe für:
 * Bedienbar mit Tastatur, Screen-Reader-Labels, ausreichende
   Kontraste, kein „nur Farbe" für Status.
 * Notenanzeige: Zoom + invertierter Modus für Bühnenbeleuchtung.
+
+## 10. Metronom & Sync-Click
+* Jeder Musiker hat ein eigenes Metronom; der Dirigent kann einen
+  synchronen Click an alle verbundenen Geräte schicken (max. 50 ms Drift).
+* Tempo + Taktart werden aus dem aktuell geöffneten Stück übernommen,
+  manuelle Eingabe + Tap-Tempo bleiben möglich.
+* Schnell-Buttons: 100 % / −10 % / −20 %.
+* Akzent auf Schlag 1 + optionale Subdivision (8tel/16tel).
+* Übertragung primär WLAN-Multicast + signed Schedule (HMAC), Fallback
+  BLE-Advertising. Zeitbasis via NTP-light beim Pairing.
+* Spec: [10-metronom-and-sync-click.md](10-metronom-and-sync-click.md).
+
+## 11. Stimmen / Tuner
+* Mikrofon-Tuner mit konfigurierbarer Grundstimmung (Default 442 Hz,
+  per Verein und per Event überschreibbar).
+* Berücksichtigt Temperierung (gleichstufig / rein / pythagoreisch) und
+  Instrumenten-Profile mit Griff-spezifischen Cent-Abweichungen
+  (z. B. Tenorhorn Ventil 1+3 vs. 4).
+* UI ohne Wackel-Zeiger: diskrete Zonen `−− / − / (−) / ✓ / (+) / + / ++`,
+  Hysterese ≥ 300 ms, sachliche Klartext-Hinweise ("etwas weiter rein").
+* Spec: [11-tuning-mode.md](11-tuning-mode.md).
+
+## 12. Visualisierung & Datei-Strategie
+* Default-Anzeige ist die **MusicXML-Version** (OSMD-SVG).
+* Alternativ pro Lied/Stimme **Bild-Modus** mit aus dem PDF extrahierten
+  PNGs (1 pro Seite, ~150 dpi).
+* Das **Original-PDF wird nie in der App angezeigt**, sondern nur
+  archiviert und (genehmigungspflichtig) zum Download angeboten.
+* Annotationen werden pro Seite gespeichert und liegen sowohl über dem
+  Score-SVG als auch über dem Image stabil, weil die Koordinaten in
+  0..1 normiert sind.
+* Pro Verein konfigurierbar, ob Mitglieder PDFs herunterladen dürfen
+  (Default: nein).
+* Spec: [12-visualization-and-file-strategy.md](12-visualization-and-file-strategy.md).

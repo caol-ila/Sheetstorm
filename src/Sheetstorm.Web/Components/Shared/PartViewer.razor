@@ -20,49 +20,77 @@ else
     <div class="ss-viewer-toolbar mb-2 d-flex flex-wrap gap-2 align-items-center" data-testid="viewer-toolbar">
         @if (HasMusicXml)
         {
-            <div class="btn-group btn-group-sm" role="group">
+            <div class="btn-group btn-group-sm" role="group" aria-label="Anzeige-Modus">
                 <button type="button" class="btn @(viewMode == "score" ? "btn-primary" : "btn-outline-primary")"
-                        @onclick='() => SetMode("score")' data-testid="viewer-mode-score">🎼 Noten</button>
+                        @onclick='() => SetMode("score")' data-testid="viewer-mode-score" title="Gesetzte Noten (MusicXML/OSMD)">🎼 Noten</button>
                 <button type="button" class="btn @(viewMode == "pdf" ? "btn-primary" : "btn-outline-primary")"
-                        @onclick='() => SetMode("pdf")' data-testid="viewer-mode-pdf">📄 Original-PDF</button>
+                        @onclick='() => SetMode("pdf")' data-testid="viewer-mode-pdf" title="Original-PDF">📄 PDF</button>
             </div>
         }
 
-        <div class="btn-group btn-group-sm ms-auto" role="group" aria-label="Annotation-Werkzeug">
+        <div class="btn-group btn-group-sm" role="group" aria-label="Annotation-Werkzeug">
             <button type="button" class="btn @(tool == "pen" ? "btn-secondary" : "btn-outline-secondary")"
-                    @onclick='() => SetTool("pen")' data-testid="tool-pen" title="Stift">✒</button>
+                    @onclick='() => SetTool("pen")' data-testid="tool-pen" title="Stift (dünn, deckend)">✒ Stift</button>
             <button type="button" class="btn @(tool == "marker" ? "btn-secondary" : "btn-outline-secondary")"
-                    @onclick='() => SetTool("marker")' data-testid="tool-marker" title="Textmarker">🖍</button>
+                    @onclick='() => SetTool("marker")' data-testid="tool-marker" title="Textmarker (breit, transparent)">🖍 Marker</button>
             <button type="button" class="btn @(tool == "text" ? "btn-secondary" : "btn-outline-secondary")"
-                    @onclick='() => SetTool("text")' data-testid="tool-text" title="Notiz">📝</button>
+                    @onclick='() => SetTool("text")' data-testid="tool-text" title="Notiz einfügen">📝 Text</button>
+            <button type="button" class="btn @(tool == "select" ? "btn-secondary" : "btn-outline-secondary")"
+                    @onclick='() => SetTool("select")' data-testid="tool-select" title="Texte verschieben/skalieren/drehen">🖱 Auswahl</button>
             <button type="button" class="btn @(tool == "eraser" ? "btn-secondary" : "btn-outline-secondary")"
                     @onclick='() => SetTool("eraser")' data-testid="tool-eraser" title="Radieren">🧽</button>
         </div>
-        <input type="color" value="@color" @onchange="OnColorChanged" data-testid="tool-color" title="Farbe" style="width:2.4rem;height:2rem;padding:0;border:1px solid #ccc;border-radius:.25rem" />
-        <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="UndoAsync" data-testid="tool-undo" title="Rückgängig">↩</button>
-        <button type="button" class="btn btn-sm btn-outline-danger" @onclick="ClearAsync" data-testid="tool-clear" title="Annotationen löschen">🗑</button>
-        @if (saving)
+
+        <div class="d-flex align-items-center gap-2 ms-2">
+            <label class="visually-hidden" for="@colorInputId">Farbe</label>
+            <input id="@colorInputId" type="color" value="@color" @onchange="OnColorChanged"
+                   data-testid="tool-color" title="Farbe (für aktuelles Werkzeug)"
+                   style="width:2.4rem;height:2rem;padding:0;border:1px solid #ccc;border-radius:.25rem" />
+            <input type="range" min="1" max="40" step="1" value="@width"
+                   @onchange="OnWidthChanged" data-testid="tool-width"
+                   title="Strichbreite" style="width:8rem" />
+            <span class="text-muted small">@width px</span>
+        </div>
+
+        <div class="ms-auto d-flex gap-2 align-items-center">
+            <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="UndoAsync" data-testid="tool-undo" title="Rückgängig">↩ Zurück</button>
+            <button type="button" class="btn btn-sm btn-outline-danger" @onclick="ClearAsync" data-testid="tool-clear" title="Annotationen löschen">🗑</button>
+            @if (saving)
+            {
+                <span class="badge bg-info text-dark" data-testid="viewer-saving">Speichert…</span>
+            }
+            else
+            {
+                <span class="badge bg-success" data-testid="viewer-saved">Gespeichert</span>
+            }
+        </div>
+    </div>
+
+    <div class="ss-stage" id="@stageId" data-testid="viewer-stage"
+         style="position:relative;border:1px solid var(--ss-border, #e5e7eb);border-radius:.5rem;background:white;min-height:520px;overflow:hidden;">
+        @if (viewMode == "score" && MusicXmlFile is not null)
         {
-            <span class="badge bg-info text-dark" data-testid="viewer-saving">Speichert…</span>
+            <div id="@contentId" class="ss-content" data-testid="score-host" style="padding:1rem;"></div>
+        }
+        else if (PdfFile is not null)
+        {
+            <iframe src="/files/parts/@Part.Id/@PdfFile.Id#toolbar=0&navpanes=0"
+                    data-testid="pdf-frame"
+                    style="width:100%;height:600px;border:0;display:block;"></iframe>
         }
         else
         {
-            <span class="badge bg-success" data-testid="viewer-saved">Gespeichert</span>
-        }
-    </div>
-
-    <div class="ss-viewer-host" id="@hostId" data-testid="viewer-host" style="border:1px solid var(--ss-border, #e5e7eb);border-radius:.5rem;padding:.5rem;min-height:400px;background:white;">
-        @if (viewMode == "pdf" && PdfFile is not null)
-        {
-            <embed src="/files/parts/@Part.Id/@PdfFile.Id" type="application/pdf" width="100%" height="600" data-testid="pdf-embed" />
+            <div class="ss-empty p-4" data-testid="viewer-no-content">Keine Datei zum Anzeigen.</div>
         }
     </div>
 
     <p class="text-muted small mt-2" data-testid="viewer-files-info">
-        Verfügbare Dateien: @Part.Files.Count
+        @Part.Files.Count Datei(en):
         @foreach (var f in Part.Files)
         {
-            <span class="badge bg-light text-dark ms-1">@f.Kind: @f.OriginalFileName</span>
+            <a class="badge bg-light text-dark text-decoration-none ms-1"
+               href="/files/parts/@Part.Id/@f.Id?download=1"
+               data-testid="part-file-download" title="@f.OriginalFileName herunterladen">@f.Kind ⬇</a>
         }
     </p>
 }
@@ -70,12 +98,17 @@ else
 @code {
     [Parameter, EditorRequired] public PartViewItem? Part { get; set; }
 
-    private string hostId = "viewer-" + Guid.NewGuid().ToString("N").Substring(0, 8);
+    private readonly string stageId = "stage-" + Guid.NewGuid().ToString("N").Substring(0, 8);
+    private readonly string contentId = "score-" + Guid.NewGuid().ToString("N").Substring(0, 8);
+    private readonly string colorInputId = "color-" + Guid.NewGuid().ToString("N").Substring(0, 6);
+
     private string viewMode = "score";
     private string tool = "pen";
     private string color = "#dc2626";
+    private int width = 2;
     private bool saving;
-    private bool jsAttached;
+    private Guid attachedFor = Guid.Empty;
+    private string attachedMode = string.Empty;
     private DotNetObjectReference<PartViewer>? selfRef;
 
     private bool HasMusicXml => Part?.Files.Any(f => f.Kind == PartFileKind.MusicXml) == true;
@@ -90,33 +123,44 @@ else
 
     protected override void OnParametersSet()
     {
-        if (!HasMusicXml) viewMode = "pdf";
+        if (!HasMusicXml && viewMode == "score") viewMode = "pdf";
+        // Bei Wechsel auf andere Stimme alles neu attachen
+        if (Part is not null && Part.Id != attachedFor) { attachedFor = Guid.Empty; attachedMode = string.Empty; }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (Part is null) return;
+        var key = Part.Id;
+        var modeKey = viewMode;
+        if (attachedFor == key && attachedMode == modeKey) return;
+
+        // Erst OSMD rendern (nur im score-Modus mit MusicXML), dann Annotation-Layer attachen.
         if (viewMode == "score" && MusicXmlFile is not null)
         {
             await JS.InvokeVoidAsync("SheetstormOsmd.render", new
             {
-                containerId = hostId,
+                contentId,
                 musicXmlUrl = $"/files/parts/{Part.Id}/{MusicXmlFile.Id}",
                 zoom = 1.0,
             });
         }
 
-        if (!jsAttached)
+        await JS.InvokeVoidAsync("SheetstormAnnotations.detach", stageId);
+        await JS.InvokeAsync<object>("SheetstormAnnotations.attach", new
         {
-            await JS.InvokeAsync<object>("SheetstormAnnotations.attach", new
-            {
-                hostId,
-                partId = Part.Id,
-                page = 1,
-                dotnetRef = selfRef,
-            });
-            jsAttached = true;
-        }
+            stageId,
+            partId = Part.Id,
+            page = 1,
+            dotnetRef = selfRef,
+        });
+        // Initial-Tool/Color/Width setzen
+        await JS.InvokeVoidAsync("SheetstormAnnotations.setTool", stageId, tool);
+        await JS.InvokeVoidAsync("SheetstormAnnotations.setColor", stageId, color);
+        await JS.InvokeVoidAsync("SheetstormAnnotations.setWidth", stageId, width);
+
+        attachedFor = key;
+        attachedMode = modeKey;
     }
 
     [JSInvokable]
@@ -126,34 +170,58 @@ else
         return InvokeAsync(StateHasChanged);
     }
 
+    [JSInvokable]
+    public Task OnToolChanged(string newTool, string newColor, double newWidth)
+    {
+        tool = newTool;
+        color = newColor;
+        width = (int)Math.Round(newWidth);
+        return InvokeAsync(StateHasChanged);
+    }
+
     private void SetMode(string m)
     {
         viewMode = m;
-        jsAttached = false;
+        attachedMode = string.Empty; // re-attach
     }
 
     private async Task SetTool(string t)
     {
         tool = t;
-        await JS.InvokeVoidAsync("SheetstormAnnotations.setTool", hostId, t);
+        // Default-Farbe + Breite pro Tool spiegeln (UI-Sync)
+        switch (t)
+        {
+            case "pen":    color = "#dc2626"; width = 2;  break;
+            case "marker": color = "#fde047"; width = 14; break;
+            case "text":   color = "#1f2937"; width = 2;  break;
+        }
+        await JS.InvokeVoidAsync("SheetstormAnnotations.setTool", stageId, t);
+        await JS.InvokeVoidAsync("SheetstormAnnotations.setColor", stageId, color);
+        await JS.InvokeVoidAsync("SheetstormAnnotations.setWidth", stageId, width);
     }
 
     private async Task OnColorChanged(ChangeEventArgs args)
     {
-        color = args.Value?.ToString() ?? "#dc2626";
-        await JS.InvokeVoidAsync("SheetstormAnnotations.setColor", hostId, color);
+        color = args.Value?.ToString() ?? color;
+        await JS.InvokeVoidAsync("SheetstormAnnotations.setColor", stageId, color);
+    }
+
+    private async Task OnWidthChanged(ChangeEventArgs args)
+    {
+        if (int.TryParse(args.Value?.ToString(), out var w)) width = w;
+        await JS.InvokeVoidAsync("SheetstormAnnotations.setWidth", stageId, width);
     }
 
     private async Task UndoAsync()
     {
         saving = true;
-        await JS.InvokeVoidAsync("SheetstormAnnotations.undo", hostId);
+        await JS.InvokeVoidAsync("SheetstormAnnotations.undo", stageId);
     }
 
     private async Task ClearAsync()
     {
         saving = true;
-        await JS.InvokeVoidAsync("SheetstormAnnotations.clear", hostId);
+        await JS.InvokeVoidAsync("SheetstormAnnotations.clear", stageId);
     }
 
     public ValueTask DisposeAsync()

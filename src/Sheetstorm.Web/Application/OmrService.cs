@@ -74,7 +74,7 @@ public sealed class StubOmrEngine(LocalFileStore store, ILogger<StubOmrEngine> l
     }
 }
 
-public sealed class OmrService(SheetstormDbContext db, LocalFileStore store)
+public sealed class OmrService(SheetstormDbContext db, LocalFileStore store, IWebHostEnvironment env)
 {
     public async Task<OmrJob> CreateJobAsync(Guid bandId, Guid userId, Stream content, string fileName, CancellationToken ct = default)
     {
@@ -103,17 +103,31 @@ public sealed class OmrService(SheetstormDbContext db, LocalFileStore store)
         db.Pieces.Add(piece);
         await db.SaveChangesAsync(ct);
 
+        // Demo-MusicXML aus wwwroot/samples — der Stub-OMR-Pfad liefert noch keine
+        // echte MusicXML; damit OSMD trotzdem etwas anzuzeigen hat, haengen wir
+        // einen Demo-Score an jede Stimme. Audiveris-Pfad wuerde echte MusicXML
+        // pro Stimme aus dem PDF extrahieren.
+        var sampleMxlPath = Path.Combine(env.WebRootPath, "samples", "demo-score.musicxml");
+        var hasSample = File.Exists(sampleMxlPath);
+
         foreach (var p in partsToCreate)
         {
             var part = Part.Create(piece.Id, p.InstrumentId, p.DisplayName, p.Transposition);
             db.Parts.Add(part);
             await db.SaveChangesAsync(ct);
 
-            // Original-PDF wird mit jeder Stimme verknuepft (Stub: noch keine Auto-Splitting)
-            // Real Audiveris wuerde pro Stimme einzelne Seiten extrahieren.
-            using var pdfStream = store.OpenRead(job.InputBlobKey);
-            var partBlobKey = await store.SaveAsync(pdfStream, $"parts/{part.Id}", $"{title}-{p.DisplayName}.pdf", ct);
-            db.PartFiles.Add(PartFile.Create(part.Id, PartFileKind.Pdf, partBlobKey, $"{title} - {p.DisplayName}.pdf", store.GetSize(partBlobKey)));
+            using (var pdfStream = store.OpenRead(job.InputBlobKey))
+            {
+                var partBlobKey = await store.SaveAsync(pdfStream, $"parts/{part.Id}", $"{title}-{p.DisplayName}.pdf", ct);
+                db.PartFiles.Add(PartFile.Create(part.Id, PartFileKind.Pdf, partBlobKey, $"{title} - {p.DisplayName}.pdf", store.GetSize(partBlobKey)));
+            }
+
+            if (hasSample)
+            {
+                using var mxlStream = File.OpenRead(sampleMxlPath);
+                var mxlBlobKey = await store.SaveAsync(mxlStream, $"parts/{part.Id}", $"{title}-{p.DisplayName}.musicxml", ct);
+                db.PartFiles.Add(PartFile.Create(part.Id, PartFileKind.MusicXml, mxlBlobKey, $"{title} - {p.DisplayName}.musicxml", store.GetSize(mxlBlobKey)));
+            }
         }
         await db.SaveChangesAsync(ct);
 
