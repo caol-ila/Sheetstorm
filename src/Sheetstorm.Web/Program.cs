@@ -35,9 +35,22 @@ builder.Services.AddAuthorizationBuilder();
 
 builder.Services.AddIdentityCore<ApplicationUser>(options =>
     {
-        options.SignIn.RequireConfirmedAccount = true;
+        // In Development einfache Passwörter erlauben für Demo-Accounts
+        if (builder.Environment.IsDevelopment())
+        {
+            options.SignIn.RequireConfirmedAccount = false;
+            options.Password.RequiredLength = 4;
+            options.Password.RequireDigit = false;
+            options.Password.RequireLowercase = false;
+            options.Password.RequireUppercase = false;
+            options.Password.RequireNonAlphanumeric = false;
+        }
+        else
+        {
+            options.SignIn.RequireConfirmedAccount = true;
+            options.Password.RequiredLength = 8;
+        }
         options.User.RequireUniqueEmail = true;
-        options.Password.RequiredLength = 8;
     })
     .AddRoles<IdentityRole<Guid>>()
     .AddEntityFrameworkStores<SheetstormDbContext>()
@@ -80,6 +93,14 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<SheetstormDbContext>();
     await db.Database.MigrateAsync();
     await SeedRunner.RunAsync(db);
+
+    if (app.Environment.IsDevelopment())
+    {
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var fileStore = scope.ServiceProvider.GetRequiredService<LocalFileStore>();
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+        await DemoSeed.RunAsync(db, userManager, fileStore, logger);
+    }
 }
 
 if (!app.Environment.IsDevelopment())
