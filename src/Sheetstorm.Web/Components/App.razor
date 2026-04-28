@@ -1,10 +1,12 @@
 ﻿<!DOCTYPE html>
-<html lang="en">
+<html lang="de">
 
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <base href="/" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#0d6efd" />
     <link rel="stylesheet" href="@Assets["lib/bootstrap/dist/css/bootstrap.min.css"]" />
     <link rel="stylesheet" href="@Assets["app.css"]" />
     <link rel="stylesheet" href="@Assets["Sheetstorm.Web.styles.css"]" />
@@ -15,7 +17,37 @@
 
 <body>
     <Routes />
+    <div id="online-status" data-testid="online-indicator" class="online-indicator d-none"></div>
     <script src="@Assets["_framework/blazor.web.js"]"></script>
+    <script>
+        // Service Worker registrieren (nur HTTPS / localhost)
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js').catch(err => console.warn('SW Registrierung fehlgeschlagen:', err));
+            });
+        }
+        // Online/Offline-Indikator
+        function updateOnlineStatus() {
+            const el = document.getElementById('online-status');
+            if (!el) return;
+            if (navigator.onLine) {
+                el.classList.add('d-none');
+                el.textContent = '';
+                el.dataset.online = 'true';
+            } else {
+                el.classList.remove('d-none');
+                el.textContent = '⚡ Offline — gecachte Stimmen verfügbar';
+                el.dataset.online = 'false';
+            }
+        }
+        window.addEventListener('online', updateOnlineStatus);
+        window.addEventListener('offline', updateOnlineStatus);
+        document.addEventListener('DOMContentLoaded', updateOnlineStatus);
+        // Trigger Service-Worker-Sync wenn wieder online
+        window.addEventListener('online', () => {
+            navigator.serviceWorker?.controller?.postMessage('sync-offline');
+        });
+    </script>
 </body>
 
 </html>

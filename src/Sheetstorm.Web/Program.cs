@@ -16,7 +16,14 @@ var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
 
 // PostgreSQL via Aspire — connection name "sheetstormdb" matches AppHost.cs
-builder.AddNpgsqlDbContext<SheetstormDbContext>("sheetstormdb");
+builder.AddNpgsqlDbContext<SheetstormDbContext>("sheetstormdb", configureDbContextOptions: opt =>
+{
+    // In Dev: PendingModelChanges-Warning ignorieren (zb wenn Snapshot von alter Session im DB-Volume liegt)
+    if (builder.Environment.IsDevelopment())
+    {
+        opt.ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+    }
+});
 
 // Identity
 builder.Services.AddCascadingAuthenticationState();
@@ -67,6 +74,7 @@ builder.Services.AddScoped<PieceService>();
 builder.Services.AddScoped<EventService>();
 builder.Services.AddScoped<SetListService>();
 builder.Services.AddScoped<ConductorSyncService>();
+builder.Services.AddScoped<OfflineService>();
 builder.Services.AddSingleton<LocalFileStore>();
 
 builder.Services.AddSignalR();
@@ -140,6 +148,32 @@ app.MapGet("/files/parts/{partId:guid}/{fileId:guid}", async (
 
 // SignalR Hub
 app.MapHub<Sheetstorm.Web.Hubs.ConductorSyncHub>("/hubs/conductor-sync").RequireAuthorization();
+
+// Offline-API für Service Worker
+app.MapGet("/api/offline/urls", async (
+    System.Security.Claims.ClaimsPrincipal user,
+    Microsoft.AspNetCore.Identity.UserManager<Sheetstorm.Infrastructure.Persistence.ApplicationUser> userManager,
+    Sheetstorm.Web.Application.OfflineService svc,
+    CancellationToken ct) =>
+{
+    var u = await userManager.GetUserAsync(user);
+    if (u is null) return Results.Unauthorized();
+    var list = await svc.GetUrlsToCacheAsync(u.Id, ct);
+    return Results.Ok(list);
+}).RequireAuthorization();
+
+app.MapPost("/api/offline/{pieceId:guid}/toggle", async (
+    Guid pieceId, bool offline,
+    System.Security.Claims.ClaimsPrincipal user,
+    Microsoft.AspNetCore.Identity.UserManager<Sheetstorm.Infrastructure.Persistence.ApplicationUser> userManager,
+    Sheetstorm.Web.Application.OfflineService svc,
+    CancellationToken ct) =>
+{
+    var u = await userManager.GetUserAsync(user);
+    if (u is null) return Results.Unauthorized();
+    await svc.SetAsync(u.Id, pieceId, offline, ct);
+    return Results.NoContent();
+}).RequireAuthorization();
 
 app.MapDefaultEndpoints();
 

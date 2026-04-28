@@ -4,6 +4,7 @@
 @inject UserManager<ApplicationUser> UserManager
 @inject SheetstormDbContext Db
 @inject PieceService PieceService
+@inject OfflineService OfflineService
 @inject AuthenticationStateProvider AuthState
 @inject NavigationManager Navigation
 
@@ -26,8 +27,19 @@
 else
 {
     <p><a href="/Bands/@slug/pieces" data-testid="piece-back">← Zurück</a></p>
-    <h1 data-testid="piece-title">@piece.Title</h1>
+    <h1 data-testid="piece-detail-title">@piece.Title</h1>
     @if (!string.IsNullOrEmpty(piece.Composer)) { <p class="text-muted" data-testid="piece-composer">@piece.Composer</p> }
+
+    <EditForm Model="OfflineInput" OnValidSubmit="ToggleOfflineAsync" FormName="toggle-offline" class="mb-3">
+        <input type="hidden" name="OfflineInput.Target" value="@(isOffline ? "off" : "on")" />
+        <button type="submit" class="btn btn-sm @(isOffline ? "btn-success" : "btn-outline-secondary")" data-testid="offline-toggle">
+            @(isOffline ? "✓ Offline verfügbar" : "📥 Offline verfügbar machen")
+        </button>
+        @if (isOffline)
+        {
+            <small class="text-muted ms-2" data-testid="offline-hint">PDFs werden lokal gecacht.</small>
+        }
+    </EditForm>
 
     <h2>Stimmen</h2>
 
@@ -139,10 +151,16 @@ else
     [SupplyParameterFromForm(FormName = "add-part", Name = "UploadedFile")]
     private IFormFile? UploadedFile { get; set; }
 
+    [SupplyParameterFromForm(FormName = "toggle-offline")]
+    private OfflineInputModel? OfflineInput { get; set; }
+
+    private bool isOffline;
+
     protected override async Task OnInitializedAsync()
     {
         SelectInput ??= new();
         AddPartInput ??= new();
+        OfflineInput ??= new();
 
         var auth = await AuthState.GetAuthenticationStateAsync();
         var u = await UserManager.GetUserAsync(auth.User);
@@ -160,8 +178,16 @@ else
         piece = await PieceService.GetAsync(pieceId);
         if (piece is null || piece.BandId != bandId) { Navigation.NavigateTo($"/Bands/{slug}/pieces"); return; }
 
+        isOffline = await OfflineService.IsMarkedAsync(currentUserId, pieceId);
         instruments = await Db.Instruments.OrderBy(i => i.Family).ThenBy(i => i.Name).ToListAsync();
         await ReloadPartsAsync();
+    }
+
+    private async Task ToggleOfflineAsync()
+    {
+        var newState = OfflineInput?.Target == "on";
+        await OfflineService.SetAsync(currentUserId, pieceId, newState);
+        isOffline = newState;
     }
 
     private async Task ReloadPartsAsync()
@@ -220,4 +246,5 @@ else
         public string InstrumentKey { get; set; } = "";
         public string DisplayName { get; set; } = "";
     }
+    private sealed class OfflineInputModel { public string Target { get; set; } = "on"; }
 }

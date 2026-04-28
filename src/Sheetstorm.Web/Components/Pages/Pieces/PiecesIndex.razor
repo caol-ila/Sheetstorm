@@ -4,6 +4,7 @@
 @inject UserManager<ApplicationUser> UserManager
 @inject SheetstormDbContext Db
 @inject PieceService PieceService
+@inject OfflineService OfflineService
 @inject AuthenticationStateProvider AuthState
 @inject NavigationManager Navigation
 
@@ -94,6 +95,7 @@ else
                             @if (p.Difficulty is not null) { <span class="badge bg-info me-1">Schwierigkeit @p.Difficulty</span> }
                             <span class="badge bg-light text-dark me-1">@p.PartsCount Stimme(n)</span>
                             @if (p.HasMyPart) { <span class="badge bg-success" data-testid="badge-mypart">Meine Stimme</span> }
+                            @if (offlinePieces.Contains(p.Id)) { <span class="badge bg-warning text-dark ms-1" data-testid="badge-offline">📥 Offline</span> }
                         </div>
                     </div>
                 </a>
@@ -110,6 +112,7 @@ else
     private Guid currentUserId;
     private List<PieceListItem> pieces = new();
     private List<string> genres = new();
+    private HashSet<Guid> offlinePieces = new();
 
     [SupplyParameterFromForm(FormName = "filter")]
     private FilterInputModel? FilterInput { get; set; }
@@ -143,6 +146,7 @@ else
         pieces = await PieceService.SearchAsync(band.Id, currentUserId,
             FilterInput!.Query, string.IsNullOrEmpty(FilterInput.Genre) ? null : FilterInput.Genre,
             null, null, FilterInput.OnlyMyPart);
+        offlinePieces = await OfflineService.GetMarkedPiecesAsync(currentUserId);
     }
 
     private Task ApplyFilterAsync() => LoadAsync();

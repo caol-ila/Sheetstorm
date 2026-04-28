@@ -20,6 +20,7 @@ public sealed class SheetstormDbContext(DbContextOptions<SheetstormDbContext> op
     public DbSet<Piece> Pieces => Set<Piece>();
     public DbSet<Part> Parts => Set<Part>();
     public DbSet<PartFile> PartFiles => Set<PartFile>();
+    public DbSet<OfflineWish> OfflineWishes => Set<OfflineWish>();
     public DbSet<Event> Events => Set<Event>();
     public DbSet<EventAttendance> EventAttendances => Set<EventAttendance>();
     public DbSet<SetList> SetLists => Set<SetList>();
@@ -181,6 +182,13 @@ public sealed class SheetstormDbContext(DbContextOptions<SheetstormDbContext> op
             e.Property(x => x.CurrentPieceTitle).HasMaxLength(300);
             e.HasOne(x => x.Event).WithMany().HasForeignKey(x => x.EventId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(x => x.EventId);
+        });
+
+        b.Entity<OfflineWish>(e =>
+        {
+            e.ToTable("OfflineWishes");
+            e.HasIndex(x => new { x.UserId, x.PieceId }).IsUnique();
+            e.HasIndex(x => x.UserId);
         });
     }
 }

@@ -41,7 +41,7 @@ test.describe('Iteration 2 — Notenmanagement', () => {
     await page.getByTestId('newpiece-submit').click();
 
     // Detail-Seite
-    await expect(page.getByTestId('piece-title')).toHaveText('Marsch der Bayrischen Volkspartei');
+    await expect(page.getByTestId('piece-detail-title')).toHaveText('Marsch der Bayrischen Volkspartei');
     await expect(page.getByTestId('piece-composer')).toHaveText('Anonym');
     await expect(page.getByTestId('parts-empty')).toBeVisible();
 
