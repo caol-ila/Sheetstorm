@@ -9,6 +9,7 @@
 @inject PieceService PieceService
 @inject AuthenticationStateProvider AuthState
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 @implements IDisposable
 
 @using Microsoft.AspNetCore.Authorization
@@ -44,6 +45,14 @@ else
                 else
                 {
                     <p class="text-success" data-testid="session-active">Session aktiv</p>
+                    @if (cryptoStatus is not null)
+                    {
+                        <p class="small text-muted" data-testid="crypto-status">@cryptoStatus</p>
+                    }
+                    @if (sessionState.PublicKeyBase64 is not null)
+                    {
+                        <p class="small" data-testid="crypto-pubkey">Public Key (Base64): <code>@sessionState.PublicKeyBase64</code></p>
+                    }
                     @if (setListItems.Count == 0)
                     {
                         <p>Keine Setlist verknüpft.</p>
@@ -85,6 +94,10 @@ else
                 <div class="alert alert-info" data-testid="now-playing">
                     Dirigent öffnet: <strong data-testid="now-playing-title">@sessionState.CurrentPieceTitle</strong>
                 </div>
+                @if (sessionState.PublicKeyBase64 is not null)
+                {
+                    <p class="small text-success" data-testid="follower-crypto-info">🔒 Diese Session ist signiert. Counter: @sessionState.CurrentCounter</p>
+                }
                 @if (myPart is not null)
                 {
                     <p>Deine Stimme: <strong data-testid="follower-part-name">@myPart.DisplayName</strong>@(myPart.IsPreferredForUser ? " (bevorzugt)" : "")</p>
@@ -130,6 +143,8 @@ else
     private PartViewItem? myPart;
     private System.Threading.Timer? pollTimer;
     private Guid? lastShownPieceId;
+    private string? cryptoStatus;
+    private SignedPayload? lastSignature;
 
     protected override async Task OnInitializedAsync()
     {
@@ -180,12 +195,50 @@ else
 
     private async Task StartSessionAsync()
     {
-        sessionState = await SyncService.StartAsync(eventId, currentUserId);
+        // Ed25519-Schlüsselpaar im Browser erzeugen, Public-Key an Server senden.
+        // Privat-Key bleibt in IndexedDB (nicht-exportierbar wenn moeglich).
+        string? publicKey = null;
+        try
+        {
+            var available = await JS.InvokeAsync<bool>("__sheetstormSync.ed25519Available");
+            if (available)
+            {
+                publicKey = await JS.InvokeAsync<string>("__sheetstormSync.createConductorKey", eventId.ToString());
+                cryptoStatus = "✅ Ed25519-Schlüsselpaar erzeugt — Mitglieder können Broadcasts authentisch verifizieren.";
+            }
+            else
+            {
+                cryptoStatus = "⚠ Ed25519 in diesem Browser nicht verfügbar — nur Server-Sync aktiv.";
+            }
+        }
+        catch (Exception ex)
+        {
+            cryptoStatus = $"⚠ Crypto-Init fehlgeschlagen: {ex.Message}";
+        }
+
+        sessionState = await SyncService.StartAsync(eventId, currentUserId, publicKey);
     }
 
     private async Task OpenPieceAsync(Guid pieceId, string title)
     {
-        sessionState = await SyncService.OpenPieceAsync(eventId, pieceId, title);
+        var newCounter = (sessionState?.CurrentCounter ?? 0) + 1;
+        // Wenn Crypto verfügbar: Payload signieren (für späteren BLE-Broadcast).
+        // Server speichert die Signatur derzeit nicht; sie ist nur für die BLE-Schicht relevant.
+        try
+        {
+            if (sessionState?.PublicKeyBase64 is not null)
+            {
+                lastSignature = await JS.InvokeAsync<SignedPayload>(
+                    "__sheetstormSync.signOpenPiece",
+                    eventId.ToString(), pieceId.ToString(), newCounter);
+            }
+        }
+        catch
+        {
+            lastSignature = null;
+        }
+
+        sessionState = await SyncService.OpenPieceAsync(eventId, pieceId, title, newCounter);
         if (sessionState?.CurrentPieceId is not null)
         {
             allParts = await PieceService.GetSortedPartsForUserAsync(pieceId, bandId, currentUserId);
@@ -193,6 +246,8 @@ else
             lastShownPieceId = pieceId;
         }
     }
+
+    public sealed record SignedPayload(string Payload, string Signature);
 
     private void OnPartPickedAsync(ChangeEventArgs args)
     {

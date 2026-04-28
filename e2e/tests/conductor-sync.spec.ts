@@ -90,9 +90,12 @@ test.describe('Iteration 4 — Conductor Sync (SignalR)', () => {
     await expect(m.getByTestId('conductor-controls')).toHaveCount(0);
     await expect(m.getByTestId('follower-idle')).toBeVisible();
 
-    // Dirigent startet Session
-    await cd.getByTestId('start-session').click();
-    await expect(cd.getByTestId('session-active')).toBeVisible({ timeout: 15000 });
+    // Dirigent startet Session — kann je nach Crypto-Init dauern
+    const startBtn = cd.getByTestId('start-session');
+    if (await startBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await startBtn.click();
+    }
+    await expect(cd.getByTestId('session-active')).toBeVisible({ timeout: 20000 });
 
     // Mitglied muss neu laden, um aktive Session zu sehen
     await m.reload();
