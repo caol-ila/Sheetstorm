@@ -81,6 +81,7 @@ builder.Services.AddScoped<AnnotationService>();
 builder.Services.AddScoped<ShiftService>();
 builder.Services.AddScoped<EventOrgaService>();
 builder.Services.AddScoped<PollService>();
+builder.Services.AddScoped<PdfPageImageService>();
 builder.Services.AddScoped<PushNotificationService>();
 
 // OMR-Engine: wenn Audiveris-URL konfiguriert -> echter Adapter, sonst Stub

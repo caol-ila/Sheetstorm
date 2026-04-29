@@ -50,7 +50,7 @@ public sealed class PollService(SheetstormDbContext db)
         foreach (var label in initialOptions.Where(s => !string.IsNullOrWhiteSpace(s)))
         {
             DateTimeOffset? dt = null;
-            if (kind == PollKind.DateFinder && DateTimeOffset.TryParse(label, out var parsed)) dt = parsed;
+            if (kind == PollKind.DateFinder && DateTimeOffset.TryParse(label, out var parsed)) dt = parsed.ToUniversalTime();
             db.PollOptions.Add(PollOption.Create(poll.Id, label.Trim(), i++, dt));
         }
         await db.SaveChangesAsync(ct);

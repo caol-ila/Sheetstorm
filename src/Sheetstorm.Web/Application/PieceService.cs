@@ -9,7 +9,7 @@ namespace Sheetstorm.Web.Application;
 public sealed record PieceListItem(Guid Id, string Title, string? Composer, int? Difficulty, string? Genre, int PartsCount, bool HasMyPart);
 
 public sealed record PartViewItem(Guid Id, Guid InstrumentId, string DisplayName, string? Transposition, string Family, bool IsPreferredForUser, IReadOnlyList<PartFileViewItem> Files);
-public sealed record PartFileViewItem(Guid Id, PartFileKind Kind, string OriginalFileName, long SizeBytes);
+public sealed record PartFileViewItem(Guid Id, PartFileKind Kind, string OriginalFileName, long SizeBytes, int? PageNumber = null);
 
 public sealed class PieceService(SheetstormDbContext db, LocalFileStore store)
 {
@@ -130,7 +130,7 @@ public sealed class PieceService(SheetstormDbContext db, LocalFileStore store)
                 p.Id, p.InstrumentId, p.DisplayName, p.Transposition,
                 p.Instrument.Family.ToString(),
                 preferredInstrumentIds.Contains(p.InstrumentId),
-                p.Files.Select(f => new PartFileViewItem(f.Id, f.Kind, f.OriginalFileName, f.SizeBytes)).ToList()))
+                p.Files.Select(f => new PartFileViewItem(f.Id, f.Kind, f.OriginalFileName, f.SizeBytes, f.PageNumber)).ToList()))
             .OrderByDescending(p => p.IsPreferredForUser)
             .ThenByDescending(p => alternativeInstrumentIds.Contains(p.InstrumentId))
             .ThenBy(p => p.Family)

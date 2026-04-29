@@ -5,6 +5,7 @@
 @inject UserManager<ApplicationUser> UserManager
 @inject SheetstormDbContext Db
 @inject EventOrgaService Orga
+@inject PollService Polls
 @inject AuthenticationStateProvider AuthState
 @inject NavigationManager Navigation
 
@@ -31,11 +32,11 @@ else
     <p class="text-muted">@ev.StartUtc.ToLocalTime().ToString("dd.MM.yyyy HH:mm") – @ev.EndUtc.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</p>
 
     <div class="ss-tabs mb-3" role="tablist" data-testid="orga-tabs">
-        <a data-testid="tab-days" class="ss-tab @(tab == "days" ? "active" : "")" href="?tab=days">📅 Tage (@days.Count)</a>
-        <a data-testid="tab-stations" class="ss-tab @(tab == "stations" ? "active" : "")" href="?tab=stations">📍 Stationen (@stations.Count)</a>
-        <a data-testid="tab-shifts" class="ss-tab @(tab == "shifts" ? "active" : "")" href="?tab=shifts">⏰ Schichten (@shifts.Count)</a>
-        <a data-testid="tab-contributions" class="ss-tab @(tab == "contributions" ? "active" : "")" href="?tab=contributions">🥗 Bring-Liste (@contributions.Count)</a>
-        <a data-testid="tab-polls" class="ss-tab @(tab == "polls" ? "active" : "")" href="?tab=polls">🗳 Umfragen</a>
+        <button type="button" data-testid="tab-days" class="ss-tab @(tab == "days" ? "active" : "")" @onclick='() => SetTab("days")'>📅 Tage (@days.Count)</button>
+        <button type="button" data-testid="tab-stations" class="ss-tab @(tab == "stations" ? "active" : "")" @onclick='() => SetTab("stations")'>📍 Stationen (@stations.Count)</button>
+        <button type="button" data-testid="tab-shifts" class="ss-tab @(tab == "shifts" ? "active" : "")" @onclick='() => SetTab("shifts")'>⏰ Schichten (@shifts.Count)</button>
+        <button type="button" data-testid="tab-contributions" class="ss-tab @(tab == "contributions" ? "active" : "")" @onclick='() => SetTab("contributions")'>🥗 Bring-Liste (@contributions.Count)</button>
+        <button type="button" data-testid="tab-polls" class="ss-tab @(tab == "polls" ? "active" : "")" @onclick='() => SetTab("polls")'>🗳 Umfragen</button>
     </div>
 
     @if (tab == "days")
@@ -68,11 +69,11 @@ else
         {
             <div class="ss-card mt-3">
                 <h3 class="mt-0">Tag hinzufügen</h3>
-                <EditForm Model="DayInput" OnValidSubmit="AddDayAsync" FormName="add-day">
+                <div data-form="DayInput" data-action="AddDayAsync">
                     <div class="row g-2">
                         <div class="col-md-3">
                             <label class="form-label">Datum</label>
-                            <InputDate @bind-Value="DayInput!.Date" class="form-control" data-testid="day-date" />
+                            <InputDate @bind-Value="DayInput.Date" class="form-control" data-testid="day-date" />
                         </div>
                         <div class="col-md-4">
                             <label class="form-label">Motto (optional)</label>
@@ -87,10 +88,10 @@ else
                             <InputText @bind-Value="DayInput.CloseAt" class="form-control" placeholder="22:00" data-testid="day-close" />
                         </div>
                         <div class="col-md-1 d-flex align-items-end">
-                            <button type="submit" class="ss-btn ss-btn-primary" data-testid="day-add">+</button>
+                            <button type="button" class="ss-btn ss-btn-primary" data-testid="day-add" @onclick="AddDayAsync">+</button>
                         </div>
                     </div>
-                </EditForm>
+                </div>
             </div>
         }
     }
@@ -122,11 +123,11 @@ else
         {
             <div class="ss-card mt-3">
                 <h3 class="mt-0">Station hinzufügen</h3>
-                <EditForm Model="StationInput" OnValidSubmit="AddStationAsync" FormName="add-station">
+                <div data-form="StationInput" data-action="AddStationAsync">
                     <div class="row g-2">
                         <div class="col-md-3">
                             <label class="form-label">Name</label>
-                            <InputText @bind-Value="StationInput!.Name" class="form-control" data-testid="station-name" />
+                            <InputText @bind-Value="StationInput.Name" class="form-control" data-testid="station-name" />
                         </div>
                         <div class="col-md-1">
                             <label class="form-label">Icon</label>
@@ -137,10 +138,10 @@ else
                             <InputText @bind-Value="StationInput.Description" class="form-control" data-testid="station-desc" />
                         </div>
                         <div class="col-md-1 d-flex align-items-end">
-                            <button type="submit" class="ss-btn ss-btn-primary" data-testid="station-add">+</button>
+                            <button type="button" class="ss-btn ss-btn-primary" data-testid="station-add" @onclick="AddStationAsync">+</button>
                         </div>
                     </div>
-                </EditForm>
+                </div>
             </div>
         }
     }
@@ -191,11 +192,11 @@ else
         {
             <div class="ss-card mt-3">
                 <h3 class="mt-0">Schicht hinzufügen</h3>
-                <EditForm Model="ShiftInput" OnValidSubmit="AddShiftAsync" FormName="add-shift">
+                <div data-form="ShiftInput" data-action="AddShiftAsync">
                     <div class="row g-2">
                         <div class="col-md-2">
                             <label class="form-label">Tag</label>
-                            <InputSelect @bind-Value="ShiftInput!.EventDayId" class="form-select" data-testid="shift-day">
+                            <InputSelect @bind-Value="ShiftInput.EventDayId" class="form-select" data-testid="shift-day">
                                 <option value="">— ohne —</option>
                                 @foreach (var d in days)
                                 {
@@ -230,17 +231,17 @@ else
                             <InputNumber @bind-Value="ShiftInput.RequiredCount" class="form-control" data-testid="shift-required" />
                         </div>
                         <div class="col-12">
-                            <button type="submit" class="ss-btn ss-btn-primary mt-2" data-testid="shift-add">Schicht anlegen</button>
+                            <button type="button" class="ss-btn ss-btn-primary mt-2" data-testid="shift-add" @onclick="AddShiftAsync">Schicht anlegen</button>
                         </div>
                     </div>
-                </EditForm>
+                </div>
 
                 <hr/>
                 <h3>Generator (mehrere Slots auf einmal)</h3>
-                <EditForm Model="GenInput" OnValidSubmit="GenerateShiftsAsync" FormName="gen-shifts">
+                <div data-form="GenInput" data-action="GenerateShiftsAsync">
                     <div class="row g-2">
                         <div class="col-md-2">
-                            <InputSelect @bind-Value="GenInput!.EventDayId" class="form-select" data-testid="gen-day">
+                            <InputSelect @bind-Value="GenInput.EventDayId" class="form-select" data-testid="gen-day">
                                 <option value="">— Tag —</option>
                                 @foreach (var d in days) { <option value="@d.Id">@d.Date.ToString("ddd dd.MM.")</option> }
                             </InputSelect>
@@ -267,11 +268,11 @@ else
                             <InputNumber @bind-Value="GenInput.RequiredPerSlot" class="form-control" data-testid="gen-required" />
                         </div>
                         <div class="col-12">
-                            <button type="submit" class="ss-btn ss-btn-primary mt-2" data-testid="gen-submit">@(generatedCount.HasValue ? $"({generatedCount} Slots erzeugt)" : "Generieren")</button>
+                            <button type="button" class="ss-btn ss-btn-primary mt-2" data-testid="gen-submit" @onclick="GenerateShiftsAsync">@(generatedCount.HasValue ? $"({generatedCount} Slots erzeugt)" : "Generieren")</button>
                             <span class="text-muted small ms-2">Beispiel: 10:00 → 18:00, 2h, 2 Slots → 4 Schichten</span>
                         </div>
                     </div>
-                </EditForm>
+                </div>
             </div>
         }
     }
@@ -325,10 +326,16 @@ else
                         }
                         <div class="mt-2 row g-2">
                             <div class="col-md-2">
-                                <input type="number" min="0" max="999" @bind="PledgeQty[c.Id]" class="form-control form-control-sm" data-testid="pledge-quantity" />
+                                <input type="number" min="0" max="999"
+                                       value="@(PledgeQty.GetValueOrDefault(c.Id, myPledge?.Quantity ?? 0))"
+                                       @onchange="@((ChangeEventArgs e) => SetPledgeQty(c.Id, e.Value?.ToString()))"
+                                       class="form-control form-control-sm" data-testid="pledge-quantity" />
                             </div>
                             <div class="col-md-7">
-                                <input type="text" @bind="PledgeWhat[c.Id]" class="form-control form-control-sm" placeholder="z.B. Kartoffelsalat für 6" data-testid="pledge-what" />
+                                <input type="text"
+                                       value="@(PledgeWhat.GetValueOrDefault(c.Id, myPledge?.What ?? string.Empty))"
+                                       @onchange="@((ChangeEventArgs e) => SetPledgeWhat(c.Id, e.Value?.ToString()))"
+                                       class="form-control form-control-sm" placeholder="z.B. Kartoffelsalat für 6" data-testid="pledge-what" />
                             </div>
                             <div class="col-md-3">
                                 <button type="button" class="ss-btn ss-btn-primary ss-btn-sm" data-testid="pledge-submit" @onclick="() => PledgeAsync(c.Id)">Zusagen / Aktualisieren</button>
@@ -342,11 +349,11 @@ else
         {
             <div class="ss-card mt-3">
                 <h3 class="mt-0">Bring-Punkt hinzufügen</h3>
-                <EditForm Model="ContribInput" OnValidSubmit="AddContributionAsync" FormName="add-contrib">
+                <div data-form="ContribInput" data-action="AddContributionAsync">
                     <div class="row g-2">
                         <div class="col-md-3">
                             <label class="form-label">Titel</label>
-                            <InputText @bind-Value="ContribInput!.Title" class="form-control" data-testid="contrib-title" />
+                            <InputText @bind-Value="ContribInput.Title" class="form-control" data-testid="contrib-title" />
                         </div>
                         <div class="col-md-2">
                             <label class="form-label">Wunsch (Anzahl)</label>
@@ -366,10 +373,10 @@ else
                             <InputText @bind-Value="ContribInput.Description" class="form-control" data-testid="contrib-desc" />
                         </div>
                         <div class="col-md-1 d-flex align-items-end">
-                            <button type="submit" class="ss-btn ss-btn-primary" data-testid="contrib-add">+</button>
+                            <button type="button" class="ss-btn ss-btn-primary" data-testid="contrib-add" @onclick="AddContributionAsync">+</button>
                         </div>
                     </div>
-                </EditForm>
+                </div>
             </div>
         }
     }
@@ -401,37 +408,35 @@ else
         {
             <div class="ss-card mt-3">
                 <h3 class="mt-0">Neue Umfrage</h3>
-                <EditForm Model="PollInput" OnValidSubmit="CreatePollAsync" FormName="create-poll">
-                    <div class="row g-2">
-                        <div class="col-md-2">
-                            <label class="form-label">Typ</label>
-                            <InputSelect @bind-Value="PollInput!.Kind" class="form-select" data-testid="poll-kind">
-                                <option value="@PollKind.DateFinder">Datums-Findung</option>
-                                <option value="@PollKind.Vote">Abstimmung</option>
-                                <option value="@PollKind.DemandSurvey">Bedarfs-Umfrage</option>
-                            </InputSelect>
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Titel</label>
-                            <InputText @bind-Value="PollInput.Title" class="form-control" data-testid="poll-title" />
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Optionen (eine pro Zeile, bei DateFinder ISO-Datum)</label>
-                            <InputTextArea @bind-Value="PollInput.OptionsText" class="form-control" rows="3" data-testid="poll-options" />
-                        </div>
-                        <div class="col-md-12">
-                            <label class="form-check-label">
-                                <InputCheckbox @bind-Value="PollInput.AllowMultiple" data-testid="poll-multiple" /> Mehrfach-Auswahl erlauben
-                            </label>
-                            <label class="form-check-label ms-3">
-                                <InputCheckbox @bind-Value="PollInput.AnonymousResults" data-testid="poll-anon" /> Antworten anonym (nur Owner sieht Details)
-                            </label>
-                        </div>
-                        <div class="col-12">
-                            <button type="submit" class="ss-btn ss-btn-primary mt-2" data-testid="poll-create">Umfrage anlegen</button>
-                        </div>
+                <div class="row g-2">
+                    <div class="col-md-2">
+                        <label class="form-label">Typ</label>
+                        <InputSelect @bind-Value="PollInput.Kind" class="form-select" data-testid="poll-kind">
+                            <option value="@PollKind.DateFinder">Datums-Findung</option>
+                            <option value="@PollKind.Vote">Abstimmung</option>
+                            <option value="@PollKind.DemandSurvey">Bedarfs-Umfrage</option>
+                        </InputSelect>
                     </div>
-                </EditForm>
+                    <div class="col-md-4">
+                        <label class="form-label">Titel</label>
+                        <InputText @bind-Value="PollInput.Title" class="form-control" data-testid="poll-title" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Optionen (eine pro Zeile, bei DateFinder ISO-Datum)</label>
+                        <InputTextArea @bind-Value="PollInput.OptionsText" class="form-control" rows="3" data-testid="poll-options" />
+                    </div>
+                    <div class="col-md-12">
+                        <label class="form-check-label">
+                            <InputCheckbox @bind-Value="PollInput.AllowMultiple" data-testid="poll-multiple" /> Mehrfach-Auswahl erlauben
+                        </label>
+                        <label class="form-check-label ms-3">
+                            <InputCheckbox @bind-Value="PollInput.AnonymousResults" data-testid="poll-anon" /> Antworten anonym (nur Owner sieht Details)
+                        </label>
+                    </div>
+                    <div class="col-12">
+                        <button type="button" class="ss-btn ss-btn-primary mt-2" data-testid="poll-create" @onclick="CreatePollAsync">Umfrage anlegen</button>
+                    </div>
+                </div>
             </div>
         }
     }
@@ -456,13 +461,12 @@ else
     private Dictionary<Guid, int> PledgeQty = new();
     private Dictionary<Guid, string> PledgeWhat = new();
 
-    [SupplyParameterFromForm(FormName = "add-day")] private DayInputModel? DayInput { get; set; }
-    [SupplyParameterFromForm(FormName = "add-station")] private StationInputModel? StationInput { get; set; }
-    [SupplyParameterFromForm(FormName = "add-shift")] private ShiftInputModel? ShiftInput { get; set; }
-    [SupplyParameterFromForm(FormName = "gen-shifts")] private GenInputModel? GenInput { get; set; }
-    [SupplyParameterFromForm(FormName = "add-contrib")] private ContribInputModel? ContribInput { get; set; }
-    [SupplyParameterFromForm(FormName = "create-poll")] private PollInputModel? PollInput { get; set; }
-    [SupplyParameterFromForm] private Dictionary<Guid, PledgeFormModel>? PledgeInputs { get; set; }
+    private DayInputModel DayInput = new();
+    private StationInputModel StationInput = new();
+    private ShiftInputModel ShiftInput = new();
+    private GenInputModel GenInput = new();
+    private ContribInputModel ContribInput = new();
+    private PollInputModel PollInput = new();
 
     public class DayInputModel { public DateTime Date { get; set; } = DateTime.Today; public string? Theme { get; set; } public string? OpenAt { get; set; } public string? CloseAt { get; set; } }
     public class StationInputModel { public string Name { get; set; } = ""; public string? Description { get; set; } public string? IconKey { get; set; } }
@@ -470,7 +474,6 @@ else
     public class GenInputModel { public string TitlePattern { get; set; } = "{start}-{end}"; public string StartLocal { get; set; } = ""; public string EndLocal { get; set; } = ""; public double DurationHours { get; set; } = 2; public int RequiredPerSlot { get; set; } = 2; public Guid? StationId { get; set; } public Guid? EventDayId { get; set; } }
     public class ContribInputModel { public string Title { get; set; } = ""; public string? Description { get; set; } public ContributionUnit Unit { get; set; } = ContributionUnit.Item; public int? Wanted { get; set; } }
     public class PollInputModel { public PollKind Kind { get; set; } = PollKind.Vote; public string Title { get; set; } = ""; public string OptionsText { get; set; } = ""; public bool AllowMultiple { get; set; } public bool AnonymousResults { get; set; } }
-    public class PledgeFormModel { public int Quantity { get; set; } public string? What { get; set; } }
 
     protected override async Task OnInitializedAsync()
     {
@@ -486,13 +489,6 @@ else
 
         var membership = await Db.Memberships.FirstOrDefaultAsync(m => m.BandId == band.Id && m.UserId == currentUserId);
         canEdit = membership is not null && (membership.Roles.HasFlag(BandRole.Admin) || membership.Roles.HasFlag(BandRole.Dirigent) || membership.Roles.HasFlag(BandRole.Owner));
-
-        DayInput ??= new DayInputModel();
-        StationInput ??= new StationInputModel();
-        ShiftInput ??= new ShiftInputModel();
-        GenInput ??= new GenInputModel();
-        ContribInput ??= new ContribInputModel();
-        PollInput ??= new PollInputModel();
         if (string.IsNullOrEmpty(tab)) tab = "shifts";
 
         await ReloadAsync();
@@ -504,7 +500,7 @@ else
         stations = await Orga.GetStationsAsync(eventId);
         shifts = await Orga.GetShiftsAsync(eventId, currentUserId);
         contributions = await Orga.GetContributionsAsync(eventId);
-        var polls = await new PollService(Db).GetForEventAsync(eventId);
+        var polls = await Polls.GetForEventAsync(eventId);
         this.polls = polls;
     }
 
@@ -565,18 +561,30 @@ else
     private async Task DeleteContributionAsync(Guid id) { await Orga.DeleteContributionAsync(id); await ReloadAsync(); }
     private async Task PledgeAsync(Guid contributionId)
     {
-        if (PledgeInputs is null || !PledgeInputs.TryGetValue(contributionId, out var p)) return;
-        await Orga.PledgeAsync(contributionId, currentUserId, p.Quantity, p.What);
+        var qty = PledgeQty.GetValueOrDefault(contributionId, 0);
+        var what = PledgeWhat.GetValueOrDefault(contributionId);
+        await Orga.PledgeAsync(contributionId, currentUserId, qty, what);
         await ReloadAsync();
     }
 
+    private void SetPledgeQty(Guid id, string? raw)
+    {
+        if (int.TryParse(raw, out var v)) PledgeQty[id] = v;
+    }
+    private void SetPledgeWhat(Guid id, string? raw) => PledgeWhat[id] = raw ?? string.Empty;
+
     private async Task CreatePollAsync()
     {
-        if (PollInput is null || string.IsNullOrWhiteSpace(PollInput.Title)) return;
+        Console.WriteLine($"[POLL] CreatePollAsync title='{PollInput.Title}' kind={PollInput.Kind} options='{PollInput.OptionsText}'");
+        if (string.IsNullOrWhiteSpace(PollInput.Title)) return;
         var options = PollInput.OptionsText.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        var svc = new PollService(Db);
-        await svc.CreateAsync(PollInput.Kind, PollInput.Title, currentUserId, eventId, null, null, null, PollInput.AllowMultiple, PollInput.AnonymousResults, options);
+        await Polls.CreateAsync(PollInput.Kind, PollInput.Title, currentUserId, eventId, null, null, null, PollInput.AllowMultiple, PollInput.AnonymousResults, options);
         PollInput = new PollInputModel();
         await ReloadAsync();
     }
+
+    private void SetTab(string t) { tab = t; StateHasChanged(); }
 }
+
+
+

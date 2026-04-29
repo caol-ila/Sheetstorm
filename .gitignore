@@ -34,3 +34,4 @@ sheetstorm_app/.flutter-plugins-dependencies
 src/.filestore/
 .filestore/
 
+docker/audiveris/.image-hash

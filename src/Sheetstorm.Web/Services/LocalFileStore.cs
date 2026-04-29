@@ -7,7 +7,7 @@ namespace Sheetstorm.Web.Services;
 /// </summary>
 public sealed class LocalFileStore(IConfiguration config, ILogger<LocalFileStore> log)
 {
-    private string Root => Path.GetFullPath(config["FileStore:Root"] ?? Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".filestore"));
+    public string Root => Path.GetFullPath(config["FileStore:Root"] ?? Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".filestore"));
 
     public async Task<string> SaveAsync(Stream content, string subfolder, string fileName, CancellationToken ct = default)
     {

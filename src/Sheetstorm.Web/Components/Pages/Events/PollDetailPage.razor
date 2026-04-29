@@ -1,6 +1,7 @@
 @page "/Bands/{slug}/events/{eventId:guid}/orga/polls/{pollId:guid}"
 @layout MainLayout
 @attribute [Authorize]
+@rendermode InteractiveServer
 @inject UserManager<ApplicationUser> UserManager
 @inject SheetstormDbContext Db
 @inject PollService Polls
@@ -60,18 +61,9 @@ else
                     <td class="text-center"><span class="badge bg-warning text-dark">@o.Maybe</span></td>
                     <td class="text-center"><span class="badge bg-danger">@o.No</span></td>
                     <td>
-                        <form method="post" @formname='$"vote-{o.Id}-yes"' @onsubmit="() => RespondAsync(o.Id, PollAnswer.Yes)" data-enhance class="d-inline">
-                            <AntiforgeryToken />
-                            <button class="ss-btn ss-btn-sm @(my?.Answer == PollAnswer.Yes ? "ss-btn-success" : "ss-btn-secondary")" data-testid="vote-yes">Ja</button>
-                        </form>
-                        <form method="post" @formname='$"vote-{o.Id}-maybe"' @onsubmit="() => RespondAsync(o.Id, PollAnswer.Maybe)" data-enhance class="d-inline">
-                            <AntiforgeryToken />
-                            <button class="ss-btn ss-btn-sm @(my?.Answer == PollAnswer.Maybe ? "ss-btn-warning" : "ss-btn-secondary")" data-testid="vote-maybe">?</button>
-                        </form>
-                        <form method="post" @formname='$"vote-{o.Id}-no"' @onsubmit="() => RespondAsync(o.Id, PollAnswer.No)" data-enhance class="d-inline">
-                            <AntiforgeryToken />
-                            <button class="ss-btn ss-btn-sm @(my?.Answer == PollAnswer.No ? "ss-btn-danger" : "ss-btn-secondary")" data-testid="vote-no">Nein</button>
-                        </form>
+                        <button type="button" class="ss-btn ss-btn-sm @(my?.Answer == PollAnswer.Yes ? "ss-btn-success" : "ss-btn-secondary")" data-testid="vote-yes" @onclick="() => RespondAsync(o.Id, PollAnswer.Yes)">Ja</button>
+                        <button type="button" class="ss-btn ss-btn-sm @(my?.Answer == PollAnswer.Maybe ? "ss-btn-warning" : "ss-btn-secondary")" data-testid="vote-maybe" @onclick="() => RespondAsync(o.Id, PollAnswer.Maybe)">?</button>
+                        <button type="button" class="ss-btn ss-btn-sm @(my?.Answer == PollAnswer.No ? "ss-btn-danger" : "ss-btn-secondary")" data-testid="vote-no" @onclick="() => RespondAsync(o.Id, PollAnswer.No)">Nein</button>
                     </td>
                 </tr>
             }
@@ -91,10 +83,7 @@ else
                     <div><strong>@o.Label</strong></div>
                     <div>
                         <span class="text-muted small me-2">@o.Yes Stimme(n) · @pct %</span>
-                        <form method="post" @formname='$"vote-{o.Id}"' @onsubmit="() => RespondAsync(o.Id, PollAnswer.Yes)" data-enhance class="d-inline">
-                            <AntiforgeryToken />
-                            <button class="ss-btn ss-btn-sm @(my is not null ? "ss-btn-success" : "ss-btn-primary")" data-testid="vote-pick">@(my is not null ? "✓ deine Wahl" : "Wählen")</button>
-                        </form>
+                        <button type="button" class="ss-btn ss-btn-sm @(my is not null ? "ss-btn-success" : "ss-btn-primary")" data-testid="vote-pick" @onclick="() => RespondAsync(o.Id, PollAnswer.Yes)">@(my is not null ? "✓ deine Wahl" : "Wählen")</button>
                     </div>
                 </div>
                 <div class="progress mt-2" style="height: 6px;"><div class="progress-bar" style="width: @(pct)%"></div></div>

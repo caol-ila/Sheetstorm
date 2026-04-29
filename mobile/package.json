@@ -1,0 +1,28 @@
+{
+  "name": "sheetstorm-mobile",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Capacitor-Wrapper für die Sheetstorm-Web-App (iOS / Android)",
+  "scripts": {
+    "build:www": "node scripts/build-www.mjs",
+    "sync": "npm run build:www && cap sync",
+    "android:open": "cap open android",
+    "android:run": "cap run android",
+    "ios:open": "cap open ios",
+    "ios:run": "cap run ios"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.1.0",
+    "@capacitor/app": "^6.0.0",
+    "@capacitor/core": "^6.1.0",
+    "@capacitor/ios": "^6.1.0",
+    "@capacitor/network": "^6.0.0",
+    "@capacitor/preferences": "^6.0.0",
+    "@capacitor/push-notifications": "^6.0.0",
+    "@capacitor-community/bluetooth-le": "^7.1.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.1.0",
+    "typescript": "^5.4.0"
+  }
+}

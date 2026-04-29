@@ -44,6 +44,7 @@ public enum PartFileKind
     MusicXml = 1,
     Mp3 = 2,
     Midi = 3,
+    PageImage = 4,
 }
 
 public sealed class PartFile
@@ -54,12 +55,13 @@ public sealed class PartFile
     public string BlobKey { get; private set; } = default!;
     public string OriginalFileName { get; private set; } = default!;
     public int? Pages { get; private set; }
+    public int? PageNumber { get; private set; }
     public long SizeBytes { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; } = DateTimeOffset.UtcNow;
 
     private PartFile() { }
 
-    public static PartFile Create(Guid partId, PartFileKind kind, string blobKey, string originalFileName, long sizeBytes, int? pages = null)
+    public static PartFile Create(Guid partId, PartFileKind kind, string blobKey, string originalFileName, long sizeBytes, int? pages = null, int? pageNumber = null)
         => new()
         {
             PartId = partId,
@@ -68,5 +70,6 @@ public sealed class PartFile
             OriginalFileName = originalFileName,
             SizeBytes = sizeBytes,
             Pages = pages,
+            PageNumber = pageNumber,
         };
 }
