@@ -1,0 +1,408 @@
+@inject IJSRuntime JS
+@inject Sheetstorm.Web.Application.PdfPageImageService PageImagesService
+@inject Sheetstorm.Web.Application.PieceService PieceService
+@inject Sheetstorm.Web.Application.OmrService OmrService
+@inject Sheetstorm.Web.Application.IOmrEngine OmrEngine
+@inject IServiceScopeFactory ScopeFactory
+@inject ILoggerFactory LoggerFactory
+@implements IAsyncDisposable
+
+@using Sheetstorm.Domain.Music
+@using Sheetstorm.Web.Application
+
+@if (Part is null)
+{
+    <p data-testid="viewer-no-part">Keine Stimme gewählt.</p>
+}
+else if (Part.Files.Count == 0)
+{
+    <div class="ss-empty" data-testid="viewer-no-files">
+        <div class="ss-empty-icon">📄</div>
+        <div class="ss-empty-title">Keine Datei für diese Stimme.</div>
+    </div>
+}
+else
+{
+    <div class="ss-viewer-toolbar mb-2 d-flex flex-wrap gap-2 align-items-center" data-testid="viewer-toolbar">
+        <div class="btn-group btn-group-sm" role="group" aria-label="Anzeige-Modus">
+            @if (HasMusicXml)
+            {
+                <button type="button" class="btn @(viewMode == "score" ? "btn-primary" : "btn-outline-primary")"
+                        @onclick='() => SetMode("score")' data-testid="viewer-mode-score" title="Gesetzte Noten (MusicXML/OSMD)">🎼 Noten</button>
+            }
+            <button type="button" class="btn @(viewMode == "image" ? "btn-primary" : "btn-outline-primary")"
+                    @onclick='() => SetMode("image")' data-testid="viewer-mode-image" title="Seitenbilder aus PDF">🖼 Bild</button>
+        </div>
+        @if (CanEdit)
+        {
+            <select class="form-select form-select-sm" style="width:auto" @onchange="OnViewPrefChanged" data-testid="viewer-pref">
+                <option value="@ViewModePreference.Auto" selected="@(Part?.ViewMode == ViewModePreference.Auto)">Auto (Score → Bild)</option>
+                <option value="@ViewModePreference.Score" selected="@(Part?.ViewMode == ViewModePreference.Score)">Immer Noten</option>
+                <option value="@ViewModePreference.Image" selected="@(Part?.ViewMode == ViewModePreference.Image)">Immer Bilder</option>
+            </select>
+        }
+
+        <div class="btn-group btn-group-sm" role="group" aria-label="Annotation-Werkzeug">
+            <button type="button" class="btn @(tool == "pen" ? "btn-secondary" : "btn-outline-secondary")"
+                    @onclick='() => SetTool("pen")' data-testid="tool-pen" title="Stift (dünn, deckend)">✒ Stift</button>
+            <button type="button" class="btn @(tool == "marker" ? "btn-secondary" : "btn-outline-secondary")"
+                    @onclick='() => SetTool("marker")' data-testid="tool-marker" title="Textmarker (breit, transparent)">🖍 Marker</button>
+            <button type="button" class="btn @(tool == "text" ? "btn-secondary" : "btn-outline-secondary")"
+                    @onclick='() => SetTool("text")' data-testid="tool-text" title="Notiz einfügen">📝 Text</button>
+            <button type="button" class="btn @(tool == "select" ? "btn-secondary" : "btn-outline-secondary")"
+                    @onclick='() => SetTool("select")' data-testid="tool-select" title="Texte verschieben/skalieren/drehen">🖱 Auswahl</button>
+            <button type="button" class="btn @(tool == "eraser" ? "btn-secondary" : "btn-outline-secondary")"
+                    @onclick='() => SetTool("eraser")' data-testid="tool-eraser" title="Radieren">🧽</button>
+        </div>
+
+        <div class="d-flex align-items-center gap-2 ms-2">
+            <label class="visually-hidden" for="@colorInputId">Farbe</label>
+            <input id="@colorInputId" type="color" value="@color" @onchange="OnColorChanged"
+                   data-testid="tool-color" title="Farbe (für aktuelles Werkzeug)"
+                   style="width:2.4rem;height:2rem;padding:0;border:1px solid #ccc;border-radius:.25rem" />
+            <input type="range" min="1" max="40" step="1" value="@width"
+                   @onchange="OnWidthChanged" data-testid="tool-width"
+                   title="Strichbreite" style="width:8rem" />
+            <span class="text-muted small">@width px</span>
+        </div>
+
+        <div class="ms-auto d-flex gap-2 align-items-center">
+            @if (CanEdit && PdfFile is not null && !HasMusicXml)
+            {
+                <button type="button" class="btn btn-sm btn-outline-primary" @onclick="RunAudiverisAsync"
+                        data-testid="run-audiveris" disabled="@runningOmr"
+                        title="Audiveris erkennt die Noten aus dem PDF und legt MusicXML an — der Score-Modus zeigt sie dann.">
+                    @(runningOmr ? "🔄 Erkennt …" : "🎼 Audiveris-Erkennung")
+                </button>
+            }
+            <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="UndoAsync" data-testid="tool-undo" title="Rückgängig">↩ Zurück</button>
+            <button type="button" class="btn btn-sm btn-outline-danger" @onclick="ClearAsync" data-testid="tool-clear" title="Annotationen löschen">🗑</button>
+            @if (saving)
+            {
+                <span class="badge bg-info text-dark" data-testid="viewer-saving">Speichert…</span>
+            }
+            else
+            {
+                <span class="badge bg-success" data-testid="viewer-saved">Gespeichert</span>
+            }
+        </div>
+    </div>
+
+    @if (omrMessage is not null)
+    {
+        <div class="alert @(omrSuccess ? "alert-success" : "alert-warning") mb-2" data-testid="run-audiveris-result">
+            @omrMessage
+        </div>
+    }
+
+    <div class="ss-stage" id="@stageId" data-testid="viewer-stage"
+         style="position:relative;border:1px solid var(--ss-border, #e5e7eb);border-radius:.5rem;background:white;min-height:520px;overflow:hidden;">
+        @if (viewMode == "score" && MusicXmlFile is not null)
+        {
+            <div id="@contentId" class="ss-content" data-testid="score-host" style="padding:1rem;"></div>
+        }
+        else if (viewMode == "image")
+        {
+            @if (pageImages.Count == 0)
+            {
+                <div class="ss-empty p-4" data-testid="viewer-no-images">
+                    @if (extractingImages)
+                    {
+                        <div class="ss-skel ss-skel-line" style="width:50%"></div>
+                        <div class="ss-skel ss-skel-line" style="width:80%"></div>
+                        <div class="ss-skel ss-skel-line" style="width:60%"></div>
+                        <p class="text-muted">Seitenbilder werden aus PDF erzeugt …</p>
+                    }
+                    else if (PdfFile is null)
+                    {
+                        <p>Kein PDF hinterlegt.</p>
+                    }
+                    else
+                    {
+                        <p>Noch keine Seitenbilder. Bitte erst extrahieren:</p>
+                        <button type="button" class="ss-btn ss-btn-primary" data-testid="extract-images" @onclick="ExtractImagesAsync">Bilder erzeugen</button>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="ss-pages" data-testid="viewer-pages">
+                    @foreach (var img in pageImages)
+                    {
+                        <img src="/files/parts/@Part.Id/@img.Id" alt="Seite @img.PageNumber" loading="lazy"
+                             data-testid="page-image" data-page="@img.PageNumber"
+                             style="display:block;width:100%;height:auto;margin-bottom:.5rem;" />
+                    }
+                </div>
+            }
+        }
+        else
+        {
+            <div class="ss-empty p-4" data-testid="viewer-no-content">Keine Datei zum Anzeigen.</div>
+        }
+    </div>
+
+    <p class="text-muted small mt-2" data-testid="viewer-files-info">
+        @Part.Files.Count Datei(en):
+        @foreach (var f in Part.Files)
+        {
+            <a class="badge bg-light text-dark text-decoration-none ms-1"
+               href="/files/parts/@Part.Id/@f.Id?download=1"
+               data-testid="part-file-download" title="@f.OriginalFileName herunterladen">@f.Kind ⬇</a>
+        }
+    </p>
+}
+
+@code {
+    [Parameter, EditorRequired] public PartViewItem? Part { get; set; }
+
+    private readonly string stageId = "stage-" + Guid.NewGuid().ToString("N").Substring(0, 8);
+    private readonly string contentId = "score-" + Guid.NewGuid().ToString("N").Substring(0, 8);
+    private readonly string colorInputId = "color-" + Guid.NewGuid().ToString("N").Substring(0, 6);
+
+    private string viewMode = "score";
+    private string tool = "pen";
+    private string color = "#dc2626";
+    private int width = 2;
+    private bool saving;
+    private bool extractingImages;
+    private Guid attachedFor = Guid.Empty;
+    private string attachedMode = string.Empty;
+    private DotNetObjectReference<PartViewer>? selfRef;
+
+    private bool HasMusicXml => Part?.Files.Any(f => f.Kind == PartFileKind.MusicXml) == true;
+    private PartFileViewItem? MusicXmlFile => Part?.Files.FirstOrDefault(f => f.Kind == PartFileKind.MusicXml);
+    private PartFileViewItem? PdfFile => Part?.Files.FirstOrDefault(f => f.Kind == PartFileKind.Pdf);
+    private List<PartFileViewItem> pageImages => Part?.Files
+        .Where(f => f.Kind == PartFileKind.PageImage)
+        .OrderBy(f => f.PageNumber ?? 0)
+        .ToList() ?? new();
+
+    /// <summary>Effektiver Modus: Auto -> Score wenn MusicXML da, sonst Image. Score/Image: ueberschrieben.</summary>
+    private ViewModePreference EffectivePreference()
+    {
+        if (Part is null) return ViewModePreference.Auto;
+        var pref = Part.ViewMode != ViewModePreference.Auto ? Part.ViewMode
+                 : Part.PieceDefaultViewMode != ViewModePreference.Auto ? Part.PieceDefaultViewMode
+                 : ViewModePreference.Auto;
+        return pref;
+    }
+
+    protected override void OnInitialized()
+    {
+        viewMode = HasMusicXml ? "score" : "image";
+        // Effektiven Modus aus Preference herleiten
+        var pref = EffectivePreference();
+        if (pref == ViewModePreference.Score) viewMode = "score";
+        else if (pref == ViewModePreference.Image) viewMode = "image";
+        // Auto: bleibt was oben gesetzt wurde (Score wenn MusicXML, sonst Image).
+        selfRef = DotNetObjectReference.Create(this);
+    }
+
+    protected override void OnParametersSet()
+    {
+        var pref = EffectivePreference();
+        if (pref == ViewModePreference.Score && HasMusicXml) viewMode = "score";
+        else if (pref == ViewModePreference.Image) viewMode = "image";
+        else if (pref == ViewModePreference.Auto && !HasMusicXml && viewMode == "score") viewMode = "image";
+        if (Part is not null && Part.Id != attachedFor) { attachedFor = Guid.Empty; attachedMode = string.Empty; }
+    }
+
+    private async Task ExtractImagesAsync()
+    {
+        if (Part is null) return;
+        extractingImages = true;
+        StateHasChanged();
+        try
+        {
+            await PageImagesService.EnsurePageImagesAsync(Part.Id);
+            // Part neu laden — wir kennen Piece+Band nicht direkt, dafuer NavigationManager-Reload triggern
+            if (OnPartChanged.HasDelegate) await OnPartChanged.InvokeAsync(Part.Id);
+        }
+        finally
+        {
+            extractingImages = false;
+            StateHasChanged();
+        }
+    }
+
+    private bool runningOmr;
+    private bool omrSuccess;
+    private string? omrMessage;
+    private System.Threading.CancellationTokenSource? pollCts;
+
+    private async Task RunAudiverisAsync()
+    {
+        if (Part is null) return;
+        runningOmr = true; omrMessage = "🔄 Erkennung läuft im Hintergrund — kann mehrere Minuten dauern. Du kannst weiternavigieren."; omrSuccess = false;
+        StateHasChanged();
+        try
+        {
+            await OmrService.StartAudiverisOnPartAsync(Part.Id, ScopeFactory, LoggerFactory.CreateLogger("Audiveris"));
+            // Polling im Hintergrund
+            pollCts?.Cancel();
+            pollCts = new System.Threading.CancellationTokenSource();
+            _ = PollAudiverisAsync(Part.Id, pollCts.Token);
+        }
+        catch (Exception e)
+        {
+            runningOmr = false;
+            omrSuccess = false;
+            omrMessage = "❌ Konnte Erkennung nicht starten: " + e.Message;
+            StateHasChanged();
+        }
+    }
+
+    private async Task PollAudiverisAsync(Guid partId, System.Threading.CancellationToken ct)
+    {
+        try
+        {
+            // Audiveris kann pro Seite 30-60 s brauchen — wir warten max. 10 min
+            var deadline = DateTime.UtcNow.AddMinutes(10);
+            while (!ct.IsCancellationRequested && DateTime.UtcNow < deadline)
+            {
+                await Task.Delay(2500, ct);
+                if (OmrService.IsAudiverisRunning(partId)) continue;
+                // fertig — entweder Erfolg oder Fehler
+                if (OmrService.LastAudiverisFailed(partId))
+                {
+                    OmrService.ClearAudiverisFailedFlag(partId);
+                    runningOmr = false;
+                    omrSuccess = false;
+                    omrMessage = "❌ Audiveris-Erkennung fehlgeschlagen. Mögliche Ursachen: Container nicht erreichbar, PDF zu groß/komplex, Notenbild zu unsauber. Du kannst es erneut versuchen.";
+                    await InvokeAsync(StateHasChanged);
+                    return;
+                }
+                runningOmr = false;
+                omrSuccess = true;
+                omrMessage = "✓ Audiveris-Erkennung erfolgreich — die Noten werden jetzt im Score-Modus angezeigt.";
+                await InvokeAsync(StateHasChanged);
+                if (OnPartChanged.HasDelegate) await InvokeAsync(() => OnPartChanged.InvokeAsync(partId));
+                return;
+            }
+            // Timeout
+            runningOmr = false;
+            omrSuccess = false;
+            omrMessage = "⏰ Erkennung lief länger als 10 min — Audiveris hängt vermutlich. Container neu starten.";
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (TaskCanceledException) { }
+    }
+
+    [Parameter] public EventCallback<Guid> OnPartChanged { get; set; }
+    [Parameter] public bool CanEdit { get; set; }
+
+    private async Task OnViewPrefChanged(ChangeEventArgs e)
+    {
+        if (Part is null) return;
+        if (Enum.TryParse<ViewModePreference>(e.Value?.ToString(), out var mode))
+        {
+            await PieceService.SetPartViewModeAsync(Part.Id, mode);
+            // Lokal direkt umschalten — Parent wird Part beim naechsten Reload neu laden
+            if (mode == ViewModePreference.Score && HasMusicXml) viewMode = "score";
+            else if (mode == ViewModePreference.Image) viewMode = "image";
+            else viewMode = HasMusicXml ? "score" : "image";
+            attachedMode = string.Empty;
+            StateHasChanged();
+            if (OnPartChanged.HasDelegate) await OnPartChanged.InvokeAsync(Part.Id);
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (Part is null) return;
+        var key = Part.Id;
+        var modeKey = viewMode;
+        if (attachedFor == key && attachedMode == modeKey) return;
+
+        // Erst OSMD rendern (nur im score-Modus mit MusicXML), dann Annotation-Layer attachen.
+        if (viewMode == "score" && MusicXmlFile is not null)
+        {
+            await JS.InvokeVoidAsync("SheetstormOsmd.render", new
+            {
+                contentId,
+                musicXmlUrl = $"/files/parts/{Part.Id}/{MusicXmlFile.Id}",
+                zoom = 1.0,
+            });
+        }
+
+        await JS.InvokeVoidAsync("SheetstormAnnotations.detach", stageId);
+        await JS.InvokeAsync<object>("SheetstormAnnotations.attach", new
+        {
+            stageId,
+            partId = Part.Id,
+            page = 1,
+            dotnetRef = selfRef,
+        });
+        // Initial-Tool/Color/Width setzen
+        await JS.InvokeVoidAsync("SheetstormAnnotations.setTool", stageId, tool);
+        await JS.InvokeVoidAsync("SheetstormAnnotations.setColor", stageId, color);
+        await JS.InvokeVoidAsync("SheetstormAnnotations.setWidth", stageId, width);
+
+        attachedFor = key;
+        attachedMode = modeKey;
+    }
+
+    [JSInvokable]
+    public Task OnAnnotationSaved()
+    {
+        saving = false;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public Task OnToolChanged(string newTool, string newColor, double newWidth)
+    {
+        tool = newTool;
+        color = newColor;
+        width = (int)Math.Round(newWidth);
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private void SetMode(string m)
+    {
+        viewMode = m;
+        attachedMode = string.Empty; // re-attach
+    }
+
+    private async Task SetTool(string t)
+    {
+        tool = t;
+        // Farbe und Breite NICHT hier hartcodiert ueberschreiben — JS pflegt
+        // pro Tool den User-State (Default-Farbe nur beim ersten Aktivieren),
+        // der dann via OnToolChanged-Callback zurueck nach Razor gespiegelt wird.
+        await JS.InvokeVoidAsync("SheetstormAnnotations.setTool", stageId, t);
+    }
+
+    private async Task OnColorChanged(ChangeEventArgs args)
+    {
+        color = args.Value?.ToString() ?? color;
+        await JS.InvokeVoidAsync("SheetstormAnnotations.setColor", stageId, color);
+    }
+
+    private async Task OnWidthChanged(ChangeEventArgs args)
+    {
+        if (int.TryParse(args.Value?.ToString(), out var w)) width = w;
+        await JS.InvokeVoidAsync("SheetstormAnnotations.setWidth", stageId, width);
+    }
+
+    private async Task UndoAsync()
+    {
+        saving = true;
+        await JS.InvokeVoidAsync("SheetstormAnnotations.undo", stageId);
+    }
+
+    private async Task ClearAsync()
+    {
+        saving = true;
+        await JS.InvokeVoidAsync("SheetstormAnnotations.clear", stageId);
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        pollCts?.Cancel();
+        pollCts?.Dispose();
+        selfRef?.Dispose();
+        return ValueTask.CompletedTask;
+    }
+}

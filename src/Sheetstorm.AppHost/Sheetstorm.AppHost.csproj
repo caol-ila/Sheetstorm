@@ -1,0 +1,20 @@
+<Project Sdk="Aspire.AppHost.Sdk/13.2.4">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <UserSecretsId>af5a932d-2850-4fa9-96bd-3425aaf9dd3c</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Sheetstorm.ApiService\Sheetstorm.ApiService.csproj" />
+    <ProjectReference Include="..\Sheetstorm.Web\Sheetstorm.Web.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.PostgreSQL" Version="*" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,160 @@
+#0 building with "desktop-linux" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 2.57kB 0.1s done
+#1 DONE 0.1s
+
+#2 [internal] load metadata for docker.io/library/ubuntu:24.04
+#2 DONE 1.3s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 2B done
+#3 DONE 0.0s
+
+#4 [1/6] FROM docker.io/library/ubuntu:24.04@sha256:c4a8d5503dfb2a3eb8ab5f807da5bc69a85730fb49b5cfca2330194ebcc41c7b
+#4 DONE 0.0s
+
+#5 [2/6] RUN apt-get update && apt-get install -y --no-install-recommends         openjdk-21-jre-headless         tesseract-ocr         tesseract-ocr-deu         tesseract-ocr-eng         tesseract-ocr-fra         tesseract-ocr-ita         libfreetype6         fontconfig         wget         ca-certificates         python3         python3-pip     && rm -rf /var/lib/apt/lists/*
+#5 CACHED
+
+#6 [internal] load build context
+#6 transferring context: 31B done
+#6 DONE 0.0s
+
+#7 [3/6] RUN apt-get update && apt-get install -y --no-install-recommends         libasound2t64 libxrender1 libxtst6 libfontconfig1 dpkg     && rm -rf /var/lib/apt/lists/*     && wget -q -O /tmp/audiveris.deb         "https://github.com/Audiveris/audiveris/releases/download/5.10.2/Audiveris-5.10.2-ubuntu24.04-x86_64.deb"     && dpkg-deb -x /tmp/audiveris.deb /     && rm /tmp/audiveris.deb     && ln -sf /opt/audiveris/bin/Audiveris /usr/local/bin/Audiveris     && /opt/audiveris/bin/Audiveris -help >/dev/null 2>&1 || true
+#7 0.795 Get:1 http://security.ubuntu.com/ubuntu noble-security InRelease [126 kB]
+#7 0.830 Get:2 http://archive.ubuntu.com/ubuntu noble InRelease [256 kB]
+#7 1.052 Get:3 http://archive.ubuntu.com/ubuntu noble-updates InRelease [126 kB]
+#7 1.063 Get:4 http://security.ubuntu.com/ubuntu noble-security/multiverse amd64 Packages [34.2 kB]
+#7 1.097 Get:5 http://archive.ubuntu.com/ubuntu noble-backports InRelease [126 kB]
+#7 1.119 Get:6 http://security.ubuntu.com/ubuntu noble-security/main amd64 Packages [1985 kB]
+#7 1.236 Get:7 http://archive.ubuntu.com/ubuntu noble/main amd64 Packages [1808 kB]
+#7 1.504 Get:8 http://security.ubuntu.com/ubuntu noble-security/restricted amd64 Packages [3491 kB]
+#7 1.592 Get:9 http://archive.ubuntu.com/ubuntu noble/multiverse amd64 Packages [331 kB]
+#7 1.622 Get:10 http://archive.ubuntu.com/ubuntu noble/universe amd64 Packages [19.3 MB]
+#7 1.943 Get:11 http://security.ubuntu.com/ubuntu noble-security/universe amd64 Packages [1498 kB]
+#7 3.161 Get:12 http://archive.ubuntu.com/ubuntu noble/restricted amd64 Packages [117 kB]
+#7 3.163 Get:13 http://archive.ubuntu.com/ubuntu noble-updates/restricted amd64 Packages [3737 kB]
+#7 3.421 Get:14 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 Packages [2355 kB]
+#7 3.579 Get:15 http://archive.ubuntu.com/ubuntu noble-updates/multiverse amd64 Packages [54.1 kB]
+#7 3.584 Get:16 http://archive.ubuntu.com/ubuntu noble-updates/universe amd64 Packages [2142 kB]
+#7 3.718 Get:17 http://archive.ubuntu.com/ubuntu noble-backports/multiverse amd64 Packages [671 B]
+#7 3.719 Get:18 http://archive.ubuntu.com/ubuntu noble-backports/universe amd64 Packages [35.6 kB]
+#7 3.721 Get:19 http://archive.ubuntu.com/ubuntu noble-backports/main amd64 Packages [49.0 kB]
+#7 5.712 Fetched 37.6 MB in 5s (7327 kB/s)
+#7 5.712 Reading package lists...
+#7 8.198 Reading package lists...
+#7 11.53 Building dependency tree...
+#7 12.03 Reading state information...
+#7 12.61 libxrender1 is already the newest version (1:0.9.10-1.1build1).
+#7 12.61 libxrender1 set to manually installed.
+#7 12.61 libfontconfig1 is already the newest version (2.15.0-1.1ubuntu2).
+#7 12.61 libfontconfig1 set to manually installed.
+#7 12.61 dpkg is already the newest version (1.22.6ubuntu6.5).
+#7 12.61 The following additional packages will be installed:
+#7 12.61   libasound2-data x11-common
+#7 12.61 Suggested packages:
+#7 12.61   alsa-utils libasound2-plugins
+#7 12.61 Recommended packages:
+#7 12.61   alsa-ucm-conf alsa-topology-conf
+#7 12.68 The following NEW packages will be installed:
+#7 12.68   libasound2-data libasound2t64 libxtst6 x11-common
+#7 13.13 0 upgraded, 4 newly installed, 0 to remove and 1 not upgraded.
+#7 13.13 Need to get 454 kB of archives.
+#7 13.13 After this operation, 1731 kB of additional disk space will be used.
+#7 13.13 Get:1 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libasound2-data all 1.2.11-1ubuntu0.2 [21.3 kB]
+#7 13.35 Get:2 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 libasound2t64 amd64 1.2.11-1ubuntu0.2 [398 kB]
+#7 13.83 Get:3 http://archive.ubuntu.com/ubuntu noble/main amd64 x11-common all 1:7.7+23ubuntu3 [21.7 kB]
+#7 13.83 Get:4 http://archive.ubuntu.com/ubuntu noble/main amd64 libxtst6 amd64 2:1.2.3-1.1build1 [12.6 kB]
+#7 14.12 debconf: delaying package configuration, since apt-utils is not installed
+#7 14.20 Fetched 454 kB in 1s (404 kB/s)
+#7 14.25 Selecting previously unselected package libasound2-data.
+#7 14.25 (Reading database ... 
+(Reading database ... 5%
+(Reading database ... 10%
+(Reading database ... 15%
+(Reading database ... 20%
+(Reading database ... 25%
+(Reading database ... 30%
+(Reading database ... 35%
+(Reading database ... 40%
+(Reading database ... 45%
+(Reading database ... 50%
+(Reading database ... 55%
+(Reading database ... 60%
+(Reading database ... 65%
+(Reading database ... 70%
+(Reading database ... 75%
+(Reading database ... 80%
+(Reading database ... 85%
+(Reading database ... 90%
+(Reading database ... 95%
+(Reading database ... 100%
+(Reading database ... 8450 files and directories currently installed.)
+#7 14.28 Preparing to unpack .../libasound2-data_1.2.11-1ubuntu0.2_all.deb ...
+#7 14.29 Unpacking libasound2-data (1.2.11-1ubuntu0.2) ...
+#7 14.43 Selecting previously unselected package libasound2t64:amd64.
+#7 14.43 Preparing to unpack .../libasound2t64_1.2.11-1ubuntu0.2_amd64.deb ...
+#7 14.46 Unpacking libasound2t64:amd64 (1.2.11-1ubuntu0.2) ...
+#7 14.59 Selecting previously unselected package x11-common.
+#7 14.59 Preparing to unpack .../x11-common_1%3a7.7+23ubuntu3_all.deb ...
+#7 14.61 Unpacking x11-common (1:7.7+23ubuntu3) ...
+#7 14.72 Selecting previously unselected package libxtst6:amd64.
+#7 14.72 Preparing to unpack .../libxtst6_2%3a1.2.3-1.1build1_amd64.deb ...
+#7 14.73 Unpacking libxtst6:amd64 (2:1.2.3-1.1build1) ...
+#7 14.83 Setting up x11-common (1:7.7+23ubuntu3) ...
+#7 15.18 invoke-rc.d: could not determine current runlevel
+#7 15.19 invoke-rc.d: policy-rc.d denied execution of start.
+#7 15.21 Setting up libasound2-data (1.2.11-1ubuntu0.2) ...
+#7 15.25 Setting up libasound2t64:amd64 (1.2.11-1ubuntu0.2) ...
+#7 15.29 Setting up libxtst6:amd64 (2:1.2.3-1.1build1) ...
+#7 15.33 Processing triggers for libc-bin (2.39-0ubuntu8.7) ...
+#7 DONE 24.3s
+
+#8 [4/6] RUN pip3 install --no-cache-dir --break-system-packages         flask==3.0.3         waitress==3.0.0
+#8 2.060 Collecting flask==3.0.3
+#8 2.304   Downloading flask-3.0.3-py3-none-any.whl.metadata (3.2 kB)
+#8 2.367 Collecting waitress==3.0.0
+#8 2.389   Downloading waitress-3.0.0-py3-none-any.whl.metadata (4.2 kB)
+#8 2.535 Collecting Werkzeug>=3.0.0 (from flask==3.0.3)
+#8 2.557   Downloading werkzeug-3.1.8-py3-none-any.whl.metadata (4.0 kB)
+#8 2.622 Collecting Jinja2>=3.1.2 (from flask==3.0.3)
+#8 2.644   Downloading jinja2-3.1.6-py3-none-any.whl.metadata (2.9 kB)
+#8 2.706 Collecting itsdangerous>=2.1.2 (from flask==3.0.3)
+#8 2.725   Downloading itsdangerous-2.2.0-py3-none-any.whl.metadata (1.9 kB)
+#8 2.801 Collecting click>=8.1.3 (from flask==3.0.3)
+#8 2.823   Downloading click-8.3.3-py3-none-any.whl.metadata (2.6 kB)
+#8 2.874 Collecting blinker>=1.6.2 (from flask==3.0.3)
+#8 2.896   Downloading blinker-1.9.0-py3-none-any.whl.metadata (1.6 kB)
+#8 3.105 Collecting MarkupSafe>=2.0 (from Jinja2>=3.1.2->flask==3.0.3)
+#8 3.126   Downloading markupsafe-3.0.3-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (2.7 kB)
+#8 3.186 Downloading flask-3.0.3-py3-none-any.whl (101 kB)
+#8 3.220    ΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöü 101.7/101.7 kB 3.7 MB/s eta 0:00:00
+#8 3.245 Downloading waitress-3.0.0-py3-none-any.whl (56 kB)
+#8 3.253    ΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöü 56.7/56.7 kB 18.4 MB/s eta 0:00:00
+#8 3.274 Downloading blinker-1.9.0-py3-none-any.whl (8.5 kB)
+#8 3.302 Downloading click-8.3.3-py3-none-any.whl (110 kB)
+#8 3.320    ΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöü 110.5/110.5 kB 9.4 MB/s eta 0:00:00
+#8 3.344 Downloading itsdangerous-2.2.0-py3-none-any.whl (16 kB)
+#8 3.366 Downloading jinja2-3.1.6-py3-none-any.whl (134 kB)
+#8 3.384    ΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöü 134.9/134.9 kB 10.0 MB/s eta 0:00:00
+#8 3.410 Downloading werkzeug-3.1.8-py3-none-any.whl (226 kB)
+#8 3.429    ΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöüΓöü 226.5/226.5 kB 16.5 MB/s eta 0:00:00
+#8 3.453 Downloading markupsafe-3.0.3-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (22 kB)
+#8 3.541 Installing collected packages: waitress, MarkupSafe, itsdangerous, click, blinker, Werkzeug, Jinja2, flask
+#8 4.733 Successfully installed Jinja2-3.1.6 MarkupSafe-3.0.3 Werkzeug-3.1.8 blinker-1.9.0 click-8.3.3 flask-3.0.3 itsdangerous-2.2.0 waitress-3.0.0
+#8 4.734 WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
+#8 DONE 5.0s
+
+#9 [5/6] WORKDIR /app
+#9 DONE 0.1s
+
+#10 [6/6] COPY server.py /app/server.py
+#10 DONE 0.1s
+
+#11 exporting to image
+#11 exporting layers
+#11 exporting layers 3.2s done
+#11 writing image sha256:7aa16371940980a07643de4cd23624969a2a1bbb5ea081d4652b11e422fb8692 done
+#11 naming to docker.io/library/sheetstorm-audiveris:dev 0.0s done
+#11 DONE 3.2s

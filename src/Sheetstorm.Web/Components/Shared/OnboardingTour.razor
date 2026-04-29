@@ -1,0 +1,86 @@
+@inject IJSRuntime JS
+
+@if (visible)
+{
+    <div class="ss-tour-overlay" data-testid="onboarding-overlay">
+        <div class="ss-tour-card">
+            <div class="ss-tour-step-icon">@steps[step].Icon</div>
+            <div class="ss-tour-progress">
+                @for (int i = 0; i < steps.Length; i++)
+                {
+                    <span class="ss-tour-dot @(i == step ? "active" : "")"></span>
+                }
+            </div>
+            <h3 class="text-center mb-3">@steps[step].Title</h3>
+            <p class="text-center" data-testid="onboarding-text">@steps[step].Body</p>
+            <div class="d-flex justify-content-between mt-4">
+                <button class="ss-btn ss-btn-ghost" @onclick="Skip" data-testid="onboarding-skip">Überspringen</button>
+                <div class="d-flex gap-2">
+                    @if (step > 0)
+                    {
+                        <button class="ss-btn ss-btn-ghost" @onclick="Prev" data-testid="onboarding-prev">← Zurück</button>
+                    }
+                    @if (step < steps.Length - 1)
+                    {
+                        <button class="ss-btn ss-btn-primary" @onclick="Next" data-testid="onboarding-next">Weiter →</button>
+                    }
+                    else
+                    {
+                        <button class="ss-btn ss-btn-primary" @onclick="Finish" data-testid="onboarding-finish">Los geht's!</button>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool visible;
+    private int step;
+
+    private record TourStep(string Icon, string Title, string Body);
+
+    private readonly TourStep[] steps =
+    [
+        new("🏛", "Willkommen bei Sheetstorm",
+            "Hier verwaltest du Vereine, Mitglieder, Noten und Termine. Klick durch die 4 Schritte oder überspringe die Tour."),
+        new("📜", "Noten + Stimmen",
+            "Lade PDFs hoch oder lass sie von Audiveris erkennen — Stimmen werden automatisch zugeordnet, das passende Notenblatt erscheint dann beim richtigen Musiker."),
+        new("📅", "Termine & Setlists",
+            "Plane Konzerte, Proben und Arbeitseinsätze. Mitglieder bestätigen ihre Teilnahme. Setlists für Konzerte und der Konzert-Modus blättert Stück für Stück."),
+        new("🎵", "Live-Sync im Konzert",
+            "Im Konzert öffnest du als Dirigent ein Stück — alle Musiker sehen es binnen Sekunden mit ihrer eigenen Stimme. Funktioniert auch ohne stabiles Netz."),
+    ];
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                var seen = await JS.InvokeAsync<string?>("eval", "localStorage.getItem('sheetstorm-tour-done')");
+                if (string.IsNullOrEmpty(seen))
+                {
+                    visible = true;
+                    StateHasChanged();
+                }
+            }
+            catch { }
+        }
+    }
+
+    private void Next() { if (step < steps.Length - 1) step++; }
+    private void Prev() { if (step > 0) step--; }
+
+    private async Task Skip()
+    {
+        visible = false;
+        await JS.InvokeVoidAsync("eval", "localStorage.setItem('sheetstorm-tour-done','skipped')");
+    }
+
+    private async Task Finish()
+    {
+        visible = false;
+        await JS.InvokeVoidAsync("eval", "localStorage.setItem('sheetstorm-tour-done','1')");
+    }
+}

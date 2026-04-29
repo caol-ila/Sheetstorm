@@ -1,0 +1,184 @@
+@page "/Bands/{slug}/pieces"
+@layout MainLayout
+@attribute [Authorize]
+@inject UserManager<ApplicationUser> UserManager
+@inject SheetstormDbContext Db
+@inject PieceService PieceService
+@inject OfflineService OfflineService
+@inject AuthenticationStateProvider AuthState
+@inject NavigationManager Navigation
+
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using Sheetstorm.Domain.Identity
+@using Sheetstorm.Infrastructure.Persistence
+@using Sheetstorm.Web.Application
+
+<PageTitle>Noten — @(band?.Name ?? slug)</PageTitle>
+
+@if (band is null)
+{
+    <p>Lädt…</p>
+}
+else
+{
+    <h1 data-testid="pieces-heading">Noten — @band.Name</h1>
+
+    @if (canEdit)
+    {
+        <p>
+            <a href="/Bands/@slug/omr" class="ss-btn ss-btn-ghost" data-testid="pieces-omr-link">📥 PDF mit Auto-Stimm-Erkennung hochladen</a>
+        </p>
+    }
+
+    <EditForm Model="FilterInput" OnValidSubmit="ApplyFilterAsync" FormName="filter" class="row g-2 mb-3">
+        <div class="col-md-4">
+            <InputText @bind-Value="FilterInput!.Query" data-testid="filter-query" class="form-control" placeholder="Titel oder Komponist suchen" />
+        </div>
+        <div class="col-md-3">
+            <select @bind="FilterInput.Genre" name="FilterInput.Genre" class="form-select" data-testid="filter-genre">
+                <option value="">— alle Genres —</option>
+                @foreach (var g in genres)
+                {
+                    <option value="@g">@g</option>
+                }
+            </select>
+        </div>
+        <div class="col-md-3 form-check pt-2">
+            <InputCheckbox @bind-Value="FilterInput.OnlyMyPart" data-testid="filter-mypart" class="form-check-input" id="onlymy" />
+            <label for="onlymy" class="form-check-label">Nur Werke mit meiner Stimme</label>
+        </div>
+        <div class="col-md-2">
+            <button type="submit" class="btn btn-secondary w-100" data-testid="filter-apply">Filter</button>
+        </div>
+    </EditForm>
+
+    @if (canEdit)
+    {
+        <EditForm Model="CreateInput" OnValidSubmit="CreateAsync" FormName="create-piece" class="row g-2 mb-4">
+            <DataAnnotationsValidator />
+            <div class="col-md-4">
+                <InputText @bind-Value="CreateInput!.Title" data-testid="newpiece-title" class="form-control" placeholder="Titel" />
+                <ValidationMessage For="() => CreateInput.Title" class="text-danger" />
+            </div>
+            <div class="col-md-3">
+                <InputText @bind-Value="CreateInput.Composer" data-testid="newpiece-composer" class="form-control" placeholder="Komponist" />
+            </div>
+            <div class="col-md-2">
+                <InputText @bind-Value="CreateInput.Genre" data-testid="newpiece-genre" class="form-control" placeholder="Genre" />
+            </div>
+            <div class="col-md-1">
+                <InputNumber @bind-Value="CreateInput.Difficulty" data-testid="newpiece-difficulty" class="form-control" placeholder="1-6" />
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100" data-testid="newpiece-submit">Werk anlegen</button>
+            </div>
+        </EditForm>
+    }
+
+    <p class="text-muted" data-testid="pieces-count">@pieces.Count Werk(e)</p>
+
+    @if (pieces.Count == 0)
+    {
+        <div class="alert alert-light" data-testid="pieces-empty">Keine Werke gefunden.</div>
+    }
+    else
+    {
+        <div class="list-group" data-testid="pieces-list">
+            @foreach (var p in pieces)
+            {
+                <a href="/Bands/@slug/pieces/@p.Id" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center" data-testid="piece-row" data-id="@p.Id">
+                    <div>
+                        <strong data-testid="piece-title">@p.Title</strong>
+                        @if (!string.IsNullOrEmpty(p.Composer))
+                        {
+                            <span class="text-muted ms-2">— @p.Composer</span>
+                        }
+                        <div>
+                            @if (!string.IsNullOrEmpty(p.Genre)) { <span class="badge bg-secondary me-1">@p.Genre</span> }
+                            @if (p.Difficulty is not null) { <span class="badge bg-info me-1">Schwierigkeit @p.Difficulty</span> }
+                            <span class="badge bg-light text-dark me-1">@p.PartsCount Stimme(n)</span>
+                            @if (p.HasMyPart) { <span class="badge bg-success" data-testid="badge-mypart">Meine Stimme</span> }
+                            @if (offlinePieces.Contains(p.Id)) { <span class="badge bg-warning text-dark ms-1" data-testid="badge-offline">📥 Offline</span> }
+                        </div>
+                    </div>
+                </a>
+            }
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public string slug { get; set; } = default!;
+
+    private Band? band;
+    private bool canEdit;
+    private Guid currentUserId;
+    private List<PieceListItem> pieces = new();
+    private List<string> genres = new();
+    private HashSet<Guid> offlinePieces = new();
+
+    [SupplyParameterFromForm(FormName = "filter")]
+    private FilterInputModel? FilterInput { get; set; }
+
+    [SupplyParameterFromForm(FormName = "create-piece")]
+    private CreateInputModel? CreateInput { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        FilterInput ??= new();
+        CreateInput ??= new();
+
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        var u = await UserManager.GetUserAsync(auth.User);
+        if (u is null) { Navigation.NavigateTo("/Account/Login"); return; }
+        currentUserId = u.Id;
+
+        band = await Db.Bands.FirstOrDefaultAsync(x => x.Slug == slug);
+        if (band is null) { Navigation.NavigateTo("/Bands"); return; }
+
+        var myMem = await Db.Memberships.FirstOrDefaultAsync(m => m.BandId == band.Id && m.UserId == currentUserId);
+        if (myMem is null) { Navigation.NavigateTo("/Bands"); return; }
+        canEdit = myMem.HasRole(BandRole.Admin) || myMem.HasRole(BandRole.Owner) || myMem.HasRole(BandRole.Dirigent);
+
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        genres = await PieceService.GetGenresAsync(band!.Id);
+        pieces = await PieceService.SearchAsync(band.Id, currentUserId,
+            FilterInput!.Query, string.IsNullOrEmpty(FilterInput.Genre) ? null : FilterInput.Genre,
+            null, null, FilterInput.OnlyMyPart);
+        offlinePieces = await OfflineService.GetMarkedPiecesAsync(currentUserId);
+    }
+
+    private Task ApplyFilterAsync() => LoadAsync();
+
+    private async Task CreateAsync()
+    {
+        if (string.IsNullOrWhiteSpace(CreateInput?.Title)) return;
+        var piece = await PieceService.CreateAsync(band!.Id, CreateInput.Title, CreateInput.Composer, CreateInput.Genre, CreateInput.Difficulty);
+        Navigation.NavigateTo($"/Bands/{slug}/pieces/{piece.Id}");
+    }
+
+    private sealed class FilterInputModel
+    {
+        public string? Query { get; set; }
+        public string? Genre { get; set; }
+        public bool OnlyMyPart { get; set; }
+    }
+
+    private sealed class CreateInputModel
+    {
+        [System.ComponentModel.DataAnnotations.Required, System.ComponentModel.DataAnnotations.StringLength(300, MinimumLength = 2)]
+        public string Title { get; set; } = "";
+        public string? Composer { get; set; }
+        public string? Genre { get; set; }
+        [System.ComponentModel.DataAnnotations.Range(1, 6)]
+        public int? Difficulty { get; set; }
+    }
+}

@@ -1,0 +1,144 @@
+@page "/ble-test"
+@layout MainLayout
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject IJSRuntime JS
+
+@using Microsoft.AspNetCore.Authorization
+
+<PageTitle>BLE-Tester</PageTitle>
+
+<h1>📡 BLE-Tester</h1>
+<p class="ss-page-intro">
+    Direkter Test des Sheetstorm-BLE-Sync. Funktioniert für die Follower-Rolle
+    auf <strong>Chrome / Edge</strong> (Desktop und Android) via WebBluetooth.
+    Conductor-Rolle läuft nur in der nativen App (siehe <code>mobile/</code>).
+</p>
+
+<div class="ss-card">
+    <h2 class="mt-0">Status</h2>
+    <ul>
+        <li>Web-Bluetooth verfügbar: <strong data-testid="ble-webbt">@(webBluetooth ? "ja" : "nein")</strong></li>
+        <li>Capacitor-Native verfügbar: <strong data-testid="ble-cap">@(capacitor ? "ja" : "nein")</strong></li>
+        <li>Verbindung: <strong data-testid="ble-conn">@connectionStatus</strong></li>
+    </ul>
+</div>
+
+<div class="ss-card">
+    <h2 class="mt-0">Follower (dieses Gerät)</h2>
+    <div class="d-flex gap-2 flex-wrap align-items-center">
+        <button type="button" class="ss-btn ss-btn-primary" @onclick="ScanAndConnectAsync"
+                data-testid="ble-scan" disabled="@busy">
+            🔎 Conductor in der Nähe finden &amp; verbinden
+        </button>
+        <button type="button" class="ss-btn ss-btn-secondary" @onclick="DisconnectAsync"
+                data-testid="ble-disconnect" disabled="@(!isConnected || busy)">
+            ⏹ Trennen
+        </button>
+    </div>
+
+    <div class="mt-3" data-testid="ble-log">
+        <h3>Empfangene Pakete</h3>
+        @if (packets.Count == 0)
+        {
+            <p class="text-muted">Noch keine. Conductor muss Notifications schicken.</p>
+        }
+        else
+        {
+            <table class="table">
+                <thead><tr><th>#</th><th>Zeit</th><th>Bytes</th><th>Inhalt</th></tr></thead>
+                <tbody>
+                @foreach (var (p, idx) in packets.AsEnumerable().Reverse().Select((p, i) => (p, i)))
+                {
+                    <tr><td>@(packets.Count - idx)</td><td>@p.At.ToString("HH:mm:ss.fff")</td><td>@p.Length</td><td><code class="small">@p.Hex</code></td></tr>
+                }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>
+
+<div class="ss-card">
+    <h2 class="mt-0">Conductor (nur native App)</h2>
+    <p class="text-muted">Auf einem Android-Phone mit der nativen App:</p>
+    <ol class="text-muted">
+        <li>Sheetstorm-App öffnen, mit Demo-Account einloggen</li>
+        <li>Zu einem Termin gehen → Sync-Page öffnen</li>
+        <li>Im "BLE-Sync (Pilot)"-Panel auf "BLE starten" tippen</li>
+        <li>Phone zeigt sich jetzt als "Sheetstorm" in der Nähe</li>
+        <li>Auf diesem Gerät hier: Klick auf "Conductor finden" oben</li>
+    </ol>
+</div>
+
+@code {
+    private bool webBluetooth;
+    private bool capacitor;
+    private bool busy;
+    private bool isConnected;
+    private string connectionStatus = "—";
+    private DotNetObjectReference<BleTest>? selfRef;
+    private List<BlePacket> packets = new();
+
+    public class BlePacket
+    {
+        public DateTime At { get; set; }
+        public int Length { get; set; }
+        public string Hex { get; set; } = "";
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                webBluetooth = await JS.InvokeAsync<bool>("eval", "!!(window.SheetstormNative && window.SheetstormNative.hasWebBluetooth)");
+                capacitor = await JS.InvokeAsync<bool>("eval", "!!(window.SheetstormNative && window.SheetstormNative.isCapacitor)");
+                StateHasChanged();
+            }
+            catch { }
+        }
+    }
+
+    [JSInvokable]
+    public Task OnPacket(string base64)
+    {
+        try
+        {
+            var bytes = Convert.FromBase64String(base64);
+            var hex = string.Join(" ", bytes.Take(32).Select(b => b.ToString("X2")));
+            if (bytes.Length > 32) hex += "…";
+            packets.Add(new BlePacket { At = DateTime.Now, Length = bytes.Length, Hex = hex });
+            if (packets.Count > 50) packets.RemoveRange(0, packets.Count - 50);
+        }
+        catch { }
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ScanAndConnectAsync()
+    {
+        busy = true;
+        connectionStatus = "Suche …";
+        StateHasChanged();
+        selfRef ??= DotNetObjectReference.Create(this);
+        try
+        {
+            // WebBluetooth picker oeffnet sich; User waehlt das Sheetstorm-Geraet aus.
+            var ok = await JS.InvokeAsync<bool>("ssBleTestConnect", selfRef, "OnPacket");
+            isConnected = ok;
+            connectionStatus = ok ? "verbunden" : "abgebrochen";
+        }
+        catch (Exception e)
+        {
+            connectionStatus = "Fehler: " + e.Message;
+        }
+        finally { busy = false; StateHasChanged(); }
+    }
+
+    private async Task DisconnectAsync()
+    {
+        try { await JS.InvokeVoidAsync("eval", "(async () => { try { window.__ssBleServer && window.__ssBleServer.disconnect(); } catch{} })()"); } catch { }
+        isConnected = false;
+        connectionStatus = "—";
+    }
+}

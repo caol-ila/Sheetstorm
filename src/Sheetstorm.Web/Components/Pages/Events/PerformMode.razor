@@ -1,0 +1,130 @@
+@page "/Bands/{slug}/perform/{eventId:guid}"
+@layout MainLayout
+@attribute [Authorize]
+@inject UserManager<ApplicationUser> UserManager
+@inject SheetstormDbContext Db
+@inject EventService EventService
+@inject PieceService PieceService
+@inject AuthenticationStateProvider AuthState
+@inject NavigationManager Navigation
+
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using Sheetstorm.Domain.Events
+@using Sheetstorm.Domain.Music
+@using Sheetstorm.Infrastructure.Persistence
+@using Sheetstorm.Web.Application
+
+<PageTitle>Konzert-Modus — @(ev?.Title ?? "")</PageTitle>
+
+@if (ev is null)
+{
+    <p>Lädt…</p>
+}
+else
+{
+    <p><a href="/Bands/@slug/events" data-testid="perform-back">← Zurück zu Terminen</a></p>
+    <h1 data-testid="perform-event-title">@ev.Title</h1>
+
+    @if (orderedItems.Count == 0)
+    {
+        <p data-testid="perform-empty">Setlist ist leer.</p>
+    }
+    else
+    {
+        <p class="text-muted" data-testid="perform-position">Stück @(currentIndex + 1) von @orderedItems.Count</p>
+        <h2 data-testid="perform-piece-title">@orderedItems[currentIndex].Piece.Title</h2>
+        @if (currentParts.Count == 0)
+        {
+            <p data-testid="perform-no-parts">Noch keine Stimmen für dieses Werk.</p>
+        }
+        else
+        {
+            var primary = currentParts.First();
+            <p>Anzeige: <strong data-testid="perform-part-name">@primary.DisplayName</strong></p>
+            @foreach (var f in primary.Files)
+            {
+                @if (f.Kind == PartFileKind.Pdf)
+                {
+                    <embed src="/files/parts/@primary.Id/@f.Id" type="application/pdf" width="100%" height="600" data-testid="perform-pdf" />
+                }
+            }
+        }
+
+        <div class="d-flex justify-content-between mt-3">
+            <EditForm Model="NavInput" OnValidSubmit="PrevAsync" FormName="prev-piece">
+                <input type="hidden" name="NavInput.Index" value="@currentIndex" />
+                <button type="submit" class="btn btn-secondary" data-testid="perform-prev" disabled="@(currentIndex == 0)">← Voriges</button>
+            </EditForm>
+            <EditForm Model="NavInput" OnValidSubmit="NextAsync" FormName="next-piece">
+                <input type="hidden" name="NavInput.Index" value="@currentIndex" />
+                <button type="submit" class="btn btn-primary" data-testid="perform-next" disabled="@(currentIndex >= orderedItems.Count - 1)">Nächstes →</button>
+            </EditForm>
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public string slug { get; set; } = default!;
+    [Parameter] public Guid eventId { get; set; }
+    [SupplyParameterFromQuery] public int? Pos { get; set; }
+
+    private Event? ev;
+    private Guid currentUserId;
+    private Guid bandId;
+    private List<SetListItem> orderedItems = new();
+    private List<PartViewItem> currentParts = new();
+    private int currentIndex;
+
+    [SupplyParameterFromForm]
+    private NavInputModel? NavInput { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        NavInput ??= new();
+
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        var u = await UserManager.GetUserAsync(auth.User);
+        if (u is null) { Navigation.NavigateTo("/Account/Login"); return; }
+        currentUserId = u.Id;
+
+        var band = await Db.Bands.FirstOrDefaultAsync(b => b.Slug == slug);
+        if (band is null) { Navigation.NavigateTo("/Bands"); return; }
+        bandId = band.Id;
+
+        ev = await EventService.GetAsync(eventId);
+        if (ev is null || ev.BandId != bandId) { Navigation.NavigateTo($"/Bands/{slug}/events"); return; }
+
+        orderedItems = ev.SetList?.Items.OrderBy(i => i.Position).ToList() ?? new();
+
+        currentIndex = Pos ?? 0;
+        if (currentIndex < 0) currentIndex = 0;
+        if (currentIndex >= orderedItems.Count) currentIndex = Math.Max(0, orderedItems.Count - 1);
+        await LoadCurrentAsync();
+    }
+
+    private async Task LoadCurrentAsync()
+    {
+        if (orderedItems.Count == 0) return;
+        var pieceId = orderedItems[currentIndex].PieceId;
+        currentParts = await PieceService.GetSortedPartsForUserAsync(pieceId, bandId, currentUserId);
+    }
+
+    private Task PrevAsync()
+    {
+        if (currentIndex > 0)
+            Navigation.NavigateTo($"/Bands/{slug}/perform/{eventId}?Pos={currentIndex - 1}");
+        return Task.CompletedTask;
+    }
+
+    private Task NextAsync()
+    {
+        if (currentIndex < orderedItems.Count - 1)
+            Navigation.NavigateTo($"/Bands/{slug}/perform/{eventId}?Pos={currentIndex + 1}");
+        return Task.CompletedTask;
+    }
+
+    private sealed class NavInputModel { public int Index { get; set; } }
+}

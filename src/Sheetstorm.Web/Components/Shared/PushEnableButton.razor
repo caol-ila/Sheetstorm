@@ -1,0 +1,28 @@
+@inject IJSRuntime JS
+
+<button type="button" class="ss-btn ss-btn-primary" @onclick="EnableAsync" data-testid="push-enable">🔔 Benachrichtigungen aktivieren</button>
+@if (msg is not null) { <span class="ms-2" data-testid="push-message">@msg</span> }
+
+@code {
+    private string? msg;
+
+    private async Task EnableAsync()
+    {
+        try
+        {
+            var r = await JS.InvokeAsync<PushResult>("SheetstormPush.enable");
+            msg = r.Ok ? "✅ Aktiviert."
+                : r.Reason switch
+                {
+                    "denied" => "Berechtigung verweigert.",
+                    "no-sw" => "Service Worker nicht verfügbar.",
+                    "no-push" => "Push wird vom Browser nicht unterstützt.",
+                    "server-not-configured" => "Server hat noch keine VAPID-Keys konfiguriert.",
+                    _ => "Fehler: " + r.Reason,
+                };
+        }
+        catch (Exception ex) { msg = "Fehler: " + ex.Message; }
+    }
+
+    private record PushResult(bool Ok, string? Reason);
+}

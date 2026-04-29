@@ -29,3 +29,14 @@ secrets.json
 sheetstorm_app/.dart_tool/
 sheetstorm_app/.flutter-plugins
 sheetstorm_app/.flutter-plugins-dependencies
+
+# Lokaler FileStore (Test-Uploads, generierte Blobs)
+src/.filestore/
+.filestore/
+
+docker/audiveris/.image-hash
+
+webrun.log
+mobile/android/
+mobile/package-lock.json
+

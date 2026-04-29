@@ -1,0 +1,125 @@
+﻿<!DOCTYPE html>
+<html lang="de">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="/" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#0d6efd" />
+    <script>
+        // Theme VOR dem Render anwenden, damit beim Navigieren zwischen
+        // SSR-Pages kein Flicker entsteht und das Theme nicht "verloren" geht.
+        // Setzt data-theme synchron im <html>, bevor irgendwelches CSS greift.
+        (function () {
+            try {
+                var t = localStorage.getItem('sheetstorm-theme');
+                if (t === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+                else document.documentElement.removeAttribute('data-theme');
+            } catch (e) { }
+            window.SheetstormTheme = {
+                get current() {
+                    return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+                },
+                set: function (mode) {
+                    if (mode === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+                    else document.documentElement.removeAttribute('data-theme');
+                    try { localStorage.setItem('sheetstorm-theme', mode); } catch (e) { }
+                    document.dispatchEvent(new CustomEvent('sheetstorm:theme', { detail: { mode: mode } }));
+                },
+                toggle: function () {
+                    this.set(this.current === 'dark' ? 'light' : 'dark');
+                    return this.current;
+                },
+            };
+        })();
+    </script>
+    <link rel="stylesheet" href="@Assets["lib/bootstrap/dist/css/bootstrap.min.css"]" />
+    <link rel="stylesheet" href="@Assets["app.css"]" />
+    <link rel="stylesheet" href="@Assets["Sheetstorm.Web.styles.css"]" />
+    <ImportMap />
+    <link rel="icon" type="image/png" href="favicon.png" />
+    <HeadOutlet />
+</head>
+
+<body>
+    <Routes />
+    <div id="online-status" data-testid="online-indicator" class="online-indicator d-none"></div>
+    <script src="@Assets["_framework/blazor.web.js"]"></script>
+    <script src="/js/conductor-sync.js"></script>
+    <script src="/js/osmd-viewer.js"></script>
+    <script src="/js/metronome.js"></script>
+    <script src="/js/tuner.js"></script>
+    <script src="/js/sheetstorm-native.js"></script>
+    <script>
+        // Service Worker registrieren (nur HTTPS / localhost)
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js').catch(err => console.warn('SW Registrierung fehlgeschlagen:', err));
+            });
+        }
+        // Online/Offline-Indikator
+        function updateOnlineStatus() {
+            const el = document.getElementById('online-status');
+            if (!el) return;
+            if (navigator.onLine) {
+                el.classList.add('d-none');
+                el.textContent = '';
+                el.dataset.online = 'true';
+            } else {
+                el.classList.remove('d-none');
+                el.textContent = '⚡ Offline — gecachte Stimmen verfügbar';
+                el.dataset.online = 'false';
+            }
+        }
+        window.addEventListener('online', updateOnlineStatus);
+        window.addEventListener('offline', updateOnlineStatus);
+        document.addEventListener('DOMContentLoaded', updateOnlineStatus);
+        // Trigger Service-Worker-Sync wenn wieder online
+        window.addEventListener('online', () => {
+            navigator.serviceWorker?.controller?.postMessage('sync-offline');
+        });
+
+        // Push-Subscribe-Helper
+        window.SheetstormPush = {
+          urlBase64ToUint8Array(b64) {
+            const padding = '='.repeat((4 - b64.length % 4) % 4);
+            const norm = (b64 + padding).replace(/-/g, '+').replace(/_/g, '/');
+            const raw = atob(norm);
+            return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+          },
+          async enable() {
+            try {
+              if (!('serviceWorker' in navigator)) return { ok: false, reason: 'no-sw' };
+              if (!('PushManager' in window)) return { ok: false, reason: 'no-push' };
+              const reg = await navigator.serviceWorker.ready;
+              const perm = await Notification.requestPermission();
+              if (perm !== 'granted') return { ok: false, reason: 'denied' };
+              const r = await fetch('/api/push/vapid-public-key');
+              if (r.status === 204) return { ok: false, reason: 'server-not-configured' };
+              const key = await r.text();
+              const sub = await reg.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: this.urlBase64ToUint8Array(key),
+              });
+              const json = sub.toJSON();
+              await fetch('/api/push/subscribe', {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  endpoint: sub.endpoint,
+                  p256dh: json.keys?.p256dh,
+                  auth: json.keys?.auth,
+                }),
+              });
+              return { ok: true };
+            } catch (e) {
+              return { ok: false, reason: e.message };
+            }
+          },
+        };
+    </script>
+</body>
+
+</html>

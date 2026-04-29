@@ -1,0 +1,240 @@
+@page "/tuner"
+@layout MainLayout
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+@using Microsoft.AspNetCore.Authorization
+
+<PageTitle>Stimmen — Sheetstorm</PageTitle>
+
+<h1 data-testid="tuner-heading">🎵 Stimm-Modus</h1>
+<p class="ss-page-intro">
+    Mikrofon hört zu, App zeigt Abweichung vom Soll-Ton. Sound verlässt das Gerät nicht.
+</p>
+
+<div class="ss-card">
+    <div class="d-flex flex-wrap gap-3 align-items-center">
+        <button type="button" class="ss-btn @(running ? "ss-btn-danger" : "ss-btn-primary")" @onclick="ToggleAsync" data-testid="tuner-toggle">
+            @(running ? "⏹ Stop" : "🎙 Start")
+        </button>
+        <label>
+            Referenz-Pitch:
+            <input type="number" min="430" max="450" step="0.5" @bind="referenceHz" data-testid="tuner-reference" style="width:6rem" />
+            Hz
+        </label>
+        @if (running)
+        {
+            <span class="badge bg-info text-dark" data-testid="tuner-status">@status</span>
+        }
+    </div>
+
+    <details class="mt-2" data-testid="chord-context-toggle">
+        <summary>Akkord-Intonation (rein gestimmt)</summary>
+        <div class="d-flex flex-wrap gap-2 align-items-center mt-2">
+            <label class="form-check-label">
+                <input type="checkbox" @bind="chordEnabled" data-testid="chord-enabled" /> Akkord-Korrektur aktiv
+            </label>
+            <select @bind="chordRoot" data-testid="chord-root">
+                @foreach (var n in noteNames) { <option value="@n">@n</option> }
+            </select>
+            <select @bind="chordKind" data-testid="chord-kind">
+                <option value="Major">Dur</option>
+                <option value="Minor">Moll</option>
+                <option value="Dom7">Dur 7</option>
+                <option value="Min7">Moll 7</option>
+            </select>
+            <select @bind="myFunction" data-testid="chord-my-role">
+                <option value="Root">Grundton</option>
+                <option value="Third">Terz</option>
+                <option value="Fifth">Quinte</option>
+                <option value="Seventh">Septime</option>
+            </select>
+            @if (chordEnabled)
+            {
+                <span class="text-muted small" data-testid="chord-offset-label">→ Erwartung @ChordCorrection().ToString("+#.# ct;-#.# ct;0 ct")</span>
+            }
+        </div>
+    </details>
+
+    <div class="ss-tuner-zones mt-3" data-testid="tuner-zones">
+        <div class="ss-tuner-zone @(activeZone == -3 ? "active" : "")" data-testid="zone-very-flat">−−</div>
+        <div class="ss-tuner-zone @(activeZone == -2 ? "active" : "")" data-testid="zone-flat">−</div>
+        <div class="ss-tuner-zone @(activeZone == -1 ? "active" : "")" data-testid="zone-slightly-flat">(−)</div>
+        <div class="ss-tuner-zone @(activeZone == 0 ? "active ok" : "")" data-testid="zone-ok">✓</div>
+        <div class="ss-tuner-zone @(activeZone == 1 ? "active" : "")" data-testid="zone-slightly-sharp">(+)</div>
+        <div class="ss-tuner-zone @(activeZone == 2 ? "active" : "")" data-testid="zone-sharp">+</div>
+        <div class="ss-tuner-zone @(activeZone == 3 ? "active" : "")" data-testid="zone-very-sharp">++</div>
+    </div>
+
+    <div class="ss-tuner-message" data-testid="tuner-message">@message</div>
+    @if (running && hz > 0)
+    {
+        <p class="text-muted small text-center" data-testid="tuner-detail">
+            @hz.ToString("F1") Hz · @noteName · @cents.ToString("+#;-#;0") ct
+            @if (chordEnabled) { <span> · Akkord-Soll @ChordCorrection().ToString("+#.# ct;-#.# ct;0 ct")</span> }
+        </p>
+    }
+</div>
+
+@code {
+    private bool running;
+    private double hz;
+    private double cents;
+    private double referenceHz = 442.0;
+    private string noteName = "—";
+    private string status = "";
+    private string message = "Tippe auf Start, dann spielen.";
+    private int activeZone = 0;
+    private int candidateZone = 0;
+    private DateTime candidateSince = DateTime.MinValue;
+    private DotNetObjectReference<Tuner>? selfRef;
+
+    // Akkord-Intonation
+    private bool chordEnabled;
+    private string chordRoot = "C";
+    private string chordKind = "Major";
+    private string myFunction = "Root";
+
+    /// <summary>
+    /// Cent-Offsets fuer rein gestimmten Akkord vs. gleichstufig.
+    /// Werte aus Just-Intonation (5-Limit), gerundet auf 0.1 ct.
+    /// </summary>
+    private double ChordCorrection()
+    {
+        if (!chordEnabled) return 0;
+        return (chordKind, myFunction) switch
+        {
+            ("Major", "Root") => 0,
+            ("Major", "Third") => -13.7,   // 5/4 vs 2^(4/12)
+            ("Major", "Fifth") => +2.0,    // 3/2 vs 2^(7/12)
+            ("Major", "Seventh") => -31.2, // 15/8 wuerde mit 11/8/7/4 abweichen — wir nehmen Dom7 fuer die b7 und Maj7 separat unten
+            ("Minor", "Root") => 0,
+            ("Minor", "Third") => +15.6,   // 6/5
+            ("Minor", "Fifth") => +2.0,
+            ("Minor", "Seventh") => +17.6, // 9/5 (Moll-Sept)
+            ("Dom7", "Root") => 0,
+            ("Dom7", "Third") => -13.7,
+            ("Dom7", "Fifth") => +2.0,
+            ("Dom7", "Seventh") => -31.2,  // 7/4 (Naturseptime)
+            ("Min7", "Root") => 0,
+            ("Min7", "Third") => +15.6,
+            ("Min7", "Fifth") => +2.0,
+            ("Min7", "Seventh") => +17.6,  // 9/5
+            _ => 0,
+        };
+    }
+
+    protected override void OnInitialized()
+    {
+        selfRef = DotNetObjectReference.Create(this);
+    }
+
+    private async Task ToggleAsync()
+    {
+        running = !running;
+        if (running)
+        {
+            status = "höre zu …";
+            message = "… höre zu";
+            await JS.InvokeVoidAsync("eval", $@"
+                (async () => {{
+                    await window.SheetstormTuner.start({{
+                        onUpdate: (m) => DotNet.invokeMethodAsync('Sheetstorm.Web', 'TunerUpdate', m.hz, m.confidence)
+                    }});
+                }})();
+            ");
+            // Note: Static-method-Approach geht nicht direkt, Workaround: dotnetRef im JS-Wrapper.
+            // Vereinfacht: wir nutzen statt dessen einen JS-Tick + Polling-Pattern.
+            await JS.InvokeVoidAsync("SheetstormTuner.start");
+            _ = PollLoopAsync();
+        }
+        else
+        {
+            await JS.InvokeVoidAsync("SheetstormTuner.stop");
+            status = "";
+            message = "Stop.";
+        }
+    }
+
+    private async Task PollLoopAsync()
+    {
+        // Polling als Pragmatismus — JSInvokable hat hier Race-Conditions.
+        // Wir installieren stattdessen einen JS-Bus und holen den letzten Wert ab.
+        await JS.InvokeVoidAsync("eval", "window.__ssTuneLast=null;window.SheetstormTuner.stop();");
+        await JS.InvokeVoidAsync("eval", @"window.SheetstormTuner.start({onUpdate:(m)=>{window.__ssTuneLast=m;}})");
+        while (running)
+        {
+            try
+            {
+                var m = await JS.InvokeAsync<TuneMsg?>("eval", "window.__ssTuneLast");
+                if (m is not null)
+                {
+                    UpdateFromMeasurement(m.hz, m.confidence);
+                    StateHasChanged();
+                }
+            }
+            catch { }
+            await Task.Delay(120);
+        }
+    }
+
+    public class TuneMsg { public double hz { get; set; } public double confidence { get; set; } }
+
+    private void UpdateFromMeasurement(double measuredHz, double confidence)
+    {
+        if (confidence < 0.85 || measuredHz <= 0)
+        {
+            hz = 0; cents = 0; noteName = "—";
+            message = "… höre zu";
+            candidateZone = 0;
+            return;
+        }
+        hz = measuredHz;
+        // Naechster Halbton-Soll
+        var midiFloat = 69 + 12 * Math.Log2(measuredHz / referenceHz);
+        var midi = (int)Math.Round(midiFloat);
+        var expectedHz = referenceHz * Math.Pow(2, (midi - 69) / 12.0);
+        // Akkord-Korrektur: erwarteter Cent-Wert relativ zur gleichstufigen Soll-Frequenz
+        var chordOffset = ChordCorrection();
+        cents = 1200 * Math.Log2(measuredHz / expectedHz) - chordOffset;
+        noteName = MidiToName(midi);
+
+        // Zone bestimmen
+        int z;
+        var abs = Math.Abs(cents);
+        if (abs <= 3) z = 0;
+        else if (abs <= 10) z = cents > 0 ? 1 : -1;
+        else if (abs <= 25) z = cents > 0 ? 2 : -2;
+        else z = cents > 0 ? 3 : -3;
+
+        // Hysterese: 300ms in neuer Zone bleiben
+        if (z != candidateZone)
+        {
+            candidateZone = z;
+            candidateSince = DateTime.UtcNow;
+        }
+        else if (DateTime.UtcNow - candidateSince > TimeSpan.FromMilliseconds(300))
+        {
+            activeZone = z;
+        }
+
+        message = activeZone switch
+        {
+            0 => "Sauber ✓",
+            -1 or -2 or -3 => "Etwas weiter raus (höher spielen)",
+            1 or 2 or 3 => "Etwas weiter rein (tiefer spielen)",
+            _ => "..."
+        };
+    }
+
+    private static readonly string[] noteNames = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
+    private static string MidiToName(int midi) => $"{noteNames[((midi % 12) + 12) % 12]}{midi / 12 - 1}";
+
+    public ValueTask DisposeAsync()
+    {
+        running = false;
+        try { return JS.InvokeVoidAsync("SheetstormTuner.stop"); } catch { return ValueTask.CompletedTask; }
+    }
+}

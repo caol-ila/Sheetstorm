@@ -1,0 +1,294 @@
+@page "/Bands/{slug}"
+@layout MainLayout
+@attribute [Authorize]
+@inject UserManager<ApplicationUser> UserManager
+@inject SheetstormDbContext Db
+@inject BandService BandService
+@inject AuthenticationStateProvider AuthState
+@inject NavigationManager Navigation
+
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using Sheetstorm.Domain.Identity
+@using Sheetstorm.Infrastructure.Persistence
+@using Sheetstorm.Web.Application
+
+<PageTitle>@(band?.Name ?? slug) — Sheetstorm</PageTitle>
+
+@if (band is null)
+{
+    <p>Lädt…</p>
+}
+else
+{
+    <h1 data-testid="band-title">@band.Name</h1>
+    <p class="text-muted">/@band.Slug</p>
+
+    <p>
+        <a href="/Bands/@band.Slug/pieces" class="btn btn-primary" data-testid="band-pieces-link">📜 Noten verwalten</a>
+        <a href="/Bands/@band.Slug/events" class="btn btn-primary ms-2" data-testid="band-events-link">📅 Termine</a>
+        <a href="/Bands/@band.Slug/sets" class="btn btn-outline-primary ms-2" data-testid="band-sets-link">🎼 Setlists</a>
+        <a href="/api/bands/@band.Slug/calendar.ics" class="btn btn-outline-secondary ms-2" data-testid="band-ical-link" target="_blank">📅 iCal-Export</a>
+    </p>
+
+    @if (canManage)
+    {
+        <div class="ss-card mt-3">
+            <h2 class="mt-0">Verein-Profil bearbeiten</h2>
+            <EditForm Model="EditBandInput" OnValidSubmit="UpdateBandAsync" FormName="band-edit">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Name</label>
+                        <InputText @bind-Value="EditBandInput!.Name" data-testid="band-edit-name" class="form-control" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">PLZ</label>
+                        <InputText @bind-Value="EditBandInput.PostalCode" data-testid="band-edit-postal" class="form-control" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Stadt</label>
+                        <InputText @bind-Value="EditBandInput.City" data-testid="band-edit-city" class="form-control" />
+                    </div>
+                    <div class="col-md-12">
+                        <label class="form-label">Beschreibung</label>
+                        <InputTextArea @bind-Value="EditBandInput.Description" data-testid="band-edit-description" class="form-control" rows="2" />
+                    </div>
+                    <div class="col-md-12">
+                        <label class="form-label">Verband</label>
+                        <InputText @bind-Value="EditBandInput.AssociationName" data-testid="band-edit-association" class="form-control" />
+                    </div>
+                </div>
+                <button type="submit" class="ss-btn ss-btn-primary mt-3" data-testid="band-edit-save">Profil speichern</button>
+            </EditForm>
+        </div>
+    }
+
+    @if (lastCode is not null)
+    {
+        <div class="alert alert-info" data-testid="generated-code">Code: <strong data-testid="generated-code-value">@lastCode</strong></div>
+    }
+    @if (inviteLink is not null)
+    {
+        <div class="alert alert-success" data-testid="invite-link">
+            Einladungs-Link:<br>
+            <code data-testid="invite-url">@inviteLink</code>
+        </div>
+    }
+
+    <h2>Mitglieder</h2>
+    <table class="table" data-testid="members-table">
+        <thead>
+            <tr><th>Name</th><th>E-Mail</th><th>Rollen</th><th>Status</th><th></th></tr>
+        </thead>
+        <tbody>
+            @foreach (var m in members)
+            {
+                <tr data-testid="member-row" data-userid="@m.UserId" data-email="@(usersById.GetValueOrDefault(m.UserId)?.Email ?? "")">
+                    <td>@(usersById.GetValueOrDefault(m.UserId)?.DisplayName ?? "—")</td>
+                    <td>@(usersById.GetValueOrDefault(m.UserId)?.Email ?? "—")</td>
+                    <td><span data-testid="member-roles">@m.Roles</span></td>
+                    <td>@m.Status</td>
+                    <td>
+                        @if (canManage && m.UserId != band.OwnerId)
+                        {
+                            <EditForm Model="ToggleInput" OnValidSubmit="ToggleConductorAsync" FormName="@($"toggle-{m.UserId}")" class="d-inline">
+                                <input type="hidden" name="ToggleInput.MemberUserId" value="@m.UserId" />
+                                <input type="hidden" name="ToggleInput.Action" value="@(m.HasRole(BandRole.Dirigent) ? "revoke" : "grant")" />
+                                <button type="submit" class="btn btn-sm btn-outline-secondary" data-testid="toggle-conductor">
+                                    @(m.HasRole(BandRole.Dirigent) ? "Dirigent entziehen" : "Dirigent gewähren")
+                                </button>
+                            </EditForm>
+                            <EditForm Model="RemoveMemberInput" OnValidSubmit="RemoveMemberAsync" FormName="@($"remove-{m.UserId}")" class="d-inline ms-1">
+                                <input type="hidden" name="RemoveMemberInput.UserId" value="@m.UserId" />
+                                <button type="submit" class="btn btn-sm btn-outline-danger" data-testid="remove-member"
+                                        onclick="return confirm('Mitglied wirklich entfernen?');">Entfernen</button>
+                            </EditForm>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    @if (canManage)
+    {
+        <h2>Pending Beitrittsanfragen</h2>
+        @if (pendingRequests.Count == 0)
+        {
+            <p>Keine offenen Anfragen.</p>
+        }
+        else
+        {
+            <ul class="list-group mb-3" data-testid="pending-requests">
+                @foreach (var req in pendingRequests)
+                {
+                    <li class="list-group-item d-flex justify-content-between" data-testid="pending-request" data-userid="@req.UserId">
+                        <span>@(usersById.GetValueOrDefault(req.UserId)?.Email ?? req.UserId.ToString())</span>
+                        <span>
+                            <EditForm Model="DecideInput" OnValidSubmit="ApproveAsync" FormName="@($"approve-{req.Id}")" class="d-inline">
+                                <input type="hidden" name="DecideInput.RequestId" value="@req.Id" />
+                                <button type="submit" class="btn btn-sm btn-success" data-testid="approve">Genehmigen</button>
+                            </EditForm>
+                            <EditForm Model="DecideInput" OnValidSubmit="RejectAsync" FormName="@($"reject-{req.Id}")" class="d-inline ms-1">
+                                <input type="hidden" name="DecideInput.RequestId" value="@req.Id" />
+                                <button type="submit" class="btn btn-sm btn-danger" data-testid="reject">Ablehnen</button>
+                            </EditForm>
+                        </span>
+                    </li>
+                }
+            </ul>
+        }
+
+        <h2>Einladung per E-Mail</h2>
+        <EditForm Model="InviteInput" OnValidSubmit="InviteAsync" FormName="invite">
+            <div class="form-floating mb-2 d-inline-block w-50">
+                <InputText id="ie" @bind-Value="InviteInput!.Email" data-testid="invite-email" class="form-control" placeholder="x@y.de" />
+                <label for="ie">E-Mail</label>
+            </div>
+            <button type="submit" class="btn btn-primary ms-2 align-bottom" data-testid="invite-submit">Einladen</button>
+        </EditForm>
+
+        <h2 class="mt-4">Beitrittscode generieren</h2>
+        <EditForm Model="CodeInput" OnValidSubmit="GenerateCodeAsync" FormName="gen-code">
+            <button type="submit" class="btn btn-secondary" data-testid="gen-code">Neuen Code erzeugen</button>
+        </EditForm>
+    }
+}
+
+@code {
+    [Parameter] public string slug { get; set; } = default!;
+
+    private Band? band;
+    private List<Membership> members = new();
+    private List<BandJoinRequest> pendingRequests = new();
+    private Dictionary<Guid, ApplicationUser> usersById = new();
+    private bool canManage;
+    private Guid currentUserId;
+    private string? inviteLink;
+    private string? lastCode;
+
+    [SupplyParameterFromForm(FormName = "invite")]
+    private InviteInputModel? InviteInput { get; set; }
+
+    [SupplyParameterFromForm]
+    private DecideInputModel? DecideInput { get; set; }
+
+    [SupplyParameterFromForm]
+    private ToggleInputModel? ToggleInput { get; set; }
+
+    [SupplyParameterFromForm]
+    private RemoveMemberInputModel? RemoveMemberInput { get; set; }
+
+    [SupplyParameterFromForm(FormName = "gen-code")]
+    private CodeInputModel? CodeInput { get; set; }
+
+    [SupplyParameterFromForm(FormName = "band-edit")]
+    private EditBandInputModel? EditBandInput { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        InviteInput ??= new();
+        DecideInput ??= new();
+        ToggleInput ??= new();
+        RemoveMemberInput ??= new();
+        CodeInput ??= new();
+        EditBandInput ??= new();
+
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        var u = await UserManager.GetUserAsync(auth.User);
+        if (u is null) { Navigation.NavigateTo("/Account/Login"); return; }
+        currentUserId = u.Id;
+        await LoadAsync();
+        if (band is not null && string.IsNullOrEmpty(EditBandInput.Name))
+        {
+            EditBandInput.Name = band.Name;
+            EditBandInput.City = band.City;
+            EditBandInput.PostalCode = band.PostalCode;
+            EditBandInput.AssociationName = band.AssociationName;
+            EditBandInput.Description = band.Description;
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        band = await Db.Bands.FirstOrDefaultAsync(b => b.Slug == slug);
+        if (band is null) { Navigation.NavigateTo("/Bands"); return; }
+
+        var myMem = await Db.Memberships.FirstOrDefaultAsync(m => m.BandId == band.Id && m.UserId == currentUserId);
+        if (myMem is null) { Navigation.NavigateTo("/Bands"); return; }
+
+        canManage = myMem.HasRole(BandRole.Admin) || myMem.HasRole(BandRole.Owner);
+
+        members = await Db.Memberships.Where(m => m.BandId == band.Id).ToListAsync();
+        pendingRequests = canManage ? await BandService.GetPendingJoinRequestsAsync(band.Id) : new();
+
+        var ids = members.Select(m => m.UserId).Concat(pendingRequests.Select(r => r.UserId)).Distinct().ToList();
+        usersById = await Db.Users.Where(u => ids.Contains(u.Id)).ToDictionaryAsync(u => u.Id);
+    }
+
+    private async Task ToggleConductorAsync()
+    {
+        if (ToggleInput?.MemberUserId is null) return;
+        var m = members.FirstOrDefault(x => x.UserId == ToggleInput.MemberUserId.Value);
+        if (m is null) return;
+        var newRoles = ToggleInput.Action == "grant"
+            ? (m.Roles | BandRole.Dirigent)
+            : (m.Roles & ~BandRole.Dirigent);
+        await BandService.SetMemberRolesAsync(band!.Id, m.UserId, newRoles);
+        await LoadAsync();
+    }
+
+    private Task ApproveAsync() => DecideAsync(true);
+    private Task RejectAsync() => DecideAsync(false);
+
+    private async Task DecideAsync(bool approve)
+    {
+        if (DecideInput?.RequestId is null) return;
+        await BandService.DecideJoinRequestAsync(DecideInput.RequestId.Value, approve, currentUserId);
+        await LoadAsync();
+    }
+
+    private async Task InviteAsync()
+    {
+        if (string.IsNullOrWhiteSpace(InviteInput?.Email)) return;
+        var inv = await BandService.CreateInvitationAsync(band!.Id, InviteInput.Email, BandRole.Mitglied, currentUserId);
+        inviteLink = $"{Navigation.BaseUri}Account/AcceptInvitation?token={inv.Token}";
+    }
+
+    private async Task GenerateCodeAsync()
+    {
+        var c = await BandService.CreateJoinCodeAsync(band!.Id, currentUserId, maxUses: 5, lifetime: TimeSpan.FromDays(7));
+        lastCode = c.Code;
+    }
+
+    private async Task RemoveMemberAsync()
+    {
+        if (RemoveMemberInput?.UserId is null) return;
+        await BandService.RemoveMemberAsync(band!.Id, RemoveMemberInput.UserId.Value);
+        await LoadAsync();
+    }
+
+    private async Task UpdateBandAsync()
+    {
+        if (band is null || EditBandInput is null || string.IsNullOrWhiteSpace(EditBandInput.Name)) return;
+        await BandService.UpdateBandProfileAsync(band.Id, EditBandInput.Name, EditBandInput.Description, EditBandInput.City, EditBandInput.PostalCode, EditBandInput.AssociationName);
+        await LoadAsync();
+    }
+
+    private sealed class InviteInputModel { public string Email { get; set; } = ""; }
+    private sealed class DecideInputModel { public Guid? RequestId { get; set; } }
+    private sealed class ToggleInputModel { public Guid? MemberUserId { get; set; } public string Action { get; set; } = "grant"; }
+    private sealed class RemoveMemberInputModel { public Guid? UserId { get; set; } }
+    private sealed class CodeInputModel { }
+    private sealed class EditBandInputModel
+    {
+        public string Name { get; set; } = "";
+        public string? Description { get; set; }
+        public string? City { get; set; }
+        public string? PostalCode { get; set; }
+        public string? AssociationName { get; set; }
+    }
+}

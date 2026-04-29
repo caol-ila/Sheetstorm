@@ -1,0 +1,212 @@
+@page "/Bands/{slug}/sets"
+@layout MainLayout
+@attribute [Authorize]
+@inject UserManager<ApplicationUser> UserManager
+@inject SheetstormDbContext Db
+@inject SetListService SetListService
+@inject AuthenticationStateProvider AuthState
+@inject NavigationManager Navigation
+
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using Sheetstorm.Domain.Identity
+@using Sheetstorm.Domain.Music
+@using Sheetstorm.Infrastructure.Persistence
+@using Sheetstorm.Web.Application
+
+<PageTitle>Setlists — @(band?.Name ?? slug)</PageTitle>
+
+@if (band is null)
+{
+    <p>Lädt…</p>
+}
+else
+{
+    <h1 data-testid="sets-heading">Setlists — @band.Name</h1>
+
+    @if (canEdit)
+    {
+        <EditForm Model="CreateInput" OnValidSubmit="CreateAsync" FormName="create-set" class="row g-2 mb-3">
+            <div class="col-md-6">
+                <InputText @bind-Value="CreateInput!.Name" data-testid="newset-name" class="form-control" placeholder="Setlist-Name" />
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100" data-testid="newset-submit">Erstellen</button>
+            </div>
+        </EditForm>
+    }
+
+    @if (selectedSet is not null)
+    {
+        <h2 data-testid="set-detail-title">@selectedSet.Name</h2>
+        @if (selectedSet.Items.Count == 0)
+        {
+            <p data-testid="set-empty">Noch keine Werke in dieser Setlist.</p>
+        }
+        else
+        {
+            <ol class="list-group list-group-numbered mb-3" data-testid="set-items">
+                @foreach (var it in selectedSet.Items.OrderBy(x => x.Position))
+                {
+                    <li class="list-group-item d-flex justify-content-between align-items-center" data-testid="set-item">
+                        <span>@it.Piece.Title @if (!string.IsNullOrEmpty(it.Piece.Composer)) { <small class="text-muted">— @it.Piece.Composer</small> }</span>
+                        @if (canEdit)
+                        {
+                            <span class="d-flex gap-1">
+                                <EditForm Model="MoveInput" OnValidSubmit="MoveUpAsync" FormName="@($"up-{it.Id}")">
+                                    <input type="hidden" name="MoveInput.ItemId" value="@it.Id" />
+                                    <button type="submit" class="btn btn-sm btn-outline-secondary" data-testid="set-item-up" title="Hoch">↑</button>
+                                </EditForm>
+                                <EditForm Model="MoveInput" OnValidSubmit="MoveDownAsync" FormName="@($"down-{it.Id}")">
+                                    <input type="hidden" name="MoveInput.ItemId" value="@it.Id" />
+                                    <button type="submit" class="btn btn-sm btn-outline-secondary" data-testid="set-item-down" title="Runter">↓</button>
+                                </EditForm>
+                                <EditForm Model="RemoveInput" OnValidSubmit="RemoveItemAsync" FormName="@($"rm-{it.Id}")">
+                                    <input type="hidden" name="RemoveInput.ItemId" value="@it.Id" />
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" data-testid="remove-item">Entfernen</button>
+                                </EditForm>
+                            </span>
+                        }
+                    </li>
+                }
+            </ol>
+        }
+
+        @if (canEdit && piecesAvailable.Count > 0)
+        {
+            <EditForm Model="AddPieceInput" OnValidSubmit="AddPieceAsync" FormName="add-piece-to-set" class="row g-2">
+                <div class="col-md-6">
+                    <select @bind="AddPieceInput!.PieceId" name="AddPieceInput.PieceId" class="form-select" data-testid="addpiece-select">
+                        @foreach (var p in piecesAvailable)
+                        {
+                            <option value="@p.Id">@p.Title</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-secondary w-100" data-testid="addpiece-submit">Hinzufügen</button>
+                </div>
+            </EditForm>
+        }
+    }
+    else
+    {
+        @if (sets.Count == 0)
+        {
+            <p data-testid="sets-empty">Noch keine Setlists.</p>
+        }
+        else
+        {
+            <ul class="list-group" data-testid="sets-list">
+                @foreach (var s in sets)
+                {
+                    <li class="list-group-item">
+                        <a href="/Bands/@slug/sets?setId=@s.Id" data-testid="set-row">@s.Name (@s.ItemCount Werke)</a>
+                    </li>
+                }
+            </ul>
+        }
+    }
+}
+
+@code {
+    [Parameter] public string slug { get; set; } = default!;
+    [SupplyParameterFromQuery] public Guid? SetId { get; set; }
+
+    private Band? band;
+    private bool canEdit;
+    private Guid currentUserId;
+    private List<SetListSummary> sets = new();
+    private Sheetstorm.Domain.Events.SetList? selectedSet;
+    private List<Piece> piecesAvailable = new();
+
+    [SupplyParameterFromForm(FormName = "create-set")]
+    private CreateInputModel? CreateInput { get; set; }
+
+    [SupplyParameterFromForm(FormName = "add-piece-to-set")]
+    private AddPieceInputModel? AddPieceInput { get; set; }
+
+    [SupplyParameterFromForm]
+    private RemoveInputModel? RemoveInput { get; set; }
+
+    [SupplyParameterFromForm]
+    private MoveInputModel? MoveInput { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        CreateInput ??= new();
+        AddPieceInput ??= new();
+        RemoveInput ??= new();
+        MoveInput ??= new();
+
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        var u = await UserManager.GetUserAsync(auth.User);
+        if (u is null) { Navigation.NavigateTo("/Account/Login"); return; }
+        currentUserId = u.Id;
+
+        band = await Db.Bands.FirstOrDefaultAsync(x => x.Slug == slug);
+        if (band is null) { Navigation.NavigateTo("/Bands"); return; }
+
+        var myMem = await Db.Memberships.FirstOrDefaultAsync(m => m.BandId == band.Id && m.UserId == currentUserId);
+        if (myMem is null) { Navigation.NavigateTo("/Bands"); return; }
+        canEdit = myMem.HasRole(BandRole.Admin) || myMem.HasRole(BandRole.Owner) || myMem.HasRole(BandRole.Dirigent);
+
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        sets = await SetListService.GetForBandAsync(band!.Id);
+        if (SetId is { } sid)
+        {
+            selectedSet = await SetListService.GetAsync(sid);
+            if (selectedSet is not null)
+            {
+                AddPieceInput!.SetListId = selectedSet.Id;
+                piecesAvailable = await Db.Pieces
+                    .Where(p => p.BandId == band.Id && p.DeletedAt == null)
+                    .OrderBy(p => p.Title)
+                    .ToListAsync();
+            }
+        }
+    }
+
+    private async Task CreateAsync()
+    {
+        if (string.IsNullOrWhiteSpace(CreateInput?.Name)) return;
+        var s = await SetListService.CreateAsync(band!.Id, CreateInput.Name, currentUserId);
+        Navigation.NavigateTo($"/Bands/{slug}/sets?setId={s.Id}");
+    }
+
+    private async Task AddPieceAsync()
+    {
+        if (selectedSet is null || AddPieceInput?.PieceId is null || AddPieceInput.PieceId == Guid.Empty) return;
+        await SetListService.AddPieceAsync(selectedSet.Id, AddPieceInput.PieceId.Value);
+        await LoadAsync();
+    }
+
+    private async Task RemoveItemAsync()
+    {
+        if (RemoveInput?.ItemId is null) return;
+        await SetListService.RemoveItemAsync(RemoveInput.ItemId.Value);
+        await LoadAsync();
+    }
+
+    private Task MoveUpAsync() => MoveAsync(-1);
+    private Task MoveDownAsync() => MoveAsync(1);
+
+    private async Task MoveAsync(int direction)
+    {
+        if (MoveInput?.ItemId is null) return;
+        await SetListService.MoveItemAsync(MoveInput.ItemId.Value, direction);
+        await LoadAsync();
+    }
+
+    private sealed class CreateInputModel { public string Name { get; set; } = ""; }
+    private sealed class AddPieceInputModel { public Guid? SetListId { get; set; } public Guid? PieceId { get; set; } }
+    private sealed class RemoveInputModel { public Guid? ItemId { get; set; } }
+    private sealed class MoveInputModel { public Guid? ItemId { get; set; } }
+}

@@ -1,0 +1,94 @@
+@page "/demo"
+@layout MainLayout
+
+<PageTitle>Demo-Modus — Sheetstorm</PageTitle>
+
+<h1 data-testid="demo-heading">🎬 Sheetstorm in 2 Minuten</h1>
+<p class="ss-page-intro">
+    So nutzt dein Verein Sheetstorm. Klick dich durch die Funktionen mit den
+    Demo-Accounts — keine echten Daten, keine Registrierung nötig.
+</p>
+
+<div class="ss-help-tip">
+    <span class="ss-help-tip-icon">💡</span>
+    <strong>Tipp:</strong> Alle Demo-Accounts haben das Passwort <code>demo</code>.
+    Öffne den Sync-Test mit <strong>zwei Browser-Fenstern</strong> (eines normal, eines im Inkognito-Modus).
+</div>
+
+<div class="row g-3 mt-3">
+    <div class="col-12 col-md-6 col-lg-4">
+        <div class="ss-card h-100" data-testid="demo-role-musician">
+            <h3>🎺 Als Musiker</h3>
+            <p class="text-muted">Maria Klarinette in B</p>
+            <ol>
+                <li>Login: <code>maria@demo.local</code></li>
+                <li>Verein "Demo" → Noten</li>
+                <li>"Marsch der Bayerischen Volkspartei" öffnen</li>
+                <li>Stimme ist automatisch Klarinette in B (⭐)</li>
+                <li>"Offline verfügbar machen" → PDF wird gecacht</li>
+            </ol>
+            <a href="/Account/Login?email=maria@demo.local" class="ss-btn ss-btn-primary" data-testid="demo-login-musician">Als Maria einloggen</a>
+        </div>
+    </div>
+
+    <div class="col-12 col-md-6 col-lg-4">
+        <div class="ss-card h-100" data-testid="demo-role-conductor">
+            <h3>🎼 Als Dirigent</h3>
+            <p class="text-muted">Thomas Dirigent</p>
+            <ol>
+                <li>Login: <code>dirigent@demo.local</code></li>
+                <li>Verein → Setlists → Werke hinzufügen</li>
+                <li>Termine → Konzert mit Setlist anlegen</li>
+                <li>Beim Konzert: <strong>🎵 Sync</strong> klicken</li>
+                <li>Stück öffnen → alle Musiker sehen es live</li>
+            </ol>
+            <a href="/Account/Login?email=dirigent@demo.local" class="ss-btn ss-btn-primary" data-testid="demo-login-conductor">Als Dirigent einloggen</a>
+        </div>
+    </div>
+
+    <div class="col-12 col-md-6 col-lg-4">
+        <div class="ss-card h-100" data-testid="demo-role-admin">
+            <h3>🛠 Als Admin</h3>
+            <p class="text-muted">Andrea Admin</p>
+            <ol>
+                <li>Login: <code>admin@demo.local</code></li>
+                <li>Verein → Mitglied einladen per Mail</li>
+                <li>Beitrittscode generieren</li>
+                <li>Rollen vergeben (Dirigent, Mitglied, …)</li>
+                <li>Werke + Stimmen verwalten</li>
+            </ol>
+            <a href="/Account/Login?email=admin@demo.local" class="ss-btn ss-btn-primary" data-testid="demo-login-admin">Als Admin einloggen</a>
+        </div>
+    </div>
+</div>
+
+<h2 class="mt-5">🎵 Live-Conductor-Sync ausprobieren</h2>
+<div class="ss-card">
+    <ol>
+        <li>Öffne dieses Fenster und ein <strong>zweites Inkognito-Fenster</strong>.</li>
+        <li>Fenster 1: einloggen als <code>dirigent@demo.local</code> / <code>demo</code></li>
+        <li>Fenster 2: einloggen als <code>maria@demo.local</code> / <code>demo</code></li>
+        <li>In beiden: <strong>Verein "Demo" → Termine</strong></li>
+        <li>Lege im Fenster 1 ein Konzert mit Setlist an, klicke <strong>🎵 Sync</strong></li>
+        <li>Fenster 2: gleiches Konzert öffnen, <strong>🎵 Sync</strong></li>
+        <li>Fenster 1: "Sync-Session starten" → Stück öffnen</li>
+        <li>Fenster 2 zeigt das Stück mit Marias Klarinette als PDF — innerhalb 1,5 Sekunden</li>
+    </ol>
+</div>
+
+<h2 class="mt-4">📥 Offline-Modus testen</h2>
+<div class="ss-card">
+    <ol>
+        <li>Als Musiker einloggen (z.B. Maria)</li>
+        <li>Verein → Noten → ein Werk öffnen</li>
+        <li>Klick auf <strong>📥 Offline verfügbar machen</strong></li>
+        <li>PDFs werden im Browser-Cache gespeichert (Service Worker)</li>
+        <li>DevTools (F12) → Application → Service Workers + Cache Storage anschauen</li>
+        <li>Im DevTools-Network-Tab "Offline" einschalten — Werk lädt trotzdem</li>
+    </ol>
+</div>
+
+<div class="text-center mt-4">
+    <a href="/Account/Register" class="ss-btn ss-btn-primary" data-testid="demo-register-cta">Eigenes Konto anlegen</a>
+    <a href="/" class="ss-btn ss-btn-ghost ms-2">← Zur Startseite</a>
+</div>

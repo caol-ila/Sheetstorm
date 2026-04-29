@@ -1,0 +1,164 @@
+@page "/Bands"
+@layout MainLayout
+@attribute [Authorize]
+@inject UserManager<ApplicationUser> UserManager
+@inject BandService BandService
+@inject AuthenticationStateProvider AuthState
+@inject NavigationManager Navigation
+@inject ActiveBandState ActiveBand
+
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Sheetstorm.Domain.Identity
+@using Sheetstorm.Infrastructure.Persistence
+@using Sheetstorm.Web.Application
+
+<PageTitle>Meine Vereine — Sheetstorm</PageTitle>
+
+<h1>Meine Vereine</h1>
+
+@if (bands is null)
+{
+    <p>Lädt…</p>
+}
+else if (bands.Count == 0)
+{
+    <p data-testid="no-bands">Du bist noch in keinem Verein. Erstelle einen oder tritt einem bei.</p>
+}
+else
+{
+    <ul class="list-group mb-4" data-testid="bands-list">
+        @foreach (var b in bands)
+        {
+            <li class="list-group-item d-flex justify-content-between align-items-center" data-testid="band-row" data-slug="@b.Slug">
+                <div>
+                    <strong data-testid="band-name">@b.Name</strong>
+                    <span class="text-muted ms-2">/@b.Slug</span>
+                    <div><small>@b.Roles</small>@(b.IsOwner ? " · Eigentümer" : "")</div>
+                </div>
+                <div>
+                    <a class="btn btn-sm btn-outline-secondary" href="/Bands/@b.Slug" data-testid="band-open">Öffnen</a>
+                </div>
+            </li>
+        }
+    </ul>
+}
+
+<div class="row">
+    <div class="col-md-6">
+        <h2>Verein erstellen</h2>
+        <EditForm Model="CreateInput" OnValidSubmit="CreateBandAsync" FormName="create-band">
+            <DataAnnotationsValidator />
+            @if (createError is not null)
+            {
+                <div class="alert alert-danger" data-testid="create-error">@createError</div>
+            }
+            <div class="form-floating mb-2">
+                <InputText id="bn" @bind-Value="CreateInput.Name" data-testid="newband-name" class="form-control" placeholder="Name" />
+                <label for="bn">Name des Vereins</label>
+                <ValidationMessage For="() => CreateInput.Name" class="text-danger" />
+            </div>
+            <div class="form-floating mb-2">
+                <InputText id="bs" @bind-Value="CreateInput.Slug" data-testid="newband-slug" class="form-control" placeholder="slug" />
+                <label for="bs">Slug (URL)</label>
+                <ValidationMessage For="() => CreateInput.Slug" class="text-danger" />
+            </div>
+            <button type="submit" class="btn btn-primary" data-testid="newband-submit">Erstellen</button>
+        </EditForm>
+    </div>
+    <div class="col-md-6">
+        <h2>Beitrittscode einlösen</h2>
+        <EditForm Model="JoinInput" OnValidSubmit="JoinAsync" FormName="join-by-code">
+            @if (joinMessage is not null)
+            {
+                <div class="alert alert-info" data-testid="join-message">@joinMessage</div>
+            }
+            <div class="form-floating mb-2">
+                <InputText id="jc" @bind-Value="JoinInput.Code" data-testid="joincode-input" class="form-control" placeholder="Code" />
+                <label for="jc">Beitrittscode</label>
+            </div>
+            <button type="submit" class="btn btn-primary" data-testid="joincode-submit">Anfrage senden</button>
+        </EditForm>
+    </div>
+</div>
+
+@code {
+    private List<BandSummary>? bands;
+    private string? createError;
+    private string? joinMessage;
+    private Guid currentUserId;
+
+    [SupplyParameterFromForm(FormName = "create-band")]
+    private CreateInputModel? CreateInput { get; set; }
+
+    [SupplyParameterFromForm(FormName = "join-by-code")]
+    private JoinInputModel? JoinInput { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        CreateInput ??= new();
+        JoinInput ??= new();
+
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(auth.User);
+        if (user is null)
+        {
+            Navigation.NavigateTo("/Account/Login", forceLoad: false);
+            return;
+        }
+        currentUserId = user.Id;
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        bands = await BandService.GetBandsForUserAsync(currentUserId);
+    }
+
+    private void Activate(BandSummary b)
+    {
+        ActiveBand.SetActive(b.Id, b.Name, b.Slug);
+        // Navigation handled by link click in static UI
+    }
+
+    private async Task CreateBandAsync()
+    {
+        Sheetstorm.Domain.Identity.Band? band;
+        try
+        {
+            createError = null;
+            band = await BandService.CreateBandAsync(currentUserId, CreateInput!.Name, CreateInput.Slug, null);
+        }
+        catch (Exception ex)
+        {
+            createError = ex.Message;
+            return;
+        }
+        ActiveBand.SetActive(band.Id, band.Name, band.Slug);
+        Navigation.NavigateTo($"/Bands/{band.Slug}");
+    }
+
+    private async Task JoinAsync()
+    {
+        var bandId = await BandService.RequestJoinByCodeAsync(JoinInput!.Code, currentUserId);
+        joinMessage = bandId is null
+            ? "Code unbekannt oder ungültig."
+            : "Beitrittsanfrage gesendet — wartet auf Freigabe durch Admin.";
+        await ReloadAsync();
+    }
+
+    private sealed class CreateInputModel
+    {
+        [System.ComponentModel.DataAnnotations.Required, System.ComponentModel.DataAnnotations.StringLength(200, MinimumLength = 2)]
+        public string Name { get; set; } = "";
+
+        [System.ComponentModel.DataAnnotations.Required, System.ComponentModel.DataAnnotations.RegularExpression("^[a-z0-9-]{2,64}$", ErrorMessage = "Nur Kleinbuchstaben, Ziffern und Bindestrich, 2-64 Zeichen.")]
+        public string Slug { get; set; } = "";
+    }
+
+    private sealed class JoinInputModel
+    {
+        public string Code { get; set; } = "";
+    }
+}

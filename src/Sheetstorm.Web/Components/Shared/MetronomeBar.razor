@@ -1,0 +1,114 @@
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+@rendermode InteractiveServer
+
+<div class="ss-metronome-bar @(open ? "open" : "")" data-testid="metronome-bar">
+    <button type="button" class="ss-metronome-toggle" @onclick="ToggleOpen" data-testid="metronome-toggle"
+            title="Metronom @(running ? "läuft" : "")">
+        🥁 @bpm
+        @if (running) { <span class="ss-pulse" data-beat="@currentBeat"></span> }
+    </button>
+    @if (open)
+    {
+        <div class="ss-metronome-panel" data-testid="metronome-panel">
+            <div class="d-flex flex-wrap gap-2 align-items-center">
+                <button type="button" class="ss-btn @(running ? "ss-btn-danger" : "ss-btn-primary")" @onclick="ToggleAsync" data-testid="metronome-play">
+                    @(running ? "⏹" : "▶")
+                </button>
+                <span class="ss-bpm-display" data-testid="metronome-bpm">@bpm BPM</span>
+                <input type="range" min="40" max="240" step="1" value="@bpm" @oninput="OnBpmInput" data-testid="metronome-bpm-slider" style="width:160px"/>
+                <button type="button" class="ss-btn ss-btn-secondary ss-btn-sm" @onclick="TapAsync" data-testid="metronome-tap">Tap</button>
+
+                <select @bind="beatsPerBar" @bind:after="ApplyMeterAsync" data-testid="metronome-meter">
+                    <option value="2">2/4</option>
+                    <option value="3">3/4</option>
+                    <option value="4">4/4</option>
+                    <option value="6">6/8</option>
+                    <option value="9">9/8</option>
+                    <option value="12">12/8</option>
+                </select>
+
+                <select @bind="subdivision" @bind:after="ApplySubAsync" data-testid="metronome-subdiv">
+                    <option value="none">— sub aus —</option>
+                    <option value="eighth">8tel</option>
+                    <option value="sixteenth">16tel</option>
+                </select>
+
+                <button type="button" class="ss-btn ss-btn-sm @(percent == 100 ? "ss-btn-primary" : "ss-btn-secondary")" @onclick='() => SetPercent(100)' data-testid="metronome-100">100%</button>
+                <button type="button" class="ss-btn ss-btn-sm @(percent == 90 ? "ss-btn-primary" : "ss-btn-secondary")" @onclick='() => SetPercent(90)' data-testid="metronome-90">−10%</button>
+                <button type="button" class="ss-btn ss-btn-sm @(percent == 80 ? "ss-btn-primary" : "ss-btn-secondary")" @onclick='() => SetPercent(80)' data-testid="metronome-80">−20%</button>
+
+                @if (BasePieceBpm.HasValue)
+                {
+                    <small class="text-muted ms-2">Stück: @BasePieceBpm BPM @BasePieceMeter</small>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public int? BasePieceBpm { get; set; }
+    [Parameter] public string? BasePieceMeter { get; set; }
+
+    private bool open;
+    private bool running;
+    private int bpm = 120;
+    private int basePieceBpm = 120;
+    private int beatsPerBar = 4;
+    private string subdivision = "none";
+    private int percent = 100;
+    private int currentBeat = 0;
+
+    protected override void OnParametersSet()
+    {
+        if (BasePieceBpm.HasValue && BasePieceBpm.Value > 0)
+        {
+            basePieceBpm = BasePieceBpm.Value;
+            bpm = (int)Math.Round(basePieceBpm * percent / 100.0);
+        }
+        if (!string.IsNullOrEmpty(BasePieceMeter))
+        {
+            // "4/4" → 4 beats per bar
+            var parts = BasePieceMeter.Split('/');
+            if (parts.Length == 2 && int.TryParse(parts[0], out var n)) beatsPerBar = n;
+        }
+    }
+
+    private void ToggleOpen() => open = !open;
+
+    private async Task ToggleAsync()
+    {
+        running = !running;
+        if (running) await JS.InvokeVoidAsync("SheetstormMetronome.start", new { bpm, beatsPerBar, subdivision, accent = true, volume = 0.5 });
+        else await JS.InvokeVoidAsync("SheetstormMetronome.stop");
+    }
+
+    private async Task OnBpmInput(ChangeEventArgs args)
+    {
+        if (int.TryParse(args.Value?.ToString(), out var v)) { bpm = v; percent = basePieceBpm > 0 ? (int)Math.Round(bpm * 100.0 / basePieceBpm) : 100; }
+        await JS.InvokeVoidAsync("SheetstormMetronome.setBpm", bpm);
+    }
+
+    private async Task ApplyMeterAsync() => await JS.InvokeVoidAsync("SheetstormMetronome.setBeatsPerBar", beatsPerBar);
+    private async Task ApplySubAsync() => await JS.InvokeVoidAsync("SheetstormMetronome.setSubdivision", subdivision);
+
+    private async Task SetPercent(int p)
+    {
+        percent = p;
+        bpm = (int)Math.Round(basePieceBpm * p / 100.0);
+        await JS.InvokeVoidAsync("SheetstormMetronome.setBpm", bpm);
+        StateHasChanged();
+    }
+
+    private async Task TapAsync()
+    {
+        var v = await JS.InvokeAsync<int?>("SheetstormMetronome.tap");
+        if (v.HasValue) { bpm = v.Value; percent = basePieceBpm > 0 ? (int)Math.Round(bpm * 100.0 / basePieceBpm) : 0; StateHasChanged(); }
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        try { return JS.InvokeVoidAsync("SheetstormMetronome.stop"); } catch { return ValueTask.CompletedTask; }
+    }
+}

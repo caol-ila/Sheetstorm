@@ -1,0 +1,222 @@
+@page "/Bands/{slug}/omr/{jobId:guid}"
+@layout MainLayout
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject UserManager<ApplicationUser> UserManager
+@inject SheetstormDbContext Db
+@inject OmrService OmrService
+@inject AuthenticationStateProvider AuthState
+@inject NavigationManager Navigation
+@inject IServiceScopeFactory ScopeFactory
+@implements IDisposable
+
+@using System.Text.Json
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using Sheetstorm.Domain.Identity
+@using Sheetstorm.Domain.Music
+@using Sheetstorm.Infrastructure.Persistence
+@using Sheetstorm.Web.Application
+
+<PageTitle>Erkennung @(job?.OriginalFileName ?? "")</PageTitle>
+
+<p><a href="/Bands/@slug/omr" data-testid="omr-back">← Zurück zur Übersicht</a></p>
+
+@if (job is null)
+{
+    <p>Lädt…</p>
+}
+else
+{
+    <h1 data-testid="omr-detail-heading">@job.OriginalFileName</h1>
+
+    <div class="ss-card">
+        <div class="d-flex justify-content-between align-items-center">
+            <span data-testid="omr-status">Status: <strong>@StatusLabel(job.Status)</strong></span>
+            @if (job.Status is OmrJobStatus.Queued or OmrJobStatus.Running)
+            {
+                <span class="text-muted small">Aktualisiert sich automatisch alle 1.5s</span>
+            }
+        </div>
+
+        @if (job.Status is OmrJobStatus.Queued or OmrJobStatus.Running)
+        {
+            <div class="progress mt-3" style="height: 1.2rem;">
+                <div class="progress-bar" role="progressbar" style="width: @(job.Progress)%;" data-testid="omr-progress">@job.Progress%</div>
+            </div>
+        }
+        else if (job.Status == OmrJobStatus.Failed)
+        {
+            <div class="alert alert-danger mt-3" data-testid="omr-error">@job.ErrorMessage</div>
+        }
+        else if (job.Status == OmrJobStatus.Confirmed)
+        {
+            <div class="alert alert-success mt-3" data-testid="omr-confirmed">
+                Werk wurde angelegt.
+                @if (job.CreatedPieceId is not null)
+                {
+                    <a href="/Bands/@slug/pieces/@job.CreatedPieceId" data-testid="omr-piece-link">Zum Werk →</a>
+                }
+            </div>
+        }
+    </div>
+
+    @if (job.Status == OmrJobStatus.Done && detectedParts is not null)
+    {
+        <h2>Erkennung prüfen und bestätigen</h2>
+        @if (job.IsStub)
+        {
+            <div class="alert alert-warning" data-testid="omr-stub-warning">
+                ⚠ <strong>Demo-Erkennung aktiv:</strong> Audiveris läuft nicht, daher wurden
+                Standard-Blasmusik-Stimmen vorgeschlagen — sie passen <em>nicht</em> zwingend
+                zum hochgeladenen PDF. Hake nur die Stimmen ab, die du wirklich anlegen willst,
+                oder entferne alle und lege das Werk später unter „Lieder" manuell an.
+                <br/>Für echte Erkennung: AppHost mit <code>--enable-audiveris</code> starten.
+            </div>
+        }
+        else
+        {
+            <div class="ss-help-tip">
+                💡 Prüfe die vorgeschlagenen Stimmen. Du kannst sie deaktivieren oder den Anzeigenamen ändern.
+            </div>
+        }
+
+        <EditForm Model="ConfirmInput" OnValidSubmit="ConfirmAsync" FormName="omr-confirm">
+            <div class="ss-card">
+                <div class="row g-3">
+                    <div class="col-md-8">
+                        <label class="form-label">Werktitel</label>
+                        <InputText @bind-Value="ConfirmInput!.Title" data-testid="omr-confirm-title" class="form-control" />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Komponist</label>
+                        <InputText @bind-Value="ConfirmInput.Composer" data-testid="omr-confirm-composer" class="form-control" />
+                    </div>
+                </div>
+            </div>
+
+            <h3 class="mt-3">Erkannte Stimmen (@detectedParts.Count)</h3>
+            <table class="table" data-testid="omr-detected-parts">
+                <thead>
+                    <tr>
+                        <th>Übernehmen</th>
+                        <th>Anzeigename</th>
+                        <th>Familie</th>
+                        <th>Seiten</th>
+                        <th>Konfidenz</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (int i = 0; i < detectedParts.Count; i++)
+                    {
+                        var idx = i;
+                        var p = detectedParts[idx];
+                        <tr data-testid="omr-detected-row" data-idx="@idx">
+                            <td>
+                                <input type="checkbox" name="@($"ConfirmInput.PartChecks[{idx}]")" value="true" checked data-testid="omr-part-check" />
+                            </td>
+                            <td>
+                                <input type="text" name="@($"ConfirmInput.PartNames[{idx}]")" value="@p.DisplayName" class="form-control form-control-sm" data-testid="omr-part-name" />
+                            </td>
+                            <td><span class="badge bg-light text-dark">@p.InstrumentFamily</span></td>
+                            <td>@p.FromPage<text>–</text>@p.ToPage</td>
+                            <td>@(((int)(p.Confidence * 100)))%</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+
+            <button type="submit" class="ss-btn ss-btn-primary mt-2" data-testid="omr-confirm-submit">Werk anlegen</button>
+        </EditForm>
+    }
+}
+
+@code {
+    [Parameter] public string slug { get; set; } = default!;
+    [Parameter] public Guid jobId { get; set; }
+
+    private OmrJob? job;
+    private List<DetectedPart>? detectedParts;
+    private System.Threading.Timer? pollTimer;
+
+    [SupplyParameterFromForm(FormName = "omr-confirm")]
+    private ConfirmInputModel? ConfirmInput { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        ConfirmInput ??= new();
+        await RefreshAsync();
+        if (job?.Status is OmrJobStatus.Queued or OmrJobStatus.Running)
+        {
+            pollTimer = new System.Threading.Timer(async _ =>
+            {
+                try
+                {
+                    await RefreshAsync();
+                    await InvokeAsync(StateHasChanged);
+                }
+                catch { }
+            }, null, TimeSpan.FromSeconds(1.5), TimeSpan.FromSeconds(1.5));
+        }
+    }
+
+    private async Task RefreshAsync()
+    {
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        var svc = scope.ServiceProvider.GetRequiredService<OmrService>();
+        job = await svc.GetAsync(jobId);
+        if (job?.DetectedPartsJson is not null)
+        {
+            detectedParts = JsonSerializer.Deserialize<List<DetectedPart>>(job.DetectedPartsJson);
+            if (string.IsNullOrEmpty(ConfirmInput!.Title)) ConfirmInput.Title = job.SuggestedTitle ?? job.OriginalFileName;
+            if (string.IsNullOrEmpty(ConfirmInput.Composer)) ConfirmInput.Composer = job.SuggestedComposer ?? "";
+        }
+        if (job?.Status is OmrJobStatus.Done or OmrJobStatus.Failed or OmrJobStatus.Confirmed)
+        {
+            pollTimer?.Dispose();
+            pollTimer = null;
+        }
+    }
+
+    private async Task ConfirmAsync()
+    {
+        if (job is null || detectedParts is null) return;
+        var partsToCreate = new List<DetectedPart>();
+        for (int i = 0; i < detectedParts.Count; i++)
+        {
+            var keep = ConfirmInput?.PartChecks?.ElementAtOrDefault(i) ?? true;
+            if (!keep) continue;
+            var name = ConfirmInput?.PartNames?.ElementAtOrDefault(i) ?? detectedParts[i].DisplayName;
+            partsToCreate.Add(detectedParts[i] with { DisplayName = name });
+        }
+
+        var pieceId = await OmrService.ConfirmAsync(jobId,
+            string.IsNullOrWhiteSpace(ConfirmInput?.Title) ? job.OriginalFileName : ConfirmInput!.Title,
+            string.IsNullOrWhiteSpace(ConfirmInput?.Composer) ? null : ConfirmInput!.Composer,
+            partsToCreate);
+        Navigation.NavigateTo($"/Bands/{slug}/pieces/{pieceId}");
+    }
+
+    private static string StatusLabel(OmrJobStatus s) => s switch
+    {
+        OmrJobStatus.Queued => "⏳ Wartet auf Bearbeitung",
+        OmrJobStatus.Running => "⚙ Erkennung läuft…",
+        OmrJobStatus.Done => "✅ Erkennung abgeschlossen — bitte bestätigen",
+        OmrJobStatus.Failed => "❌ Fehlgeschlagen",
+        OmrJobStatus.Confirmed => "🎼 Werk wurde angelegt",
+        _ => s.ToString(),
+    };
+
+    public void Dispose() => pollTimer?.Dispose();
+
+    private sealed class ConfirmInputModel
+    {
+        public string Title { get; set; } = "";
+        public string Composer { get; set; } = "";
+        public List<bool>? PartChecks { get; set; }
+        public List<string>? PartNames { get; set; }
+    }
+}

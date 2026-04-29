@@ -1,0 +1,590 @@
+@page "/Bands/{slug}/events/{eventId:guid}/orga"
+@layout MainLayout
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject UserManager<ApplicationUser> UserManager
+@inject SheetstormDbContext Db
+@inject EventOrgaService Orga
+@inject PollService Polls
+@inject AuthenticationStateProvider AuthState
+@inject NavigationManager Navigation
+
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using Sheetstorm.Domain.Identity
+@using Sheetstorm.Domain.Events
+@using Sheetstorm.Infrastructure.Persistence
+@using Sheetstorm.Web.Application
+
+<PageTitle>Orga · @(ev?.Title ?? "")</PageTitle>
+
+@if (ev is null || band is null)
+{
+    <p>Lädt…</p>
+}
+else
+{
+    <p><a href="/Bands/@slug/events" data-testid="orga-back">← Termine</a></p>
+    <h1 data-testid="orga-heading">🗂 Orga: @ev.Title</h1>
+    <p class="text-muted">@ev.StartUtc.ToLocalTime().ToString("dd.MM.yyyy HH:mm") – @ev.EndUtc.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</p>
+
+    <div class="ss-tabs mb-3" role="tablist" data-testid="orga-tabs">
+        <button type="button" data-testid="tab-days" class="ss-tab @(tab == "days" ? "active" : "")" @onclick='() => SetTab("days")'>📅 Tage (@days.Count)</button>
+        <button type="button" data-testid="tab-stations" class="ss-tab @(tab == "stations" ? "active" : "")" @onclick='() => SetTab("stations")'>📍 Stationen (@stations.Count)</button>
+        <button type="button" data-testid="tab-shifts" class="ss-tab @(tab == "shifts" ? "active" : "")" @onclick='() => SetTab("shifts")'>⏰ Schichten (@shifts.Count)</button>
+        <button type="button" data-testid="tab-contributions" class="ss-tab @(tab == "contributions" ? "active" : "")" @onclick='() => SetTab("contributions")'>🥗 Bring-Liste (@contributions.Count)</button>
+        <button type="button" data-testid="tab-polls" class="ss-tab @(tab == "polls" ? "active" : "")" @onclick='() => SetTab("polls")'>🗳 Umfragen</button>
+    </div>
+
+    @if (tab == "days")
+    {
+        @* Tage *@
+        <h2>Tage</h2>
+        @if (days.Count == 0)
+        {
+            <div class="ss-empty"><div class="ss-empty-title">Noch keine Tage</div><div class="ss-empty-hint">Lege Tage an für ein mehrtägiges Event (z.B. Sa und So beim Sommerfest).</div></div>
+        }
+        else
+        {
+            <ul class="list-group" data-testid="orga-days-list">
+                @foreach (var d in days)
+                {
+                    <li class="list-group-item d-flex justify-content-between align-items-center" data-testid="orga-day-row">
+                        <div><strong>@d.Date.ToString("ddd dd.MM.yyyy")</strong>
+                            @if (!string.IsNullOrWhiteSpace(d.Theme)) { <span class="text-muted">— @d.Theme</span> }
+                            @if (d.OpenAt.HasValue) { <span class="text-muted small">@d.OpenAt — @d.CloseAt</span> }
+                        </div>
+                        @if (canEdit)
+                        {
+                            <button type="button" class="ss-btn ss-btn-danger ss-btn-sm" data-testid="day-delete" @onclick="() => DeleteDayAsync(d.Id)">Löschen</button>
+                        }
+                    </li>
+                }
+            </ul>
+        }
+        @if (canEdit)
+        {
+            <div class="ss-card mt-3">
+                <h3 class="mt-0">Tag hinzufügen</h3>
+                <div data-form="DayInput" data-action="AddDayAsync">
+                    <div class="row g-2">
+                        <div class="col-md-3">
+                            <label class="form-label">Datum</label>
+                            <InputDate @bind-Value="DayInput.Date" class="form-control" data-testid="day-date" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Motto (optional)</label>
+                            <InputText @bind-Value="DayInput.Theme" class="form-control" placeholder="z.B. Tag der Vereine" data-testid="day-theme" />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Öffnet</label>
+                            <InputText @bind-Value="DayInput.OpenAt" class="form-control" placeholder="10:00" data-testid="day-open" />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Schließt</label>
+                            <InputText @bind-Value="DayInput.CloseAt" class="form-control" placeholder="22:00" data-testid="day-close" />
+                        </div>
+                        <div class="col-md-1 d-flex align-items-end">
+                            <button type="button" class="ss-btn ss-btn-primary" data-testid="day-add" @onclick="AddDayAsync">+</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+    else if (tab == "stations")
+    {
+        <h2>Stationen</h2>
+        @if (stations.Count == 0)
+        {
+            <div class="ss-empty"><div class="ss-empty-title">Noch keine Stationen</div><div class="ss-empty-hint">Beispiele: Rote Wurst, Bierausschank, Kuchentheke, Auf-/Abbau.</div></div>
+        }
+        else
+        {
+            <ul class="list-group" data-testid="orga-stations-list">
+                @foreach (var s in stations)
+                {
+                    <li class="list-group-item d-flex justify-content-between align-items-center" data-testid="orga-station-row">
+                        <div>@(s.IconKey ?? "📍") <strong>@s.Name</strong>
+                            @if (!string.IsNullOrWhiteSpace(s.Description)) { <div class="text-muted small">@s.Description</div> }
+                        </div>
+                        @if (canEdit)
+                        {
+                            <button type="button" class="ss-btn ss-btn-danger ss-btn-sm" data-testid="station-delete" @onclick="() => DeleteStationAsync(s.Id)">Löschen</button>
+                        }
+                    </li>
+                }
+            </ul>
+        }
+        @if (canEdit)
+        {
+            <div class="ss-card mt-3">
+                <h3 class="mt-0">Station hinzufügen</h3>
+                <div data-form="StationInput" data-action="AddStationAsync">
+                    <div class="row g-2">
+                        <div class="col-md-3">
+                            <label class="form-label">Name</label>
+                            <InputText @bind-Value="StationInput.Name" class="form-control" data-testid="station-name" />
+                        </div>
+                        <div class="col-md-1">
+                            <label class="form-label">Icon</label>
+                            <InputText @bind-Value="StationInput.IconKey" class="form-control" placeholder="🌭" data-testid="station-icon" />
+                        </div>
+                        <div class="col-md-7">
+                            <label class="form-label">Beschreibung</label>
+                            <InputText @bind-Value="StationInput.Description" class="form-control" data-testid="station-desc" />
+                        </div>
+                        <div class="col-md-1 d-flex align-items-end">
+                            <button type="button" class="ss-btn ss-btn-primary" data-testid="station-add" @onclick="AddStationAsync">+</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+    else if (tab == "shifts")
+    {
+        <h2>Schichten</h2>
+        @if (shifts.Count == 0)
+        {
+            <div class="ss-empty"><div class="ss-empty-title">Noch keine Schichten</div><div class="ss-empty-hint">Lege einzelne Schichten an oder benutze unten den Generator.</div></div>
+        }
+        else
+        {
+            <table class="table" data-testid="orga-shifts-table">
+                <thead><tr><th>Tag</th><th>Zeit</th><th>Station / Titel</th><th>Belegt</th><th>Aktion</th></tr></thead>
+                <tbody>
+                @foreach (var s in shifts)
+                {
+                    var dayLabel = s.EventDayId.HasValue ? days.FirstOrDefault(d => d.Id == s.EventDayId)?.Date.ToString("ddd dd.MM.") : "";
+                    <tr data-testid="orga-shift-row">
+                        <td>@dayLabel</td>
+                        <td>@s.StartUtc.ToLocalTime().ToString("HH:mm")–@s.EndUtc.ToLocalTime().ToString("HH:mm")</td>
+                        <td>
+                            @if (!string.IsNullOrEmpty(s.StationName)) { <span class="badge bg-light text-dark me-1">@s.StationName</span> }
+                            @s.Title
+                        </td>
+                        <td>
+                            <span class="badge @(s.AssignedCount >= s.RequiredCount ? "bg-success" : "bg-warning text-dark")">
+                                @s.AssignedCount / @s.RequiredCount
+                            </span>
+                        </td>
+                        <td>
+                            <button type="button" class="ss-btn ss-btn-sm @(s.IsAssignedToMe ? "ss-btn-secondary" : "ss-btn-primary")"
+                                    data-testid="shift-toggle" @onclick="() => ToggleShiftAsync(s.Id)">
+                                @(s.IsAssignedToMe ? "Austragen" : "Eintragen")
+                            </button>
+                            @if (canEdit)
+                            {
+                                <button type="button" class="ss-btn ss-btn-danger ss-btn-sm" data-testid="shift-delete" @onclick="() => DeleteShiftAsync(s.Id)">×</button>
+                            }
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        }
+
+        @if (canEdit)
+        {
+            <div class="ss-card mt-3">
+                <h3 class="mt-0">Schicht hinzufügen</h3>
+                <div data-form="ShiftInput" data-action="AddShiftAsync">
+                    <div class="row g-2">
+                        <div class="col-md-2">
+                            <label class="form-label">Tag</label>
+                            <InputSelect @bind-Value="ShiftInput.EventDayId" class="form-select" data-testid="shift-day">
+                                <option value="">— ohne —</option>
+                                @foreach (var d in days)
+                                {
+                                    <option value="@d.Id">@d.Date.ToString("ddd dd.MM.")</option>
+                                }
+                            </InputSelect>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Station</label>
+                            <InputSelect @bind-Value="ShiftInput.StationId" class="form-select" data-testid="shift-station">
+                                <option value="">— ohne —</option>
+                                @foreach (var s in stations)
+                                {
+                                    <option value="@s.Id">@s.Name</option>
+                                }
+                            </InputSelect>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Titel</label>
+                            <InputText @bind-Value="ShiftInput.Title" class="form-control" placeholder="Verkauf 12-14 Uhr" data-testid="shift-title" />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Beginn</label>
+                            <InputText @bind-Value="ShiftInput.StartLocal" class="form-control" placeholder="2026-08-01 12:00" data-testid="shift-start" />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Ende</label>
+                            <InputText @bind-Value="ShiftInput.EndLocal" class="form-control" placeholder="2026-08-01 14:00" data-testid="shift-end" />
+                        </div>
+                        <div class="col-md-1">
+                            <label class="form-label">Slots</label>
+                            <InputNumber @bind-Value="ShiftInput.RequiredCount" class="form-control" data-testid="shift-required" />
+                        </div>
+                        <div class="col-12">
+                            <button type="button" class="ss-btn ss-btn-primary mt-2" data-testid="shift-add" @onclick="AddShiftAsync">Schicht anlegen</button>
+                        </div>
+                    </div>
+                </div>
+
+                <hr/>
+                <h3>Generator (mehrere Slots auf einmal)</h3>
+                <div data-form="GenInput" data-action="GenerateShiftsAsync">
+                    <div class="row g-2">
+                        <div class="col-md-2">
+                            <InputSelect @bind-Value="GenInput.EventDayId" class="form-select" data-testid="gen-day">
+                                <option value="">— Tag —</option>
+                                @foreach (var d in days) { <option value="@d.Id">@d.Date.ToString("ddd dd.MM.")</option> }
+                            </InputSelect>
+                        </div>
+                        <div class="col-md-2">
+                            <InputSelect @bind-Value="GenInput.StationId" class="form-select" data-testid="gen-station">
+                                <option value="">— Station —</option>
+                                @foreach (var s in stations) { <option value="@s.Id">@s.Name</option> }
+                            </InputSelect>
+                        </div>
+                        <div class="col-md-2">
+                            <InputText @bind-Value="GenInput.TitlePattern" class="form-control" placeholder="{start}-{end}" data-testid="gen-title" />
+                        </div>
+                        <div class="col-md-2">
+                            <InputText @bind-Value="GenInput.StartLocal" class="form-control" placeholder="Beginn" data-testid="gen-start" />
+                        </div>
+                        <div class="col-md-2">
+                            <InputText @bind-Value="GenInput.EndLocal" class="form-control" placeholder="Ende" data-testid="gen-end" />
+                        </div>
+                        <div class="col-md-1">
+                            <InputNumber @bind-Value="GenInput.DurationHours" class="form-control" step="0.5" data-testid="gen-duration" />
+                        </div>
+                        <div class="col-md-1">
+                            <InputNumber @bind-Value="GenInput.RequiredPerSlot" class="form-control" data-testid="gen-required" />
+                        </div>
+                        <div class="col-12">
+                            <button type="button" class="ss-btn ss-btn-primary mt-2" data-testid="gen-submit" @onclick="GenerateShiftsAsync">@(generatedCount.HasValue ? $"({generatedCount} Slots erzeugt)" : "Generieren")</button>
+                            <span class="text-muted small ms-2">Beispiel: 10:00 → 18:00, 2h, 2 Slots → 4 Schichten</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+    else if (tab == "contributions")
+    {
+        <h2>Bring-Liste</h2>
+        @if (contributions.Count == 0)
+        {
+            <div class="ss-empty"><div class="ss-empty-title">Noch keine Bring-Punkte</div><div class="ss-empty-hint">Beispiel: Salate, Kuchen, Brezeln.</div></div>
+        }
+        else
+        {
+            <ul class="list-group" data-testid="orga-contribs-list">
+                @foreach (var c in contributions)
+                {
+                    <li class="list-group-item" data-testid="orga-contrib-row">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>@c.Title</strong>
+                                @if (c.Wanted.HasValue)
+                                {
+                                    var pct = c.Wanted.Value > 0 ? Math.Min(100, c.Pledged * 100 / c.Wanted.Value) : 0;
+                                    <span class="badge @(c.Pledged >= c.Wanted ? "bg-success" : "bg-warning text-dark") ms-2" data-testid="contrib-progress">
+                                        @c.Pledged / @c.Wanted (@pct %)
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-info text-dark ms-2" data-testid="contrib-progress">@c.Pledged zugesagt</span>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(c.Description)) { <div class="text-muted small">@c.Description</div> }
+                            </div>
+                            @if (canEdit)
+                            {
+                                <button type="button" class="ss-btn ss-btn-danger ss-btn-sm" data-testid="contrib-delete" @onclick="() => DeleteContributionAsync(c.Id)">×</button>
+                            }
+                        </div>
+                        @if (c.Pledges.Count > 0)
+                        {
+                            <ul class="small text-muted mt-2 mb-0">
+                                @foreach (var p in c.Pledges)
+                                {
+                                    <li>@(p.UserDisplayName ?? "?") — @p.Quantity @(string.IsNullOrEmpty(p.What) ? "" : ": " + p.What)</li>
+                                }
+                            </ul>
+                        }
+                        @{
+                            var myPledge = c.Pledges.FirstOrDefault(p => p.UserId == currentUserId);
+                            if (!PledgeQty.ContainsKey(c.Id)) PledgeQty[c.Id] = myPledge?.Quantity ?? 0;
+                            if (!PledgeWhat.ContainsKey(c.Id)) PledgeWhat[c.Id] = myPledge?.What ?? "";
+                        }
+                        <div class="mt-2 row g-2">
+                            <div class="col-md-2">
+                                <input type="number" min="0" max="999"
+                                       value="@(PledgeQty.GetValueOrDefault(c.Id, myPledge?.Quantity ?? 0))"
+                                       @onchange="@((ChangeEventArgs e) => SetPledgeQty(c.Id, e.Value?.ToString()))"
+                                       class="form-control form-control-sm" data-testid="pledge-quantity" />
+                            </div>
+                            <div class="col-md-7">
+                                <input type="text"
+                                       value="@(PledgeWhat.GetValueOrDefault(c.Id, myPledge?.What ?? string.Empty))"
+                                       @onchange="@((ChangeEventArgs e) => SetPledgeWhat(c.Id, e.Value?.ToString()))"
+                                       class="form-control form-control-sm" placeholder="z.B. Kartoffelsalat für 6" data-testid="pledge-what" />
+                            </div>
+                            <div class="col-md-3">
+                                <button type="button" class="ss-btn ss-btn-primary ss-btn-sm" data-testid="pledge-submit" @onclick="() => PledgeAsync(c.Id)">Zusagen / Aktualisieren</button>
+                            </div>
+                        </div>
+                    </li>
+                }
+            </ul>
+        }
+        @if (canEdit)
+        {
+            <div class="ss-card mt-3">
+                <h3 class="mt-0">Bring-Punkt hinzufügen</h3>
+                <div data-form="ContribInput" data-action="AddContributionAsync">
+                    <div class="row g-2">
+                        <div class="col-md-3">
+                            <label class="form-label">Titel</label>
+                            <InputText @bind-Value="ContribInput.Title" class="form-control" data-testid="contrib-title" />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Wunsch (Anzahl)</label>
+                            <InputNumber @bind-Value="ContribInput.Wanted" class="form-control" data-testid="contrib-wanted" />
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Einheit</label>
+                            <InputSelect @bind-Value="ContribInput.Unit" class="form-select" data-testid="contrib-unit">
+                                <option value="@ContributionUnit.Item">Stk</option>
+                                <option value="@ContributionUnit.Liter">Liter</option>
+                                <option value="@ContributionUnit.Piece">Portion</option>
+                                <option value="@ContributionUnit.Other">Sonstiges</option>
+                            </InputSelect>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Beschreibung</label>
+                            <InputText @bind-Value="ContribInput.Description" class="form-control" data-testid="contrib-desc" />
+                        </div>
+                        <div class="col-md-1 d-flex align-items-end">
+                            <button type="button" class="ss-btn ss-btn-primary" data-testid="contrib-add" @onclick="AddContributionAsync">+</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+    else if (tab == "polls")
+    {
+        <h2>Umfragen</h2>
+        @if (polls.Count == 0)
+        {
+            <div class="ss-empty"><div class="ss-empty-title">Noch keine Umfragen</div><div class="ss-empty-hint">Lege Datums-, Abstimmungs- oder Bedarfs-Umfragen an.</div></div>
+        }
+        else
+        {
+            <ul class="list-group" data-testid="orga-polls-list">
+                @foreach (var p in polls)
+                {
+                    <li class="list-group-item d-flex justify-content-between align-items-center" data-testid="orga-poll-row">
+                        <div>
+                            <span class="badge bg-light text-dark me-2">@PollKindLabel(p.Kind)</span>
+                            <strong>@p.Title</strong>
+                            <span class="text-muted small ms-2">@p.ResponseCount Antwort(en)</span>
+                            @if (p.IsClosed) { <span class="badge bg-secondary ms-2">geschlossen</span> }
+                        </div>
+                        <a href="/Bands/@slug/events/@eventId/orga/polls/@p.Id" class="ss-btn ss-btn-secondary ss-btn-sm" data-testid="poll-open">Öffnen</a>
+                    </li>
+                }
+            </ul>
+        }
+        @if (canEdit)
+        {
+            <div class="ss-card mt-3">
+                <h3 class="mt-0">Neue Umfrage</h3>
+                <div class="row g-2">
+                    <div class="col-md-2">
+                        <label class="form-label">Typ</label>
+                        <InputSelect @bind-Value="PollInput.Kind" class="form-select" data-testid="poll-kind">
+                            <option value="@PollKind.DateFinder">Datums-Findung</option>
+                            <option value="@PollKind.Vote">Abstimmung</option>
+                            <option value="@PollKind.DemandSurvey">Bedarfs-Umfrage</option>
+                        </InputSelect>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Titel</label>
+                        <InputText @bind-Value="PollInput.Title" class="form-control" data-testid="poll-title" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Optionen (eine pro Zeile, bei DateFinder ISO-Datum)</label>
+                        <InputTextArea @bind-Value="PollInput.OptionsText" class="form-control" rows="3" data-testid="poll-options" />
+                    </div>
+                    <div class="col-md-12">
+                        <label class="form-check-label">
+                            <InputCheckbox @bind-Value="PollInput.AllowMultiple" data-testid="poll-multiple" /> Mehrfach-Auswahl erlauben
+                        </label>
+                        <label class="form-check-label ms-3">
+                            <InputCheckbox @bind-Value="PollInput.AnonymousResults" data-testid="poll-anon" /> Antworten anonym (nur Owner sieht Details)
+                        </label>
+                    </div>
+                    <div class="col-12">
+                        <button type="button" class="ss-btn ss-btn-primary mt-2" data-testid="poll-create" @onclick="CreatePollAsync">Umfrage anlegen</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+}
+
+@code {
+    [Parameter] public string slug { get; set; } = default!;
+    [Parameter] public Guid eventId { get; set; }
+    [SupplyParameterFromQuery] public string? tab { get; set; }
+
+    private Band? band;
+    private Event? ev;
+    private bool canEdit;
+    private Guid currentUserId;
+    private int? generatedCount;
+
+    private List<EventDayView> days = new();
+    private List<EventStationView> stations = new();
+    private List<ShiftView> shifts = new();
+    private List<ContributionView> contributions = new();
+    private List<PollListItem> polls = new();
+    private Dictionary<Guid, int> PledgeQty = new();
+    private Dictionary<Guid, string> PledgeWhat = new();
+
+    private DayInputModel DayInput = new();
+    private StationInputModel StationInput = new();
+    private ShiftInputModel ShiftInput = new();
+    private GenInputModel GenInput = new();
+    private ContribInputModel ContribInput = new();
+    private PollInputModel PollInput = new();
+
+    public class DayInputModel { public DateTime Date { get; set; } = DateTime.Today; public string? Theme { get; set; } public string? OpenAt { get; set; } public string? CloseAt { get; set; } }
+    public class StationInputModel { public string Name { get; set; } = ""; public string? Description { get; set; } public string? IconKey { get; set; } }
+    public class ShiftInputModel { public string Title { get; set; } = ""; public string StartLocal { get; set; } = ""; public string EndLocal { get; set; } = ""; public int RequiredCount { get; set; } = 1; public Guid? StationId { get; set; } public Guid? EventDayId { get; set; } }
+    public class GenInputModel { public string TitlePattern { get; set; } = "{start}-{end}"; public string StartLocal { get; set; } = ""; public string EndLocal { get; set; } = ""; public double DurationHours { get; set; } = 2; public int RequiredPerSlot { get; set; } = 2; public Guid? StationId { get; set; } public Guid? EventDayId { get; set; } }
+    public class ContribInputModel { public string Title { get; set; } = ""; public string? Description { get; set; } public ContributionUnit Unit { get; set; } = ContributionUnit.Item; public int? Wanted { get; set; } }
+    public class PollInputModel { public PollKind Kind { get; set; } = PollKind.Vote; public string Title { get; set; } = ""; public string OptionsText { get; set; } = ""; public bool AllowMultiple { get; set; } public bool AnonymousResults { get; set; } }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        var u = await UserManager.GetUserAsync(auth.User);
+        if (u is null) { Navigation.NavigateTo("/", true); return; }
+        currentUserId = u.Id;
+
+        band = await Db.Bands.FirstOrDefaultAsync(b => b.Slug == slug);
+        if (band is null) return;
+        ev = await Db.Events.FirstOrDefaultAsync(e => e.Id == eventId && e.BandId == band.Id);
+        if (ev is null) return;
+
+        var membership = await Db.Memberships.FirstOrDefaultAsync(m => m.BandId == band.Id && m.UserId == currentUserId);
+        canEdit = membership is not null && (membership.Roles.HasFlag(BandRole.Admin) || membership.Roles.HasFlag(BandRole.Dirigent) || membership.Roles.HasFlag(BandRole.Owner));
+        if (string.IsNullOrEmpty(tab)) tab = "shifts";
+
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        days = await Orga.GetDaysAsync(eventId);
+        stations = await Orga.GetStationsAsync(eventId);
+        shifts = await Orga.GetShiftsAsync(eventId, currentUserId);
+        contributions = await Orga.GetContributionsAsync(eventId);
+        var polls = await Polls.GetForEventAsync(eventId);
+        this.polls = polls;
+    }
+
+    private static string PollKindLabel(PollKind k) => k switch { PollKind.DateFinder => "📅 Datum", PollKind.Vote => "🗳 Vote", PollKind.DemandSurvey => "📋 Bedarf", _ => "?" };
+
+    private static TimeOnly? ParseTime(string? s) => TimeOnly.TryParse(s, out var t) ? t : null;
+    private static DateTimeOffset? ParseLocal(string s)
+    {
+        if (DateTimeOffset.TryParse(s, out var dto)) return dto.ToUniversalTime();
+        if (DateTime.TryParse(s, out var dt)) return new DateTimeOffset(dt, TimeZoneInfo.Local.GetUtcOffset(dt)).ToUniversalTime();
+        return null;
+    }
+
+    private async Task AddDayAsync()
+    {
+        if (DayInput is null) return;
+        await Orga.AddDayAsync(eventId, DateOnly.FromDateTime(DayInput.Date), DayInput.Theme, ParseTime(DayInput.OpenAt), ParseTime(DayInput.CloseAt));
+        DayInput = new DayInputModel();
+        await ReloadAsync();
+    }
+    private async Task DeleteDayAsync(Guid id) { await Orga.DeleteDayAsync(id); await ReloadAsync(); }
+    private async Task AddStationAsync()
+    {
+        if (StationInput is null || string.IsNullOrWhiteSpace(StationInput.Name)) return;
+        await Orga.AddStationAsync(eventId, StationInput.Name, StationInput.Description, StationInput.IconKey);
+        StationInput = new StationInputModel();
+        await ReloadAsync();
+    }
+    private async Task DeleteStationAsync(Guid id) { await Orga.DeleteStationAsync(id); await ReloadAsync(); }
+
+    private async Task AddShiftAsync()
+    {
+        if (ShiftInput is null) return;
+        var s = ParseLocal(ShiftInput.StartLocal); var e = ParseLocal(ShiftInput.EndLocal);
+        if (s is null || e is null || string.IsNullOrWhiteSpace(ShiftInput.Title)) return;
+        await Orga.AddShiftAsync(eventId, ShiftInput.Title, s.Value, e.Value, ShiftInput.RequiredCount, ShiftInput.StationId, ShiftInput.EventDayId, null);
+        ShiftInput = new ShiftInputModel();
+        await ReloadAsync();
+    }
+    private async Task GenerateShiftsAsync()
+    {
+        if (GenInput is null) return;
+        var s = ParseLocal(GenInput.StartLocal); var e = ParseLocal(GenInput.EndLocal);
+        if (s is null || e is null) return;
+        generatedCount = await Orga.GenerateShiftsAsync(eventId, GenInput.EventDayId, GenInput.StationId, GenInput.TitlePattern, s.Value, e.Value, GenInput.DurationHours, GenInput.RequiredPerSlot);
+        await ReloadAsync();
+    }
+    private async Task DeleteShiftAsync(Guid id) { await Orga.DeleteShiftAsync(id); await ReloadAsync(); }
+    private async Task ToggleShiftAsync(Guid id) { await Orga.ToggleAssignAsync(id, currentUserId); await ReloadAsync(); }
+
+    private async Task AddContributionAsync()
+    {
+        if (ContribInput is null || string.IsNullOrWhiteSpace(ContribInput.Title)) return;
+        await Orga.AddContributionAsync(eventId, ContribInput.Title, ContribInput.Unit, ContribInput.Wanted, ContribInput.Description);
+        ContribInput = new ContribInputModel();
+        await ReloadAsync();
+    }
+    private async Task DeleteContributionAsync(Guid id) { await Orga.DeleteContributionAsync(id); await ReloadAsync(); }
+    private async Task PledgeAsync(Guid contributionId)
+    {
+        var qty = PledgeQty.GetValueOrDefault(contributionId, 0);
+        var what = PledgeWhat.GetValueOrDefault(contributionId);
+        await Orga.PledgeAsync(contributionId, currentUserId, qty, what);
+        await ReloadAsync();
+    }
+
+    private void SetPledgeQty(Guid id, string? raw)
+    {
+        if (int.TryParse(raw, out var v)) PledgeQty[id] = v;
+    }
+    private void SetPledgeWhat(Guid id, string? raw) => PledgeWhat[id] = raw ?? string.Empty;
+
+    private async Task CreatePollAsync()
+    {
+        Console.WriteLine($"[POLL] CreatePollAsync title='{PollInput.Title}' kind={PollInput.Kind} options='{PollInput.OptionsText}'");
+        if (string.IsNullOrWhiteSpace(PollInput.Title)) return;
+        var options = PollInput.OptionsText.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        await Polls.CreateAsync(PollInput.Kind, PollInput.Title, currentUserId, eventId, null, null, null, PollInput.AllowMultiple, PollInput.AnonymousResults, options);
+        PollInput = new PollInputModel();
+        await ReloadAsync();
+    }
+
+    private void SetTab(string t) { tab = t; StateHasChanged(); }
+}
+
+
+

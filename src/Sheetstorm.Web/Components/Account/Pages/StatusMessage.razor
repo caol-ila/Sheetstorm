@@ -1,0 +1,8 @@
+@if (!string.IsNullOrEmpty(Message))
+{
+    <div class="alert alert-info" role="alert" data-testid="status-message">@Message</div>
+}
+
+@code {
+    [Parameter] public string? Message { get; set; }
+}

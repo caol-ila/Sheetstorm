@@ -1,0 +1,30 @@
+@inject IJSRuntime JS
+
+<button type="button" class="ss-logout-btn" @onclick="ToggleAsync" data-testid="theme-toggle" title="@(isDark ? "Hell" : "Dunkel")">
+    @(isDark ? "☀" : "🌙")
+</button>
+
+@code {
+    private bool isDark;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                var current = await JS.InvokeAsync<string?>("eval", "window.SheetstormTheme && window.SheetstormTheme.current");
+                isDark = current == "dark";
+                StateHasChanged();
+            }
+            catch { }
+        }
+    }
+
+    private async Task ToggleAsync()
+    {
+        var next = isDark ? "light" : "dark";
+        isDark = !isDark;
+        await JS.InvokeVoidAsync("SheetstormTheme.set", next);
+    }
+}
