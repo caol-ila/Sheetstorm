@@ -561,3 +561,12 @@ h3 { font-size: 1.1rem; font-weight: 600; margin: 1rem 0 0.5rem; }
 [data-theme="dark"] .ss-metronome-toggle:hover { background: rgba(255,255,255,.07); }
 [data-theme="dark"] .ss-tab:hover { background: rgba(255,255,255,.07); }
 [data-theme="dark"] .ss-tuner-zone { background: rgba(255,255,255,.07); }
+
+.ss-footer {
+    margin-top: 3rem; padding: 1rem 1.25rem;
+    border-top: 1px solid var(--ss-border, #e5e7eb);
+    font-size: 0.85rem; color: var(--ss-text-muted, #6b7280);
+    text-align: center;
+}
+.ss-footer a { color: inherit; text-decoration: underline dotted; }
+.ss-footer a:hover { color: var(--ss-text, #111); }

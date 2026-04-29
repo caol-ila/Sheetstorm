@@ -77,6 +77,17 @@
         </article>
     </main>
 
+    <footer class="ss-footer" data-testid="ss-footer">
+        <span>Sheetstorm</span>
+        ·
+        <a href="/about" data-testid="ss-footer-about">Über &amp; Lizenzen</a>
+        ·
+        <span class="text-muted">OMR powered by
+            <a href="https://github.com/Audiveris/audiveris" target="_blank" rel="noopener" data-testid="ss-footer-audiveris">Audiveris</a>
+            (AGPL-3.0)
+        </span>
+    </footer>
+
     <AuthorizeView>
         <Authorized Context="userCtx">
             <OnboardingTour @rendermode="InteractiveServer" />

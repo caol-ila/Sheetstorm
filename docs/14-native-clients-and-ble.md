@@ -1,8 +1,26 @@
 # 14 — Native Clients und BLE
 
-> **Status:** Spec, mit Scaffold-Schritten. Ersetzt Konzept aus
-> `08-ble-native-apps-concept.md` mit konkretem Stack.
+> **Status:** Spec + initiale Implementierung.
+> Mobile-Scaffold + JS-Bridge + Backend-Endpoints stehen.
+> Echte BLE-Hardware-Tests stehen noch aus (brauchen Android+iOS-Geräte).
+
 > **Verwandt:** 05 (Conductor-Sync), 10 (Metronom-Sync).
+
+## 14.0 Bisheriger Implementations-Stand
+
+| Komponente | Status |
+|---|---|
+| `mobile/`-Capacitor-Projekt + package.json | ✅ |
+| Plugins (BLE, Push, Network, Preferences) | ✅ als Dependencies |
+| Build-Skripte (Android + iOS) | ✅ |
+| Setup-Skript `mobile/scripts/setup.ps1` | ✅ |
+| `npm install` + `npx cap add android/ios` | ⏳ einmaliges Setup nötig |
+| JS-Bridge `window.SheetstormNative` | ✅ Scan, Verify, Connect-as-Follower |
+| Backend `/api/events/{id}/conductor-key` PUT/GET | ✅ |
+| `ConductorBlePanel.razor` + Schluessel-Erzeugung | ✅ Public-Key-Registrierung; Native-Advertise erst mit echter App |
+| Echtes BLE-Advertising (Peripheral) | ⏳ braucht Capacitor-Plugin-Erweiterung pro Plattform |
+| End-to-End-Hardware-Test | ❌ braucht echte Phones, kein lokales Setup |
+
 
 ## 14.1 Plattform-Strategie
 

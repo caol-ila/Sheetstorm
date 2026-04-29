@@ -8,7 +8,7 @@ namespace Sheetstorm.Web.Application;
 
 public sealed record PieceListItem(Guid Id, string Title, string? Composer, int? Difficulty, string? Genre, int PartsCount, bool HasMyPart);
 
-public sealed record PartViewItem(Guid Id, Guid InstrumentId, string DisplayName, string? Transposition, string Family, bool IsPreferredForUser, IReadOnlyList<PartFileViewItem> Files);
+public sealed record PartViewItem(Guid Id, Guid InstrumentId, string DisplayName, string? Transposition, string Family, bool IsPreferredForUser, ViewModePreference ViewMode, ViewModePreference PieceDefaultViewMode, IReadOnlyList<PartFileViewItem> Files);
 public sealed record PartFileViewItem(Guid Id, PartFileKind Kind, string OriginalFileName, long SizeBytes, int? PageNumber = null);
 
 public sealed class PieceService(SheetstormDbContext db, LocalFileStore store)
@@ -124,17 +124,36 @@ public sealed class PieceService(SheetstormDbContext db, LocalFileStore store)
             .Include(p => p.Instrument)
             .Include(p => p.Files)
             .ToListAsync(ct);
+        var pieceDefault = await db.Pieces.Where(p => p.Id == pieceId).Select(p => p.DefaultViewMode).FirstOrDefaultAsync(ct);
 
         return parts
             .Select(p => new PartViewItem(
                 p.Id, p.InstrumentId, p.DisplayName, p.Transposition,
                 p.Instrument.Family.ToString(),
                 preferredInstrumentIds.Contains(p.InstrumentId),
+                p.ViewMode,
+                pieceDefault,
                 p.Files.Select(f => new PartFileViewItem(f.Id, f.Kind, f.OriginalFileName, f.SizeBytes, f.PageNumber)).ToList()))
             .OrderByDescending(p => p.IsPreferredForUser)
             .ThenByDescending(p => alternativeInstrumentIds.Contains(p.InstrumentId))
             .ThenBy(p => p.Family)
             .ThenBy(p => p.DisplayName)
             .ToList();
+    }
+
+    public async Task SetPartViewModeAsync(Guid partId, ViewModePreference mode, CancellationToken ct = default)
+    {
+        var p = await db.Parts.FirstOrDefaultAsync(x => x.Id == partId, ct);
+        if (p is null) return;
+        p.SetViewMode(mode);
+        await db.SaveChangesAsync(ct);
+    }
+
+    public async Task SetPieceDefaultViewModeAsync(Guid pieceId, ViewModePreference mode, CancellationToken ct = default)
+    {
+        var p = await db.Pieces.FirstOrDefaultAsync(x => x.Id == pieceId, ct);
+        if (p is null) return;
+        p.SetDefaultViewMode(mode);
+        await db.SaveChangesAsync(ct);
     }
 }

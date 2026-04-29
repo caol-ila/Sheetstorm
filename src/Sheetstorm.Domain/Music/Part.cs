@@ -14,6 +14,7 @@ public sealed class Part
     public string DisplayName { get; private set; } = default!;
     public int OrderHint { get; private set; }
     public bool Retired { get; private set; }
+    public ViewModePreference ViewMode { get; private set; } = ViewModePreference.Auto;
     public DateTimeOffset CreatedAt { get; private set; } = DateTimeOffset.UtcNow;
 
     public ICollection<PartFile> Files { get; private set; } = new List<PartFile>();
@@ -36,6 +37,7 @@ public sealed class Part
 
     public void Retire() => Retired = true;
     public void Reactivate() => Retired = false;
+    public void SetViewMode(ViewModePreference mode) => ViewMode = mode;
 }
 
 public enum PartFileKind
@@ -45,6 +47,16 @@ public enum PartFileKind
     Mp3 = 2,
     Midi = 3,
     PageImage = 4,
+}
+
+public enum ViewModePreference
+{
+    /// <summary>SVG/MusicXML wenn vorhanden, sonst Bild-Modus.</summary>
+    Auto = 0,
+    /// <summary>Immer Score (OSMD) — bei fehlendem MusicXML leere Stage.</summary>
+    Score = 1,
+    /// <summary>Immer Bild-Modus (PNG-Pages aus PDF).</summary>
+    Image = 2,
 }
 
 public sealed class PartFile

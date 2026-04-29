@@ -1,6 +1,16 @@
 """
 Sheetstorm Audiveris HTTP Wrapper.
 
+Copyright (C) 2026 Sheetstorm contributors.
+
+This file is part of Sheetstorm and is licensed under the GNU Affero
+General Public License v3.0 (AGPL-3.0-only). See ../LICENSE.md and
+LICENSE.AGPL.txt for details.
+
+This wrapper invokes the Audiveris OMR engine (also AGPL-3.0) over its
+batch CLI and exposes a small HTTP API so the rest of Sheetstorm can talk
+to it without linking against AGPL Java code.
+
 Endpoints:
 - GET  /health         → "ok"
 - POST /recognize      → multipart 'pdf' file, returns MusicXML (plain XML)

@@ -18,6 +18,7 @@ public sealed class Piece
     public string? Genre { get; private set; }
     public string? Tags { get; private set; }
     public string? Notes { get; private set; }
+    public ViewModePreference DefaultViewMode { get; private set; } = ViewModePreference.Auto;
     public DateTimeOffset CreatedAt { get; private set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; private set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? DeletedAt { get; private set; }
@@ -59,4 +60,5 @@ public sealed class Piece
 
     public void SoftDelete() => DeletedAt = DateTimeOffset.UtcNow;
     public void Restore() => DeletedAt = null;
+    public void SetDefaultViewMode(ViewModePreference mode) => DefaultViewMode = mode;
 }

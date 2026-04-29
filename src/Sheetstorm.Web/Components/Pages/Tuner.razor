@@ -30,6 +30,34 @@
         }
     </div>
 
+    <details class="mt-2" data-testid="chord-context-toggle">
+        <summary>Akkord-Intonation (rein gestimmt)</summary>
+        <div class="d-flex flex-wrap gap-2 align-items-center mt-2">
+            <label class="form-check-label">
+                <input type="checkbox" @bind="chordEnabled" data-testid="chord-enabled" /> Akkord-Korrektur aktiv
+            </label>
+            <select @bind="chordRoot" data-testid="chord-root">
+                @foreach (var n in noteNames) { <option value="@n">@n</option> }
+            </select>
+            <select @bind="chordKind" data-testid="chord-kind">
+                <option value="Major">Dur</option>
+                <option value="Minor">Moll</option>
+                <option value="Dom7">Dur 7</option>
+                <option value="Min7">Moll 7</option>
+            </select>
+            <select @bind="myFunction" data-testid="chord-my-role">
+                <option value="Root">Grundton</option>
+                <option value="Third">Terz</option>
+                <option value="Fifth">Quinte</option>
+                <option value="Seventh">Septime</option>
+            </select>
+            @if (chordEnabled)
+            {
+                <span class="text-muted small" data-testid="chord-offset-label">→ Erwartung @ChordCorrection().ToString("+#.# ct;-#.# ct;0 ct")</span>
+            }
+        </div>
+    </details>
+
     <div class="ss-tuner-zones mt-3" data-testid="tuner-zones">
         <div class="ss-tuner-zone @(activeZone == -3 ? "active" : "")" data-testid="zone-very-flat">−−</div>
         <div class="ss-tuner-zone @(activeZone == -2 ? "active" : "")" data-testid="zone-flat">−</div>
@@ -45,6 +73,7 @@
     {
         <p class="text-muted small text-center" data-testid="tuner-detail">
             @hz.ToString("F1") Hz · @noteName · @cents.ToString("+#;-#;0") ct
+            @if (chordEnabled) { <span> · Akkord-Soll @ChordCorrection().ToString("+#.# ct;-#.# ct;0 ct")</span> }
         </p>
     }
 </div>
@@ -61,6 +90,41 @@
     private int candidateZone = 0;
     private DateTime candidateSince = DateTime.MinValue;
     private DotNetObjectReference<Tuner>? selfRef;
+
+    // Akkord-Intonation
+    private bool chordEnabled;
+    private string chordRoot = "C";
+    private string chordKind = "Major";
+    private string myFunction = "Root";
+
+    /// <summary>
+    /// Cent-Offsets fuer rein gestimmten Akkord vs. gleichstufig.
+    /// Werte aus Just-Intonation (5-Limit), gerundet auf 0.1 ct.
+    /// </summary>
+    private double ChordCorrection()
+    {
+        if (!chordEnabled) return 0;
+        return (chordKind, myFunction) switch
+        {
+            ("Major", "Root") => 0,
+            ("Major", "Third") => -13.7,   // 5/4 vs 2^(4/12)
+            ("Major", "Fifth") => +2.0,    // 3/2 vs 2^(7/12)
+            ("Major", "Seventh") => -31.2, // 15/8 wuerde mit 11/8/7/4 abweichen — wir nehmen Dom7 fuer die b7 und Maj7 separat unten
+            ("Minor", "Root") => 0,
+            ("Minor", "Third") => +15.6,   // 6/5
+            ("Minor", "Fifth") => +2.0,
+            ("Minor", "Seventh") => +17.6, // 9/5 (Moll-Sept)
+            ("Dom7", "Root") => 0,
+            ("Dom7", "Third") => -13.7,
+            ("Dom7", "Fifth") => +2.0,
+            ("Dom7", "Seventh") => -31.2,  // 7/4 (Naturseptime)
+            ("Min7", "Root") => 0,
+            ("Min7", "Third") => +15.6,
+            ("Min7", "Fifth") => +2.0,
+            ("Min7", "Seventh") => +17.6,  // 9/5
+            _ => 0,
+        };
+    }
 
     protected override void OnInitialized()
     {
@@ -132,7 +196,9 @@
         var midiFloat = 69 + 12 * Math.Log2(measuredHz / referenceHz);
         var midi = (int)Math.Round(midiFloat);
         var expectedHz = referenceHz * Math.Pow(2, (midi - 69) / 12.0);
-        cents = 1200 * Math.Log2(measuredHz / expectedHz);
+        // Akkord-Korrektur: erwarteter Cent-Wert relativ zur gleichstufigen Soll-Frequenz
+        var chordOffset = ChordCorrection();
+        cents = 1200 * Math.Log2(measuredHz / expectedHz) - chordOffset;
         noteName = MidiToName(midi);
 
         // Zone bestimmen

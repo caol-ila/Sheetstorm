@@ -230,6 +230,56 @@ app.MapGet("/api/polls/{pollId:guid}/export.csv", async (
     return Results.Text(csv, "text/csv; charset=utf-8");
 }).RequireAuthorization();
 
+// Conductor-Public-Key-Endpoints fuer BLE/Sync-Pairing.
+// PUT: Dirigent meldet seinen Public-Key beim Event-Start.
+// GET: Mitglieder holen ihn beim Verbinden ab — ohne den Key wird kein
+// Schedule-Paket akzeptiert.
+app.MapPut("/api/events/{eventId:guid}/conductor-key", async (
+    Guid eventId,
+    Sheetstorm.Web.ConductorKeyDto dto,
+    Sheetstorm.Web.Application.ConductorSyncService sync,
+    System.Security.Claims.ClaimsPrincipal user,
+    Microsoft.AspNetCore.Identity.UserManager<Sheetstorm.Infrastructure.Persistence.ApplicationUser> userManager,
+    Sheetstorm.Infrastructure.Persistence.SheetstormDbContext db,
+    CancellationToken ct) =>
+{
+    var u = await userManager.GetUserAsync(user);
+    if (u is null) return Results.Unauthorized();
+    var ev = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+        .FirstOrDefaultAsync(db.Events.Where(e => e.Id == eventId), ct);
+    if (ev is null) return Results.NotFound();
+    // Nur Dirigenten/Admins/Owner duerfen einen Key registrieren
+    var membership = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+        .FirstOrDefaultAsync(db.Memberships.Where(m => m.BandId == ev.BandId && m.UserId == u.Id), ct);
+    if (membership is null) return Results.Forbid();
+    var allowed = (membership.Roles & (Sheetstorm.Domain.Identity.BandRole.Dirigent | Sheetstorm.Domain.Identity.BandRole.Admin | Sheetstorm.Domain.Identity.BandRole.Owner)) != 0;
+    if (!allowed) return Results.Forbid();
+
+    await sync.StartAsync(eventId, u.Id, dto.PublicKeyBase64, ct);
+    return Results.NoContent();
+}).RequireAuthorization();
+
+app.MapGet("/api/events/{eventId:guid}/conductor-key", async (
+    Guid eventId,
+    Sheetstorm.Web.Application.ConductorSyncService sync,
+    System.Security.Claims.ClaimsPrincipal user,
+    Microsoft.AspNetCore.Identity.UserManager<Sheetstorm.Infrastructure.Persistence.ApplicationUser> userManager,
+    Sheetstorm.Infrastructure.Persistence.SheetstormDbContext db,
+    CancellationToken ct) =>
+{
+    var u = await userManager.GetUserAsync(user);
+    if (u is null) return Results.Unauthorized();
+    var ev = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+        .FirstOrDefaultAsync(db.Events.Where(e => e.Id == eventId), ct);
+    if (ev is null) return Results.NotFound();
+    var isMember = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+        .AnyAsync(db.Memberships.Where(m => m.BandId == ev.BandId && m.UserId == u.Id), ct);
+    if (!isMember) return Results.Forbid();
+    var session = await sync.GetActiveAsync(eventId, ct);
+    if (session?.PublicKeyBase64 is null) return Results.NotFound();
+    return Results.Json(new { publicKey = session.PublicKeyBase64 });
+}).RequireAuthorization();
+
 app.MapPost("/api/push/subscribe", async (
     Sheetstorm.Web.PushSubscriptionDto dto,
     System.Security.Claims.ClaimsPrincipal user,

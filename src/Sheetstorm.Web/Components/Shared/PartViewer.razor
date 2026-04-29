@@ -29,6 +29,14 @@ else
             <button type="button" class="btn @(viewMode == "image" ? "btn-primary" : "btn-outline-primary")"
                     @onclick='() => SetMode("image")' data-testid="viewer-mode-image" title="Seitenbilder aus PDF">🖼 Bild</button>
         </div>
+        @if (CanEdit)
+        {
+            <select class="form-select form-select-sm" style="width:auto" @onchange="OnViewPrefChanged" data-testid="viewer-pref">
+                <option value="@ViewModePreference.Auto" selected="@(Part?.ViewMode == ViewModePreference.Auto)">Auto (Score → Bild)</option>
+                <option value="@ViewModePreference.Score" selected="@(Part?.ViewMode == ViewModePreference.Score)">Immer Noten</option>
+                <option value="@ViewModePreference.Image" selected="@(Part?.ViewMode == ViewModePreference.Image)">Immer Bilder</option>
+            </select>
+        }
 
         <div class="btn-group btn-group-sm" role="group" aria-label="Annotation-Werkzeug">
             <button type="button" class="btn @(tool == "pen" ? "btn-secondary" : "btn-outline-secondary")"
@@ -151,15 +159,33 @@ else
         .OrderBy(f => f.PageNumber ?? 0)
         .ToList() ?? new();
 
+    /// <summary>Effektiver Modus: Auto -> Score wenn MusicXML da, sonst Image. Score/Image: ueberschrieben.</summary>
+    private ViewModePreference EffectivePreference()
+    {
+        if (Part is null) return ViewModePreference.Auto;
+        var pref = Part.ViewMode != ViewModePreference.Auto ? Part.ViewMode
+                 : Part.PieceDefaultViewMode != ViewModePreference.Auto ? Part.PieceDefaultViewMode
+                 : ViewModePreference.Auto;
+        return pref;
+    }
+
     protected override void OnInitialized()
     {
-        if (!HasMusicXml) viewMode = "image";
+        viewMode = HasMusicXml ? "score" : "image";
+        // Effektiven Modus aus Preference herleiten
+        var pref = EffectivePreference();
+        if (pref == ViewModePreference.Score) viewMode = "score";
+        else if (pref == ViewModePreference.Image) viewMode = "image";
+        // Auto: bleibt was oben gesetzt wurde (Score wenn MusicXML, sonst Image).
         selfRef = DotNetObjectReference.Create(this);
     }
 
     protected override void OnParametersSet()
     {
-        if (!HasMusicXml && viewMode == "score") viewMode = "image";
+        var pref = EffectivePreference();
+        if (pref == ViewModePreference.Score && HasMusicXml) viewMode = "score";
+        else if (pref == ViewModePreference.Image) viewMode = "image";
+        else if (pref == ViewModePreference.Auto && !HasMusicXml && viewMode == "score") viewMode = "image";
         if (Part is not null && Part.Id != attachedFor) { attachedFor = Guid.Empty; attachedMode = string.Empty; }
     }
 
@@ -182,6 +208,23 @@ else
     }
 
     [Parameter] public EventCallback<Guid> OnPartChanged { get; set; }
+    [Parameter] public bool CanEdit { get; set; }
+
+    private async Task OnViewPrefChanged(ChangeEventArgs e)
+    {
+        if (Part is null) return;
+        if (Enum.TryParse<ViewModePreference>(e.Value?.ToString(), out var mode))
+        {
+            await PieceService.SetPartViewModeAsync(Part.Id, mode);
+            // Lokal direkt umschalten — Parent wird Part beim naechsten Reload neu laden
+            if (mode == ViewModePreference.Score && HasMusicXml) viewMode = "score";
+            else if (mode == ViewModePreference.Image) viewMode = "image";
+            else viewMode = HasMusicXml ? "score" : "image";
+            attachedMode = string.Empty;
+            StateHasChanged();
+            if (OnPartChanged.HasDelegate) await OnPartChanged.InvokeAsync(Part.Id);
+        }
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
