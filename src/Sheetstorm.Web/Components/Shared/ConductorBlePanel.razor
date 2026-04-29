@@ -12,17 +12,23 @@
     <h3 class="mt-0">📡 BLE-Sync (Pilot)</h3>
     <p class="text-muted small">
         Mit BLE können verbundene Mitglieder live deinen aktuellen Notenstand und Click empfangen.
-        Funktioniert am besten in der nativen App; im Browser ist nur das Verifizieren der Schedule
-        eines anderen Conductors möglich.
+        <strong>Conductor-Mode:</strong> nur in der nativen App (Android, mit Plugin).
+        <strong>Follower-Mode:</strong> auf jedem Gerät mit WebBluetooth (Edge/Chrome/Android-Chrome).
     </p>
 
-    <div class="d-flex gap-2 align-items-center">
+    <div class="d-flex gap-2 align-items-center flex-wrap">
         <button type="button" class="ss-btn ss-btn-primary" @onclick="StartAsync" data-testid="ble-start" disabled="@busy">
             @(running ? "🔄 Aktiv" : "▶ BLE starten")
         </button>
         <button type="button" class="ss-btn ss-btn-secondary" @onclick="StopAsync" data-testid="ble-stop" disabled="@(!running)">
             ⏹ Stoppen
         </button>
+        @if (running)
+        {
+            <button type="button" class="ss-btn ss-btn-secondary" @onclick="SendDemoTickAsync" data-testid="ble-demo-tick">
+                🥁 Demo-Tick senden
+            </button>
+        }
         @if (!string.IsNullOrEmpty(status))
         {
             <span class="badge bg-info text-dark" data-testid="ble-status">@status</span>
@@ -108,7 +114,23 @@
     {
         running = false;
         status = null;
-        try { await JS.InvokeVoidAsync("eval", "(async ()=>{ try { /* TODO Stop-Native */ } catch{} })()"); } catch { }
+        try { await JS.InvokeVoidAsync("SheetstormNative.stopConductor"); } catch { }
+    }
+
+    private async Task SendDemoTickAsync()
+    {
+        try
+        {
+            // Demo-Payload: "tick:" + timestamp ms + counter
+            var payload = $"tick:{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
+            var bytes = System.Text.Encoding.UTF8.GetBytes(payload);
+            await JS.InvokeVoidAsync("eval", $"window.Capacitor && window.Capacitor.Plugins.SheetstormBleAdvertiser && window.Capacitor.Plugins.SheetstormBleAdvertiser.notifySchedule({{ data: '{Convert.ToBase64String(bytes)}' }})");
+            status = $"Tick gesendet ({payload})";
+        }
+        catch (Exception e)
+        {
+            warning = "Tick-Versand fehlgeschlagen: " + e.Message;
+        }
     }
 
     public class KeyPairDto

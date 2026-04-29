@@ -120,13 +120,16 @@ window.SheetstormNative = {
    */
   async startConductor() {
     if (!isCapacitor()) throw new Error('Conductor-Mode benötigt die native App.');
-    const ble = await loadCapBle();
-    // Hinweis: @capacitor-community/bluetooth-le hat in v7 Peripheral-API
-    // begrenzt — auf iOS funktioniert das, Android braucht einen
-    // Foreground-Service. Implementierung des Peripheral wird
-    // plattformspezifisch ueber Capacitor-Plugin Erweiterung gemacht;
-    // hier Stub mit klarer Fehlermeldung.
-    throw new Error('Peripheral/Advertising — Implementierung in Folge-Iteration. Web-Sender nutzt im Test-Setup WLAN/SignalR.');
+    // Custom Plugin SheetstormBleAdvertiser (Android, siehe mobile/native/android/)
+    const plugin = window.Capacitor.Plugins.SheetstormBleAdvertiser;
+    if (!plugin) throw new Error('Plugin SheetstormBleAdvertiser nicht installiert. Siehe mobile/native/android/README.md.');
+    return await plugin.start();
+  },
+
+  async stopConductor() {
+    if (!isCapacitor()) return;
+    const plugin = window.Capacitor.Plugins.SheetstormBleAdvertiser;
+    if (plugin) try { await plugin.stop(); } catch { }
   },
 
   /**
@@ -135,7 +138,10 @@ window.SheetstormNative = {
    */
   async broadcastSchedule(payloadBytes) {
     if (!isCapacitor()) throw new Error('Broadcast benötigt native App.');
-    throw new Error('Siehe startConductor — Peripheral kommt in der naechsten Iteration.');
+    const plugin = window.Capacitor.Plugins.SheetstormBleAdvertiser;
+    if (!plugin) throw new Error('Plugin nicht installiert.');
+    const b64 = btoa(String.fromCharCode(...payloadBytes));
+    return await plugin.notifySchedule({ data: b64 });
   },
 
   /**
@@ -184,4 +190,34 @@ window.SheetstormNative = {
       return null;
     }
   },
+};
+
+/**
+ * Globaler Helper fuer die /ble-test-Seite. Wird von Blazor via
+ * JS.InvokeAsync aufgerufen mit (dotnetRef, methodName).
+ *
+ * Triggert den WebBluetooth-Picker, verbindet zur Schedule-Characteristic
+ * und ruft bei jedem Notification-Event dotnetRef.invokeMethodAsync(methodName, base64).
+ */
+window.ssBleTestConnect = async function (dotnetRef, methodName) {
+  if (!navigator.bluetooth) return false;
+  try {
+    const svcUuid = window.SheetstormNative.serviceUuid;
+    const dev = await navigator.bluetooth.requestDevice({ filters: [{ services: [svcUuid] }] });
+    const server = await dev.gatt.connect();
+    const svc = await server.getPrimaryService(svcUuid);
+    const ch = await svc.getCharacteristic(window.SheetstormNative.charSchedule);
+    ch.addEventListener('characteristicvaluechanged', (e) => {
+      const u = new Uint8Array(e.target.value.buffer);
+      const b64 = btoa(String.fromCharCode(...u));
+      try { dotnetRef.invokeMethodAsync(methodName, b64); } catch { }
+    });
+    await ch.startNotifications();
+    window.__ssBleDevice = dev;
+    window.__ssBleServer = server;
+    return true;
+  } catch (e) {
+    console.warn('ssBleTestConnect:', e);
+    return false;
+  }
 };

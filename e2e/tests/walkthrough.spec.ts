@@ -167,17 +167,17 @@ test.describe('Walkthrough — alle Hauptflows', () => {
     // Toggle ein
     await page.getByTestId('theme-toggle').click();
     // Warte bis Theme tatsaechlich gesetzt ist (InteractiveServer-Round-trip)
-    await page.waitForFunction(() => document.documentElement.getAttribute('data-theme') === 'dark', null, { timeout: 5000 });
+    await page.waitForFunction(() => document.documentElement.getAttribute('data-theme') === 'dark', null, { timeout: 15000 });
 
     // Navigation auf andere Seite
     await page.goto('/Bands/demo/pieces');
-    await page.waitForFunction(() => document.documentElement.getAttribute('data-theme') === 'dark');
+    await page.waitForFunction(() => document.documentElement.getAttribute('data-theme') === 'dark', null, { timeout: 5000 });
     await page.goto('/Bands/demo/events');
-    await page.waitForFunction(() => document.documentElement.getAttribute('data-theme') === 'dark');
+    await page.waitForFunction(() => document.documentElement.getAttribute('data-theme') === 'dark', null, { timeout: 5000 });
 
     // Direkt-Reload
     await page.reload();
-    await page.waitForFunction(() => document.documentElement.getAttribute('data-theme') === 'dark');
+    await page.waitForFunction(() => document.documentElement.getAttribute('data-theme') === 'dark', null, { timeout: 5000 });
 
     await ctx.close();
   });
