@@ -75,7 +75,7 @@ else
         {
             <h3 data-testid="selected-part-name">@selectedPart.DisplayName</h3>
 
-            <PartViewer Part="selectedPart" @rendermode="InteractiveServer" />
+            <PartViewer Part="selectedPart" CanEdit="canEdit" OnPartChanged="ReloadPartAsync" @rendermode="InteractiveServer" />
         }
     }
 
@@ -188,6 +188,15 @@ else
             : sortedParts.FirstOrDefault();
         selectedPart = preselect;
         if (preselect is not null) SelectInput!.PartId = preselect.Id;
+    }
+
+    private async Task ReloadPartAsync(Guid partId)
+    {
+        await ReloadPartsAsync();
+        // Auf gerade aktualisierte Stimme zurueckspringen
+        var p = sortedParts.FirstOrDefault(x => x.Id == partId);
+        if (p is not null) { selectedPart = p; if (SelectInput is not null) SelectInput.PartId = p.Id; }
+        StateHasChanged();
     }
 
     private Task SelectPartAsync()

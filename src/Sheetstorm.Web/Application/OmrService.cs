@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Sheetstorm.Domain.Identity;
@@ -14,6 +15,12 @@ public sealed record OmrResult(string? SuggestedTitle, string? SuggestedComposer
 public interface IOmrEngine
 {
     Task<OmrResult> RecognizeAsync(string blobKey, string originalFileName, IReadOnlyList<Instrument> availableInstruments, CancellationToken ct = default);
+
+    /// <summary>
+    /// Roh-MusicXML eines PDFs zurueckgeben (fuer "Audiveris auf einer einzelnen Stimme nachtraeglich ausfuehren").
+    /// Liefert null wenn die Engine das nicht unterstuetzt (z.B. Stub).
+    /// </summary>
+    Task<string?> RecognizeRawMusicXmlAsync(string blobKey, string originalFileName, CancellationToken ct = default) => Task.FromResult<string?>(null);
 }
 
 /// <summary>
@@ -90,6 +97,121 @@ public sealed class OmrService(SheetstormDbContext db, LocalFileStore store, IWe
 
     public async Task<List<OmrJob>> GetForBandAsync(Guid bandId, CancellationToken ct = default)
         => await db.OmrJobs.Where(j => j.BandId == bandId).OrderByDescending(j => j.CreatedAt).Take(50).ToListAsync(ct);
+
+    /// <summary>
+    /// Startet Audiveris im Hintergrund auf dem PDF einer existierenden Stimme.
+    /// Returnt sofort. Status / Fertigstellung kann ueber HasMusicXmlAsync gepollt werden.
+    /// </summary>
+    public Task StartAudiverisOnPartAsync(Guid partId, IServiceScopeFactory scopeFactory, ILogger logger)
+    {
+        // Idempotent: wenn schon laufend, nicht erneut starten.
+        if (RunningAudiverisParts.ContainsKey(partId))
+        {
+            logger.LogInformation("Audiveris-on-Part {PartId}: schon laufend — kein neuer Job", partId);
+            return Task.CompletedTask;
+        }
+        RunningAudiverisParts[partId] = DateTimeOffset.UtcNow;
+        FailedAudiverisParts.TryRemove(partId, out _);
+        SheetstormTelemetry.AudiverisStarted.Add(1, new KeyValuePair<string, object?>("part.id", partId.ToString()));
+
+        _ = Task.Run(async () =>
+        {
+            using var activity = SheetstormTelemetry.Activity.StartActivity("audiveris.recognize", ActivityKind.Internal);
+            activity?.SetTag("part.id", partId.ToString());
+
+            await using var scope = scopeFactory.CreateAsyncScope();
+            var freshDb = scope.ServiceProvider.GetRequiredService<SheetstormDbContext>();
+            var freshStore = scope.ServiceProvider.GetRequiredService<LocalFileStore>();
+            var freshEngine = scope.ServiceProvider.GetRequiredService<IOmrEngine>();
+            var freshSvc = new OmrService(freshDb, freshStore, scope.ServiceProvider.GetRequiredService<IWebHostEnvironment>());
+
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            try
+            {
+                logger.LogInformation("Audiveris-on-Part {PartId}: START", partId);
+                var ok = await freshSvc.RunAudiverisOnPartAsync(partId, freshEngine);
+                sw.Stop();
+                activity?.SetTag("audiveris.result", ok ? "success" : "failed");
+                activity?.SetStatus(ok ? ActivityStatusCode.Ok : ActivityStatusCode.Error);
+                logger.LogInformation("Audiveris-on-Part {PartId}: {Result} nach {ElapsedSec:F1}s",
+                    partId, ok ? "SUCCESS" : "FAILED", sw.Elapsed.TotalSeconds);
+                if (ok) SheetstormTelemetry.AudiverisCompleted.Add(1, new KeyValuePair<string, object?>("part.id", partId.ToString()));
+                else { SheetstormTelemetry.AudiverisFailed.Add(1, new KeyValuePair<string, object?>("part.id", partId.ToString())); FailedAudiverisParts[partId] = DateTimeOffset.UtcNow; }
+            }
+            catch (Exception ex)
+            {
+                sw.Stop();
+                activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+                activity?.AddException(ex);
+                logger.LogError(ex, "Audiveris-on-Part {PartId} CRASHED nach {ElapsedSec:F1}s", partId, sw.Elapsed.TotalSeconds);
+                SheetstormTelemetry.AudiverisFailed.Add(1, new KeyValuePair<string, object?>("part.id", partId.ToString()), new KeyValuePair<string, object?>("error", ex.GetType().Name));
+                FailedAudiverisParts[partId] = DateTimeOffset.UtcNow;
+            }
+            finally
+            {
+                SheetstormTelemetry.AudiverisDurationSeconds.Record(sw.Elapsed.TotalSeconds, new KeyValuePair<string, object?>("part.id", partId.ToString()));
+                RunningAudiverisParts.TryRemove(partId, out _);
+            }
+        });
+        return Task.CompletedTask;
+    }
+
+    public bool IsAudiverisRunning(Guid partId) => RunningAudiverisParts.ContainsKey(partId);
+    public bool LastAudiverisFailed(Guid partId) => FailedAudiverisParts.ContainsKey(partId);
+    public void ClearAudiverisFailedFlag(Guid partId) => FailedAudiverisParts.TryRemove(partId, out _);
+
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, DateTimeOffset> RunningAudiverisParts = new();
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, DateTimeOffset> FailedAudiverisParts = new();
+
+    /// <summary>
+    /// Laeuft Audiveris auf dem PDF einer existierenden Stimme und haengt das
+    /// Ergebnis als PartFile.MusicXml an.
+    /// Idempotent: wenn bereits ein MusicXml-File existiert, wird es ersetzt.
+    /// </summary>
+    public async Task<bool> RunAudiverisOnPartAsync(Guid partId, IOmrEngine engine, CancellationToken ct = default)
+    {
+        using var activity = SheetstormTelemetry.Activity.StartActivity("audiveris.recognize.inner", ActivityKind.Internal);
+        activity?.SetTag("part.id", partId.ToString());
+
+        var part = await db.Parts.Include(p => p.Files).FirstOrDefaultAsync(p => p.Id == partId, ct);
+        if (part is null)
+        {
+            activity?.SetStatus(ActivityStatusCode.Error, "part-not-found");
+            return false;
+        }
+        var pdf = part.Files.FirstOrDefault(f => f.Kind == PartFileKind.Pdf);
+        if (pdf is null)
+        {
+            activity?.SetStatus(ActivityStatusCode.Error, "no-pdf");
+            return false;
+        }
+        activity?.SetTag("pdf.size_bytes", pdf.SizeBytes);
+        activity?.SetTag("pdf.filename", pdf.OriginalFileName);
+
+        var xml = await engine.RecognizeRawMusicXmlAsync(pdf.BlobKey, pdf.OriginalFileName, ct);
+        if (string.IsNullOrEmpty(xml))
+        {
+            activity?.SetStatus(ActivityStatusCode.Error, "engine-returned-empty");
+            return false;
+        }
+        activity?.SetTag("musicxml.size_bytes", xml.Length);
+
+        // Alte MusicXml-Dateien dieser Stimme entfernen
+        foreach (var old in part.Files.Where(f => f.Kind == PartFileKind.MusicXml).ToList())
+        {
+            db.PartFiles.Remove(old);
+        }
+        await db.SaveChangesAsync(ct);
+
+        var bytes = System.Text.Encoding.UTF8.GetBytes(xml);
+        using var ms = new MemoryStream(bytes);
+        var name = $"{Path.GetFileNameWithoutExtension(pdf.OriginalFileName)}.musicxml";
+        var blobKey = await store.SaveAsync(ms, $"parts/{partId}", name, ct);
+        db.PartFiles.Add(PartFile.Create(partId, PartFileKind.MusicXml, blobKey, name, bytes.Length));
+        await db.SaveChangesAsync(ct);
+        activity?.SetStatus(ActivityStatusCode.Ok);
+        return true;
+    }
 
     public async Task<Guid> ConfirmAsync(Guid jobId, string title, string? composer, IReadOnlyList<DetectedPart> partsToCreate, CancellationToken ct = default)
     {

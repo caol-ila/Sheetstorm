@@ -35,3 +35,8 @@ src/.filestore/
 .filestore/
 
 docker/audiveris/.image-hash
+
+webrun.log
+mobile/android/
+mobile/package-lock.json
+

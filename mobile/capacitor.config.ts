@@ -6,7 +6,7 @@ import { CapacitorConfig } from '@capacitor/cli';
  * Dev: server.url auf den lokalen Blazor-Dev-Server zeigen (siehe SHEETSTORM_DEV_URL).
  * Prod: webDir = 'www' enthält ein statisches HTML-Splash, das die Prod-PWA-URL lädt.
  */
-const devUrl = process.env.SHEETSTORM_DEV_URL;
+const devUrl = process.env.SHEETSTORM_DEV_URL ?? 'https://dv3mtssf-7180.euw.devtunnels.ms';
 
 const config: CapacitorConfig = {
   appId: 'de.sheetstorm.app',

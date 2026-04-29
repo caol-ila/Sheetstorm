@@ -89,7 +89,14 @@ var audiverisUrl = builder.Configuration["Audiveris:BaseUrl"]
     ?? builder.Configuration["ConnectionStrings:audiveris"];
 if (!string.IsNullOrEmpty(audiverisUrl))
 {
-    builder.Services.AddHttpClient("audiveris", c => c.BaseAddress = new Uri(audiverisUrl));
+    #pragma warning disable EXTEXP0001 // Resilience-Handler-Remove ist als experimental markiert, funktioniert aber stabil
+    builder.Services.AddHttpClient("audiveris", c =>
+    {
+        c.BaseAddress = new Uri(audiverisUrl);
+        c.Timeout = TimeSpan.FromMinutes(15);
+    })
+    .RemoveAllResilienceHandlers();
+    #pragma warning restore EXTEXP0001
     builder.Services.AddScoped<IOmrEngine, AudiverisOmrEngine>();
 }
 else
@@ -140,6 +147,18 @@ if (!app.Environment.IsDevelopment())
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
     app.UseHsts();
 }
+
+// Forwarded-Headers fuer Reverse-Proxy / Dev-Tunnels (devtunnels.ms,
+// trycloudflare.com, ngrok). Sonst nimmt Kestrel den lokalen Hostnamen
+// und Login-Redirects landen auf https://localhost statt der Tunnel-URL.
+app.UseForwardedHeaders(new Microsoft.AspNetCore.Builder.ForwardedHeadersOptions
+{
+    ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor
+                     | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto
+                     | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedHost,
+    KnownNetworks = { },
+    KnownProxies = { },
+});
 
 app.UseHttpsRedirection();
 

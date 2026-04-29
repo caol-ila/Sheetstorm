@@ -38,6 +38,42 @@ public sealed class AudiverisOmrEngine(LocalFileStore store, IHttpClientFactory 
         return new OmrResult(title, composer, parts);
     }
 
+    /// <inheritdoc />
+    public async Task<string?> RecognizeRawMusicXmlAsync(string blobKey, string originalFileName, CancellationToken ct = default)
+    {
+        using var activity = Sheetstorm.Web.Application.SheetstormTelemetry.Activity.StartActivity("audiveris.http.recognize", System.Diagnostics.ActivityKind.Client);
+        activity?.SetTag("audiveris.blob_key", blobKey);
+        activity?.SetTag("audiveris.filename", originalFileName);
+
+        var client = httpFactory.CreateClient("audiveris");
+        client.Timeout = TimeSpan.FromMinutes(10);
+        await using var pdf = store.OpenRead(blobKey);
+        var fileSize = store.GetSize(blobKey);
+        activity?.SetTag("pdf.size_bytes", fileSize);
+
+        using var content = new MultipartFormDataContent();
+        var streamContent = new StreamContent(pdf);
+        streamContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/pdf");
+        content.Add(streamContent, "pdf", originalFileName);
+        log.LogInformation("Audiveris Single-Part: {File} ({Size} bytes)", originalFileName, fileSize);
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var resp = await client.PostAsync("/recognize", content, ct);
+        sw.Stop();
+        activity?.SetTag("audiveris.http.status", (int)resp.StatusCode);
+        activity?.SetTag("audiveris.http.elapsed_ms", sw.ElapsedMilliseconds);
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync(ct);
+            log.LogError("Audiveris-Fehler {Code} nach {Elapsed:F1}s: {Body}", (int)resp.StatusCode, sw.Elapsed.TotalSeconds, body);
+            activity?.SetStatus(System.Diagnostics.ActivityStatusCode.Error, $"HTTP {(int)resp.StatusCode}");
+            return null;
+        }
+        var xml = await resp.Content.ReadAsStringAsync(ct);
+        activity?.SetTag("musicxml.size_bytes", xml.Length);
+        log.LogInformation("Audiveris fertig: {Bytes} byte MusicXML in {Elapsed:F1}s", xml.Length, sw.Elapsed.TotalSeconds);
+        return xml;
+    }
+
     /// <summary>
     /// Extrahiert Titel/Komponist und die <part-list> aus MusicXML.
     /// MusicXML-Struktur:

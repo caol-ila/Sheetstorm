@@ -1,6 +1,10 @@
 @inject IJSRuntime JS
 @inject Sheetstorm.Web.Application.PdfPageImageService PageImagesService
 @inject Sheetstorm.Web.Application.PieceService PieceService
+@inject Sheetstorm.Web.Application.OmrService OmrService
+@inject Sheetstorm.Web.Application.IOmrEngine OmrEngine
+@inject IServiceScopeFactory ScopeFactory
+@inject ILoggerFactory LoggerFactory
 @implements IAsyncDisposable
 
 @using Sheetstorm.Domain.Music
@@ -63,6 +67,14 @@ else
         </div>
 
         <div class="ms-auto d-flex gap-2 align-items-center">
+            @if (CanEdit && PdfFile is not null && !HasMusicXml)
+            {
+                <button type="button" class="btn btn-sm btn-outline-primary" @onclick="RunAudiverisAsync"
+                        data-testid="run-audiveris" disabled="@runningOmr"
+                        title="Audiveris erkennt die Noten aus dem PDF und legt MusicXML an — der Score-Modus zeigt sie dann.">
+                    @(runningOmr ? "🔄 Erkennt …" : "🎼 Audiveris-Erkennung")
+                </button>
+            }
             <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="UndoAsync" data-testid="tool-undo" title="Rückgängig">↩ Zurück</button>
             <button type="button" class="btn btn-sm btn-outline-danger" @onclick="ClearAsync" data-testid="tool-clear" title="Annotationen löschen">🗑</button>
             @if (saving)
@@ -75,6 +87,13 @@ else
             }
         </div>
     </div>
+
+    @if (omrMessage is not null)
+    {
+        <div class="alert @(omrSuccess ? "alert-success" : "alert-warning") mb-2" data-testid="run-audiveris-result">
+            @omrMessage
+        </div>
+    }
 
     <div class="ss-stage" id="@stageId" data-testid="viewer-stage"
          style="position:relative;border:1px solid var(--ss-border, #e5e7eb);border-radius:.5rem;background:white;min-height:520px;overflow:hidden;">
@@ -207,6 +226,69 @@ else
         }
     }
 
+    private bool runningOmr;
+    private bool omrSuccess;
+    private string? omrMessage;
+    private System.Threading.CancellationTokenSource? pollCts;
+
+    private async Task RunAudiverisAsync()
+    {
+        if (Part is null) return;
+        runningOmr = true; omrMessage = "🔄 Erkennung läuft im Hintergrund — kann mehrere Minuten dauern. Du kannst weiternavigieren."; omrSuccess = false;
+        StateHasChanged();
+        try
+        {
+            await OmrService.StartAudiverisOnPartAsync(Part.Id, ScopeFactory, LoggerFactory.CreateLogger("Audiveris"));
+            // Polling im Hintergrund
+            pollCts?.Cancel();
+            pollCts = new System.Threading.CancellationTokenSource();
+            _ = PollAudiverisAsync(Part.Id, pollCts.Token);
+        }
+        catch (Exception e)
+        {
+            runningOmr = false;
+            omrSuccess = false;
+            omrMessage = "❌ Konnte Erkennung nicht starten: " + e.Message;
+            StateHasChanged();
+        }
+    }
+
+    private async Task PollAudiverisAsync(Guid partId, System.Threading.CancellationToken ct)
+    {
+        try
+        {
+            // Audiveris kann pro Seite 30-60 s brauchen — wir warten max. 10 min
+            var deadline = DateTime.UtcNow.AddMinutes(10);
+            while (!ct.IsCancellationRequested && DateTime.UtcNow < deadline)
+            {
+                await Task.Delay(2500, ct);
+                if (OmrService.IsAudiverisRunning(partId)) continue;
+                // fertig — entweder Erfolg oder Fehler
+                if (OmrService.LastAudiverisFailed(partId))
+                {
+                    OmrService.ClearAudiverisFailedFlag(partId);
+                    runningOmr = false;
+                    omrSuccess = false;
+                    omrMessage = "❌ Audiveris-Erkennung fehlgeschlagen. Mögliche Ursachen: Container nicht erreichbar, PDF zu groß/komplex, Notenbild zu unsauber. Du kannst es erneut versuchen.";
+                    await InvokeAsync(StateHasChanged);
+                    return;
+                }
+                runningOmr = false;
+                omrSuccess = true;
+                omrMessage = "✓ Audiveris-Erkennung erfolgreich — die Noten werden jetzt im Score-Modus angezeigt.";
+                await InvokeAsync(StateHasChanged);
+                if (OnPartChanged.HasDelegate) await InvokeAsync(() => OnPartChanged.InvokeAsync(partId));
+                return;
+            }
+            // Timeout
+            runningOmr = false;
+            omrSuccess = false;
+            omrMessage = "⏰ Erkennung lief länger als 10 min — Audiveris hängt vermutlich. Container neu starten.";
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (TaskCanceledException) { }
+    }
+
     [Parameter] public EventCallback<Guid> OnPartChanged { get; set; }
     [Parameter] public bool CanEdit { get; set; }
 
@@ -318,6 +400,8 @@ else
 
     public ValueTask DisposeAsync()
     {
+        pollCts?.Cancel();
+        pollCts?.Dispose();
         selfRef?.Dispose();
         return ValueTask.CompletedTask;
     }

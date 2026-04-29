@@ -111,7 +111,7 @@ class SheetstormBleAdvertiserPlugin : Plugin() {
 
     @PluginMethod
     fun start(call: PluginCall) {
-        if (!hasRequiredPermissions()) {
+        if (!hasMyRequiredPermissions()) {
             requestPermissionForAlias("advertise", call, "permsResult")
             return
         }
@@ -120,7 +120,7 @@ class SheetstormBleAdvertiserPlugin : Plugin() {
 
     @PermissionCallback
     private fun permsResult(call: PluginCall) {
-        if (!hasRequiredPermissions()) {
+        if (!hasMyRequiredPermissions()) {
             call.reject("Bluetooth-Berechtigungen verweigert")
             return
         }
@@ -220,8 +220,9 @@ class SheetstormBleAdvertiserPlugin : Plugin() {
         call.resolve(JSObject().apply { put("subscribers", subscribers.size); put("sent", sent) })
     }
 
-    private fun hasRequiredPermissions(): Boolean {
+    private fun hasMyRequiredPermissions(): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
         return getPermissionState("advertise") == com.getcapacitor.PermissionState.GRANTED
     }
 }
+
