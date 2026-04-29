@@ -5,6 +5,7 @@
 @inject Sheetstorm.Web.Application.IOmrEngine OmrEngine
 @inject IServiceScopeFactory ScopeFactory
 @inject ILoggerFactory LoggerFactory
+@inject Microsoft.AspNetCore.Components.NavigationManager Navigation
 @implements IAsyncDisposable
 
 @using Sheetstorm.Domain.Music
@@ -275,9 +276,13 @@ else
                 }
                 runningOmr = false;
                 omrSuccess = true;
-                omrMessage = "✓ Audiveris-Erkennung erfolgreich — die Noten werden jetzt im Score-Modus angezeigt.";
+                omrMessage = "✓ Audiveris-Erkennung erfolgreich — die Noten werden jetzt im Score-Modus angezeigt. Lade Seite neu …";
                 await InvokeAsync(StateHasChanged);
                 if (OnPartChanged.HasDelegate) await InvokeAsync(() => OnPartChanged.InvokeAsync(partId));
+                // Page neu laden — der Parent ist Static-SSR und sieht die neue MusicXML
+                // sonst nicht.
+                await Task.Delay(500);
+                Navigation.NavigateTo(Navigation.Uri, forceLoad: true);
                 return;
             }
             // Timeout

@@ -41,7 +41,24 @@ app = Flask(__name__)
 
 @app.get("/health")
 def health():
-    return "ok", 200
+    """Detail-Status: Audiveris-CLI verfügbar? PDF→XML-Pipeline ready?"""
+    cli_ok = False
+    cli_version = None
+    try:
+        res = subprocess.run(["Audiveris", "-help"], capture_output=True, text=True, timeout=10)
+        cli_ok = res.returncode == 0 or ("Usage" in (res.stdout + res.stderr))
+        # Audiveris -version würde besser passen, aber -help hat den Banner mit Version
+        for line in (res.stdout + res.stderr).splitlines():
+            if "Audiveris" in line and any(c.isdigit() for c in line):
+                cli_version = line.strip()
+                break
+    except Exception as e:
+        cli_version = f"error: {e}"
+    return jsonify({
+        "ok": cli_ok,
+        "audiveris": cli_version,
+        "tessdata": os.environ.get("TESSDATA_PREFIX"),
+    }), (200 if cli_ok else 503)
 
 
 def extract_plain_musicxml(file_path: Path) -> bytes | None:
@@ -94,14 +111,15 @@ def recognize():
             str(in_path),
         ]
         try:
-            res = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+            res = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
         except subprocess.TimeoutExpired:
-            log.error("Audiveris timeout")
-            return jsonify({"error": "audiveris timeout"}), 504
+            log.error("Audiveris timeout (>600s)")
+            return jsonify({"error": "audiveris timeout", "kind": "timeout"}), 504
 
         if res.returncode != 0:
-            log.error("Audiveris exit %d: %s", res.returncode, res.stderr[-1000:])
-            return jsonify({"error": "audiveris failed", "stderr": res.stderr[-1000:]}), 500
+            tail = (res.stderr or res.stdout)[-2000:]
+            log.error("Audiveris exit %d: %s", res.returncode, tail)
+            return jsonify({"error": "audiveris failed", "kind": "engine-error", "exit_code": res.returncode, "stderr": tail}), 500
 
         # Audiveris legt MusicXML als .mxl (gezippt) oder .xml ab
         files = list(out_dir.rglob("*.mxl")) + list(out_dir.rglob("*.xml"))
@@ -126,5 +144,9 @@ def recognize():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "8080"))
     log.info("Audiveris-Server hört auf :%d", port)
-    serve(app, host="0.0.0.0", port=port, threads=2, expose_tracebacks=False)
+    # 4 Threads: Audiveris-Calls sind langlaufend (30-60 s) und CPU-bound;
+    # mit nur 2 Threads stauen sich Requests bei mehreren parallelen
+    # Erkennungen auf. 4 ist ein guter Kompromiss zwischen Durchsatz und
+    # Speicher (jeder Audiveris-Worker zieht ~500 MB).
+    serve(app, host="0.0.0.0", port=port, threads=4, expose_tracebacks=False)
 
