@@ -27,9 +27,31 @@ var enableAudiveris = args.Contains("--enable-audiveris")
 IResourceBuilder<ContainerResource>? audiveris = null;
 if (enableAudiveris)
 {
-    EnsureAudiverisImageBuilt();
+    EnsureContainerImageBuilt("audiveris", "sheetstorm-audiveris");
     audiveris = builder.AddContainer("audiveris", "sheetstorm-audiveris", "dev")
         .WithEndpoint(port: 8081, targetPort: 8080, name: "http", scheme: "http")
+        .WithHttpHealthCheck("/health");
+}
+
+// Sheetstorm-OMR-Engine (Rust).
+//
+// Drop-in-Replacement fuer Audiveris mit gleicher HTTP-API. Aktivieren:
+//   dotnet run --project src/Sheetstorm.AppHost -- --enable-omr
+// oder Env: SHEETSTORM_ENABLE_OMR=true.
+//
+// Wenn beide enableAudiveris UND enableOmr aktiv sind, wird OMR als
+// Sheetstorm.Web-Provider verwendet (Audiveris bleibt erreichbar fuer
+// vergleichende Tests).
+
+var enableOmr = args.Contains("--enable-omr")
+    || string.Equals(Environment.GetEnvironmentVariable("SHEETSTORM_ENABLE_OMR"), "true", StringComparison.OrdinalIgnoreCase);
+
+IResourceBuilder<ContainerResource>? omr = null;
+if (enableOmr)
+{
+    EnsureContainerImageBuilt("sheetstorm-omr", "sheetstorm-omr");
+    omr = builder.AddContainer("sheetstorm-omr", "sheetstorm-omr", "dev")
+        .WithEndpoint(port: 8091, targetPort: 8091, name: "http", scheme: "http")
         .WithHttpHealthCheck("/health");
 }
 
@@ -55,37 +77,57 @@ if (audiveris is not null)
         .WaitFor(audiveris);
 }
 
+if (omr is not null)
+{
+    web = web
+        .WithEnvironment("Omr__Provider", "sheetstorm")
+        .WithEnvironment("Omr__BaseUrl", omr.GetEndpoint("http"))
+        .WaitFor(omr);
+}
+
 builder.Build().Run();
 
 
 // ─── Helpers ────────────────────────────────────────────────────────────
 
-static void EnsureAudiverisImageBuilt()
+static void EnsureContainerImageBuilt(string subdir, string imageName)
 {
-    var dockerCtx = System.IO.Path.GetFullPath(System.IO.Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "docker", "audiveris"));
-    if (!System.IO.Directory.Exists(dockerCtx))
+    var dockerCtx = System.IO.Path.GetFullPath(System.IO.Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "docker", subdir));
+    var dockerfilePath = System.IO.Path.Combine(dockerCtx, "Dockerfile");
+    if (!System.IO.File.Exists(dockerfilePath))
     {
-        Console.Error.WriteLine($"⚠ Audiveris-Build-Kontext nicht gefunden: {dockerCtx} — Container wird nicht gebaut.");
+        Console.Error.WriteLine($"⚠ Dockerfile nicht gefunden: {dockerfilePath} — Container wird nicht gebaut.");
         return;
     }
 
-    // Hash ueber alle Dateien im docker-Verzeichnis bilden.
-    var hash = ComputeDirHash(dockerCtx);
+    // Build-Kontext = Repo-Root (für Sheetstorm-OMR; Audiveris baut alles inline).
+    // Wir nehmen den Repo-Root, der drei Ebenen über docker/ liegt.
+    var repoRoot = System.IO.Path.GetFullPath(System.IO.Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
+    var hash = ComputeDirHash(dockerCtx, includeRepoSrc: subdir == "sheetstorm-omr" ? System.IO.Path.Combine(repoRoot, "src", "omr-rust") : null);
     var stampFile = System.IO.Path.Combine(dockerCtx, ".image-hash");
     var existingHash = System.IO.File.Exists(stampFile) ? System.IO.File.ReadAllText(stampFile).Trim() : "";
 
-    var imageExists = ImageExists("sheetstorm-audiveris:dev");
+    var imageRef = $"{imageName}:dev";
+    var imageExists = ImageExists(imageRef);
     if (imageExists && existingHash == hash)
     {
-        Console.WriteLine("✓ Audiveris-Image ist aktuell (Hash unveraendert), ueberspringe Build.");
+        Console.WriteLine($"✓ {imageRef} ist aktuell, ueberspringe Build.");
         return;
     }
 
     Console.WriteLine(imageExists
-        ? "🔨 Audiveris-Quellen geaendert — baue Image neu …"
-        : "🔨 Audiveris-Image fehlt — baue …");
+        ? $"🔨 {imageRef}: Quellen geaendert — baue neu …"
+        : $"🔨 {imageRef}: Image fehlt — baue …");
 
-    var psi = new System.Diagnostics.ProcessStartInfo("docker", $"build -t sheetstorm-audiveris:dev \"{dockerCtx}\"")
+    // Build-Kontext: für sheetstorm-omr brauchen wir den Repo-Root, sonst dockerCtx.
+    var buildCtx = subdir == "sheetstorm-omr" ? repoRoot : dockerCtx;
+    var dockerfileArg = subdir == "sheetstorm-omr"
+        ? $"-f \"{System.IO.Path.Combine(dockerCtx, "Dockerfile")}\""
+        : "";
+
+    var psi = new System.Diagnostics.ProcessStartInfo(
+        "docker",
+        $"build -t {imageRef} {dockerfileArg} \"{buildCtx}\"")
     {
         RedirectStandardOutput = false,
         RedirectStandardError = false,
@@ -95,12 +137,12 @@ static void EnsureAudiverisImageBuilt()
     p.WaitForExit();
     if (p.ExitCode != 0)
     {
-        Console.Error.WriteLine($"❌ docker build fehlgeschlagen (Exit {p.ExitCode}). Audiveris-Container wird ggf. nicht starten.");
+        Console.Error.WriteLine($"❌ docker build fehlgeschlagen (Exit {p.ExitCode}). {imageRef} wird ggf. nicht starten.");
         return;
     }
 
     System.IO.File.WriteAllText(stampFile, hash);
-    Console.WriteLine("✓ Audiveris-Image gebaut.");
+    Console.WriteLine($"✓ {imageRef} gebaut.");
 }
 
 static bool ImageExists(string imageRef)
@@ -120,7 +162,7 @@ static bool ImageExists(string imageRef)
     catch { return false; }
 }
 
-static string ComputeDirHash(string dir)
+static string ComputeDirHash(string dir, string? includeRepoSrc = null)
 {
     using var sha = System.Security.Cryptography.SHA256.Create();
     var sb = new System.Text.StringBuilder();
@@ -132,6 +174,19 @@ static string ComputeDirHash(string dir)
         sb.Append('|');
         sb.Append(Convert.ToHexString(sha.ComputeHash(System.IO.File.ReadAllBytes(f))));
         sb.Append('\n');
+    }
+    if (includeRepoSrc is not null && System.IO.Directory.Exists(includeRepoSrc))
+    {
+        foreach (var f in System.IO.Directory.GetFiles(includeRepoSrc, "*", System.IO.SearchOption.AllDirectories)
+            .Where(p => !p.Contains(System.IO.Path.DirectorySeparatorChar + "target" + System.IO.Path.DirectorySeparatorChar))
+            .OrderBy(f => f))
+        {
+            var rel = System.IO.Path.GetRelativePath(includeRepoSrc, f);
+            sb.Append(rel);
+            sb.Append('|');
+            sb.Append(Convert.ToHexString(sha.ComputeHash(System.IO.File.ReadAllBytes(f))));
+            sb.Append('\n');
+        }
     }
     return Convert.ToHexString(sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(sb.ToString())));
 }

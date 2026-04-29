@@ -97,22 +97,52 @@ pub fn process_gray(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineR
     drop(_span);
     info!(n_noteheads = noteheads.len(), n_stems = stems.len(), "symbols detected");
 
-    // 5) Score-Konstruktion: alle Noten in Reading-Order (X), gruppiert pro System.
+    // 5) Score-Konstruktion: ein Measure pro StaffSystem, Noten in Reading-Order (X).
     let clef = Clef::Treble;
     let key = KeySignature::default();
 
-    let mut all_notes = omr_symbols::noteheads_to_notes(&noteheads, &systems, &stems, clef, key);
-    all_notes.sort_by(|a, b| a.center.x.partial_cmp(&b.center.x).unwrap_or(std::cmp::Ordering::Equal));
+    let all_notes_per_system: Vec<Vec<omr_core::ScoreNote>> = (0..systems.len())
+        .map(|sys_i| {
+            let mut filtered: Vec<&omr_core::Notehead> =
+                noteheads.iter().filter(|nh| nh.staff_idx == sys_i).collect();
+            filtered.sort_by(|a, b| a.center.x.partial_cmp(&b.center.x).unwrap_or(std::cmp::Ordering::Equal));
+            // notehead_indices in original-Reihenfolge — filter map zur stems lookup
+            let nh_local: Vec<omr_core::Notehead> = filtered.into_iter().cloned().collect();
+            // stems neu mappen — wir müssen für die filter ent-indexen, vereinfacht: Match per Index in nh_local fehlt,
+            // wir matchen Stems über räumliche Nähe.
+            let stems_local: Vec<omr_core::Stem> = stems
+                .iter()
+                .filter(|s| {
+                    if let Some(idx) = s.notehead_idx {
+                        noteheads.get(idx).map(|n| n.staff_idx == sys_i).unwrap_or(false)
+                    } else { false }
+                })
+                .cloned()
+                .collect();
+            let mut notes = omr_symbols::noteheads_to_notes(&nh_local, &systems, &stems_local, clef, key);
+            notes.sort_by(|a, b| a.center.x.partial_cmp(&b.center.x).unwrap_or(std::cmp::Ordering::Equal));
+            // Onset = sequenzielle Position * 1 (vereinfacht)
+            let mut onset = 0u32;
+            for n in notes.iter_mut() {
+                n.onset = onset;
+                onset += n.duration;
+            }
+            notes
+        })
+        .collect();
 
-    // Vorerst: ein Take Measure pro System.
-    let measures: Vec<Measure> = vec![Measure {
-        number: 1,
-        divisions: 4,
-        notes: all_notes,
-        time_signature: Some(TimeSignature { beats: 4, beat_type: 4 }),
-        key_signature: Some(key),
-        clef: Some(clef),
-    }];
+    let measures: Vec<Measure> = all_notes_per_system
+        .into_iter()
+        .enumerate()
+        .map(|(i, notes)| Measure {
+            number: (i + 1) as u32,
+            divisions: 4,
+            notes,
+            time_signature: if i == 0 { Some(TimeSignature { beats: 4, beat_type: 4 }) } else { None },
+            key_signature: if i == 0 { Some(key) } else { None },
+            clef: if i == 0 { Some(clef) } else { None },
+        })
+        .collect();
 
     let part = Part {
         id: "P1".into(),

@@ -29,10 +29,11 @@ pub fn detect_noteheads(staff_removed: &Binary, systems: &[StaffSystem]) -> Vec<
     // Erwartete Notenkopf-Größe: ~1.2 * spacing breit, ~1.0 * spacing hoch.
     let expected_w = (spacing * 1.2).round() as u32;
     let expected_h = spacing.round() as u32;
-    let min_w = (expected_w as f32 * 0.5) as u32;
-    let max_w = (expected_w as f32 * 2.0) as u32;
-    let min_h = (expected_h as f32 * 0.5) as u32;
-    let max_h = (expected_h as f32 * 2.0) as u32;
+    // Lockere Filter — wir filtern danach nochmal über Aspect/Fill.
+    let min_w = (expected_w as f32 * 0.4) as u32;
+    let max_w = (expected_w as f32 * 2.5) as u32;
+    let min_h = (expected_h as f32 * 0.4) as u32;
+    let max_h = (expected_h as f32 * 2.5) as u32;
 
     let ccs = connected_components(staff_removed);
     debug!(n = ccs.len(), "connected components");
@@ -44,7 +45,7 @@ pub fn detect_noteheads(staff_removed: &Binary, systems: &[StaffSystem]) -> Vec<
             continue;
         }
         let aspect = bb.aspect();
-        if !(0.6..=2.5).contains(&aspect) {
+        if !(0.5..=3.0).contains(&aspect) {
             continue;
         }
 

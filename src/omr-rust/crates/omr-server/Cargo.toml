@@ -8,6 +8,10 @@ license.workspace = true
 name = "omr-server"
 path = "src/main.rs"
 
+[[bin]]
+name = "omr-cli"
+path = "src/bin/omr-cli.rs"
+
 [dependencies]
 omr-pipeline.workspace = true
 omr-musicxml.workspace = true
