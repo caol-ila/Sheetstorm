@@ -1,39 +1,68 @@
 @inject IJSRuntime JS
-@inject HttpClient? Http
+@inject NavigationManager Navigation
 @rendermode InteractiveServer
+@implements IAsyncDisposable
 
-@* Conductor-BLE-Steuerung. Erzeugt lokal ein Keypair, registriert
-   Public-Key beim Backend, faengt mit Advertising an.
-   Hinweis: Native-Advertising (Peripheral) braucht den Capacitor-Wrapper —
-   im reinen Web-Browser ist das aktuell nicht moeglich. Wir zeigen dem
-   Dirigenten dann eine entsprechende Hinweis-Box. *@
+@* BLE-Broadcast-Steuerung für Dirigenten (Pure Advertising, keine Connection).
+   Erzeugt lokal ein Ed25519-Keypair, registriert den Public-Key beim Backend
+   und broadcastet Tempo-Pakete über das native Capacitor-Plugin. Im Web-Browser
+   ohne Plugin läuft der Loopback-Modus für Test-Zwecke. *@
 
 <div class="ss-card" data-testid="ble-conductor-panel">
-    <h3 class="mt-0">📡 BLE-Sync (Pilot)</h3>
+    <h3 class="mt-0">📡 BLE-Tempo-Broadcast</h3>
     <p class="text-muted small">
-        Mit BLE können verbundene Mitglieder live deinen aktuellen Notenstand und Click empfangen.
-        <strong>Conductor-Mode:</strong> nur in der nativen App (Android, mit Plugin).
-        <strong>Follower-Mode:</strong> auf jedem Gerät mit WebBluetooth (Edge/Chrome/Android-Chrome).
+        Sendet Tempo, Anker und Click-Status als signierte BLE-Advertising-Pakete
+        an alle Mitspieler in Reichweite. Conductor-Mode nur in nativer Android-App,
+        Follower-Mode auf jedem Edge/Chrome (Desktop oder Android, Flag „Experimental
+        Web Platform features").
     </p>
 
     <div class="d-flex gap-2 align-items-center flex-wrap">
-        <button type="button" class="ss-btn ss-btn-primary" @onclick="StartAsync" data-testid="ble-start" disabled="@busy">
-            @(running ? "🔄 Aktiv" : "▶ BLE starten")
+        <button type="button" class="ss-btn ss-btn-primary" @onclick="StartAsync"
+                data-testid="ble-start" disabled="@(busy || running)">
+            ▶ Sender starten
         </button>
-        <button type="button" class="ss-btn ss-btn-secondary" @onclick="StopAsync" data-testid="ble-stop" disabled="@(!running)">
+        <button type="button" class="ss-btn ss-btn-secondary" @onclick="StopAsync"
+                data-testid="ble-stop" disabled="@(!running)">
             ⏹ Stoppen
         </button>
-        @if (running)
-        {
-            <button type="button" class="ss-btn ss-btn-secondary" @onclick="SendDemoTickAsync" data-testid="ble-demo-tick">
-                🥁 Demo-Tick senden
-            </button>
-        }
         @if (!string.IsNullOrEmpty(status))
         {
             <span class="badge bg-info text-dark" data-testid="ble-status">@status</span>
         }
     </div>
+
+    @if (running)
+    {
+        <div class="mt-3 d-flex flex-wrap gap-3 align-items-center" data-testid="ble-tempo-controls">
+            <label class="d-flex flex-column">
+                <span class="small text-muted">BPM</span>
+                <input type="range" min="40" max="220" step="1" value="@bpm"
+                       data-testid="ble-bpm-slider" @oninput="OnBpmChanged" style="width:240px"/>
+                <strong data-testid="ble-bpm-value">@bpm</strong>
+            </label>
+            <label class="d-flex flex-column">
+                <span class="small text-muted">Takt</span>
+                <select class="form-select" @bind="meter" data-testid="ble-meter">
+                    <option value="2">2/4</option>
+                    <option value="3">3/4</option>
+                    <option value="4">4/4</option>
+                    <option value="6">6/8</option>
+                </select>
+            </label>
+            <button type="button" class="ss-btn ss-btn-secondary" @onclick="ResetAnchor"
+                    data-testid="ble-anchor">⚓ Anker setzen (Beat 1)</button>
+            <label class="form-check d-flex align-items-center gap-1">
+                <input class="form-check-input" type="checkbox" @bind="clickActive"
+                       data-testid="ble-click-toggle" />
+                <span class="form-check-label">Click an</span>
+            </label>
+        </div>
+
+        <div class="mt-2 small text-muted" data-testid="ble-tempo-info">
+            Anker: @anchorDisplay · Beat: @currentBeat · Pakete gesendet: @packetCount
+        </div>
+    }
 
     @if (!string.IsNullOrEmpty(publicKey))
     {
@@ -50,6 +79,10 @@
 
 @code {
     [Parameter, EditorRequired] public Guid EventId { get; set; }
+    /// Optional: aktuell geöffnetes Stück. Wird automatisch als Piece-Paket
+    /// re-broadcastet, sobald sich ID/Titel ändert.
+    [Parameter] public Guid? CurrentPieceId { get; set; }
+    [Parameter] public string? CurrentPieceTitle { get; set; }
 
     private bool running;
     private bool busy;
@@ -58,85 +91,152 @@
     private string? status;
     private string? warning;
 
+    private int bpm = 100;
+    private int meter = 4;
+    private bool clickActive = false;
+    private long anchorMs;
+    private int currentBeat;
+    private long packetCount;
+    private long pieceNonce;
+    private long tempoNonce;
+
+    private Guid? lastBroadcastPieceId;
+    private string? lastBroadcastPieceTitle;
+    private System.Threading.Timer? loopTimer;
+
+    private string anchorDisplay => anchorMs == 0
+        ? "—"
+        : DateTimeOffset.FromUnixTimeMilliseconds(anchorMs).LocalDateTime.ToString("HH:mm:ss.fff");
+
     private async Task StartAsync()
     {
         busy = true; warning = null; status = "Initialisiere…"; StateHasChanged();
         try
         {
-            // 1) Schaue ob BLE überhaupt verfügbar ist
-            var avail = await JS.InvokeAsync<bool>("eval", "!!window.SheetstormNative && (window.SheetstormNative.bleAvailable)");
+            var avail = await JS.InvokeAsync<bool>(
+                "eval", "!!(window.SheetstormNative && window.SheetstormNative.bleAvailable)");
             if (!avail)
             {
-                warning = "BLE ist auf dieser Plattform nicht verfügbar (z.B. iOS-Safari). Nutze die native App oder warte auf den WLAN-Sync.";
-                status = null;
-                return;
+                warning = "BLE/WebCrypto fehlt — nutze Edge/Chrome oder die native App.";
+                status = null; return;
             }
 
-            // 2) Keypair lokal erzeugen
             var kp = await JS.InvokeAsync<KeyPairDto>("SheetstormNative.generateConductorKey");
             publicKey = kp.PublicKey;
             privateKey = kp.PrivateKey;
 
-            // 3) Public-Key beim Backend hinterlegen
-            var resp = await JS.InvokeAsync<bool>("eval",
-                $"fetch('/api/events/{EventId}/conductor-key', {{ method: 'PUT', headers: {{ 'Content-Type': 'application/json' }}, credentials: 'include', body: JSON.stringify({{ publicKeyBase64: '{publicKey}' }}) }}).then(r => r.ok)");
-            if (!resp)
-            {
-                warning = "Public-Key konnte nicht beim Server hinterlegt werden — versuche es noch einmal.";
-                return;
-            }
+            var ok = await JS.InvokeAsync<bool>("eval",
+                $"fetch('/api/events/{EventId}/conductor-key', {{ method:'PUT', headers:{{'Content-Type':'application/json'}}, credentials:'include', body: JSON.stringify({{publicKeyBase64:'{publicKey}'}}) }}).then(r=>r.ok)");
+            if (!ok) { warning = "Public-Key konnte nicht beim Server hinterlegt werden."; return; }
 
-            // 4) Conductor-Mode starten — Capacitor-only.
             try
             {
                 await JS.InvokeVoidAsync("SheetstormNative.startConductor");
-                status = "BLE-Advertising aktiv";
-                running = true;
+                status = "BLE-Advertising aktiv (native)";
             }
-            catch (Microsoft.JSInterop.JSException jex)
+            catch (Microsoft.JSInterop.JSException)
             {
-                warning = $"Native-Advertising nicht möglich ({jex.Message}). Public-Key wurde dennoch beim Server hinterlegt — sobald die native App benutzt wird, geht der Sync los.";
-                running = false;
-                status = null;
+                status = "Browser-Loopback aktiv (kein BLE-Sender ohne native App)";
             }
+
+            running = true;
+            ResetAnchor();
+            StartLoop();
         }
         catch (Exception e)
         {
             warning = "Fehler: " + e.Message;
         }
-        finally
-        {
-            busy = false;
-        }
+        finally { busy = false; }
     }
 
     private async Task StopAsync()
     {
         running = false;
         status = null;
+        StopLoop();
         try { await JS.InvokeVoidAsync("SheetstormNative.stopConductor"); } catch { }
     }
 
-    private async Task SendDemoTickAsync()
+    private void OnBpmChanged(ChangeEventArgs e)
     {
-        try
+        if (int.TryParse(e.Value?.ToString(), out var v) && v is >= 40 and <= 220)
         {
-            // Demo-Payload: "tick:" + timestamp ms + counter
-            var payload = $"tick:{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
-            var bytes = System.Text.Encoding.UTF8.GetBytes(payload);
-            await JS.InvokeVoidAsync("eval", $"window.Capacitor && window.Capacitor.Plugins.SheetstormBleAdvertiser && window.Capacitor.Plugins.SheetstormBleAdvertiser.notifySchedule({{ data: '{Convert.ToBase64String(bytes)}' }})");
-            status = $"Tick gesendet ({payload})";
+            bpm = v;
+            // BPM-Wechsel resetet den Anker damit Followers sauber re-syncen
+            ResetAnchor();
         }
-        catch (Exception e)
+    }
+
+    private void ResetAnchor()
+    {
+        anchorMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        currentBeat = 0;
+    }
+
+    private void StartLoop()
+    {
+        StopLoop();
+        // Re-Broadcast alle 800ms — gleiche Frequenz wie das native Plugin selbst,
+        // wir aktualisieren aber das beat_idx-Feld damit Followers sehen dass die
+        // Packete frisch sind und kein stale State.
+        loopTimer = new System.Threading.Timer(async _ =>
         {
-            warning = "Tick-Versand fehlgeschlagen: " + e.Message;
+            try { await TickAsync(); }
+            catch { /* circuit gone */ }
+        }, null, 0, 800);
+    }
+
+    private void StopLoop()
+    {
+        loopTimer?.Dispose();
+        loopTimer = null;
+    }
+
+    private async Task TickAsync()
+    {
+        if (!running || string.IsNullOrEmpty(privateKey)) return;
+        var nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var beatLenMs = 60000.0 / bpm;
+        currentBeat = (int)Math.Floor((nowMs - anchorMs) / beatLenMs);
+        var dto = new
+        {
+            nonce = (++tempoNonce).ToString(),
+            anchorMs,
+            beatIdx = 0,    // Anker-Beat
+            bpm = (double)bpm,
+            meter,
+            click = clickActive,
+            fermate = false,
+        };
+        await JS.InvokeVoidAsync("SheetstormNative.broadcastTempo", privateKey, dto);
+
+        // Piece-Paket nur senden wenn sich was geändert hat
+        if (CurrentPieceId is { } pid && (pid != lastBroadcastPieceId || CurrentPieceTitle != lastBroadcastPieceTitle))
+        {
+            await JS.InvokeVoidAsync("SheetstormNative.broadcastPiece", privateKey, new
+            {
+                nonce = (++pieceNonce).ToString(),
+                pieceId = pid.ToString(),
+                title = CurrentPieceTitle ?? "",
+            });
+            lastBroadcastPieceId = pid;
+            lastBroadcastPieceTitle = CurrentPieceTitle;
         }
+
+        packetCount++;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        StopLoop();
+        try { await JS.InvokeVoidAsync("SheetstormNative.stopConductor"); } catch { }
     }
 
     public class KeyPairDto
     {
         public string PublicKey { get; set; } = "";
         public string PrivateKey { get; set; } = "";
-        public string? Algorithm { get; set; }
     }
 }
