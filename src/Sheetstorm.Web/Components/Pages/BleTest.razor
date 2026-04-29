@@ -3,87 +3,136 @@
 @attribute [Authorize]
 @rendermode InteractiveServer
 @inject IJSRuntime JS
+@implements IAsyncDisposable
 
 @using Microsoft.AspNetCore.Authorization
+@using System.Text.Json
 
 <PageTitle>BLE-Tester</PageTitle>
 
-<h1>📡 BLE-Tester</h1>
+<h1>📡 BLE-Tester (Broadcast-Modus)</h1>
 <p class="ss-page-intro">
-    Direkter Test des Sheetstorm-BLE-Sync. Funktioniert für die Follower-Rolle
-    auf <strong>Chrome / Edge</strong> (Desktop und Android) via WebBluetooth.
-    Conductor-Rolle läuft nur in der nativen App (siehe <code>mobile/</code>).
+    Pure-Advertising-Sync ohne Pairing. Diese Seite kann beides:
+    Loopback-Conductor im Browser (zum Testen ohne Hardware) und
+    Follower-Empfang via Web-Bluetooth-Scan (Edge/Chrome mit
+    "Experimental Web Platform features"-Flag).
 </p>
 
 <div class="ss-card">
     <h2 class="mt-0">Status</h2>
     <ul>
-        <li>Web-Bluetooth verfügbar: <strong data-testid="ble-webbt">@(webBluetooth ? "ja" : "nein")</strong></li>
-        <li>Capacitor-Native verfügbar: <strong data-testid="ble-cap">@(capacitor ? "ja" : "nein")</strong></li>
-        <li>Verbindung: <strong data-testid="ble-conn">@connectionStatus</strong></li>
+        <li>Web-Bluetooth: <strong data-testid="ble-webbt">@(webBluetooth ? "ja" : "nein")</strong></li>
+        <li>Web-Bluetooth-Scan: <strong data-testid="ble-webbt-scan">@(webBluetoothScan ? "ja" : "nein (Flag aktivieren)")</strong></li>
+        <li>Capacitor-Native: <strong data-testid="ble-cap">@(capacitor ? "ja" : "nein")</strong></li>
     </ul>
 </div>
 
 <div class="ss-card">
-    <h2 class="mt-0">Follower (dieses Gerät)</h2>
-    <div class="d-flex gap-2 flex-wrap align-items-center">
-        <button type="button" class="ss-btn ss-btn-primary" @onclick="ScanAndConnectAsync"
-                data-testid="ble-scan" disabled="@busy">
-            🔎 Conductor in der Nähe finden &amp; verbinden
+    <h2 class="mt-0">1) Loopback-Conductor (für Browser-Test)</h2>
+    <p class="text-muted small">
+        Erzeugt im selben Tab einen Tempo-Sender. Der Follower unten empfängt
+        ihn ohne echtes BLE — geeignet für E2E-Test und schnelles Debugging.
+    </p>
+    <div class="d-flex gap-2 align-items-center flex-wrap">
+        <button type="button" class="ss-btn ss-btn-primary" @onclick="StartLoopbackAsync"
+                data-testid="loopback-start" disabled="@(loopbackRunning || busy)">
+            ▶ Loopback starten
         </button>
-        <button type="button" class="ss-btn ss-btn-secondary" @onclick="DisconnectAsync"
-                data-testid="ble-disconnect" disabled="@(!isConnected || busy)">
-            ⏹ Trennen
+        <button type="button" class="ss-btn ss-btn-secondary" @onclick="StopLoopbackAsync"
+                data-testid="loopback-stop" disabled="@(!loopbackRunning)">
+            ⏹ Loopback stoppen
         </button>
+        <label class="d-flex flex-column">
+            <span class="small text-muted">BPM</span>
+            <input type="number" min="40" max="220" @bind="loopbackBpm" @bind:event="oninput"
+                   data-testid="loopback-bpm" style="width:90px"/>
+        </label>
     </div>
-
-    <div class="mt-3" data-testid="ble-log">
-        <h3>Empfangene Pakete</h3>
-        @if (packets.Count == 0)
-        {
-            <p class="text-muted">Noch keine. Conductor muss Notifications schicken.</p>
-        }
-        else
-        {
-            <table class="table">
-                <thead><tr><th>#</th><th>Zeit</th><th>Bytes</th><th>Inhalt</th></tr></thead>
-                <tbody>
-                @foreach (var (p, idx) in packets.AsEnumerable().Reverse().Select((p, i) => (p, i)))
-                {
-                    <tr><td>@(packets.Count - idx)</td><td>@p.At.ToString("HH:mm:ss.fff")</td><td>@p.Length</td><td><code class="small">@p.Hex</code></td></tr>
-                }
-                </tbody>
-            </table>
-        }
-    </div>
+    @if (!string.IsNullOrEmpty(loopbackPublicKey))
+    {
+        <div class="mt-2 small text-muted" data-testid="loopback-pubkey">
+            Public-Key: <code class="small text-break">@loopbackPublicKey</code>
+        </div>
+    }
 </div>
 
 <div class="ss-card">
-    <h2 class="mt-0">Conductor (nur native App)</h2>
-    <p class="text-muted">Auf einem Android-Phone mit der nativen App:</p>
-    <ol class="text-muted">
-        <li>Sheetstorm-App öffnen, mit Demo-Account einloggen</li>
-        <li>Zu einem Termin gehen → Sync-Page öffnen</li>
-        <li>Im "BLE-Sync (Pilot)"-Panel auf "BLE starten" tippen</li>
-        <li>Phone zeigt sich jetzt als "Sheetstorm" in der Nähe</li>
-        <li>Auf diesem Gerät hier: Klick auf "Conductor finden" oben</li>
-    </ol>
+    <h2 class="mt-0">2) Follower (dieses Gerät)</h2>
+    <div class="d-flex gap-2 flex-wrap align-items-end">
+        <label class="d-flex flex-column">
+            <span class="small text-muted">Conductor-Public-Key (oder leer = Loopback nutzen)</span>
+            <input class="form-control" @bind="followerPubKey" data-testid="follower-pubkey" style="min-width:320px"/>
+        </label>
+        <button type="button" class="ss-btn ss-btn-primary" @onclick="StartFollowerAsync"
+                data-testid="follower-start" disabled="@(followerRunning || busy)">
+            🔎 Empfang starten
+        </button>
+        <button type="button" class="ss-btn ss-btn-secondary" @onclick="StopFollowerAsync"
+                data-testid="follower-stop" disabled="@(!followerRunning)">
+            ⏹ Stoppen
+        </button>
+        <label class="form-check d-flex align-items-center gap-1">
+            <input class="form-check-input" type="checkbox" @bind="clickEnabled" @bind:after="ApplyClickAsync"
+                   data-testid="follower-click-toggle" />
+            <span class="form-check-label">Lokaler Click</span>
+        </label>
+    </div>
+
+    <div class="mt-3 row" data-testid="follower-tempo-display">
+        <div class="col-md-3"><div class="text-muted small">BPM</div><div class="fs-3" data-testid="follower-bpm">@(lastTempo?.Bpm ?? 0)</div></div>
+        <div class="col-md-3"><div class="text-muted small">Beat</div><div class="fs-3" data-testid="follower-beat">@beatNow</div></div>
+        <div class="col-md-3"><div class="text-muted small">Pakete</div><div class="fs-3" data-testid="follower-count">@packetCount</div></div>
+        <div class="col-md-3"><div class="text-muted small">Drift (ms)</div><div class="fs-3" data-testid="follower-drift">@driftMs</div></div>
+    </div>
+
+    @if (lastPiece is { } pp)
+    {
+        <div class="alert alert-info mt-2" data-testid="follower-piece">
+            🎼 Aktuelles Stück: <strong data-testid="follower-piece-title">@pp.Title</strong>
+            (<code>@pp.PieceId</code>)
+        </div>
+    }
 </div>
 
 @code {
     private bool webBluetooth;
+    private bool webBluetoothScan;
     private bool capacitor;
     private bool busy;
-    private bool isConnected;
-    private string connectionStatus = "—";
-    private DotNetObjectReference<BleTest>? selfRef;
-    private List<BlePacket> packets = new();
 
-    public class BlePacket
+    private bool loopbackRunning;
+    private int loopbackBpm = 100;
+    private string? loopbackPublicKey;
+    private string? loopbackPrivateKey;
+
+    private bool followerRunning;
+    private string followerPubKey = "";
+    private bool clickEnabled;
+
+    private long packetCount;
+    private int beatNow;
+    private int driftMs;
+    private TempoPacket? lastTempo;
+    private PiecePacket? lastPiece;
+    private DateTime lastTempoAt;
+
+    private DotNetObjectReference<BleTest>? selfRef;
+
+    public class TempoPacket
     {
-        public DateTime At { get; set; }
-        public int Length { get; set; }
-        public string Hex { get; set; } = "";
+        public string Nonce { get; set; } = "";
+        public long AnchorMs { get; set; }
+        public int BeatIdx { get; set; }
+        public double Bpm { get; set; }
+        public int Meter { get; set; }
+        public bool Click { get; set; }
+        public bool Fermate { get; set; }
+    }
+    public class PiecePacket
+    {
+        public string Nonce { get; set; } = "";
+        public string PieceId { get; set; } = "";
+        public string Title { get; set; } = "";
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -92,53 +141,124 @@
         {
             try
             {
-                webBluetooth = await JS.InvokeAsync<bool>("eval", "!!(window.SheetstormNative && window.SheetstormNative.hasWebBluetooth)");
-                capacitor = await JS.InvokeAsync<bool>("eval", "!!(window.SheetstormNative && window.SheetstormNative.isCapacitor)");
+                webBluetooth = await JS.InvokeAsync<bool>("eval",
+                    "!!(window.SheetstormNative && window.SheetstormNative.hasWebBluetooth)");
+                webBluetoothScan = await JS.InvokeAsync<bool>("eval",
+                    "!!(window.SheetstormNative && window.SheetstormNative.hasWebBluetoothScan)");
+                capacitor = await JS.InvokeAsync<bool>("eval",
+                    "!!(window.SheetstormNative && window.SheetstormNative.isCapacitor)");
                 StateHasChanged();
             }
             catch { }
         }
     }
 
+    private async Task StartLoopbackAsync()
+    {
+        busy = true; StateHasChanged();
+        try
+        {
+            var kp = await JS.InvokeAsync<KeyPairDto>("SheetstormNative.generateConductorKey");
+            loopbackPublicKey = kp.PublicKey;
+            loopbackPrivateKey = kp.PrivateKey;
+            await JS.InvokeVoidAsync("ssBleLoopbackStart", loopbackPrivateKey, loopbackBpm, 4);
+            loopbackRunning = true;
+            // Auto-Pubkey-Übernahme falls Follower-Feld leer
+            if (string.IsNullOrEmpty(followerPubKey)) followerPubKey = loopbackPublicKey;
+        }
+        finally { busy = false; }
+    }
+
+    private async Task StopLoopbackAsync()
+    {
+        try { await JS.InvokeVoidAsync("ssBleLoopbackStop"); } catch { }
+        loopbackRunning = false;
+    }
+
+    private async Task StartFollowerAsync()
+    {
+        busy = true; StateHasChanged();
+        try
+        {
+            packetCount = 0; beatNow = 0; driftMs = 0;
+            lastTempo = null; lastPiece = null;
+            selfRef ??= DotNetObjectReference.Create(this);
+            var key = string.IsNullOrEmpty(followerPubKey) ? loopbackPublicKey : followerPubKey;
+            if (string.IsNullOrEmpty(key))
+            {
+                // Loopback-Modus ohne Public-Key — wir nehmen den Loopback-Key, sonst können wir nichts verifizieren
+                return;
+            }
+            await JS.InvokeAsync<bool>("ssBleTestStartScan", key, selfRef, nameof(OnPacket));
+            // Click-Scheduler bereitstellen
+            await JS.InvokeVoidAsync("eval", "window.__ssClick = window.SheetstormNative.createClickScheduler();");
+            followerRunning = true;
+        }
+        finally { busy = false; }
+    }
+
+    private async Task StopFollowerAsync()
+    {
+        try { await JS.InvokeVoidAsync("ssBleTestStopScan"); } catch { }
+        try { await JS.InvokeVoidAsync("eval", "window.__ssClick && window.__ssClick.stop();"); } catch { }
+        followerRunning = false;
+    }
+
+    private async Task ApplyClickAsync()
+    {
+        if (!followerRunning) return;
+        // Letztes Tempo erneut ans Click-Modul geben damit click=on/off greift
+        if (lastTempo is { } t)
+        {
+            t.Click = clickEnabled;
+            await JS.InvokeVoidAsync("eval",
+                $"window.__ssClick && window.__ssClick.update({{anchorMs:{t.AnchorMs},beatIdx:{t.BeatIdx},bpm:{t.Bpm.ToString(System.Globalization.CultureInfo.InvariantCulture)},meter:{t.Meter},click:{(clickEnabled?"true":"false")}}})");
+        }
+    }
+
     [JSInvokable]
-    public Task OnPacket(string base64)
+    public async Task OnPacket(string kind, string json)
     {
         try
         {
-            var bytes = Convert.FromBase64String(base64);
-            var hex = string.Join(" ", bytes.Take(32).Select(b => b.ToString("X2")));
-            if (bytes.Length > 32) hex += "…";
-            packets.Add(new BlePacket { At = DateTime.Now, Length = bytes.Length, Hex = hex });
-            if (packets.Count > 50) packets.RemoveRange(0, packets.Count - 50);
+            var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            if (kind == "tempo")
+            {
+                var t = JsonSerializer.Deserialize<TempoPacket>(json, opts);
+                if (t is null) return;
+                lastTempo = t;
+                lastTempoAt = DateTime.UtcNow;
+                packetCount++;
+                var beatLen = 60000.0 / Math.Max(1, t.Bpm);
+                var nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                beatNow = (int)Math.Floor((nowMs - t.AnchorMs) / beatLen);
+                // Drift = lokale Schätzung
+                var soll = t.AnchorMs + beatNow * beatLen;
+                driftMs = (int)Math.Round(nowMs - soll);
+                // Click an Scheduler weitergeben
+                var clickJs = clickEnabled ? "true" : "false";
+                await JS.InvokeVoidAsync("eval",
+                    $"window.__ssClick && window.__ssClick.update({{anchorMs:{t.AnchorMs},beatIdx:{t.BeatIdx},bpm:{t.Bpm.ToString(System.Globalization.CultureInfo.InvariantCulture)},meter:{t.Meter},click:{clickJs}}})");
+            }
+            else if (kind == "piece")
+            {
+                lastPiece = JsonSerializer.Deserialize<PiecePacket>(json, opts);
+            }
         }
         catch { }
-        return InvokeAsync(StateHasChanged);
+        await InvokeAsync(StateHasChanged);
     }
 
-    private async Task ScanAndConnectAsync()
+    public async ValueTask DisposeAsync()
     {
-        busy = true;
-        connectionStatus = "Suche …";
-        StateHasChanged();
-        selfRef ??= DotNetObjectReference.Create(this);
-        try
-        {
-            // WebBluetooth picker oeffnet sich; User waehlt das Sheetstorm-Geraet aus.
-            var ok = await JS.InvokeAsync<bool>("ssBleTestConnect", selfRef, "OnPacket");
-            isConnected = ok;
-            connectionStatus = ok ? "verbunden" : "abgebrochen";
-        }
-        catch (Exception e)
-        {
-            connectionStatus = "Fehler: " + e.Message;
-        }
-        finally { busy = false; StateHasChanged(); }
+        try { await StopFollowerAsync(); } catch { }
+        try { await StopLoopbackAsync(); } catch { }
+        selfRef?.Dispose();
     }
 
-    private async Task DisconnectAsync()
+    public class KeyPairDto
     {
-        try { await JS.InvokeVoidAsync("eval", "(async () => { try { window.__ssBleServer && window.__ssBleServer.disconnect(); } catch{} })()"); } catch { }
-        isConnected = false;
-        connectionStatus = "—";
+        public string PublicKey { get; set; } = "";
+        public string PrivateKey { get; set; } = "";
     }
 }

@@ -35,7 +35,9 @@ else
 
     @if (canConduct)
     {
-        <ConductorBlePanel EventId="eventId" />
+        <ConductorBlePanel EventId="eventId"
+                           CurrentPieceId="@sessionState?.CurrentPieceId"
+                           CurrentPieceTitle="@sessionState?.CurrentPieceTitle" />
 
         <div class="card mb-3" data-testid="conductor-controls">
             <div class="card-body">

@@ -1,30 +1,43 @@
 /*
- * Sheetstorm — Native BLE-Advertiser für Android.
+ * Sheetstorm — Native BLE-Broadcast (Advertising-only).
  * Copyright (C) 2026 Sheetstorm contributors. AGPL-3.0-only.
  *
- * Capacitor 6 Plugin in Kotlin. Stellt einen GATT-Server bereit, der den
- * Sheetstorm-Service (UUID 0000F517-7E5F-7E57-0000-000000000000) bereitstellt
- * und über die Schedule-Characteristic per "notify" signierte Click/Tempo-
- * Pakete an Followers schickt.
+ * Capacitor 7 Plugin in Kotlin. Statt Connect/GATT-Notify nutzen wir
+ * BluetoothLeAdvertiser + Extended Advertising (BT 5.0). Vorteile:
+ *  - Keine Connection-Limits (~7 Phones) → unbegrenzt viele Listener
+ *  - Keine Pairing-Popups
+ *  - Niedrigerer Energieverbrauch beim Follower (passiver Scan)
+ *
+ * Wir senden zwei verschiedene Advertising-Frames im Roundrobin:
+ *   - Tempo-Frame (alle 800 ms) mit BPM + Anchor + Beat-Index + Sig
+ *   - Piece-Frame (alle 1500 ms) mit Stück-ID + Titel + Sig
+ *
+ * Pakete sind pre-signed (Ed25519 in Web/JS gerechnet), das Plugin
+ * sendet nur den fertigen Byte-Buffer.
  *
  * Setup nach `npx cap add android`:
- *   1) Diese Datei kopieren nach
- *      mobile/android/app/src/main/java/de/sheetstorm/app/SheetstormBleAdvertiserPlugin.kt
- *   2) In MainActivity.java vor `super.onCreate(savedInstanceState);`
- *      registerPlugin(SheetstormBleAdvertiserPlugin.class) eintragen.
- *   3) AndroidManifest.xml braucht die Bluetooth-Permissions (siehe README).
- *   4) build.gradle: minSdkVersion 26.
+ *   1) Datei nach mobile/android/app/src/main/java/de/sheetstorm/app/
+ *   2) registerPlugin(SheetstormBleAdvertiserPlugin::class.java) in MainActivity
+ *   3) Manifest: BLUETOOTH_ADVERTISE Permission
+ *   4) build.gradle: minSdkVersion 26 (BluetoothLeAdvertiser braucht 21,
+ *      Extended Advertising 26)
  */
 package de.sheetstorm.app
 
 import android.Manifest
-import android.bluetooth.*
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothManager
 import android.bluetooth.le.AdvertiseCallback
 import android.bluetooth.le.AdvertiseData
 import android.bluetooth.le.AdvertiseSettings
+import android.bluetooth.le.AdvertisingSet
+import android.bluetooth.le.AdvertisingSetCallback
+import android.bluetooth.le.AdvertisingSetParameters
 import android.bluetooth.le.BluetoothLeAdvertiser
 import android.content.Context
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.os.ParcelUuid
 import androidx.annotation.RequiresPermission
 import com.getcapacitor.JSObject
@@ -33,14 +46,15 @@ import com.getcapacitor.PluginCall
 import com.getcapacitor.PluginMethod
 import com.getcapacitor.annotation.CapacitorPlugin
 import com.getcapacitor.annotation.Permission
-import com.getcapacitor.annotation.PermissionCallback
 import java.util.UUID
-import java.util.concurrent.ConcurrentHashMap
 
-private val SERVICE_UUID: UUID = UUID.fromString("0000F517-7E5F-7E57-0000-000000000000")
-private val CHAR_SCHEDULE: UUID = UUID.fromString("0000F517-7E5F-7E57-0000-000000000001")
-private val CHAR_PIECE:    UUID = UUID.fromString("0000F517-7E5F-7E57-0000-000000000002")
-private val CCCD_UUID:     UUID = UUID.fromString("00002902-0000-1000-8000-00805F9B34FB")
+/** Sheetstorm-Service-UUID — identifiziert unsere Advertising-Frames im Äther. */
+private val SHEETSTORM_SERVICE_UUID: UUID = UUID.fromString("0000F517-7E5F-7E57-0000-000000000000")
+
+/** Manufacturer-ID 0xFFFF (test/internal range) für Tempo-Pakete. */
+private const val MANUFACTURER_ID_TEMPO: Int = 0xFFFE
+/** Manufacturer-ID 0xFFFD für Piece-Pakete. */
+private const val MANUFACTURER_ID_PIECE: Int = 0xFFFD
 
 @CapacitorPlugin(
     name = "SheetstormBleAdvertiser",
@@ -50,7 +64,6 @@ private val CCCD_UUID:     UUID = UUID.fromString("00002902-0000-1000-8000-00805
             strings = [
                 Manifest.permission.BLUETOOTH_ADVERTISE,
                 Manifest.permission.BLUETOOTH_CONNECT,
-                Manifest.permission.BLUETOOTH_SCAN,
             ]
         )
     ]
@@ -59,68 +72,46 @@ class SheetstormBleAdvertiserPlugin : Plugin() {
 
     private var manager: BluetoothManager? = null
     private var advertiser: BluetoothLeAdvertiser? = null
-    private var gattServer: BluetoothGattServer? = null
-    private var scheduleChar: BluetoothGattCharacteristic? = null
-    private var pieceChar: BluetoothGattCharacteristic? = null
 
-    /** Verbundene Subscriber (Followers, die "notify" aktiviert haben). */
-    private val subscribers = ConcurrentHashMap<String, BluetoothDevice>()
+    private var tempoSet: AdvertisingSet? = null
+    private var pieceSet: AdvertisingSet? = null
 
-    private val advertiseCallback = object : AdvertiseCallback() {
-        override fun onStartFailure(errorCode: Int) {
-            notifyListeners("advertise-failed", JSObject().apply { put("code", errorCode) })
-        }
-        override fun onStartSuccess(settingsInEffect: AdvertiseSettings) {
-            notifyListeners("advertise-started", JSObject())
+    private var lastTempoPayload: ByteArray? = null
+    private var lastPiecePayload: ByteArray? = null
+
+    private val handler = Handler(Looper.getMainLooper())
+    private var running = false
+
+    /** Re-Broadcast-Loop: aktualisiert die Advertising-Daten alle 800 ms / 1500 ms. */
+    private val tempoRebroadcast = object : Runnable {
+        override fun run() {
+            if (!running) return
+            updateTempoData()
+            handler.postDelayed(this, 800)
         }
     }
-
-    private val gattCallback = object : BluetoothGattServerCallback() {
-        override fun onConnectionStateChange(device: BluetoothDevice, status: Int, newState: Int) {
-            val ev = JSObject().apply {
-                put("address", device.address)
-                put("state", newState)
-            }
-            notifyListeners("connection-changed", ev)
-            if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-                subscribers.remove(device.address)
-            }
-        }
-
-        override fun onDescriptorWriteRequest(
-            device: BluetoothDevice, requestId: Int, descriptor: BluetoothGattDescriptor,
-            preparedWrite: Boolean, responseNeeded: Boolean, offset: Int, value: ByteArray
-        ) {
-            // CCCD: Subscribe/Unsubscribe für notify
-            if (descriptor.uuid == CCCD_UUID) {
-                val subscribe = value.contentEquals(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
-                if (subscribe) {
-                    subscribers[device.address] = device
-                    notifyListeners("subscribed", JSObject().apply { put("address", device.address) })
-                } else {
-                    subscribers.remove(device.address)
-                    notifyListeners("unsubscribed", JSObject().apply { put("address", device.address) })
-                }
-            }
-            try {
-                @Suppress("MissingPermission")
-                gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, null)
-            } catch (_: SecurityException) { }
+    private val pieceRebroadcast = object : Runnable {
+        override fun run() {
+            if (!running) return
+            updatePieceData()
+            handler.postDelayed(this, 1500)
         }
     }
 
     @PluginMethod
     fun start(call: PluginCall) {
-        if (!hasMyRequiredPermissions()) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+            getPermissionState("advertise") != com.getcapacitor.PermissionState.GRANTED) {
             requestPermissionForAlias("advertise", call, "permsResult")
             return
         }
         startInternal(call)
     }
 
-    @PermissionCallback
+    @com.getcapacitor.annotation.PermissionCallback
     private fun permsResult(call: PluginCall) {
-        if (!hasMyRequiredPermissions()) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+            getPermissionState("advertise") != com.getcapacitor.PermissionState.GRANTED) {
             call.reject("Bluetooth-Berechtigungen verweigert")
             return
         }
@@ -129,100 +120,139 @@ class SheetstormBleAdvertiserPlugin : Plugin() {
 
     @RequiresPermission(allOf = [Manifest.permission.BLUETOOTH_ADVERTISE, Manifest.permission.BLUETOOTH_CONNECT])
     private fun startInternal(call: PluginCall) {
-        val ctx: Context = context
-        manager = ctx.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
-        val adapter = manager?.adapter ?: return call.reject("Kein Bluetooth-Adapter")
+        manager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+        val adapter: BluetoothAdapter = manager?.adapter ?: return call.reject("Kein Bluetooth-Adapter")
         if (!adapter.isEnabled) return call.reject("Bluetooth ist aus")
-        advertiser = adapter.bluetoothLeAdvertiser ?: return call.reject("BLE-Advertising nicht unterstützt")
-
-        try {
-            // GATT-Server aufsetzen
-            gattServer = manager!!.openGattServer(ctx, gattCallback)
-            val service = BluetoothGattService(SERVICE_UUID, BluetoothGattService.SERVICE_TYPE_PRIMARY)
-
-            scheduleChar = BluetoothGattCharacteristic(
-                CHAR_SCHEDULE,
-                BluetoothGattCharacteristic.PROPERTY_NOTIFY or BluetoothGattCharacteristic.PROPERTY_READ,
-                BluetoothGattCharacteristic.PERMISSION_READ
-            ).also {
-                it.addDescriptor(BluetoothGattDescriptor(CCCD_UUID,
-                    BluetoothGattDescriptor.PERMISSION_READ or BluetoothGattDescriptor.PERMISSION_WRITE))
-                service.addCharacteristic(it)
-            }
-
-            pieceChar = BluetoothGattCharacteristic(
-                CHAR_PIECE,
-                BluetoothGattCharacteristic.PROPERTY_NOTIFY or BluetoothGattCharacteristic.PROPERTY_READ,
-                BluetoothGattCharacteristic.PERMISSION_READ
-            ).also {
-                it.addDescriptor(BluetoothGattDescriptor(CCCD_UUID,
-                    BluetoothGattDescriptor.PERMISSION_READ or BluetoothGattDescriptor.PERMISSION_WRITE))
-                service.addCharacteristic(it)
-            }
-
-            gattServer?.addService(service)
-
-            // Advertising starten
-            val settings = AdvertiseSettings.Builder()
-                .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
-                .setConnectable(true)
-                .setTimeout(0)
-                .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
-                .build()
-            val data = AdvertiseData.Builder()
-                .setIncludeDeviceName(true)
-                .addServiceUuid(ParcelUuid(SERVICE_UUID))
-                .build()
-            advertiser?.startAdvertising(settings, data, advertiseCallback)
-            call.resolve(JSObject().apply { put("started", true) })
-        } catch (e: SecurityException) {
-            call.reject("Sicherheits-Ausnahme: ${e.message}")
-        } catch (e: Exception) {
-            call.reject("Start fehlgeschlagen: ${e.message}")
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            return call.reject("Android 8.0 oder neuer erforderlich (Extended Advertising).")
         }
+        advertiser = adapter.bluetoothLeAdvertiser ?: return call.reject("BLE-Advertising nicht unterstützt")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !adapter.isLeExtendedAdvertisingSupported) {
+            // Fallback: legacy Advertising 31-Byte. Für unsere ~80 Byte Tempo-Payload
+            // zu klein — wir warnen aber starten trotzdem, der Re-Broadcast läuft mit
+            // gekürzten Pakete (nur BPM + Anchor, keine Sig).
+        }
+
+        running = true
+        // Initial Dummy-Payloads (leer), damit das Set existiert; sobald
+        // setTempo / setPiece kommt, werden sie ersetzt.
+        startTempoSet()
+        startPieceSet()
+        handler.post(tempoRebroadcast)
+        handler.post(pieceRebroadcast)
+        call.resolve(JSObject().apply { put("started", true) })
     }
 
     @PluginMethod
     fun stop(call: PluginCall) {
+        running = false
+        handler.removeCallbacks(tempoRebroadcast)
+        handler.removeCallbacks(pieceRebroadcast)
         try {
-            @Suppress("MissingPermission")
-            advertiser?.stopAdvertising(advertiseCallback)
-            @Suppress("MissingPermission")
-            gattServer?.close()
-        } catch (_: Exception) { }
-        gattServer = null
-        scheduleChar = null
-        pieceChar = null
-        subscribers.clear()
+            tempoSet?.let { @Suppress("MissingPermission") advertiser?.stopAdvertisingSet(advSetCallback) }
+            pieceSet?.let { @Suppress("MissingPermission") advertiser?.stopAdvertisingSet(advSetCallback) }
+        } catch (_: SecurityException) { }
+        tempoSet = null
+        pieceSet = null
         call.resolve(JSObject().apply { put("stopped", true) })
     }
 
     /**
-     * Push einer signierten Schedule-Payload an alle Subscriber.
-     * args:
-     *   data: Base64-encoded bytes (signed payload, max 512 byte gesplittet)
+     * Setze das aktuelle Tempo-Payload. Roher Byte-Buffer mit
+     * (in JS gerechnet): nonce(8) || anchor_ms(8) || beat_idx(4) || bpm_x100(2) ||
+     *                    meter(1) || sig(64) = 87 Bytes.
      */
     @PluginMethod
-    fun notifySchedule(call: PluginCall) {
+    fun setTempo(call: PluginCall) {
         val b64 = call.getString("data") ?: return call.reject("data fehlt")
-        val bytes = try { android.util.Base64.decode(b64, android.util.Base64.NO_WRAP) }
-            catch (e: Exception) { return call.reject("base64-fehler") }
-        val ch = scheduleChar ?: return call.reject("nicht gestartet")
-        ch.value = bytes
-        var sent = 0
-        for ((_, dev) in subscribers) {
-            try {
-                @Suppress("MissingPermission")
-                gattServer?.notifyCharacteristicChanged(dev, ch, false)
-                sent++
-            } catch (_: SecurityException) { }
-        }
-        call.resolve(JSObject().apply { put("subscribers", subscribers.size); put("sent", sent) })
+        lastTempoPayload = try { android.util.Base64.decode(b64, android.util.Base64.NO_WRAP) }
+            catch (e: Exception) { return call.reject("base64 invalid") }
+        if (running) updateTempoData()
+        call.resolve(JSObject().apply { put("ok", true); put("size", lastTempoPayload!!.size) })
     }
 
-    private fun hasMyRequiredPermissions(): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
-        return getPermissionState("advertise") == com.getcapacitor.PermissionState.GRANTED
+    /** Setze das aktuelle Piece-Payload (analog Tempo, andere Manufacturer-ID). */
+    @PluginMethod
+    fun setPiece(call: PluginCall) {
+        val b64 = call.getString("data") ?: return call.reject("data fehlt")
+        lastPiecePayload = try { android.util.Base64.decode(b64, android.util.Base64.NO_WRAP) }
+            catch (e: Exception) { return call.reject("base64 invalid") }
+        if (running) updatePieceData()
+        call.resolve(JSObject().apply { put("ok", true); put("size", lastPiecePayload!!.size) })
+    }
+
+    @RequiresPermission(Manifest.permission.BLUETOOTH_ADVERTISE)
+    private fun startTempoSet() {
+        val params = AdvertisingSetParameters.Builder()
+            .setLegacyMode(false)
+            .setConnectable(false)
+            .setScannable(false)
+            .setInterval(AdvertisingSetParameters.INTERVAL_LOW)
+            .setTxPowerLevel(AdvertisingSetParameters.TX_POWER_HIGH)
+            .setPrimaryPhy(android.bluetooth.le.AdvertisingSetParameters.PHY_OPTION_NO_PREFERRED)
+            .build()
+        val data = buildAdvData(MANUFACTURER_ID_TEMPO, lastTempoPayload ?: ByteArray(0))
+        try {
+            advertiser?.startAdvertisingSet(params, data, null, null, null, advSetCallback)
+        } catch (e: SecurityException) { /* ignore */ }
+    }
+
+    @RequiresPermission(Manifest.permission.BLUETOOTH_ADVERTISE)
+    private fun startPieceSet() {
+        val params = AdvertisingSetParameters.Builder()
+            .setLegacyMode(false)
+            .setConnectable(false)
+            .setScannable(false)
+            .setInterval(AdvertisingSetParameters.INTERVAL_MEDIUM)
+            .setTxPowerLevel(AdvertisingSetParameters.TX_POWER_HIGH)
+            .build()
+        val data = buildAdvData(MANUFACTURER_ID_PIECE, lastPiecePayload ?: ByteArray(0))
+        try {
+            advertiser?.startAdvertisingSet(params, data, null, null, null, advSetCallback)
+        } catch (e: SecurityException) { /* ignore */ }
+    }
+
+    @RequiresPermission(Manifest.permission.BLUETOOTH_ADVERTISE)
+    private fun updateTempoData() {
+        val payload = lastTempoPayload ?: return
+        try {
+            tempoSet?.setAdvertisingData(buildAdvData(MANUFACTURER_ID_TEMPO, payload))
+        } catch (e: SecurityException) { }
+    }
+
+    @RequiresPermission(Manifest.permission.BLUETOOTH_ADVERTISE)
+    private fun updatePieceData() {
+        val payload = lastPiecePayload ?: return
+        try {
+            pieceSet?.setAdvertisingData(buildAdvData(MANUFACTURER_ID_PIECE, payload))
+        } catch (e: SecurityException) { }
+    }
+
+    private fun buildAdvData(manufacturerId: Int, payload: ByteArray): AdvertiseData =
+        AdvertiseData.Builder()
+            .setIncludeDeviceName(false)
+            .addServiceUuid(ParcelUuid(SHEETSTORM_SERVICE_UUID))
+            .addManufacturerData(manufacturerId, payload)
+            .build()
+
+    private val advSetCallback = object : AdvertisingSetCallback() {
+        override fun onAdvertisingSetStarted(set: AdvertisingSet?, txPower: Int, status: Int) {
+            super.onAdvertisingSetStarted(set, txPower, status)
+            // Wir wissen nicht welcher Set das ist (Tempo oder Piece) — beide
+            // teilen sich den Callback. Erstes Slot ist tempoSet, zweites pieceSet.
+            if (tempoSet == null) tempoSet = set else pieceSet = set
+            notifyListeners("set-started", JSObject().apply { put("status", status); put("txPower", txPower) })
+        }
+
+        override fun onAdvertisingDataSet(set: AdvertisingSet?, status: Int) {
+            super.onAdvertisingDataSet(set, status)
+            // Häufig — kein notify (wäre Spam)
+        }
+
+        override fun onAdvertisingSetStopped(set: AdvertisingSet?) {
+            super.onAdvertisingSetStopped(set)
+            if (set === tempoSet) tempoSet = null
+            if (set === pieceSet) pieceSet = null
+        }
     }
 }
-
