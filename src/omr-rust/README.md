@@ -1,7 +1,7 @@
 # Sheetstorm OMR Engine — Rust Implementation
 
-> **Status:** v0.1 — Baseline
-> **Lizenz:** AGPL-3.0 (gleich wie Sheetstorm)
+> **Status:** v0.2 — Hardening for Real Scans
+> **Lizenz:** Apache-2.0 (clean-room, kein Audiveris-Code)
 
 Eigene Optical-Music-Recognition-Pipeline für Sheetstorm, geschrieben in
 Rust. Pipeline-basierter Aufbau mit klassischen CV-Algorithmen, designed
@@ -40,8 +40,9 @@ im Hauptrepo für die ausführliche Spezifikation. Kurzfassung:
 | Noteheads | NCC-Template-Matching + Sub-Pixel-Interp. | Lewis 1995 |
 | MusicXML | Score-Partwise v4.0 | W3C |
 
-**Kein Audiveris-Code wird verwendet** (AGPL — wir haben keine Lizenz für
-Code-Übernahme; Algorithmen sind aus wissenschaftlicher Literatur).
+**Kein Audiveris-Code wird verwendet** (Audiveris ist AGPL-3.0). Diese
+Engine ist clean-room geschrieben — Algorithmen aus wissenschaftlicher
+Literatur, keinerlei Code-Übernahme aus Audiveris/oemer/homr/MuseScore-OMR.
 
 ## Build
 
