@@ -96,13 +96,17 @@ fn measure_xml(m: &Measure, first: bool) -> String {
         if n.in_chord {
             let _ = writeln!(s, "        <chord/>");
         }
-        let _ = writeln!(s, "        <pitch>");
-        let _ = writeln!(s, "          <step>{}</step>", n.step.as_str());
-        if n.alter != 0 {
-            let _ = writeln!(s, "          <alter>{}</alter>", n.alter);
+        if n.is_rest {
+            let _ = writeln!(s, "        <rest/>");
+        } else {
+            let _ = writeln!(s, "        <pitch>");
+            let _ = writeln!(s, "          <step>{}</step>", n.step.as_str());
+            if n.alter != 0 {
+                let _ = writeln!(s, "          <alter>{}</alter>", n.alter);
+            }
+            let _ = writeln!(s, "          <octave>{}</octave>", n.octave);
+            let _ = writeln!(s, "        </pitch>");
         }
-        let _ = writeln!(s, "          <octave>{}</octave>", n.octave);
-        let _ = writeln!(s, "        </pitch>");
         let _ = writeln!(s, "        <duration>{}</duration>", n.duration);
         let _ = writeln!(s, "        <voice>{}</voice>", n.voice);
         let base_dur = match n.augmentation_dots {
@@ -272,6 +276,7 @@ mod tests {
                         center: Point { x: 0.0, y: 0.0 },
                         augmentation_dots: 0,
                         in_chord: false,
+            is_rest: false,
                     }],
                     time_signature: Some(TimeSignature { beats: 4, beat_type: 4 }),
                     key_signature: Some(omr_core::KeySignature { fifths: 0 }),

@@ -22,12 +22,14 @@ pub mod templates;
 pub mod classifier;
 pub mod hog;
 pub mod jump_marks;
+pub mod rests;
 pub mod svm_model;
 pub use bars::{detect_measure_bars, MeasureBar};
 pub use beams::{detect_beams, beams_per_stem, Beam};
 pub use cc::{connected_components, ConnectedComponent};
 pub use meta::{detect_clef, detect_key_signature};
 pub use plausibility::{check_measure, repair_measure, validate_and_repair_part, MeasureCheck, MeasurePlausibility};
+pub use rests::{detect_rests, Rest, RestKind};
 pub use template::{detect_noteheads_template_v2, rerank_with_template};
 
 /// Hauptfunktion: detektiere Noteheads in einem staff-line-removed Binary.
@@ -748,6 +750,7 @@ pub fn noteheads_to_notes_with_dots(
             center: nh.center,
             augmentation_dots: dots,
             in_chord: false,
+            is_rest: false,
         });
     }
     notes

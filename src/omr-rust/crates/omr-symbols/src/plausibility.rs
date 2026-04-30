@@ -306,6 +306,7 @@ mod tests {
             center: omr_core::Point { x: 0.0, y: 0.0 },
             augmentation_dots: 0,
             in_chord: false,
+            is_rest: false,
         }
     }
 
@@ -492,6 +493,7 @@ mod tests {
                     center: omr_core::Point { x: 0.0, y: 0.0 },
                     augmentation_dots: 0,
                     in_chord: false,
+            is_rest: false,
                 },
             ],
             time_signature: None,

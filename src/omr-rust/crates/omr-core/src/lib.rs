@@ -125,6 +125,10 @@ pub struct ScoreNote {
     /// `<chord/>` markiert werden. Plausibility-Σ ignoriert solche Notes.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub in_chord: bool,
+    /// True wenn dieses Element eine Pause statt einer Note ist. MusicXML
+    /// schreibt dann `<rest/>` statt `<pitch>`. Pitch-Felder werden ignoriert.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub is_rest: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

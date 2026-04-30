@@ -100,6 +100,7 @@ pub struct Stats {
     pub n_stems: usize,
     pub n_beams: usize,
     pub n_bars: usize,
+    pub n_rests: usize,
     pub n_measures: usize,
     pub n_measures_exact: usize,
     pub n_measures_repaired: usize,
@@ -227,6 +228,9 @@ pub fn process_gray(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineR
     let beams = omr_symbols::detect_beams(&removed, line_spacing);
     let beam_counts = omr_symbols::beams_per_stem(&stems, &beams);
     let bars = omr_symbols::detect_measure_bars(&bin, &systems, &noteheads);
+    // Pausen-Detection (Whole-Rest, Half-Rest) — füllt leere Measures mit
+    // expliziten Pause-Notes statt Tacet zu lassen.
+    let rests = omr_symbols::detect_rests(&bin, &systems);
     // Sprungmarken erkennen (Repeat-Bars + Volta) — Phase A für Layered-OMR (Spec 22)
     let mut jump_detections = Vec::new();
     jump_detections.extend(omr_symbols::jump_marks::detect_repeat_marks(&bin, &bars, &systems));
@@ -240,6 +244,7 @@ pub fn process_gray(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineR
         n_stems = stems.len(),
         n_beams = beams.len(),
         n_bars = bars.len(),
+        n_rests = rests.len(),
         n_jump_marks = jump_detections.len(),
         "symbols detected"
     );
@@ -375,6 +380,14 @@ pub fn process_gray(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineR
     //     ignoriert (sie tragen nicht zur Taktdauer bei).
     mark_chords_and_onsets(&mut measures, line_spacing);
 
+    // 5a-bis) Pausen-Insertion: für jedes leere Measure prüfen ob ein Rest
+    // im x-Bereich des Measures detektiert wurde. Wenn ja: einfügen.
+    // Wenn das Measure leer ist UND keine Rest gefunden wurde: implicit
+    // Whole-Rest hinzufügen (Tacet-Annahme). Dadurch wird der MusicXML-Output
+    // gültig und vollständig. Rest-Detection ist konservativ → nur leere
+    // Measures werden modifiziert, korrekte Takte bleiben unverändert.
+    insert_rests_into_empty_measures(&mut measures, &rests, detected_time);
+
     // 5b) Plausibilisierung der Takte gegen die erkannte Taktart.
     //     Repariert Takte deren Σ duration nicht passt.
     let measure_checks = omr_symbols::validate_and_repair_part(&mut measures, detected_time);
@@ -467,6 +480,7 @@ pub fn process_gray(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineR
             n_stems: stems.len(),
             n_beams: beams.len(),
             n_bars: bars.len(),
+            n_rests: rests.len(),
             n_measures: measure_checks.len(),
             n_measures_exact,
             n_measures_repaired,
@@ -599,6 +613,79 @@ fn mark_chords_and_onsets(measures: &mut [Measure], line_spacing: f32) {
     }
 }
 
+/// Fügt Pausen-Notes in leere Measures ein. Konservativ: nur Measures ohne
+/// Notes werden modifiziert, korrekte Takte bleiben unverändert.
+///
+/// Strategie:
+/// 1. Wenn ein Rest-Glyph in der x-Bbox des Measures liegt (gleiches System),
+///    füge ihn als Pause ein.
+/// 2. Sonst: füge einen impliziten Whole-Rest hinzu (Tacet-Annahme).
+fn insert_rests_into_empty_measures(
+    measures: &mut [Measure],
+    rests: &[omr_symbols::Rest],
+    time: omr_core::TimeSignature,
+) {
+    let expected = (time.beats as u32 * 4 * 4) / time.beat_type as u32;
+    for m in measures.iter_mut() {
+        if !m.notes.is_empty() {
+            continue;
+        }
+        // Suche Rests in der x-Range dieses Measures (gleiches System)
+        let mut measure_rests: Vec<&omr_symbols::Rest> = if let Some(bbox) = m.bbox_orig {
+            rests.iter()
+                .filter(|r| {
+                    Some(r.staff_idx as u32) == m.system_idx
+                        && r.center.x as u32 >= bbox.x
+                        && (r.center.x as u32) < bbox.x + bbox.w
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
+        measure_rests.sort_by(|a, b| a.center.x.partial_cmp(&b.center.x).unwrap_or(std::cmp::Ordering::Equal));
+
+        if measure_rests.is_empty() {
+            // Implicit Whole-Rest für leere Measures (Tacet)
+            m.notes.push(omr_core::ScoreNote {
+                midi: 0,
+                step: omr_core::PitchStep::C,
+                alter: 0,
+                octave: 4,
+                duration: expected,
+                onset: 0,
+                voice: 1,
+                kind: omr_core::NoteheadKind::Whole,
+                center: omr_core::Point {
+                    x: m.bbox_orig.map(|b| b.x as f32 + b.w as f32 / 2.0).unwrap_or(0.0),
+                    y: m.bbox_orig.map(|b| b.y as f32 + b.h as f32 / 2.0).unwrap_or(0.0),
+                },
+                augmentation_dots: 0,
+                in_chord: false,
+                is_rest: true,
+            });
+        } else {
+            let mut onset = 0u32;
+            for r in measure_rests {
+                m.notes.push(omr_core::ScoreNote {
+                    midi: 0,
+                    step: omr_core::PitchStep::C,
+                    alter: 0,
+                    octave: 4,
+                    duration: r.kind.duration(),
+                    onset,
+                    voice: 1,
+                    kind: omr_core::NoteheadKind::Filled,
+                    center: r.center,
+                    augmentation_dots: 0,
+                    in_chord: false,
+                    is_rest: true,
+                });
+                onset = onset.saturating_add(r.kind.duration());
+            }
+        }
+    }
+}
+
 /// Verarbeite eine PDF-Datei (rendert ALLE Seiten und merged sie zu einem Score).
 pub fn process_pdf(path: &Path, opts: &PipelineOptions) -> Result<PipelineResult> {
     let images = pdf_render::render_pages(path, 200)?;
@@ -633,6 +720,7 @@ pub fn process_pdf(path: &Path, opts: &PipelineOptions) -> Result<PipelineResult
         merged_stats.n_stems += r.stats.n_stems;
         merged_stats.n_beams += r.stats.n_beams;
         merged_stats.n_bars += r.stats.n_bars;
+        merged_stats.n_rests += r.stats.n_rests;
         merged_stats.n_measures += r.stats.n_measures;
         merged_stats.n_measures_exact += r.stats.n_measures_exact;
         merged_stats.n_measures_repaired += r.stats.n_measures_repaired;
