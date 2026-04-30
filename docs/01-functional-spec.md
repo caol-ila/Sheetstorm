@@ -143,6 +143,13 @@ Ein Werk = ein Musikstück mit Metadaten:
   oben, Dynamik zwischen Linien, Tempo über erstem Takt) zur robusten
   Erkennung. Text-Bereiche (espressivo, Tempo-Marken, Liedtext) werden
   vor der Notehead-Detection gefiltert.
+* **Layered OMR & Live-Position-Tracking**: Sheetstorm verfolgt einen
+  „Layered OMR"-Ansatz (siehe `docs/22-measure-tracking-and-reflow.md`):
+  Schon mit teilweise erkannten Noten lassen sich
+  Live-Position-Highlighting, Cross-Instrument-Sync und Reflowable
+  Layout realisieren. Die Notenerkennung selbst wird kontinuierlich
+  verbessert (Phase 1+2), aber User-Mehrwert beginnt schon bei
+  Layer 2 (Takte + Sprungmarken).
 
 ## 3. Termine
 

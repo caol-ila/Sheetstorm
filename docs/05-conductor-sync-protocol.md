@@ -141,6 +141,16 @@ und durch Verluste wackelig). Stattdessen:
   Anker mit Sonderflag** und werden zusätzlich mehrfach wiederholt
   (BLE-Verlust-Toleranz).
 
+> **Layered-OMR-Hinweis (siehe `docs/22-measure-tracking-and-reflow.md`):**
+> Ab Protokoll-Version `0x03` wird das Paket um ein Feld
+> `linear_performance_index` (uint32) ergänzt. Es benennt die Position
+> in der **linearisierten Spielreihenfolge** (PerformanceTimeline) statt
+> nur die rohe Takt-Nummer. Das ermöglicht Cross-Instrument-Sync
+> auch bei Volta/D.S./Coda-Sprüngen, da jede Stimme die gleiche
+> Performance-Order, aber unterschiedliche physische Takt-Positionen
+> haben kann. `measureNumber` bleibt für Backwards-Compat erhalten;
+> Empfänger ab v3 bevorzugen `linear_performance_index`.
+
 ### Paket-Erweiterung: `kind = 3 (PositionAnchor)`
 
 ```

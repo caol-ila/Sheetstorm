@@ -3,7 +3,10 @@
 > **Verwandt:** [05 — Conductor-Sync-Protokoll](05-conductor-sync-protocol.md)
 > (Time-Sync & Position-Tracking), [10 — Metronom](10-metronom-and-sync-click.md),
 > [01 — Funktionale Spec, Abschnitt 13/14](01-functional-spec.md),
-> [02 — Tech Stack (Audio)](02-tech-stack.md).
+> [02 — Tech Stack (Audio)](02-tech-stack.md),
+> [22 — Measure-Tracking & Reflowable Layout](22-measure-tracking-and-reflow.md)
+> (Bbox-basiertes Highlighting & Cross-Instrument-Sync auch ohne
+> vollständige Noten-Erkennung).
 
 Dieses Dokument beschreibt die technische Architektur für
 **Score-Playback**, **Übungs-Modus** und **Position-Tracking**. Die
