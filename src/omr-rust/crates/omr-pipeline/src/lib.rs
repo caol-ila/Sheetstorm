@@ -124,6 +124,10 @@ pub fn process_gray(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineR
 
     let raw_noteheads = omr_symbols::detect_noteheads_with_skip(&removed, &systems, &skip_regions);
     let noteheads = omr_symbols::rerank_with_template(&removed, &raw_noteheads, line_spacing);
+    // Symbol-Klassifikator: filtert Coda/Segno/D.S./Dynamik/Noise via Bravura-Templates.
+    let n_before_classifier = noteheads.len();
+    let noteheads = omr_symbols::classifier::filter_via_templates(&removed, noteheads, line_spacing);
+    let n_after_classifier = noteheads.len();
     let stems = omr_symbols::stems::detect_stems(&removed, &noteheads, line_spacing);
     let beams = omr_symbols::detect_beams(&removed, line_spacing);
     let beam_counts = omr_symbols::beams_per_stem(&stems, &beams);
@@ -132,7 +136,8 @@ pub fn process_gray(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineR
     drop(_span);
     info!(
         n_raw = raw_noteheads.len(),
-        n_reranked = noteheads.len(),
+        n_reranked = n_before_classifier,
+        n_classifier_filtered = n_after_classifier,
         n_stems = stems.len(),
         n_beams = beams.len(),
         n_bars = bars.len(),

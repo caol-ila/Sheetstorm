@@ -19,6 +19,7 @@ pub mod plausibility;
 pub mod stems;
 pub mod template;
 pub mod templates;
+pub mod classifier;
 pub use bars::{detect_measure_bars, MeasureBar};
 pub use beams::{detect_beams, beams_per_stem, Beam};
 pub use cc::{connected_components, ConnectedComponent};
