@@ -16,10 +16,12 @@ pub mod cc;
 pub mod meta;
 pub mod pitch;
 pub mod stems;
+pub mod template;
 pub use bars::{detect_measure_bars, MeasureBar};
 pub use beams::{detect_beams, beams_per_stem, Beam};
 pub use cc::{connected_components, ConnectedComponent};
 pub use meta::{detect_clef, detect_key_signature};
+pub use template::detect_noteheads_template_v2;
 
 /// Hauptfunktion: detektiere Noteheads in einem staff-line-removed Binary.
 pub fn detect_noteheads(staff_removed: &Binary, systems: &[StaffSystem]) -> Vec<Notehead> {
