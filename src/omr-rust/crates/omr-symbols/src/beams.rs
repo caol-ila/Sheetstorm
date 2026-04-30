@@ -26,12 +26,13 @@ pub struct Beam {
 
 /// Detektiert Beams im (staff-removed) Bild.
 pub fn detect_beams(bin: &Binary, spacing: f32) -> Vec<Beam> {
-    let min_w = (spacing * 1.5) as u32;
+    // Min-Width 1.2*spacing (vorher 1.5): kürzere Beams (Achtel-Paare am Takt-Ende)
+    // wurden vorher zu oft verworfen.
+    let min_w = (spacing * 1.2) as u32;
     let min_thick = (spacing * 0.3) as u32;
     let max_thick = (spacing * 1.0) as u32;
 
     let mut beams = Vec::new();
-    // Scanne pro Y-Position horizontale Runs.
     for y in 0..bin.h {
         let mut x = 0u32;
         while x < bin.w {
@@ -42,12 +43,9 @@ pub fn detect_beams(bin: &Binary, spacing: f32) -> Vec<Beam> {
             x += 1;
             let len = end - start + 1;
             if len < min_w { continue; }
-            // Prüfe Thickness: gehe von y nach unten, wie viele aufeinanderfolgende
-            // y-Werte haben einen Run der diesen Bereich abdeckt?
             let thickness = measure_thickness(bin, start, end, y);
             if thickness < min_thick || thickness > max_thick { continue; }
-            // Nur den oberen Pixel der Beam-Region annehmen (verhindert Duplikate).
-            // Wir prüfen: gibt es bei y-1 schon einen ähnlichen Run? Wenn ja, skip.
+            // Dedupe: skip wenn bei y-1 schon ein ähnlicher Run war.
             if y > 0 && has_similar_run(bin, start, end, y - 1) { continue; }
             beams.push(Beam {
                 x_start: start,
@@ -68,8 +66,10 @@ fn measure_thickness(bin: &Binary, x0: u32, x1: u32, y0: u32) -> u32 {
         for x in x0..=x1 {
             if bin.get(x, yy) == 1 { filled += 1; }
         }
+        // Coverage 0.55 (vorher 0.7): Beams im realen Druck haben oft ausgefranste
+        // Ränder oder durchschnittene Stems.
         let coverage = filled as f32 / (x1 - x0 + 1) as f32;
-        if coverage < 0.7 { break; }
+        if coverage < 0.55 { break; }
         thickness += 1;
         yy += 1;
     }
@@ -82,7 +82,7 @@ fn has_similar_run(bin: &Binary, x0: u32, x1: u32, y: u32) -> bool {
         if bin.get(x, y) == 1 { filled += 1; }
     }
     let coverage = filled as f32 / (x1 - x0 + 1) as f32;
-    coverage > 0.7
+    coverage > 0.55
 }
 
 /// Anzahl Beams die einen gegebenen Stem berühren.

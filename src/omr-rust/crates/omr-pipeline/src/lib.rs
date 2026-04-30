@@ -8,7 +8,9 @@ use omr_core::{
 use std::path::Path;
 use tracing::{info, info_span, warn};
 
+pub mod debug_viz;
 pub mod pdf_render;
+pub mod synthetic;
 
 /// Ergebnis eines vollständigen Durchlaufs für ein Bild oder PDF.
 #[derive(Debug, Clone)]
@@ -39,6 +41,12 @@ pub struct Stats {
     pub line_spacing: f32,
     pub n_noteheads: usize,
     pub n_stems: usize,
+    pub n_beams: usize,
+    pub n_bars: usize,
+    pub n_measures: usize,
+    pub n_measures_exact: usize,
+    pub n_measures_repaired: usize,
+    pub n_measures_broken: usize,
     pub deskew_angle_deg: f32,
 }
 
@@ -91,14 +99,26 @@ pub fn process_gray(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineR
     // 4) Symbol-Detection: Noteheads + Stems + Beams + Bars.
     let _span = info_span!("symbol_detection").entered();
     let sym_t = std::time::Instant::now();
-    let raw_noteheads = omr_symbols::detect_noteheads(&removed, &systems);
-    // Re-Rank via lokales NCC-Template-Matching → bessere Filled/Open-
-    // Klassifikation + Sub-Pixel-Center.
+
+    // Skip-Region pro System: ersten ~14*spacing (Schlüssel + Key + Time)
+    // wo keine Noteheads erlaubt sind.
+    let skip_regions: Vec<std::ops::Range<u32>> = systems.iter().map(|s| {
+        let spacing = s.line_spacing;
+        // Finde X wo Stafflinie beginnt
+        let first_line = s.lines.first();
+        let line_start_x = first_line
+            .and_then(|l| l.y_per_x.iter().position(|&y| y > 0))
+            .unwrap_or(0) as u32;
+        // 6 spacings reichen für Schlüssel + Vorzeichen + Taktart
+        line_start_x..(line_start_x + (spacing * 6.0) as u32)
+    }).collect();
+
+    let raw_noteheads = omr_symbols::detect_noteheads_with_skip(&removed, &systems, &skip_regions);
     let noteheads = omr_symbols::rerank_with_template(&removed, &raw_noteheads, line_spacing);
     let stems = omr_symbols::stems::detect_stems(&removed, &noteheads, line_spacing);
     let beams = omr_symbols::detect_beams(&removed, line_spacing);
     let beam_counts = omr_symbols::beams_per_stem(&stems, &beams);
-    let bars = omr_symbols::detect_measure_bars(&bin, &systems);
+    let bars = omr_symbols::detect_measure_bars(&bin, &systems, &noteheads);
     let symbol_detection_ms = sym_t.elapsed().as_millis();
     drop(_span);
     info!(
@@ -109,6 +129,23 @@ pub fn process_gray(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineR
         n_bars = bars.len(),
         "symbols detected"
     );
+
+    // Debug-Visualisierung (wenn aktiviert) — zeichne alle Detections
+    // farbig auf das Original-Grayscale.
+    if let Some(ref dir) = opts.debug_dir {
+        let staff_systems_lines: Vec<Vec<Vec<u32>>> = systems.iter()
+            .map(|s| s.lines.iter().map(|l| l.y_per_x.clone()).collect())
+            .collect();
+        let overlays = debug_viz::Overlays {
+            noteheads: &noteheads,
+            stems: &stems,
+            beams: &beams,
+            bars: &bars,
+            staff_systems_lines,
+        };
+        let dbg = debug_viz::render_debug_image(&gray, &overlays);
+        let _ = dbg.save(dir.join("03_detections.png"));
+    }
 
     // 5) Score-Konstruktion: ein Measure pro StaffSystem, Noten in Reading-Order (X).
     // Clef + Key Signature pro System auf Original-Binary detektieren.
@@ -157,7 +194,6 @@ pub fn process_gray(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineR
         for (mi, m) in sys_measures.iter_mut().enumerate() {
             m.number = measure_num;
             measure_num += 1;
-            // Erste Measure pro System trägt clef + key. Time nur in System 0.
             if mi == 0 {
                 m.clef = clefs.get(sys_i).copied();
                 m.key_signature = keys.get(sys_i).copied();
@@ -168,6 +204,24 @@ pub fn process_gray(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineR
         }
         measures.extend(sys_measures);
     }
+
+    // 5b) Plausibilisierung der Takte gegen die erkannte Taktart.
+    //     Repariert Takte deren Σ duration nicht passt.
+    let measure_checks = omr_symbols::validate_and_repair_part(&mut measures, detected_time);
+    let n_measures_exact = measure_checks.iter()
+        .filter(|c| matches!(c.plausibility, omr_symbols::MeasurePlausibility::Exact | omr_symbols::MeasurePlausibility::Anacrusis))
+        .count();
+    let n_measures_broken = measure_checks.iter()
+        .filter(|c| matches!(c.plausibility, omr_symbols::MeasurePlausibility::Broken))
+        .count();
+    let n_measures_repaired = measure_checks.len().saturating_sub(n_measures_exact + n_measures_broken);
+    info!(
+        n_measures = measure_checks.len(),
+        exact = n_measures_exact,
+        repaired = n_measures_repaired,
+        broken = n_measures_broken,
+        "measure plausibility"
+    );
 
     let part = Part {
         id: "P1".into(),
@@ -204,6 +258,12 @@ pub fn process_gray(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineR
             line_spacing,
             n_noteheads: noteheads.len(),
             n_stems: stems.len(),
+            n_beams: beams.len(),
+            n_bars: bars.len(),
+            n_measures: measure_checks.len(),
+            n_measures_exact,
+            n_measures_repaired,
+            n_measures_broken,
             deskew_angle_deg: deskew_angle,
         },
     })
@@ -309,6 +369,12 @@ pub fn process_pdf(path: &Path, opts: &PipelineOptions) -> Result<PipelineResult
         merged_stats.n_systems += r.stats.n_systems;
         merged_stats.n_noteheads += r.stats.n_noteheads;
         merged_stats.n_stems += r.stats.n_stems;
+        merged_stats.n_beams += r.stats.n_beams;
+        merged_stats.n_bars += r.stats.n_bars;
+        merged_stats.n_measures += r.stats.n_measures;
+        merged_stats.n_measures_exact += r.stats.n_measures_exact;
+        merged_stats.n_measures_repaired += r.stats.n_measures_repaired;
+        merged_stats.n_measures_broken += r.stats.n_measures_broken;
         merged_stats.line_thickness = r.stats.line_thickness;
         merged_stats.line_spacing = r.stats.line_spacing;
         merged_stats.deskew_angle_deg = r.stats.deskew_angle_deg;

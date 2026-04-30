@@ -15,16 +15,30 @@ pub mod beams;
 pub mod cc;
 pub mod meta;
 pub mod pitch;
+pub mod plausibility;
 pub mod stems;
 pub mod template;
 pub use bars::{detect_measure_bars, MeasureBar};
 pub use beams::{detect_beams, beams_per_stem, Beam};
 pub use cc::{connected_components, ConnectedComponent};
 pub use meta::{detect_clef, detect_key_signature};
+pub use plausibility::{check_measure, repair_measure, validate_and_repair_part, MeasureCheck, MeasurePlausibility};
 pub use template::{detect_noteheads_template_v2, rerank_with_template};
 
 /// Hauptfunktion: detektiere Noteheads in einem staff-line-removed Binary.
+/// `bin_original` wird genutzt um den Schlüssel/Vorzeichen-Bereich zu finden,
+/// in dem keine Noteheads zugelassen werden.
 pub fn detect_noteheads(staff_removed: &Binary, systems: &[StaffSystem]) -> Vec<Notehead> {
+    detect_noteheads_with_skip(staff_removed, systems, &[])
+}
+
+/// Wie [`detect_noteheads`], aber mit explicit "verbotenen" X-Range pro System
+/// (z.B. der Schlüssel/Key/Time-Bereich).
+pub fn detect_noteheads_with_skip(
+    staff_removed: &Binary,
+    systems: &[StaffSystem],
+    skip_x_per_system: &[std::ops::Range<u32>],
+) -> Vec<Notehead> {
     if systems.is_empty() {
         return vec![];
     }
@@ -39,7 +53,6 @@ pub fn detect_noteheads(staff_removed: &Binary, systems: &[StaffSystem]) -> Vec<
     let max_w = (expected_w as f32 * 2.5).round() as u32;
     let min_h_simple = (expected_h as f32 * 0.4).round() as u32;
     let max_h_simple = (expected_h as f32 * 2.0).round() as u32;
-    // Notehead+Stem zusammen kann bis 5x spacing hoch sein.
     let max_h_tall = (spacing * 5.0).round() as u32;
 
     let ccs = connected_components(staff_removed);
@@ -48,28 +61,140 @@ pub fn detect_noteheads(staff_removed: &Binary, systems: &[StaffSystem]) -> Vec<
     let mut noteheads = Vec::new();
     for cc in &ccs {
         let bb = cc.bbox;
-        // Schritt 1: Filter — entferne Mini- und absurd große CCs.
         if bb.w < min_w || bb.w > max_w { continue; }
         if bb.h < min_h_simple || bb.h > max_h_tall { continue; }
         let aspect = bb.aspect();
 
-        // Schritt 2: Wenn das CC "klein und rund" ist (klassischer Notehead),
-        // direkt klassifizieren.
         if bb.h <= max_h_simple && (0.5..=3.0).contains(&aspect) {
             if let Some(nh) = classify_simple_notehead(staff_removed, &bb, spacing, systems) {
+                if is_in_skip_region(&nh, skip_x_per_system) { continue; }
                 noteheads.push(nh);
             }
             continue;
         }
 
-        // Schritt 3: Tall-narrow CC = Notehead + Stem zusammen.
-        // Finde die Y-Region mit max horizontaler Density innerhalb des CC.
-        if let Some(nh) = extract_notehead_from_tall(staff_removed, &bb, spacing, systems) {
+        // Schritt 3: Tall/wide CC kann mehrere Noteheads enthalten (Beam-Gruppen!).
+        // Wir scannen pro X-Spalte das CC und finden überall wo die NH-Region
+        // liegt mehrere Maxima.
+        let extracted = extract_noteheads_from_complex(staff_removed, &bb, spacing, systems);
+        for nh in extracted {
+            if is_in_skip_region(&nh, skip_x_per_system) { continue; }
             noteheads.push(nh);
         }
     }
     debug!(kept = noteheads.len(), "noteheads after filter");
     noteheads
+}
+
+/// Aus komplexem CC (Notehead+Stem oder Notehead+Beam-Group) alle enthaltenen
+/// Notenköpfe extrahieren via Sliding-Window auf Spalten-Densität.
+fn extract_noteheads_from_complex(
+    bin: &Binary,
+    bb: &Rect,
+    spacing: f32,
+    systems: &[StaffSystem],
+) -> Vec<Notehead> {
+    // Wenn das CC schmaler als 2*spacing ist, ist es definitiv NUR ein Notehead+Stem.
+    let nh_w = (spacing * 1.3).round() as u32;
+    if bb.w < (spacing * 2.0) as u32 {
+        if let Some(nh) = extract_single_notehead_from_tall(bin, bb, spacing, systems) {
+            return vec![nh];
+        }
+        return vec![];
+    }
+
+    // Wide CC = Beam-Gruppe. Scanne X-Spalten in Schritten von spacing*0.6
+    // und extrahiere an jeder X-Position eine potentielle Notehead-Region.
+    let mut noteheads = Vec::new();
+    let step = (spacing * 0.6).max(2.0) as u32;
+    let mut x = bb.x;
+    let nh_h = spacing.round() as u32;
+    while x + nh_w <= bb.x + bb.w {
+        // Pro X-Range: finde die Y-Region mit max Density.
+        let sub_bb = Rect { x, y: bb.y, w: nh_w, h: bb.h };
+        let row_density = local_row_density(bin, &sub_bb);
+        if row_density.is_empty() { x += step; continue; }
+        let win = (nh_h as usize).min(row_density.len());
+        if win == 0 { x += step; continue; }
+
+        let mut window_sum: u32 = row_density[..win].iter().sum();
+        let mut best_sum = window_sum;
+        let mut best_start: usize = 0;
+        for i in win..row_density.len() {
+            window_sum += row_density[i];
+            window_sum -= row_density[i - win];
+            if window_sum > best_sum {
+                best_sum = window_sum;
+                best_start = i + 1 - win;
+            }
+        }
+
+        // Mindest-Densität: 0.55 * Notehead-Volumen.
+        let avg_density = best_sum as f32 / win as f32;
+        if avg_density < spacing * 0.55 {
+            x += step;
+            continue;
+        }
+
+        // Beam-Region (sehr dicht über die ganze Region) ausschließen:
+        // Notenköpfe haben Density-Variation, Beams haben gleichmäßige Density.
+        let beam_threshold = spacing * 0.85;
+        let beamlike = row_density.iter().filter(|&&d| (d as f32) > beam_threshold).count();
+        if beamlike > 4 && (avg_density / spacing) > 0.85 {
+            // Wahrscheinlich nur Beam, kein Notenkopf.
+            x += step;
+            continue;
+        }
+
+        let nh_y = bb.y + best_start as u32;
+        let nh_bbox = Rect { x, y: nh_y, w: nh_w, h: nh_h };
+        let staff_idx = match closest_staff(&nh_bbox, systems) {
+            Some(s) => s,
+            None => { x += step; continue; }
+        };
+        let pixel_count = count_pixels_in_rect(bin, &nh_bbox);
+        let fill_ratio = pixel_count as f32 / nh_bbox.area().max(1) as f32;
+        let kind = if fill_ratio > 0.55 {
+            NoteheadKind::Filled
+        } else if nh_bbox.w as f32 > spacing * 1.6 {
+            NoteheadKind::Whole
+        } else {
+            NoteheadKind::Open
+        };
+        let (cx, cy) = subpixel_center(bin, &nh_bbox);
+        // Dedup: nicht zu nah am vorherigen.
+        let too_close = noteheads.iter().any(|prev: &Notehead| {
+            (prev.center.x - cx).abs() < spacing * 0.8
+                && (prev.center.y - cy).abs() < spacing * 0.5
+        });
+        if !too_close {
+            noteheads.push(Notehead {
+                bbox: nh_bbox,
+                center: Point { x: cx, y: cy },
+                confidence: confidence_score(fill_ratio, nh_bbox.aspect(), kind) * 0.85,
+                kind,
+                staff_idx,
+            });
+        }
+        x += step;
+    }
+    noteheads
+}
+
+fn extract_single_notehead_from_tall(
+    bin: &Binary,
+    bb: &Rect,
+    spacing: f32,
+    systems: &[StaffSystem],
+) -> Option<Notehead> {
+    extract_notehead_from_tall(bin, bb, spacing, systems)
+}
+
+fn is_in_skip_region(nh: &Notehead, skip_x_per_system: &[std::ops::Range<u32>]) -> bool {
+    if let Some(range) = skip_x_per_system.get(nh.staff_idx) {
+        let x = nh.center.x as u32;
+        x >= range.start && x < range.end
+    } else { false }
 }
 
 fn classify_simple_notehead(
@@ -161,6 +286,78 @@ fn extract_notehead_from_tall(
     })
 }
 
+/// Implied-Stem-Detection für eine Notehead die aus einem tall-narrow-CC kommt.
+/// Returns den Stem WENN das CC oberhalb oder unterhalb der NH-Region noch
+/// ein langes schmales Run-Gebiet hat (d.h. Notehead+Stem zusammen waren
+/// ein einziges CC).
+///
+/// Algorithmus: Für jede X-Spalte im NH-Bbox + 2px-Margin, miss wie weit
+/// der vertikale schwarze Run nach oben/unten reicht (auch über Lücken bis
+/// 1px tolerant). Wähle die Spalte mit der LÄNGSTEN Extension; wenn das ≥
+/// 1.3*spacing ist (Stem-Mindestlänge), gilt es als Stem.
+pub fn implied_stem_for_tall_notehead(
+    bin: &Binary,
+    nh: &Notehead,
+    spacing: f32,
+) -> Option<Stem> {
+    let bb = nh.bbox;
+    // Für reale Scans: nicht nur direkt-angrenzend prüfen, sondern bis 4px
+    // Lücke tolerieren (verschmierter Druck/JPEG-Artefakt bricht Stem).
+    let bx0 = bb.x.saturating_sub(3);
+    let bx1 = (bb.x + bb.w + 3).min(bin.w);
+    let min_stem = (spacing * 1.3) as i32;
+    let mut best: Option<Stem> = None;
+
+    for x in bx0..bx1 {
+        // Walk UP from bb.y mit Lücken-Toleranz
+        let mut top = bb.y;
+        let mut gap = 0u32;
+        while top > 0 {
+            if bin.get(x, top - 1) == 1 {
+                top -= 1;
+                gap = 0;
+            } else if gap < 1 {
+                top = top.saturating_sub(1);
+                gap += 1;
+            } else {
+                break;
+            }
+        }
+        let above = bb.y as i32 - top as i32;
+
+        // Walk DOWN from bb.y+bb.h-1 mit Lücken-Toleranz
+        let bottom_start = bb.y + bb.h.saturating_sub(1);
+        let mut bot = bottom_start;
+        gap = 0;
+        while bot + 1 < bin.h {
+            if bin.get(x, bot + 1) == 1 {
+                bot += 1;
+                gap = 0;
+            } else if gap < 1 {
+                bot += 1;
+                gap += 1;
+            } else {
+                break;
+            }
+        }
+        let below = bot as i32 - bottom_start as i32;
+
+        if above >= min_stem || below >= min_stem {
+            let candidate = Stem {
+                x,
+                y_top: top,
+                y_bot: bot,
+                notehead_idx: None,
+            };
+            best = match best {
+                Some(s) if (s.y_bot - s.y_top) >= (bot - top) => Some(s),
+                _ => Some(candidate),
+            };
+        }
+    }
+    best
+}
+
 fn local_row_density(bin: &Binary, bb: &Rect) -> Vec<u32> {
     let mut out = Vec::with_capacity(bb.h as usize);
     for y in bb.y..(bb.y + bb.h) {
@@ -185,11 +382,14 @@ fn count_pixels_in_rect(bin: &Binary, bb: &Rect) -> u32 {
 
 fn closest_staff(bb: &Rect, systems: &[StaffSystem]) -> Option<usize> {
     let cy = bb.cy();
+    // 3.5*spacing ≈ Stafflinien-Höhe (2 spacings) + 2 Hilfslinien-Spacings + Margin.
+    // Damit werden Title/Copyright-Text die typisch 5+ spacings über der Stafflinie
+    // liegen herausgefiltert.
     systems
         .iter()
         .enumerate()
         .map(|(i, s)| (i, (s.middle_y() - cy).abs()))
-        .filter(|&(_, d)| d < 5.0 * systems[0].line_spacing)
+        .filter(|&(_, d)| d < 3.5 * systems[0].line_spacing)
         .min_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
         .map(|(i, _)| i)
 }
