@@ -107,6 +107,14 @@ pub struct Stats {
     pub n_jump_marks: usize,
     pub timeline_len: usize,
     pub deskew_angle_deg: f32,
+    /// Document-Typ-Diagnose
+    pub doc_type: Option<&'static str>,
+    pub doc_confidence: f32,
+    pub doc_line_straightness: f32,
+    pub doc_line_thickness_stddev: f32,
+    pub doc_gray_variance: f32,
+    /// NH-Größen-Variabilität (Stddev/Mean Ratio) — printed: niedrig, handwritten: hoch.
+    pub doc_nh_size_cv: f32,
 }
 
 /// Verarbeite ein bereits geladenes Grayscale-Bild.
@@ -153,6 +161,18 @@ pub fn process_gray(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineR
 
     let line_spacing = systems[0].line_spacing;
     let line_thickness = systems[0].line_thickness;
+
+    // 2b) Document-Type-Detection: gedruckt vs handschrift.
+    // Beeinflusst Pipeline-Tuning für Bars/Stems/Plausibility.
+    let doc_class = omr_preprocessing::classify_document(&gray, &bin, &systems);
+    info!(
+        doc_type = ?doc_class.doc_type,
+        confidence = doc_class.confidence,
+        line_straightness = doc_class.line_straightness,
+        line_thickness_stddev = doc_class.line_thickness_stddev,
+        gray_variance = doc_class.gray_variance,
+        "document classified"
+    );
 
     // 3) Staff-Removal. U-Net (wenn Modell gegeben + Feature aktiv +
     //    Datei ladbar), sonst klassisches RLE-Removal.
@@ -225,7 +245,9 @@ pub fn process_gray(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineR
     );
 
     // Debug-Visualisierung (wenn aktiviert) — zeichne alle Detections
-    // farbig auf das Original-Grayscale.
+    // farbig auf das Original-Grayscale. Wird hier OHNE Measures aufgerufen
+    // weil die Score-Konstruktion noch kommt — ein zweiter Debug-Render mit
+    // Measures (für Bbox+Sprungmarken-Highlighting) erfolgt am Ende.
     if let Some(ref dir) = opts.debug_dir {
         let staff_systems_lines: Vec<Vec<Vec<u32>>> = systems.iter()
             .map(|s| s.lines.iter().map(|l| l.y_per_x.clone()).collect())
@@ -236,6 +258,7 @@ pub fn process_gray(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineR
             beams: &beams,
             bars: &bars,
             staff_systems_lines,
+            measures: None,
         };
         let dbg = debug_viz::render_debug_image(&gray, &overlays);
         let _ = dbg.save(dir.join("03_detections.png"));
@@ -346,6 +369,12 @@ pub fn process_gray(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineR
         measures.extend(sys_measures);
     }
 
+    // 5a) Akkord-Detection + Onset-Berechnung. Mehrere NHs auf gleicher
+    //     X-Position werden zu einem Akkord gruppiert: erste Note ist Lead,
+    //     alle weiteren bekommen in_chord=true und werden in der Plausibility-Σ
+    //     ignoriert (sie tragen nicht zur Taktdauer bei).
+    mark_chords_and_onsets(&mut measures, line_spacing);
+
     // 5b) Plausibilisierung der Takte gegen die erkannte Taktart.
     //     Repariert Takte deren Σ duration nicht passt.
     let measure_checks = omr_symbols::validate_and_repair_part(&mut measures, detected_time);
@@ -390,6 +419,23 @@ pub fn process_gray(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineR
         "performance timeline"
     );
 
+    // Zweiter Debug-Render mit Bbox-/Sprungmarken-Highlighting (Phase A)
+    if let Some(ref dir) = opts.debug_dir {
+        let staff_systems_lines: Vec<Vec<Vec<u32>>> = systems.iter()
+            .map(|s| s.lines.iter().map(|l| l.y_per_x.clone()).collect())
+            .collect();
+        let overlays = debug_viz::Overlays {
+            noteheads: &noteheads,
+            stems: &stems,
+            beams: &beams,
+            bars: &bars,
+            staff_systems_lines,
+            measures: Some(&part.measures),
+        };
+        let dbg = debug_viz::render_debug_image(&gray, &overlays);
+        let _ = dbg.save(dir.join("04_measures_and_jumps.png"));
+    }
+
     let score = Score {
         work_title: String::new(),
         composer: String::new(),
@@ -428,6 +474,16 @@ pub fn process_gray(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineR
             n_jump_marks: jump_detections.len(),
             timeline_len: timeline.len(),
             deskew_angle_deg: deskew_angle,
+            doc_type: Some(match doc_class.doc_type {
+                omr_preprocessing::DocumentType::Printed => "printed",
+                omr_preprocessing::DocumentType::Handwritten => "handwritten",
+                omr_preprocessing::DocumentType::Unknown => "unknown",
+            }),
+            doc_confidence: doc_class.confidence,
+            doc_line_straightness: doc_class.line_straightness,
+            doc_line_thickness_stddev: doc_class.line_thickness_stddev,
+            doc_gray_variance: doc_class.gray_variance,
+            doc_nh_size_cv: nh_size_cv(&noteheads),
         },
     })
 }
@@ -445,11 +501,7 @@ fn split_into_measures(notes: Vec<omr_core::ScoreNote>, bar_xs: &[f32]) -> Vec<M
     if bar_xs.is_empty() {
         // Kein Bar → ein Measure
         let mut all = notes;
-        let mut onset = 0u32;
-        for n in all.iter_mut() {
-            n.onset = onset;
-            onset += n.duration;
-        }
+        all.sort_by(|a, b| a.center.x.partial_cmp(&b.center.x).unwrap_or(std::cmp::Ordering::Equal));
         return vec![Measure {
             number: 1,
             divisions: 4,
@@ -469,11 +521,9 @@ fn split_into_measures(notes: Vec<omr_core::ScoreNote>, bar_xs: &[f32]) -> Vec<M
             .filter(|n| n.center.x >= prev_x && n.center.x < bar_x)
             .cloned()
             .collect();
-        let mut onset = 0u32;
-        for n in measure_notes.iter_mut() {
-            n.onset = onset;
-            onset += n.duration;
-        }
+        measure_notes.sort_by(|a, b| {
+            a.center.x.partial_cmp(&b.center.x).unwrap_or(std::cmp::Ordering::Equal)
+        });
         // Skippe leere Measures bevor der erste Notenkopf kommt (Schlüssel/Vorzeichen-Bereich).
         if !measure_notes.is_empty() || !measures.is_empty() {
             measures.push(Measure {
@@ -501,6 +551,52 @@ fn split_into_measures(notes: Vec<omr_core::ScoreNote>, bar_xs: &[f32]) -> Vec<M
         }];
     }
     measures
+}
+
+/// Markiert Akkorde: aufeinanderfolgende Notes deren X-Center innerhalb von
+/// `chord_x_tolerance` liegen, gehören zu einem Akkord. Die erste Note bleibt
+/// Lead (in_chord=false), alle weiteren werden auf in_chord=true gesetzt.
+/// Setzt außerdem onset so, dass in_chord-Notes denselben onset wie der Lead
+/// haben und die nächste Lead-Note onset = lead.onset + lead.duration bekommt.
+fn mark_chords_and_onsets(measures: &mut [Measure], line_spacing: f32) {
+    // Zwei NHs gehören zum gleichen Onset wenn sie horizontal näher sind als
+    // ein NH-Halbradius. Wir nutzen line_spacing als Proxy für NH-Höhe (NH-Höhe
+    // ≈ line_spacing). Tolerance = 0.4 × line_spacing ist robust gegenüber
+    // NH-Y-Shift bei breiten Akkorden, ohne benachbarte Achtel zu verschmelzen.
+    let tol = (line_spacing * 0.40).max(3.0);
+    for m in measures.iter_mut() {
+        if m.notes.is_empty() {
+            continue;
+        }
+        let mut lead_onset: u32 = 0;
+        let mut lead_x = m.notes[0].center.x;
+        let mut lead_duration = m.notes[0].duration;
+        for (i, n) in m.notes.iter_mut().enumerate() {
+            if i == 0 {
+                n.in_chord = false;
+                n.onset = 0;
+                lead_onset = 0;
+                lead_x = n.center.x;
+                lead_duration = n.duration;
+                continue;
+            }
+            if (n.center.x - lead_x).abs() <= tol {
+                // Akkord-Member
+                n.in_chord = true;
+                n.onset = lead_onset;
+                // Behalte die Lead-Duration als die "longest" — falls verschiedene
+                // Werte erkannt wurden, nehmen wir die Mehrheits-Lead aber lassen
+                // hier die Member intakt (MusicXML braucht ihre Duration).
+            } else {
+                // Neue Lead-Note: onset = vorherige Lead + ihre Duration
+                lead_onset = lead_onset.saturating_add(lead_duration);
+                n.in_chord = false;
+                n.onset = lead_onset;
+                lead_x = n.center.x;
+                lead_duration = n.duration;
+            }
+        }
+    }
 }
 
 /// Verarbeite eine PDF-Datei (rendert ALLE Seiten und merged sie zu einem Score).
@@ -570,4 +666,26 @@ pub fn process_pdf(path: &Path, opts: &PipelineOptions) -> Result<PipelineResult
 pub fn process_pdf_pages_separately(path: &Path, opts: &PipelineOptions) -> Result<Vec<PipelineResult>> {
     let images = pdf_render::render_pages(path, 200)?;
     images.into_iter().map(|img| process_gray(img, opts)).collect()
+}
+
+/// Coefficient of Variation (Stddev/Mean) der NH-Bbox-Diagonalen.
+/// Bei printed: typisch <0.18, bei handwritten: oft >0.30.
+fn nh_size_cv(noteheads: &[omr_core::Notehead]) -> f32 {
+    if noteheads.len() < 4 {
+        return 0.0;
+    }
+    let sizes: Vec<f32> = noteheads
+        .iter()
+        .map(|nh| {
+            let dx = nh.bbox.w as f32;
+            let dy = nh.bbox.h as f32;
+            (dx * dx + dy * dy).sqrt()
+        })
+        .collect();
+    let mean = sizes.iter().sum::<f32>() / sizes.len() as f32;
+    if mean < 1.0 {
+        return 0.0;
+    }
+    let var = sizes.iter().map(|s| (s - mean).powi(2)).sum::<f32>() / sizes.len() as f32;
+    var.sqrt() / mean
 }

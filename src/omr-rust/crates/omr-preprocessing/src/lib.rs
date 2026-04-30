@@ -10,7 +10,9 @@ use rayon::prelude::*;
 use tracing::debug;
 
 pub mod deskew;
+pub mod doctype;
 pub use deskew::deskew;
+pub use doctype::{classify_document, DocumentType, DocumentClassification, PipelineTuning};
 
 /// Sauvola-Binarisierung mit Integral-Image für O(N) statt O(N·w²).
 ///

@@ -747,6 +747,7 @@ pub fn noteheads_to_notes_with_dots(
             kind: nh.kind,
             center: nh.center,
             augmentation_dots: dots,
+            in_chord: false,
         });
     }
     notes

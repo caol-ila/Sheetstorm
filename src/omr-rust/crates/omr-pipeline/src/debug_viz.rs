@@ -3,7 +3,7 @@
 // schief geht.
 
 use image::{Rgb, RgbImage};
-use omr_core::{Gray, Notehead, NoteheadKind, Stem};
+use omr_core::{Gray, JumpMark, Measure, Notehead, NoteheadKind, Stem};
 use omr_symbols::{Beam, MeasureBar};
 
 const COLOR_NOTEHEAD_FILLED: Rgb<u8> = Rgb([255, 64, 64]);    // rot
@@ -13,6 +13,9 @@ const COLOR_STEM:            Rgb<u8> = Rgb([64, 255, 64]);    // grün
 const COLOR_BEAM:            Rgb<u8> = Rgb([64, 200, 255]);   // hellblau
 const COLOR_BAR:             Rgb<u8> = Rgb([200, 64, 255]);   // magenta
 const COLOR_STAFF:           Rgb<u8> = Rgb([64, 200, 200]);   // cyan
+const COLOR_MEASURE_BBOX:    Rgb<u8> = Rgb([100, 255, 100]);  // helles grün — Takt-Bbox
+const COLOR_REPEAT:          Rgb<u8> = Rgb([255, 100, 200]);  // pink — Repeat
+const COLOR_VOLTA:           Rgb<u8> = Rgb([255, 200, 0]);    // gold — Volta
 
 pub struct Overlays<'a> {
     pub noteheads: &'a [Notehead],
@@ -21,6 +24,8 @@ pub struct Overlays<'a> {
     pub bars: &'a [MeasureBar],
     /// Per-System: Liste der 5 Linien (jede mit y_per_x).
     pub staff_systems_lines: Vec<Vec<Vec<u32>>>,
+    /// Optional: Measures für Bbox-Highlight und Sprungmarken-Annotations.
+    pub measures: Option<&'a [Measure]>,
 }
 
 /// Erzeugt ein RGB-Bild mit Original (transparent eingeblendet) + Overlays.
@@ -90,6 +95,26 @@ pub fn render_debug_image(gray: &Gray, ovr: &Overlays) -> RgbImage {
             let py = (cy + d).max(0) as u32;
             if px < w && (cy as u32) < h { rgb.put_pixel(px, cy as u32, color); }
             if (cx as u32) < w && py < h { rgb.put_pixel(cx as u32, py, color); }
+        }
+    }
+
+    // Measure-Bboxes (Phase A): dünner Rahmen pro Takt
+    if let Some(measures) = ovr.measures {
+        for m in measures {
+            if let Some(bb) = m.bbox_orig {
+                let color = if m.jump_marks.iter().any(|j| matches!(j,
+                    JumpMark::RepeatStart | JumpMark::RepeatEnd
+                )) {
+                    COLOR_REPEAT
+                } else if m.jump_marks.iter().any(|j| matches!(j,
+                    JumpMark::Volta { .. }
+                )) {
+                    COLOR_VOLTA
+                } else {
+                    COLOR_MEASURE_BBOX
+                };
+                draw_rect_outline(&mut rgb, bb.x, bb.y, bb.w, bb.h, color);
+            }
         }
     }
 

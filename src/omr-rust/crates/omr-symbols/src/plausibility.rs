@@ -41,9 +41,30 @@ pub fn expected_total_duration(divisions: u32, time: TimeSignature) -> u32 {
     (time.beats as u32 * divisions) / time.beat_type as u32
 }
 
+/// Σ duration über alle Notes ohne Akkord-Member.
+/// Akkord-Member (in_chord=true) gehören zum gleichen Onset wie der Lead und
+/// dürfen nicht doppelt zählen.
+fn lead_duration_sum(notes: &[ScoreNote]) -> u32 {
+    notes.iter().filter(|n| !n.in_chord).map(|n| n.duration).sum()
+}
+
 pub fn check_measure(m: &Measure, time: TimeSignature, is_first: bool) -> MeasureCheck {
     let expected = expected_total_duration(m.divisions, time);
-    let actual: u32 = m.notes.iter().map(|n| n.duration).sum();
+    // Σ duration: ignoriere Akkord-Member (in_chord), die zum gleichen Onset
+    // wie der Lead gehören. Sie tragen nicht zur Takt-Dauer bei.
+    let actual: u32 = lead_duration_sum(&m.notes);
+
+    // Leerer Takt (0 NHs erkannt) → wahrscheinlich Whole-Rest oder Tacet.
+    // Keine zuverlässige Aussage über Plausibilität → als Anacrusis gelten lassen,
+    // damit sie nicht "broken" zählen. (Ein echtes Whole-Rest macht den Takt OK.)
+    if m.notes.is_empty() {
+        return MeasureCheck {
+            measure_idx: m.number as usize,
+            expected_total: expected,
+            actual_total: 0,
+            plausibility: MeasurePlausibility::Anacrusis,
+        };
+    }
 
     let plaus = if actual == expected {
         MeasurePlausibility::Exact
@@ -75,7 +96,7 @@ pub fn check_measure(m: &Measure, time: TimeSignature, is_first: bool) -> Measur
 /// Returns ob Reparatur Σ = expected erzeugt hat.
 pub fn repair_measure(m: &mut Measure, time: TimeSignature) -> bool {
     let expected = expected_total_duration(m.divisions, time);
-    let actual: u32 = m.notes.iter().map(|n| n.duration).sum();
+    let actual: u32 = lead_duration_sum(&m.notes);
     if actual == expected { return true; }
     if m.notes.is_empty() { return false; }
 
@@ -122,7 +143,7 @@ pub fn repair_measure(m: &mut Measure, time: TimeSignature) -> bool {
             if n.duration / 2 == diff {
                 n.duration = n.duration + diff;
                 n.augmentation_dots = 1;
-                if m.notes.iter().map(|x| x.duration).sum::<u32>() == expected {
+                if lead_duration_sum(&m.notes) == expected {
                     return true;
                 }
                 break;
@@ -157,7 +178,7 @@ pub fn repair_measure(m: &mut Measure, time: TimeSignature) -> bool {
                 remaining -= red;
             }
         }
-        let new_total: u32 = m.notes.iter().map(|n| n.duration).sum();
+        let new_total: u32 = lead_duration_sum(&m.notes);
         if new_total == expected {
             return true;
         }
@@ -173,7 +194,7 @@ fn all_same_kind(notes: &[ScoreNote]) -> bool {
 }
 
 fn try_scale_to_fit(m: &mut Measure, expected: u32) -> bool {
-    let actual: u32 = m.notes.iter().map(|n| n.duration).sum();
+    let actual: u32 = lead_duration_sum(&m.notes);
     let ratio = actual as f32 / expected as f32;
     for &n in &[2u32, 3, 4, 6, 8] {
         if (ratio - n as f32).abs() < 0.15 {
@@ -191,7 +212,7 @@ fn try_scale_to_fit(m: &mut Measure, expected: u32) -> bool {
 }
 
 fn try_subset_halving(m: &mut Measure, expected: u32) -> bool {
-    let mut diff = m.notes.iter().map(|n| n.duration).sum::<u32>().saturating_sub(expected);
+    let mut diff = lead_duration_sum(&m.notes).saturating_sub(expected);
     let mut indices: Vec<usize> = (0..m.notes.len()).collect();
     // Mehrere Pässe mit absteigendem Sortieren
     for _pass in 0..3 {
@@ -209,7 +230,7 @@ fn try_subset_halving(m: &mut Measure, expected: u32) -> bool {
                 }
             }
         }
-        let new_diff = m.notes.iter().map(|n| n.duration).sum::<u32>().saturating_sub(expected);
+        let new_diff = lead_duration_sum(&m.notes).saturating_sub(expected);
         if new_diff == diff {
             // Kein Fortschritt mehr — abbrechen
             break;
@@ -220,7 +241,7 @@ fn try_subset_halving(m: &mut Measure, expected: u32) -> bool {
 }
 
 fn try_subset_doubling(m: &mut Measure, expected: u32) -> bool {
-    let mut diff = expected.saturating_sub(m.notes.iter().map(|n| n.duration).sum::<u32>());
+    let mut diff = expected.saturating_sub(lead_duration_sum(&m.notes));
     let mut indices: Vec<usize> = (0..m.notes.len()).collect();
     for _pass in 0..3 {
         if diff == 0 { return true; }
@@ -239,7 +260,7 @@ fn try_subset_doubling(m: &mut Measure, expected: u32) -> bool {
                 }
             }
         }
-        let new_diff = expected.saturating_sub(m.notes.iter().map(|n| n.duration).sum::<u32>());
+        let new_diff = expected.saturating_sub(lead_duration_sum(&m.notes));
         if new_diff == diff { break; }
         diff = new_diff;
     }
@@ -281,6 +302,7 @@ mod tests {
             kind: NoteheadKind::Filled,
             center: omr_core::Point { x: 0.0, y: 0.0 },
             augmentation_dots: 0,
+            in_chord: false,
         }
     }
 
@@ -343,7 +365,7 @@ mod tests {
         };
         // Wir akzeptieren wenn Reparatur funktioniert, sonst diff ≤ 1
         let _ = repair_measure(&mut m, TimeSignature { beats: 4, beat_type: 4 });
-        let actual: u32 = m.notes.iter().map(|n| n.duration).sum();
+        let actual: u32 = lead_duration_sum(&m.notes);
         assert!(actual <= 4 + 1);
     }
 
@@ -360,7 +382,7 @@ mod tests {
         };
         let ok = repair_measure(&mut m, TimeSignature { beats: 4, beat_type: 4 });
         assert!(ok);
-        let actual: u32 = m.notes.iter().map(|n| n.duration).sum();
+        let actual: u32 = lead_duration_sum(&m.notes);
         assert_eq!(actual, 4);
     }
 
@@ -394,7 +416,7 @@ mod tests {
         };
         let ok = repair_measure(&mut m, TimeSignature { beats: 4, beat_type: 4 });
         assert!(ok);
-        let actual: u32 = m.notes.iter().map(|n| n.duration).sum();
+        let actual: u32 = lead_duration_sum(&m.notes);
         assert_eq!(actual, 4);
     }
 
@@ -412,7 +434,7 @@ mod tests {
         };
         let ok = repair_measure(&mut m, TimeSignature { beats: 4, beat_type: 4 });
         assert!(ok);
-        let actual: u32 = m.notes.iter().map(|n| n.duration).sum();
+        let actual: u32 = lead_duration_sum(&m.notes);
         assert_eq!(actual, 4);
     }
 
@@ -433,7 +455,7 @@ mod tests {
         };
         // Σ = 20, expected = 4. Ratio = 5.
         let ok = repair_measure(&mut m, TimeSignature { beats: 4, beat_type: 4 });
-        let actual: u32 = m.notes.iter().map(|n| n.duration).sum();
+        let actual: u32 = lead_duration_sum(&m.notes);
         if ok {
             assert_eq!(actual, 4);
         } else {
@@ -465,6 +487,7 @@ mod tests {
                     kind: NoteheadKind::Open,
                     center: omr_core::Point { x: 0.0, y: 0.0 },
                     augmentation_dots: 0,
+                    in_chord: false,
                 },
             ],
             time_signature: None,
@@ -474,7 +497,7 @@ mod tests {
         };
         let ok = repair_measure(&mut m, TimeSignature { beats: 4, beat_type: 4 });
         assert!(ok, "mixed kinds sollten reparierbar sein");
-        let actual: u32 = m.notes.iter().map(|n| n.duration).sum();
+        let actual: u32 = lead_duration_sum(&m.notes);
         assert_eq!(actual, 4);
     }
 
@@ -493,7 +516,7 @@ mod tests {
         };
         let ok = repair_measure(&mut m, TimeSignature { beats: 4, beat_type: 4 });
         assert!(ok);
-        let actual: u32 = m.notes.iter().map(|n| n.duration).sum();
+        let actual: u32 = lead_duration_sum(&m.notes);
         assert_eq!(actual, 4);
     }
 }

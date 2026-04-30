@@ -120,6 +120,11 @@ pub struct ScoreNote {
     /// 2 = doppelt punktiert ×1.75). Default 0.
     #[serde(default)]
     pub augmentation_dots: u8,
+    /// True wenn diese Note Teil eines Akkords ist und NICHT die "lead"-Note —
+    /// d.h. mehrere NHs liegen am gleichen Onset und sollen in der MusicXML als
+    /// `<chord/>` markiert werden. Plausibility-Σ ignoriert solche Notes.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub in_chord: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

@@ -93,6 +93,9 @@ fn measure_xml(m: &Measure, first: bool) -> String {
     }
     for n in &m.notes {
         let _ = writeln!(s, "      <note>");
+        if n.in_chord {
+            let _ = writeln!(s, "        <chord/>");
+        }
         let _ = writeln!(s, "        <pitch>");
         let _ = writeln!(s, "          <step>{}</step>", n.step.as_str());
         if n.alter != 0 {
@@ -268,6 +271,7 @@ mod tests {
                         kind: NoteheadKind::Filled,
                         center: Point { x: 0.0, y: 0.0 },
                         augmentation_dots: 0,
+                        in_chord: false,
                     }],
                     time_signature: Some(TimeSignature { beats: 4, beat_type: 4 }),
                     key_signature: Some(omr_core::KeySignature { fifths: 0 }),
