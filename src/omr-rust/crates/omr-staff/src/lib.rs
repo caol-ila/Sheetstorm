@@ -19,7 +19,9 @@ use rayon::prelude::*;
 use tracing::{debug, info};
 
 pub mod removal;
+pub mod unet;
 pub use removal::remove_staff;
+pub use unet::{try_remove_staff_unet, UnetStaffRemover};
 
 /// Detect staff systems in a binary image.
 pub fn detect_systems(bin: &Binary) -> Vec<StaffSystem> {

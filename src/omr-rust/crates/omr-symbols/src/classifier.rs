@@ -12,12 +12,15 @@
 // Performance: Templates werden ONCE per Spacing gecacht; NCC pro Kandidat
 // ~10 Klassen × 32×32 = ~10k ops, lt. Research ~1ms/Patch.
 
-use crate::templates::{render_smufl_class_with, SymbolClass, BRAVURA_OTF};
-use crate::templates::render_glyph;
-use omr_core::{Binary, Notehead, NoteheadKind, Point};
+use crate::templates::SymbolClass;
+use crate::svm_model::HogSvmClassifier;
+use crate::templates::render_smufl_class_with;
+use omr_core::{Binary, Notehead, NoteheadKind};
 use image::GrayImage;
 use std::collections::HashMap;
 use std::sync::Mutex;
+#[cfg(test)]
+use omr_core::Point;
 
 /// Cache: spacing → vorgerenderte Templates pro Klasse.
 /// Nutzt Mutex damit detect_noteheads parallelisiert werden kann ohne Re-Render.
@@ -197,6 +200,89 @@ pub fn filter_via_templates(bin: &Binary, noteheads: Vec<Notehead>, spacing: f32
         .into_iter()
         .filter_map(|mut nh| {
             classify_via_templates(bin, &nh, spacing).map(|kind| {
+                nh.kind = kind;
+                nh
+            })
+        })
+        .collect()
+}
+
+/// Konfidenz-Schwelle für HoG+SVM Reject. Bei Werten oberhalb dieser
+/// Schwelle UND einer Nicht-NH-Klasse wird der Kandidat verworfen.
+pub const HOG_SVM_REJECT_CONFIDENCE: f32 = 0.65;
+
+/// Klassifiziert einen Notehead-Kandidaten via HoG+SVM und entscheidet
+/// über Reject oder Kind-Update.
+///
+/// * Wenn die Top-Klasse Coda/Segno/Dynamik ist UND Konfidenz >
+///   [`HOG_SVM_REJECT_CONFIDENCE`] → `None` (Reject).
+/// * Wenn die Top-Klasse ein Notehead-Kind ist → `Some(updated_kind)`.
+/// * Wenn die Top-Klasse `Noise` ist → konservativ behalten
+///   (Noise im Synth-Set entspricht oft real-world NH-Crops nach
+///   Staff-Removal — wir wollen lieber FP als FN).
+pub fn classify_via_hog_svm(
+    bin: &Binary,
+    nh: &Notehead,
+    spacing: f32,
+    classifier: &HogSvmClassifier,
+) -> Option<NoteheadKind> {
+    let patch_size = ((spacing * 1.6).round() as u32).clamp(16, 64);
+    let cx = nh.center.x as i32;
+    let cy = nh.center.y as i32;
+    let half = patch_size as i32 / 2;
+    let x0 = (cx - half).max(0) as u32;
+    let y0 = (cy - half).max(0) as u32;
+    if x0 + patch_size > bin.w || y0 + patch_size > bin.h {
+        return Some(nh.kind);
+    }
+    // Patch aus binärer Maske extrahieren — schwarz=0, weiß=255 entspricht
+    // genau dem Render-Format der Bravura-Templates.
+    let mut img = GrayImage::new(patch_size, patch_size);
+    for py in 0..patch_size {
+        for px in 0..patch_size {
+            let v = if bin.get(x0 + px, y0 + py) == 1 { 255 } else { 0 };
+            img.put_pixel(px, py, image::Luma([v]));
+        }
+    }
+    let (best_class, conf) = classifier.predict(&img);
+
+    match best_class {
+        SymbolClass::NoteheadFilled => Some(NoteheadKind::Filled),
+        SymbolClass::NoteheadOpen => Some(NoteheadKind::Open),
+        SymbolClass::NoteheadWhole => Some(NoteheadKind::Whole),
+        SymbolClass::Coda
+        | SymbolClass::Segno
+        | SymbolClass::DynamicPiano
+        | SymbolClass::DynamicMezzopiano
+        | SymbolClass::DynamicMezzoforte
+        | SymbolClass::DynamicForte => {
+            if conf > HOG_SVM_REJECT_CONFIDENCE {
+                None
+            } else {
+                Some(nh.kind)
+            }
+        }
+        SymbolClass::Noise => Some(nh.kind),
+    }
+}
+
+/// Filtert eine NH-Liste mittels HoG+SVM-Klassifikator.
+///
+/// Verwirft Coda/Segno/Dynamik mit hoher Konfidenz, behält Noteheads
+/// (mit ggf. aktualisiertem Kind) und unsichere Fälle.
+pub fn filter_via_hog_svm(
+    bin: &Binary,
+    noteheads: Vec<Notehead>,
+    spacing: f32,
+    classifier: &HogSvmClassifier,
+) -> Vec<Notehead> {
+    if spacing < 6.0 {
+        return noteheads;
+    }
+    noteheads
+        .into_iter()
+        .filter_map(|mut nh| {
+            classify_via_hog_svm(bin, &nh, spacing, classifier).map(|kind| {
                 nh.kind = kind;
                 nh
             })

@@ -192,4 +192,8 @@ pub struct Score {
 pub struct PipelineOptions {
     pub debug_dir: Option<PathBuf>,
     pub trace_only: bool,
+    /// Optionaler Pfad zu einem ONNX-U-Net-Modell für Staff-Removal.
+    /// Wird nur verwendet, wenn `omr-staff` mit `--features unet` gebaut
+    /// wurde UND die Datei ladbar ist; ansonsten greift der RLE-Fallback.
+    pub unet_model_path: Option<PathBuf>,
 }

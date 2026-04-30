@@ -315,6 +315,33 @@ Slur+Dot+Voice-Split. Erwartet: Plausibilität 80 %+ auf Vereinsblättern.
 Vorschlag **#11** (U-Net Staff-Removal via ONNX). Vorschlag **#12** (SMuFL
 Symbol-Library). Vorschlag **#13** (E2E-Cloud-Backstop).
 
+> **Update Phase 3 / #11 (2026-01):** Die Rust-Inferenz-Pipeline für U-Net
+> Staff-Removal ist als Stub eingebaut (`omr-staff::unet`, Feature `unet`,
+> Backend `tract-onnx 0.21`). Sie lädt zur Laufzeit ein ONNX-Modell mit
+> Interface `f32 [1,1,H,W] → f32 [1,1,H,W]` (Sigmoid-Maske der Stafflinien),
+> mit automatischem RLE-Fallback wenn Feature aus / Modell fehlt / Inferenz
+> fehlschlägt. Pipeline-Hook über `PipelineOptions::unet_model_path`.
+>
+> **Lizenz-Recherche (Status: BLOCKED auf Modell-Quelle):**
+>
+> - oemer (MIT): publizierte Staff-Line-Weights laden zwar aus dem Repo,
+>   aber Modelcard / Trainings-Korpus-Lizenz ist im Release nicht
+>   eindeutig dokumentiert. Da oemer-Entwickler in Issues auf MUSCIMA++
+>   (CC-BY-NC-SA) verweisen, besteht **NC-Risiko** — ohne explizite
+>   Klärung im oemer-Repo nicht für Apache-2.0-Distribution geeignet.
+> - HuggingFace „music staff line removal": kein Modell mit klar
+>   dokumentierter Apache/MIT-Lizenz UND Apache-kompatiblem Training-Set
+>   gefunden.
+> - **CVC-MUSCIMA Staff-Removal-Pairs** (CC-BY 4.0, *nicht* MUSCIMA++):
+>   Apache-kompatibel und ideal als Trainings-Korpus, erfordert aber
+>   eigenes Training (geschätzt 1–2 GPU-Stunden, Standard-U-Net mit 4
+>   Pooling-Stufen).
+>
+> **Konsequenz:** Modell-Datei nicht im Repo; User-Workflow im
+> `crates/omr-staff/README.md` dokumentiert. Folge-Task: eigenes Training
+> auf CVC-MUSCIMA + Veröffentlichung der Weights als Apache-2.0-Asset
+> (z.B. via GitHub Release oder HuggingFace-Card).
+
 ---
 
 ## Externe Bibliotheken / Datensätze (Lizenz-Status für Code-Reuse)

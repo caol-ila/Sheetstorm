@@ -6,6 +6,7 @@ use omr_core::{
     Clef, KeySignature, Measure, OmrError, Part, PipelineOptions, Result, Score, TimeSignature,
 };
 use std::path::Path;
+use std::sync::OnceLock;
 use tracing::{info, info_span, warn};
 
 pub mod accuracy;
@@ -13,6 +14,60 @@ pub mod debug_viz;
 pub mod muscima;
 pub mod pdf_render;
 pub mod synthetic;
+
+/// Eingebettetes vortrainiertes Klassifikator-Modell.
+///
+/// Wird beim ersten Aufruf von [`hog_svm_classifier`] aus dem Asset-Pfad des
+/// `omr-symbols`-Crates geladen. Ist die Datei nicht vorhanden oder
+/// inkompatibel, fällt die Pipeline auf den Template-NCC-Filter zurück.
+static HOG_SVM_CLASSIFIER: OnceLock<Option<omr_symbols::svm_model::HogSvmClassifier>> =
+    OnceLock::new();
+
+/// Versucht den Symbol-Klassifikator zu laden (genau einmal pro Prozess).
+/// Liefert `None`, wenn die Modell-Datei fehlt oder fehlerhaft ist.
+fn hog_svm_classifier() -> Option<&'static omr_symbols::svm_model::HogSvmClassifier> {
+    HOG_SVM_CLASSIFIER
+        .get_or_init(|| {
+            // Pfade in Reihenfolge der Priorität:
+            //  1) ENV-Override `OMR_SYMBOL_CLASSIFIER`
+            //  2) Asset im Crate
+            let candidates: Vec<std::path::PathBuf> = {
+                let mut v = Vec::new();
+                if let Ok(p) = std::env::var("OMR_SYMBOL_CLASSIFIER") {
+                    v.push(std::path::PathBuf::from(p));
+                }
+                // Workspace-relativ vom Pipeline-Crate aus.
+                let pipe_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+                if let Some(workspace) = pipe_dir.parent().and_then(|p| p.parent()) {
+                    v.push(
+                        workspace
+                            .join("crates")
+                            .join("omr-symbols")
+                            .join("assets")
+                            .join("symbol-classifier.bin"),
+                    );
+                }
+                v
+            };
+            for path in candidates {
+                if !path.exists() {
+                    continue;
+                }
+                match omr_symbols::svm_model::HogSvmClassifier::load(&path) {
+                    Ok(m) => {
+                        info!(model_path = %path.display(), "loaded HoG+SVM classifier");
+                        return Some(m);
+                    }
+                    Err(e) => {
+                        warn!(model_path = %path.display(), error = %e,
+                              "failed to load HoG+SVM classifier, will fall back");
+                    }
+                }
+            }
+            None
+        })
+        .as_ref()
+}
 
 /// Ergebnis eines vollständigen Durchlaufs für ein Bild oder PDF.
 #[derive(Debug, Clone)]
@@ -97,9 +152,19 @@ pub fn process_gray(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineR
     let line_spacing = systems[0].line_spacing;
     let line_thickness = systems[0].line_thickness;
 
-    // 3) Staff-Removal.
+    // 3) Staff-Removal. U-Net (wenn Modell gegeben + Feature aktiv +
+    //    Datei ladbar), sonst klassisches RLE-Removal.
     let sr_t = std::time::Instant::now();
-    let removed = omr_staff::remove_staff(&bin, &systems);
+    let removed = match opts.unet_model_path.as_deref() {
+        Some(model_path) => match omr_staff::try_remove_staff_unet(&bin, model_path) {
+            Some(unet_bin) => {
+                info!(model = %model_path.display(), "staff removal via U-Net");
+                unet_bin
+            }
+            None => omr_staff::remove_staff(&bin, &systems),
+        },
+        None => omr_staff::remove_staff(&bin, &systems),
+    };
     let staff_removal_ms = sr_t.elapsed().as_millis();
     if let Some(ref dir) = opts.debug_dir {
         let _ = removed.to_gray().save(dir.join("02_staff_removed.png"));
@@ -124,9 +189,15 @@ pub fn process_gray(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineR
 
     let raw_noteheads = omr_symbols::detect_noteheads_with_skip(&removed, &systems, &skip_regions);
     let noteheads = omr_symbols::rerank_with_template(&removed, &raw_noteheads, line_spacing);
-    // Symbol-Klassifikator: filtert Coda/Segno/D.S./Dynamik/Noise via Bravura-Templates.
+    // Symbol-Klassifikator: filtert Coda/Segno/D.S./Dynamik/Noise.
+    // Bevorzugt HoG+SVM (gelernt auf Bravura-Synth-Korpus). Fallback auf
+    // Template-NCC, wenn das Modell nicht ladebar ist.
     let n_before_classifier = noteheads.len();
-    let noteheads = omr_symbols::classifier::filter_via_templates(&removed, noteheads, line_spacing);
+    let noteheads = if let Some(clf) = hog_svm_classifier() {
+        omr_symbols::classifier::filter_via_hog_svm(&removed, noteheads, line_spacing, clf)
+    } else {
+        omr_symbols::classifier::filter_via_templates(&removed, noteheads, line_spacing)
+    };
     let n_after_classifier = noteheads.len();
     let stems = omr_symbols::stems::detect_stems(&removed, &noteheads, line_spacing);
     let beams = omr_symbols::detect_beams(&removed, line_spacing);

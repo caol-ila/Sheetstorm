@@ -27,6 +27,7 @@
 use image::{GrayImage, Luma};
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
+use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 /// Eingebettete Bravura.otf-Datei. Wird beim Build aus `assets/` geladen.
@@ -36,7 +37,7 @@ pub const BRAVURA_OTF: &[u8] =
 /// Symbol-Klasse für den Patch-Klassifikator.
 ///
 /// SMuFL-Codepoints siehe: <https://w3c.github.io/smufl/latest/tables/index.html>
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum SymbolClass {
     /// Geschlossener Notenkopf (Quarter, 8th, 16th) – U+E0A4 `noteheadBlack`.
     NoteheadFilled,
