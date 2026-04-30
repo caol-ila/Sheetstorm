@@ -120,6 +120,175 @@ pub struct Stats {
 
 /// Verarbeite ein bereits geladenes Grayscale-Bild.
 pub fn process_gray(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineResult> {
+    // Doppelseiten-Scan-Detection: Wenn das Bild deutlich breiter als hoch ist
+    // (aspect ratio > 1.25), versuche das Bild über einen Falz-Bereich zu
+    // splitten. Bei Buchscan-Doppelseiten ist der Falz NICHT komplett leer
+    // (Header-Texte, Annotationen, Schatten), aber deutlich weniger dicht als
+    // der eigentliche Notentext. Wir suchen den breitesten low-density-Bereich
+    // in den mittleren 40% des Bildes und verwerfen ihn — die Hälften links
+    // und rechts vom Falz werden separat verarbeitet.
+    let (w, h) = (gray.width(), gray.height());
+    let aspect = w as f32 / h.max(1) as f32;
+    if aspect > 1.25 {
+        if let Some((left_end, right_start)) = detect_doublespread_band(&gray) {
+            let left = image::imageops::crop_imm(&gray, 0, 0, left_end, h).to_image();
+            let right = image::imageops::crop_imm(&gray, right_start, 0, w - right_start, h).to_image();
+            let lr = process_gray_single(left, opts)?;
+            let rr = process_gray_single(right, opts)?;
+            let total_systems = lr.stats.n_systems + rr.stats.n_systems;
+            if total_systems >= 2 {
+                info!(left_end, right_start, total_systems, "doublespread band-split active");
+                return Ok(merge_two_results(lr, rr));
+            }
+        }
+        // Fallback: simpler split bei w/2
+        let split_x = w / 2;
+        let left = image::imageops::crop_imm(&gray, 0, 0, split_x, h).to_image();
+        let right = image::imageops::crop_imm(&gray, split_x, 0, w - split_x, h).to_image();
+        let lr = process_gray_single(left, opts)?;
+        let rr = process_gray_single(right, opts)?;
+        let total_systems = lr.stats.n_systems + rr.stats.n_systems;
+        if total_systems >= 2 {
+            info!(split_x, total_systems, "doublespread mid-split active");
+            return Ok(merge_two_results(lr, rr));
+        }
+        info!("doublespread fallback to single-pass");
+    }
+    process_gray_single(gray, opts)
+}
+
+/// Findet den breitesten low-density-Bereich (Falz) in der Bildmitte.
+/// Returns (left_end, right_start) — der Bereich left_end..right_start ist der Falz
+/// und wird verworfen. Returns None wenn kein klarer Falz erkennbar ist.
+fn detect_doublespread_band(gray: &GrayImage) -> Option<(u32, u32)> {
+    let (w, h) = (gray.width(), gray.height());
+    if w < 200 || h < 100 {
+        return None;
+    }
+    // Berechne col_density für die mittleren 50% des Bildes
+    let search_x_start = (w as f32 * 0.25) as u32;
+    let search_x_end = (w as f32 * 0.75) as u32;
+    let mut col_density = vec![0u32; w as usize];
+    for y in 0..h {
+        for x in search_x_start..search_x_end {
+            if gray.get_pixel(x, y)[0] < 128 {
+                col_density[x as usize] += 1;
+            }
+        }
+    }
+    // Smoothing: Mittelwert über 11px-Fenster
+    let radius = 5i32;
+    let mut smooth = vec![0u32; w as usize];
+    for x in search_x_start..search_x_end {
+        let mut s = 0u32;
+        let mut n = 0u32;
+        for dx in -radius..=radius {
+            let xi = x as i32 + dx;
+            if xi >= 0 && (xi as u32) < w {
+                s += col_density[xi as usize];
+                n += 1;
+            }
+        }
+        smooth[x as usize] = if n > 0 { s / n } else { 0 };
+    }
+    let mean = smooth[search_x_start as usize..search_x_end as usize]
+        .iter()
+        .sum::<u32>()
+        / (search_x_end - search_x_start) as u32;
+    if mean == 0 {
+        return None;
+    }
+    // Schwellwert: 50% des Mittelwerts → "low-density"
+    let threshold = (mean as f32 * 0.5) as u32;
+
+    // Finde alle x-Bereiche wo smooth[x] < threshold; nimm den breitesten in der Mittelregion
+    let mut best_start = 0u32;
+    let mut best_end = 0u32;
+    let mut best_width = 0u32;
+    let mut cur_start: Option<u32> = None;
+    for x in search_x_start..search_x_end {
+        if smooth[x as usize] < threshold {
+            if cur_start.is_none() {
+                cur_start = Some(x);
+            }
+        } else if let Some(s) = cur_start.take() {
+            let width = x - s;
+            if width > best_width {
+                best_width = width;
+                best_start = s;
+                best_end = x;
+            }
+        }
+    }
+    if let Some(s) = cur_start {
+        let width = search_x_end - s;
+        if width > best_width {
+            best_width = width;
+            best_start = s;
+            best_end = search_x_end;
+        }
+    }
+    // Mindestbreite des Falz: 2% der Bildbreite. Maximalbreite: 25% der Bildbreite.
+    let min_width = (w as f32 * 0.02) as u32;
+    let max_width = (w as f32 * 0.25) as u32;
+    if best_width >= min_width && best_width <= max_width && best_start > 0 && best_end > 0 {
+        Some((best_start, best_end))
+    } else {
+        None
+    }
+}
+
+/// Merged zwei PipelineResults zu einem (für Doppelseiten + Multi-Page).
+fn merge_two_results(left: PipelineResult, right: PipelineResult) -> PipelineResult {
+    let mut score = Score::default();
+    let mut part = Part {
+        id: "P1".into(),
+        name: "Stimme".into(),
+        measures: Vec::new(),
+    };
+    let mut measure_num = 1u32;
+    for src in [&left.score, &right.score] {
+        if let Some(p) = src.parts.first() {
+            for m in &p.measures {
+                let mut m = m.clone();
+                m.number = measure_num;
+                measure_num += 1;
+                part.measures.push(m);
+            }
+        }
+    }
+    score.parts.push(part);
+    let mut stats = left.stats;
+    stats.n_systems += right.stats.n_systems;
+    stats.n_noteheads += right.stats.n_noteheads;
+    stats.n_stems += right.stats.n_stems;
+    stats.n_beams += right.stats.n_beams;
+    stats.n_bars += right.stats.n_bars;
+    stats.n_rests += right.stats.n_rests;
+    stats.n_measures += right.stats.n_measures;
+    stats.n_measures_exact += right.stats.n_measures_exact;
+    stats.n_measures_repaired += right.stats.n_measures_repaired;
+    stats.n_measures_broken += right.stats.n_measures_broken;
+    stats.n_jump_marks += right.stats.n_jump_marks;
+    stats.timeline_len += right.stats.timeline_len;
+    let mut timings = left.timings;
+    timings.preprocessing_ms += right.timings.preprocessing_ms;
+    timings.staff_detection_ms += right.timings.staff_detection_ms;
+    timings.staff_removal_ms += right.timings.staff_removal_ms;
+    timings.symbol_detection_ms += right.timings.symbol_detection_ms;
+    timings.musicxml_ms += right.timings.musicxml_ms;
+    timings.total_ms += right.timings.total_ms;
+    let musicxml = omr_musicxml::export(&score).unwrap_or_default();
+    PipelineResult {
+        score,
+        musicxml,
+        timings,
+        stats,
+    }
+}
+
+/// Innere Verarbeitung eines einzelnen Bildes (ohne Doppelseiten-Logik).
+fn process_gray_single(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineResult> {
     let total_t = std::time::Instant::now();
 
     // 1) Preprocessing: deskew + adaptive despeckle + binarize.
