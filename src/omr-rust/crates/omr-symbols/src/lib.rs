@@ -50,7 +50,11 @@ pub fn detect_noteheads_with_skip(
     let expected_w = (spacing * 1.2).round() as u32;
     let expected_h = spacing.round() as u32;
     let min_w = (expected_w as f32 * 0.4).round() as u32;
-    let max_w = (expected_w as f32 * 2.5).round() as u32;
+    // KEIN harter max_w mehr: Beam-Gruppen können beliebig breit sein (5-10x
+    // einzelner Notehead). Wir lassen extract_noteheads_from_complex pro X-Spalte
+    // entscheiden ob ein NH da ist. Begrenze nur auf "absurd breit" (>20*spacing).
+    let max_w_simple = (expected_w as f32 * 2.5).round() as u32;
+    let max_w_complex = (spacing * 20.0).round() as u32;
     let min_h_simple = (expected_h as f32 * 0.4).round() as u32;
     let max_h_simple = (expected_h as f32 * 2.0).round() as u32;
     let max_h_tall = (spacing * 5.0).round() as u32;
@@ -58,32 +62,239 @@ pub fn detect_noteheads_with_skip(
     let ccs = connected_components(staff_removed);
     debug!(n = ccs.len(), "connected components");
 
+    // Vorab: kleine CCs zu größeren mergen wenn sie sehr nah beieinander
+    // liegen. Häufiger Fall: Open/Whole-Note durch Staff-Removal in 2-4
+    // kleine CCs zerschnitten (Top-Bogen, Bottom-Bogen, Innen-Punkte).
+    let merged = merge_close_ccs(&ccs, spacing);
+    debug!(merged = merged.len(), "after CC-merge");
+
     let mut noteheads = Vec::new();
-    for cc in &ccs {
-        let bb = cc.bbox;
-        if bb.w < min_w || bb.w > max_w { continue; }
+    for bb in &merged {
+        if bb.w < min_w || bb.w > max_w_complex { continue; }
         if bb.h < min_h_simple || bb.h > max_h_tall { continue; }
         let aspect = bb.aspect();
 
-        if bb.h <= max_h_simple && (0.5..=3.0).contains(&aspect) {
-            if let Some(nh) = classify_simple_notehead(staff_removed, &bb, spacing, systems) {
+        // Schmaler einzelner CC (Notehead allein oder NH+kurzer-Stem).
+        if bb.w <= max_w_simple && bb.h <= max_h_simple && (0.5..=3.0).contains(&aspect) {
+            if let Some(nh) = classify_simple_notehead(staff_removed, bb, spacing, systems) {
                 if is_in_skip_region(&nh, skip_x_per_system) { continue; }
                 noteheads.push(nh);
             }
             continue;
         }
 
-        // Schritt 3: Tall/wide CC kann mehrere Noteheads enthalten (Beam-Gruppen!).
-        // Wir scannen pro X-Spalte das CC und finden überall wo die NH-Region
-        // liegt mehrere Maxima.
-        let extracted = extract_noteheads_from_complex(staff_removed, &bb, spacing, systems);
+        // Tall/wide CC kann mehrere Noteheads enthalten (Beam-Gruppen!).
+        let extracted = extract_noteheads_from_complex(staff_removed, bb, spacing, systems);
         for nh in extracted {
             if is_in_skip_region(&nh, skip_x_per_system) { continue; }
             noteheads.push(nh);
         }
     }
+
+    // Final-Filter: NHs müssen auf einer gültigen Pitch-Position liegen.
+    let noteheads: Vec<Notehead> = noteheads
+        .into_iter()
+        .filter(|nh| is_on_pitch_grid(nh, systems))
+        .collect();
+
+    // Final-Filter 2: Text-Cluster filtern.
+    // Heuristik: 4+ kleine CCs in horizontaler Reihe mit unterschiedlichen
+    // Y-Positionen → wahrscheinlich Text (Tempo-Marken, Liedtext).
+    let noteheads = filter_text_clusters(noteheads, spacing);
+
     debug!(kept = noteheads.len(), "noteheads after filter");
     noteheads
+}
+
+/// Filtert NH-Cluster die wie Text aussehen.
+/// Text-Charakteristika: viele kleine CCs nah beieinander, leicht unterschiedliche Y-Höhen,
+/// regelmäßige horizontale Anordnung.
+fn filter_text_clusters(noteheads: Vec<Notehead>, spacing: f32) -> Vec<Notehead> {
+    if noteheads.len() < 4 {
+        return noteheads;
+    }
+
+    // Gruppiere NHs nach Y-Band (Stride: 0.7 * spacing) und suche horizontal-Reihen.
+    let mut to_remove = vec![false; noteheads.len()];
+
+    for (i, nh) in noteheads.iter().enumerate() {
+        if to_remove[i] { continue; }
+        // Suche andere NHs INNERHALB ±0.6*spacing in Y und ≤ 1.5*spacing in X-Distanz.
+        let mut neighbors: Vec<usize> = Vec::new();
+        for (j, other) in noteheads.iter().enumerate() {
+            if i == j || other.staff_idx != nh.staff_idx { continue; }
+            let dx = (other.center.x - nh.center.x).abs();
+            let dy = (other.center.y - nh.center.y).abs();
+            if dx < spacing * 1.5 && dy < spacing * 0.6 {
+                neighbors.push(j);
+            }
+        }
+        // Wenn 3+ Nachbarn (= 4 zusammen mit self), prüfe ob es wie Text aussieht.
+        if neighbors.len() >= 3 {
+            // Berechne X-Spread und Y-Variation
+            let mut xs: Vec<f32> = vec![nh.center.x];
+            let mut ys: Vec<f32> = vec![nh.center.y];
+            for &n in &neighbors {
+                xs.push(noteheads[n].center.x);
+                ys.push(noteheads[n].center.y);
+            }
+            xs.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            let x_span = xs[xs.len() - 1] - xs[0];
+            let y_min = ys.iter().cloned().fold(f32::INFINITY, f32::min);
+            let y_max = ys.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
+            let y_var = y_max - y_min;
+
+            // Text: viele in engem Y-Bereich (0.4*spacing) mit regelmäßigem X-Abstand.
+            // Bbox-Sizes der Cluster-NHs sind alle deutlich kleiner als typisches NH (kleine Buchstaben).
+            let avg_w = (nh.bbox.w as f32 + neighbors.iter().map(|&j| noteheads[j].bbox.w as f32).sum::<f32>())
+                / (neighbors.len() as f32 + 1.0);
+            let is_small = avg_w < spacing * 0.7;
+
+            // Wenn Y-Variation klein UND alle Cluster-NHs klein UND mehr als 4 nahe → Text
+            if y_var < spacing * 0.5 && is_small && neighbors.len() >= 4 && x_span > spacing * 2.0 {
+                to_remove[i] = true;
+                for &n in &neighbors {
+                    to_remove[n] = true;
+                }
+            }
+        }
+    }
+
+    noteheads
+        .into_iter()
+        .enumerate()
+        .filter(|(i, _)| !to_remove[*i])
+        .map(|(_, nh)| nh)
+        .collect()
+}
+
+/// Prüft ob ein Notehead auf einer Halb-Step-Position liegt (Linie oder Zwischenraum).
+/// Toleranz: 0.3 * spacing. Erlaubt bis zu ±5 Hilfslinien außerhalb des Systems.
+fn is_on_pitch_grid(nh: &Notehead, systems: &[StaffSystem]) -> bool {
+    let staff = match systems.get(nh.staff_idx) {
+        Some(s) => s,
+        None => return false,
+    };
+    let spacing = staff.line_spacing;
+    let cx = nh.center.x as usize;
+    let top_line = &staff.lines[0];
+    let top_line_y = if cx < top_line.y_per_x.len() {
+        top_line.y_per_x[cx] as f32
+    } else {
+        top_line.y_per_x.first().copied().unwrap_or(0) as f32
+    };
+    let half_step = spacing * 0.5;
+    let cy = nh.center.y;
+
+    let pos = (cy - top_line_y) / half_step;
+    let nearest = pos.round();
+    let delta = (pos - nearest).abs() * half_step;
+
+    if delta > spacing * 0.3 {
+        return false;
+    }
+    // Range: 5-Linien-Staff hat 8 half-steps (line 0 = pos 0, line 4 = pos 8).
+    // Erlaube ±5 ledger-line-spacings = ±10 half-steps zusätzlich.
+    // Insgesamt: pos ∈ [-10, 18].
+    if nearest < -10.0 || nearest > 18.0 {
+        return false;
+    }
+    true
+}
+
+/// Merged kleine, nah benachbarte CCs zu größeren Bboxes.
+/// Heuristik: Nur kleine CCs (jeweils < spacing*0.6 in Größe) werden gemerged.
+/// Resultat muss NH-shape haben (aspect 0.7..1.8, h ≈ spacing).
+/// Verhindert dass Noise-Cluster zu Fake-NHs werden.
+fn merge_close_ccs(ccs: &[ConnectedComponent], spacing: f32) -> Vec<Rect> {
+    let max_dx = spacing * 0.65;
+    let max_dy = spacing * 0.4;
+    let bboxes: Vec<Rect> = ccs.iter().map(|c| c.bbox).collect();
+
+    // Trenne große CCs (intakt lassen) von Fragmenten (Kandidat für Merge).
+    // Fragment-Definition: w < 0.9*spacing UND h < 1.2*spacing UND aspect ∈ [0.3, 3.0].
+    // Damit fliegen lange schmale Stems (aspect > 5) raus, gefilterte sind Notehead-Halves.
+    let (large, small): (Vec<Rect>, Vec<Rect>) = bboxes.into_iter().partition(|b| {
+        let aspect = b.aspect();
+        let is_fragment = (b.w as f32) < spacing * 0.9
+            && (b.h as f32) < spacing * 1.2
+            && (0.3..=3.0).contains(&aspect);
+        !is_fragment
+    });
+
+    // Merge nur unter den "small"-Kandidaten.
+    let mut small_bboxes = small;
+    let mut changed = true;
+    while changed {
+        changed = false;
+        let mut i = 0;
+        while i < small_bboxes.len() {
+            let mut j = i + 1;
+            while j < small_bboxes.len() {
+                let a = small_bboxes[i];
+                let b = small_bboxes[j];
+                if rects_close_xy(&a, &b, max_dx, max_dy) {
+                    let m = rect_union(&a, &b);
+                    let aspect = m.aspect();
+                    // Nur wenn das Ergebnis NH-shape ist
+                    if (m.w as f32) <= spacing * 2.5
+                        && (m.h as f32) <= spacing * 1.6
+                        && (m.h as f32) >= spacing * 0.5
+                        && (m.w as f32) >= spacing * 0.6
+                        && (0.6..=3.0).contains(&aspect)
+                    {
+                        small_bboxes[i] = m;
+                        small_bboxes.remove(j);
+                        changed = true;
+                        continue;
+                    }
+                }
+                j += 1;
+            }
+            i += 1;
+        }
+    }
+
+    // Aus small_bboxes nur die behalten die NH-Größe haben (w ≥ spacing*0.6).
+    // Damit fliegt Noise allein nicht durch.
+    let valid_small: Vec<Rect> = small_bboxes
+        .into_iter()
+        .filter(|b| b.w as f32 >= spacing * 0.6 && b.h as f32 >= spacing * 0.5)
+        .collect();
+
+    let mut out = large;
+    out.extend(valid_small);
+    out
+}
+
+fn rects_close_xy(a: &Rect, b: &Rect, max_dx: f32, max_dy: f32) -> bool {
+    let ax_end = a.x + a.w;
+    let bx_end = b.x + b.w;
+    let ay_end = a.y + a.h;
+    let by_end = b.y + b.h;
+    let dx = if a.x > bx_end {
+        (a.x - bx_end) as f32
+    } else if b.x > ax_end {
+        (b.x - ax_end) as f32
+    } else {
+        0.0
+    };
+    let dy = if a.y > by_end {
+        (a.y - by_end) as f32
+    } else if b.y > ay_end {
+        (b.y - ay_end) as f32
+    } else {
+        0.0
+    };
+    dx <= max_dx && dy <= max_dy
+}
+
+fn rect_union(a: &Rect, b: &Rect) -> Rect {
+    let x = a.x.min(b.x);
+    let y = a.y.min(b.y);
+    let x_end = (a.x + a.w).max(b.x + b.w);
+    let y_end = (a.y + a.h).max(b.y + b.h);
+    Rect { x, y, w: x_end - x, h: y_end - y }
 }
 
 /// Aus komplexem CC (Notehead+Stem oder Notehead+Beam-Group) alle enthaltenen
@@ -110,7 +321,6 @@ fn extract_noteheads_from_complex(
     let mut x = bb.x;
     let nh_h = spacing.round() as u32;
     while x + nh_w <= bb.x + bb.w {
-        // Pro X-Range: finde die Y-Region mit max Density.
         let sub_bb = Rect { x, y: bb.y, w: nh_w, h: bb.h };
         let row_density = local_row_density(bin, &sub_bb);
         if row_density.is_empty() { x += step; continue; }
@@ -129,19 +339,33 @@ fn extract_noteheads_from_complex(
             }
         }
 
-        // Mindest-Densität: 0.55 * Notehead-Volumen.
         let avg_density = best_sum as f32 / win as f32;
-        if avg_density < spacing * 0.55 {
+        // Mindest-Densität: 0.55 * NH-Breite.
+        if avg_density < nh_w as f32 * 0.55 {
             x += step;
             continue;
         }
 
-        // Beam-Region (sehr dicht über die ganze Region) ausschließen:
-        // Notenköpfe haben Density-Variation, Beams haben gleichmäßige Density.
-        let beam_threshold = spacing * 0.85;
-        let beamlike = row_density.iter().filter(|&&d| (d as f32) > beam_threshold).count();
-        if beamlike > 4 && (avg_density / spacing) > 0.85 {
-            // Wahrscheinlich nur Beam, kein Notenkopf.
+        // Beam-vs-Notehead-Discrimination:
+        // Ein Beam hat HOMOGENE Density über seine ganze Höhe (Dicke ~0.4*spacing).
+        // Ein Notenkopf hat MAX-Density im Zentrum, abnehmend nach oben/unten.
+        //
+        // Test: Vergleiche das beste Window mit den DIREKT angrenzenden Zeilen.
+        // Bei Beam: angrenzende Zeilen haben ähnliche Density wie Window.
+        // Bei NH: angrenzende Zeilen sind viel weniger dense (sparse).
+        // Bei Stem: window-Density ist niedriger als nh_w*0.55, ist schon
+        //   gefiltert.
+        let above_avg = if best_start >= 4 {
+            (best_start - 4..best_start).map(|i| row_density[i]).sum::<u32>() as f32 / 4.0
+        } else { 0.0 };
+        let below_idx = best_start + win;
+        let below_avg = if below_idx + 4 <= row_density.len() {
+            (below_idx..below_idx + 4).map(|i| row_density[i]).sum::<u32>() as f32 / 4.0
+        } else { 0.0 };
+        let surrounding = above_avg.max(below_avg);
+        // Wenn surrounding > 0.7 * avg_density UND avg_density > 0.85 * nh_w,
+        // dann ist es wahrscheinlich ein Beam (homogen).
+        if surrounding > avg_density * 0.7 && avg_density > nh_w as f32 * 0.85 {
             x += step;
             continue;
         }
@@ -152,17 +376,10 @@ fn extract_noteheads_from_complex(
             Some(s) => s,
             None => { x += step; continue; }
         };
+        let kind = classify_notehead_kind(bin, &nh_bbox, spacing);
         let pixel_count = count_pixels_in_rect(bin, &nh_bbox);
         let fill_ratio = pixel_count as f32 / nh_bbox.area().max(1) as f32;
-        let kind = if fill_ratio > 0.55 {
-            NoteheadKind::Filled
-        } else if nh_bbox.w as f32 > spacing * 1.6 {
-            NoteheadKind::Whole
-        } else {
-            NoteheadKind::Open
-        };
         let (cx, cy) = subpixel_center(bin, &nh_bbox);
-        // Dedup: nicht zu nah am vorherigen.
         let too_close = noteheads.iter().any(|prev: &Notehead| {
             (prev.center.x - cx).abs() < spacing * 0.8
                 && (prev.center.y - cy).abs() < spacing * 0.5
@@ -204,15 +421,9 @@ fn classify_simple_notehead(
     systems: &[StaffSystem],
 ) -> Option<Notehead> {
     let staff_idx = closest_staff(bb, systems)?;
+    let kind = classify_notehead_kind(bin, bb, spacing);
     let pixel_count = count_pixels_in_rect(bin, bb);
     let fill_ratio = pixel_count as f32 / bb.area().max(1) as f32;
-    let kind = if fill_ratio > 0.65 {
-        NoteheadKind::Filled
-    } else if bb.w as f32 > spacing * 1.6 {
-        NoteheadKind::Whole
-    } else {
-        NoteheadKind::Open
-    };
     let (cx, cy) = subpixel_center(bin, bb);
     Some(Notehead {
         bbox: *bb,
@@ -221,6 +432,46 @@ fn classify_simple_notehead(
         kind,
         staff_idx,
     })
+}
+
+/// Klassifiziert Notehead-Kind robust gegen Staff-Fragmente:
+///  - Filled: Inner-Region (zentrale 60%) ist genauso dicht wie Outer-Region.
+///  - Open: Inner-Region ist DEUTLICH weniger dicht (Hole) als Outer-Region.
+///  - Whole: Wie Open, aber Bbox ist 1.6×spacing breit.
+pub(crate) fn classify_notehead_kind(bin: &Binary, bb: &Rect, spacing: f32) -> NoteheadKind {
+    if bb.w == 0 || bb.h == 0 {
+        return NoteheadKind::Filled;
+    }
+    // Outer ring (alle Pixel im bbox)
+    let total = count_pixels_in_rect(bin, bb);
+    let outer_density = total as f32 / bb.area().max(1) as f32;
+
+    // Inner-Region: zentrale 50% × 50% des bbox
+    let inner_w = bb.w / 2;
+    let inner_h = bb.h / 2;
+    if inner_w < 2 || inner_h < 2 {
+        // Zu klein für Hole-Check → fallback auf Outer-Density
+        return if outer_density > 0.6 { NoteheadKind::Filled } else { NoteheadKind::Open };
+    }
+    let inner_x = bb.x + (bb.w - inner_w) / 2;
+    let inner_y = bb.y + (bb.h - inner_h) / 2;
+    let inner_bb = Rect { x: inner_x, y: inner_y, w: inner_w, h: inner_h };
+    let inner_count = count_pixels_in_rect(bin, &inner_bb);
+    let inner_density = inner_count as f32 / inner_bb.area().max(1) as f32;
+
+    // Whole: sehr breit (>1.45×spacing) UND Hole vorhanden.
+    let is_wide = bb.w as f32 > spacing * 1.45;
+
+    // Hole-Detection: inner_density deutlich kleiner als outer_density.
+    // Filled hat inner ≈ outer (beide ~0.85-1.0).
+    // Open hat outer ~0.5, inner ~0.1 (Loch).
+    let has_hole = inner_density < outer_density * 0.55 || inner_density < 0.35;
+
+    if has_hole {
+        if is_wide { NoteheadKind::Whole } else { NoteheadKind::Open }
+    } else {
+        NoteheadKind::Filled
+    }
 }
 
 /// Aus einem tall-narrow-CC (Notehead+Stem oder Notehead+Stem+Beam) den
@@ -267,15 +518,9 @@ fn extract_notehead_from_tall(
     };
 
     let staff_idx = closest_staff(&nh_bbox, systems)?;
+    let kind = classify_notehead_kind(bin, &nh_bbox, spacing);
     let pixel_count = count_pixels_in_rect(bin, &nh_bbox);
     let fill_ratio = pixel_count as f32 / nh_bbox.area().max(1) as f32;
-    let kind = if fill_ratio > 0.55 {
-        NoteheadKind::Filled
-    } else if nh_bbox.w as f32 > spacing * 1.6 {
-        NoteheadKind::Whole
-    } else {
-        NoteheadKind::Open
-    };
     let (cx, cy) = subpixel_center(bin, &nh_bbox);
     Some(Notehead {
         bbox: nh_bbox,

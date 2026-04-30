@@ -137,6 +137,12 @@ Ein Werk = ein Musikstück mit Metadaten:
 * **Bulk-Import**: Ein PDF mit allen Stimmen → Auto-Split nach
   Stimm-Erkennung, User bestätigt Zuordnung.
 * **AI-Tagging**: Genre-Vorschlag, Schwierigkeit, ähnliche Werke.
+* **Symbol-Library & Layout-Hints**: Die OMR-Engine nutzt eine Library
+  standardisierter Musiksymbole (siehe
+  `docs/18-symbol-library-and-layout.md`) und Layout-Erwartungen (Titel
+  oben, Dynamik zwischen Linien, Tempo über erstem Takt) zur robusten
+  Erkennung. Text-Bereiche (espressivo, Tempo-Marken, Liedtext) werden
+  vor der Notehead-Detection gefiltert.
 
 ## 3. Termine
 

@@ -8,6 +8,7 @@ use omr_core::{
 use std::path::Path;
 use tracing::{info, info_span, warn};
 
+pub mod accuracy;
 pub mod debug_viz;
 pub mod pdf_render;
 pub mod synthetic;
@@ -54,14 +55,21 @@ pub struct Stats {
 pub fn process_gray(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineResult> {
     let total_t = std::time::Instant::now();
 
-    // 1) Preprocessing: deskew + binarize.
+    // 1) Preprocessing: deskew + adaptive despeckle + binarize.
     let _span = info_span!("preprocessing").entered();
     let pre_t = std::time::Instant::now();
     let (gray, deskew_angle) = omr_preprocessing::deskew(&gray);
+    // Adaptiv: Bei wenig Rauschen reicht 1× Median, bei viel Rauschen 2×.
+    let noise = omr_preprocessing::estimate_noise_level(&gray);
+    let gray = if noise > 0.04 {
+        omr_preprocessing::despeckle_strong(&gray)
+    } else {
+        omr_preprocessing::median3x3(&gray)
+    };
     let bin = omr_preprocessing::sauvola(&gray, 25, 0.34);
     let preprocessing_ms = pre_t.elapsed().as_millis();
     drop(_span);
-    info!(deskew_angle, count = bin.count(), "preprocessing done");
+    info!(deskew_angle, noise, count = bin.count(), "preprocessing done");
 
     if let Some(ref dir) = opts.debug_dir {
         let _ = bin.to_gray().save(dir.join("01_binary.png"));
