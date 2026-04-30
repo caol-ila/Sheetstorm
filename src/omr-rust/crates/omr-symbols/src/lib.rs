@@ -10,9 +10,11 @@
 use omr_core::{Binary, Notehead, NoteheadKind, Point, Rect, ScoreNote, StaffSystem, Stem};
 use tracing::debug;
 
+pub mod beams;
 pub mod cc;
 pub mod pitch;
 pub mod stems;
+pub use beams::{detect_beams, beams_per_stem, Beam};
 pub use cc::{connected_components, ConnectedComponent};
 
 /// Hauptfunktion: detektiere Noteheads in einem staff-line-removed Binary.
@@ -217,11 +219,12 @@ fn confidence_score(fill_ratio: f32, aspect: f32, kind: NoteheadKind) -> f32 {
     (aspect_score * fill_score).clamp(0.0, 1.0)
 }
 
-/// Konvertiere Noteheads + Stems → ScoreNotes mit Pitch + Duration.
+/// Konvertiere Noteheads + Stems + Beams → ScoreNotes mit Pitch + Duration.
 pub fn noteheads_to_notes(
     noteheads: &[Notehead],
     systems: &[StaffSystem],
     stems: &[Stem],
+    beam_counts: &[u32],
     clef: omr_core::Clef,
     key: omr_core::KeySignature,
 ) -> Vec<ScoreNote> {
@@ -232,14 +235,21 @@ pub fn noteheads_to_notes(
             None => continue,
         };
         let pitch = pitch::pitch_from_y(nh.center.y, staff, clef, key);
-        let has_stem = stems.iter().any(|s| s.notehead_idx == Some(idx));
-        // Beam-Detection ist v0.1 noch nicht eingebaut → Quarter als sicherste Wahl.
-        let duration = match (nh.kind, has_stem) {
-            (NoteheadKind::Whole, _) => 16,
-            (NoteheadKind::Open, true) => 8,
-            (NoteheadKind::Open, false) => 16,
-            (NoteheadKind::Filled, true) => 4,
-            (NoteheadKind::Filled, false) => 4,
+        // Stem für diesen Notehead?
+        let stem_idx = stems.iter().position(|s| s.notehead_idx == Some(idx));
+        let has_stem = stem_idx.is_some();
+        let n_beams = stem_idx.and_then(|i| beam_counts.get(i)).copied().unwrap_or(0);
+
+        // Duration in divisions (divisions=4 → quarter = 4).
+        let duration = match (nh.kind, has_stem, n_beams) {
+            (NoteheadKind::Whole, _, _) => 16,                  // ganze
+            (NoteheadKind::Open, true, _) => 8,                 // halbe
+            (NoteheadKind::Open, false, _) => 16,
+            (NoteheadKind::Filled, true, 0) => 4,               // viertel
+            (NoteheadKind::Filled, true, 1) => 2,               // achtel
+            (NoteheadKind::Filled, true, 2) => 1,               // 16th
+            (NoteheadKind::Filled, true, _) => 1,               // 32nd → cap auf 16th
+            (NoteheadKind::Filled, false, _) => 4,
         };
         notes.push(ScoreNote {
             midi: pitch.midi,

@@ -88,14 +88,16 @@ pub fn process_gray(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineR
         let _ = removed.to_gray().save(dir.join("02_staff_removed.png"));
     }
 
-    // 4) Symbol-Detection: Noteheads + Stems.
+    // 4) Symbol-Detection: Noteheads + Stems + Beams.
     let _span = info_span!("symbol_detection").entered();
     let sym_t = std::time::Instant::now();
     let noteheads = omr_symbols::detect_noteheads(&removed, &systems);
     let stems = omr_symbols::stems::detect_stems(&removed, &noteheads, line_spacing);
+    let beams = omr_symbols::detect_beams(&removed, line_spacing);
+    let beam_counts = omr_symbols::beams_per_stem(&stems, &beams);
     let symbol_detection_ms = sym_t.elapsed().as_millis();
     drop(_span);
-    info!(n_noteheads = noteheads.len(), n_stems = stems.len(), "symbols detected");
+    info!(n_noteheads = noteheads.len(), n_stems = stems.len(), n_beams = beams.len(), "symbols detected");
 
     // 5) Score-Konstruktion: ein Measure pro StaffSystem, Noten in Reading-Order (X).
     let clef = Clef::Treble;
@@ -119,7 +121,9 @@ pub fn process_gray(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineR
                 })
                 .cloned()
                 .collect();
-            let mut notes = omr_symbols::noteheads_to_notes(&nh_local, &systems, &stems_local, clef, key);
+            // Beam-Counts für die lokal gefilterten Stems neu berechnen.
+            let beam_counts_local: Vec<u32> = omr_symbols::beams_per_stem(&stems_local, &beams);
+            let mut notes = omr_symbols::noteheads_to_notes(&nh_local, &systems, &stems_local, &beam_counts_local, clef, key);
             notes.sort_by(|a, b| a.center.x.partial_cmp(&b.center.x).unwrap_or(std::cmp::Ordering::Equal));
             // Onset = sequenzielle Position * 1 (vereinfacht)
             let mut onset = 0u32;
