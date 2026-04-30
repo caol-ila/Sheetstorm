@@ -34,11 +34,13 @@ pub struct MeasureCheck {
 }
 
 /// Berechnet die erwartete Gesamt-Duration für einen Takt in `divisions`-Einheiten.
-/// Beispiel: divisions=4, time=4/4 → 4*4/4 = 4 (4 Viertel)
-/// divisions=4, time=3/4 → 3*4/4 = 3 (3 Viertel)
-/// divisions=4, time=6/8 → 6*4/8 = 3 (3 Viertel)
+/// `divisions` = Ticks pro Viertelnote (MusicXML-Konvention).
+/// Beispiel: divisions=4, time=4/4 → 4 Viertel × 4 Ticks = 16 Ticks
+/// divisions=4, time=3/4 → 3 Viertel × 4 Ticks = 12 Ticks
+/// divisions=4, time=6/8 → 6 Achtel × 2 Ticks = 12 Ticks
 pub fn expected_total_duration(divisions: u32, time: TimeSignature) -> u32 {
-    (time.beats as u32 * divisions) / time.beat_type as u32
+    // n/d Takt = n × (4/d) Quarter-Notes = (n × 4 × divisions) / d Ticks
+    (time.beats as u32 * divisions * 4) / time.beat_type as u32
 }
 
 /// Σ duration über alle Notes ohne Akkord-Member.
@@ -68,8 +70,9 @@ pub fn check_measure(m: &Measure, time: TimeSignature, is_first: bool) -> Measur
 
     let plaus = if actual == expected {
         MeasurePlausibility::Exact
-    } else if is_first && actual < expected && (expected - actual) <= m.divisions {
-        // Auftakt: bis zu 1 Viertel weniger akzeptiert
+    } else if is_first && actual < expected {
+        // Auftakt: erster Takt kann beliebig kürzer sein als ein voller Takt.
+        // Klassische Auftakte sind 1 Viertel, aber auch 1 Achtel oder weniger sind valide.
         MeasurePlausibility::Anacrusis
     } else {
         let diff = (actual as i64 - expected as i64).abs();
@@ -307,26 +310,30 @@ mod tests {
     }
 
     #[test]
-    fn expected_4_4_with_div_4_is_4_quarters() {
-        assert_eq!(expected_total_duration(4, TimeSignature { beats: 4, beat_type: 4 }), 4);
+    fn expected_4_4_with_div_4_is_16_ticks() {
+        // 4/4 mit divisions=4 (4 Ticks pro Viertel) = 4 Viertel × 4 Ticks = 16 Ticks
+        assert_eq!(expected_total_duration(4, TimeSignature { beats: 4, beat_type: 4 }), 16);
     }
 
     #[test]
-    fn expected_3_4_is_3() {
-        assert_eq!(expected_total_duration(4, TimeSignature { beats: 3, beat_type: 4 }), 3);
+    fn expected_3_4_is_12() {
+        // 3/4 mit divisions=4 = 3 Viertel × 4 Ticks = 12 Ticks
+        assert_eq!(expected_total_duration(4, TimeSignature { beats: 3, beat_type: 4 }), 12);
     }
 
     #[test]
-    fn expected_6_8_is_3() {
-        assert_eq!(expected_total_duration(4, TimeSignature { beats: 6, beat_type: 8 }), 3);
+    fn expected_6_8_is_12() {
+        // 6/8 mit divisions=4 = 6 Achtel × 2 Ticks = 12 Ticks
+        assert_eq!(expected_total_duration(4, TimeSignature { beats: 6, beat_type: 8 }), 12);
     }
 
     #[test]
     fn check_4_quarters_in_4_4_is_exact() {
+        // 4 Viertel (à 4 Ticks) im 4/4 → Σ=16 = expected
         let m = Measure {
             number: 1,
             divisions: 4,
-            notes: (0..4).map(|_| quarter_note(1)).collect(),
+            notes: (0..4).map(|_| quarter_note(4)).collect(),
             time_signature: None,
             key_signature: None,
             clef: None,
@@ -338,10 +345,11 @@ mod tests {
 
     #[test]
     fn check_5_quarters_in_4_4_is_repairable() {
+        // 5 Viertel im 4/4: Σ=20 vs expected=16, diff=+4 ≤ expected/2=8 → Repairable
         let m = Measure {
             number: 2,
             divisions: 4,
-            notes: (0..5).map(|_| quarter_note(1)).collect(),
+            notes: (0..5).map(|_| quarter_note(4)).collect(),
             time_signature: None,
             key_signature: None,
             clef: None,
@@ -357,16 +365,16 @@ mod tests {
             number: 2,
             divisions: 4,
             // 5 Quarter im 4/4 → ein zu viel. Reparatur: einer der ¼ wird zu ⅛.
-            notes: (0..5).map(|_| quarter_note(1)).collect(),
+            notes: (0..5).map(|_| quarter_note(4)).collect(),
             time_signature: None,
             key_signature: None,
             clef: None,
             ..Default::default()
         };
-        // Wir akzeptieren wenn Reparatur funktioniert, sonst diff ≤ 1
+        // Wir akzeptieren wenn Reparatur funktioniert, sonst diff ≤ 4 (1 Quarter)
         let _ = repair_measure(&mut m, TimeSignature { beats: 4, beat_type: 4 });
         let actual: u32 = lead_duration_sum(&m.notes);
-        assert!(actual <= 4 + 1);
+        assert!(actual <= 16 + 4, "actual={actual} should be ≤ 20");
     }
 
     #[test]
@@ -374,7 +382,8 @@ mod tests {
         let mut m = Measure {
             number: 5,
             divisions: 4,
-            notes: vec![quarter_note(1), quarter_note(1)],
+            // 2 Viertel im 4/4: Σ=8, fehlt 8 Ticks. Repair erweitert letzte Note.
+            notes: vec![quarter_note(4), quarter_note(4)],
             time_signature: None,
             key_signature: None,
             clef: None,
@@ -383,15 +392,16 @@ mod tests {
         let ok = repair_measure(&mut m, TimeSignature { beats: 4, beat_type: 4 });
         assert!(ok);
         let actual: u32 = lead_duration_sum(&m.notes);
-        assert_eq!(actual, 4);
+        assert_eq!(actual, 16);
     }
 
     #[test]
     fn anacrusis_first_measure_is_acceptable() {
+        // 1 Viertel im 4/4 als ersten Takt → klassischer Auftakt (1 Beat).
         let m = Measure {
             number: 1,
             divisions: 4,
-            notes: vec![quarter_note(1)], // 1 Viertel im 4/4 → klassischer Auftakt
+            notes: vec![quarter_note(4)],
             time_signature: None,
             key_signature: None,
             clef: None,
@@ -403,12 +413,11 @@ mod tests {
 
     #[test]
     fn scale_to_fit_repairs_double_overlong() {
-        // 4 Achtel-Notes (à 2 = Achtel) im 4/4 als Quarter klassifiziert: Σ=4·2=8 (2x expected=4).
-        // Aber Scale by /2 würde jede zu 1 (Sechzehntel) machen → 4·1 = 4. ✓
+        // 8 Quarter-Notes (Σ=32) im 4/4 (expected=16) → Ratio=2. Scale /2: alle zu Achtel (dur=2). Σ=16. ✓
         let mut m = Measure {
             number: 1,
             divisions: 4,
-            notes: (0..4).map(|_| quarter_note(2)).collect(),
+            notes: (0..8).map(|_| quarter_note(4)).collect(),
             time_signature: None,
             key_signature: None,
             clef: None,
@@ -417,16 +426,16 @@ mod tests {
         let ok = repair_measure(&mut m, TimeSignature { beats: 4, beat_type: 4 });
         assert!(ok);
         let actual: u32 = lead_duration_sum(&m.notes);
-        assert_eq!(actual, 4);
+        assert_eq!(actual, 16);
     }
 
     #[test]
     fn scale_to_fit_repairs_quad_overlong() {
-        // 4 Quarters à 4 = 16, expected = 4. Ratio = 4. Scale /4 = alle zu 1 (Sechzehntel).
+        // 16 Quarters à 4 = 64, expected = 16. Ratio = 4. Scale /4 = alle zu 1 (Sechzehntel). Σ=16.
         let mut m = Measure {
             number: 1,
             divisions: 4,
-            notes: (0..4).map(|_| quarter_note(4)).collect(),
+            notes: (0..16).map(|_| quarter_note(4)).collect(),
             time_signature: None,
             key_signature: None,
             clef: None,
@@ -435,13 +444,12 @@ mod tests {
         let ok = repair_measure(&mut m, TimeSignature { beats: 4, beat_type: 4 });
         assert!(ok);
         let actual: u32 = lead_duration_sum(&m.notes);
-        assert_eq!(actual, 4);
+        assert_eq!(actual, 16);
     }
 
     #[test]
     fn truncation_handles_minor_overlong() {
-        // 5 Quarters in 4/4 → diff 1. Subset-halving: halve 1 quarter → 2 (saves 2). diff 1-2 < 0.
-        // Strategie F (truncation): kürze einzelne Notes um 1.
+        // 5 Quarters (Σ=20) im 4/4 (expected=16) → diff=+4. Truncation kürzt einzelne Notes.
         let mut m = Measure {
             number: 1,
             divisions: 4,
@@ -453,22 +461,18 @@ mod tests {
             clef: None,
             ..Default::default()
         };
-        // Σ = 20, expected = 4. Ratio = 5.
         let ok = repair_measure(&mut m, TimeSignature { beats: 4, beat_type: 4 });
         let actual: u32 = lead_duration_sum(&m.notes);
         if ok {
-            assert_eq!(actual, 4);
+            assert_eq!(actual, 16);
         } else {
-            // Wenn nicht voll repairbar: actual nicht weiter weg als 1
-            assert!(actual >= 4 && actual <= 8, "got actual={}", actual);
+            assert!(actual >= 16 && actual <= 20, "got actual={}", actual);
         }
     }
 
     #[test]
     fn truncation_repairs_mixed_kinds_overlong() {
-        // 3 filled-Quarters + 1 open-Half (mixed kinds, scale-to-fit greift nicht)
-        // Σ = 4+4+4+8 = 20, expected = 4.
-        // Strategy F (truncation): kürze die längste(n) bis Σ = expected.
+        // 3 Quarters (3·4=12) + 1 Whole (16) = Σ=28, expected=16. Truncation kürzt Whole→4. Σ=16.
         let mut m = Measure {
             number: 1,
             divisions: 4,
@@ -481,7 +485,7 @@ mod tests {
                     step: omr_core::PitchStep::C,
                     alter: 0,
                     octave: 4,
-                    duration: 8,
+                    duration: 16,
                     onset: 0,
                     voice: 1,
                     kind: NoteheadKind::Open,
@@ -498,17 +502,17 @@ mod tests {
         let ok = repair_measure(&mut m, TimeSignature { beats: 4, beat_type: 4 });
         assert!(ok, "mixed kinds sollten reparierbar sein");
         let actual: u32 = lead_duration_sum(&m.notes);
-        assert_eq!(actual, 4);
+        assert_eq!(actual, 16);
     }
 
     #[test]
     fn doubling_repairs_eighth_only() {
-        // 1 Eighth (dur 2) im 4/4 → expected 4, diff = 2.
-        // Subset-doubling verdoppelt das Eighth zu Quarter (dur 4). Σ = 4. ✓
+        // 1 Halbe (dur=8) im 4/4 → expected=16, diff=8.
+        // Subset-doubling verdoppelt die Halbe zu Whole (dur=16). Σ=16. ✓
         let mut m = Measure {
             number: 5,
             divisions: 4,
-            notes: vec![quarter_note(2)],
+            notes: vec![quarter_note(8)],
             time_signature: None,
             key_signature: None,
             clef: None,
@@ -517,6 +521,6 @@ mod tests {
         let ok = repair_measure(&mut m, TimeSignature { beats: 4, beat_type: 4 });
         assert!(ok);
         let actual: u32 = lead_duration_sum(&m.notes);
-        assert_eq!(actual, 4);
+        assert_eq!(actual, 16);
     }
 }

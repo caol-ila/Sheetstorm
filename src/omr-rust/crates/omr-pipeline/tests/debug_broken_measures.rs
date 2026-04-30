@@ -32,8 +32,10 @@ fn diagnose_broken_measures() {
 
     for part in &result.score.parts {
         for m in &part.measures {
-            let expected: i32 = ((m.divisions as i32 * 4) / 4).max(1);
-            let actual: i32 = m.notes.iter().map(|n| n.duration as i32).sum();
+            // Korrekte Formel: divisions=4 → 4 Ticks pro Viertel, 4/4 = 16 Ticks
+            let expected: i32 = ((m.divisions as i32) * 4 * 4) / 4;
+            // Lead-Σ: ohne Akkord-Member
+            let actual: i32 = m.notes.iter().filter(|n| !n.in_chord).map(|n| n.duration as i32).sum();
             let diff = actual - expected;
             *diff_hist.entry(diff).or_insert(0) += 1;
             nh_per_measure.push(m.notes.len());
@@ -41,7 +43,7 @@ fn diagnose_broken_measures() {
         }
     }
 
-    println!("\nDuration-Diff Histogramm (actual - expected, in divisions):");
+    println!("\nDuration-Diff Histogramm (lead_sum - expected, in divisions):");
     for (diff, cnt) in diff_hist.iter() {
         println!("  {diff:+3}: {cnt}");
     }
@@ -59,16 +61,18 @@ fn diagnose_broken_measures() {
     let mut shown = 0;
     'outer: for part in &result.score.parts {
         for m in &part.measures {
-            let expected: i32 = ((m.divisions as i32 * 4) / 4).max(1);
-            let actual: i32 = m.notes.iter().map(|n| n.duration as i32).sum();
+            let expected: i32 = ((m.divisions as i32) * 4 * 4) / 4;
+            let actual: i32 = m.notes.iter().filter(|n| !n.in_chord).map(|n| n.duration as i32).sum();
             let diff = (actual - expected).abs();
-            if diff > expected/2 {
+            if diff > expected/2 && !m.notes.is_empty() {
                 shown += 1;
-                println!("\nMeasure {} (sys {:?}): expected={} actual={} ({}NHs)",
-                    m.number, m.system_idx, expected, actual, m.notes.len());
-                for (i, n) in m.notes.iter().enumerate().take(8) {
-                    println!("    note[{}]: kind={:?} dur={} pitch=midi{} dot={}",
-                        i, n.kind, n.duration, n.midi, n.augmentation_dots);
+                println!("\nMeasure {} (sys {:?}): expected={} actual={} ({}NHs, {} chord-members)",
+                    m.number, m.system_idx, expected, actual, m.notes.len(),
+                    m.notes.iter().filter(|n| n.in_chord).count());
+                for (i, n) in m.notes.iter().enumerate().take(10) {
+                    let chord = if n.in_chord { " [CHORD]" } else { "" };
+                    println!("    note[{}]: kind={:?} dur={} pitch=midi{} x={:.0}{}",
+                        i, n.kind, n.duration, n.midi, n.center.x, chord);
                 }
                 if shown >= 8 { break 'outer; }
             }
