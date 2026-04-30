@@ -121,40 +121,58 @@ pub struct Stats {
 /// Verarbeite ein bereits geladenes Grayscale-Bild.
 pub fn process_gray(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineResult> {
     // Doppelseiten-Scan-Detection: Wenn das Bild deutlich breiter als hoch ist
-    // (aspect ratio > 1.25), versuche das Bild über einen Falz-Bereich zu
-    // splitten. Bei Buchscan-Doppelseiten ist der Falz NICHT komplett leer
-    // (Header-Texte, Annotationen, Schatten), aber deutlich weniger dicht als
-    // der eigentliche Notentext. Wir suchen den breitesten low-density-Bereich
-    // in den mittleren 40% des Bildes und verwerfen ihn — die Hälften links
-    // und rechts vom Falz werden separat verarbeitet.
+    // (aspect > 1.25), versuche das Bild über einen Falz-Bereich zu splitten.
+    // Bei Portrait-PDFs (h > w) muss vorher deskew/rotate angewandt werden,
+    // damit eine quergelegte Doppelseite als landscape erkannt wird.
     let (w, h) = (gray.width(), gray.height());
     let aspect = w as f32 / h.max(1) as f32;
     if aspect > 1.25 {
-        if let Some((left_end, right_start)) = detect_doublespread_band(&gray) {
-            let left = image::imageops::crop_imm(&gray, 0, 0, left_end, h).to_image();
-            let right = image::imageops::crop_imm(&gray, right_start, 0, w - right_start, h).to_image();
-            let lr = process_gray_single(left, opts)?;
-            let rr = process_gray_single(right, opts)?;
-            let total_systems = lr.stats.n_systems + rr.stats.n_systems;
-            if total_systems >= 2 {
-                info!(left_end, right_start, total_systems, "doublespread band-split active");
-                return Ok(merge_two_results(lr, rr));
+        if let Some(merged) = try_doublespread_split(&gray, opts)? {
+            return Ok(merged);
+        }
+    } else if aspect < 0.80 {
+        // Portrait-Bild: möglicherweise eine 90°-rotierte Doppelseite.
+        // Erst deskew/rotation versuchen — wenn n_systems=0, retry mit Split.
+        let single = process_gray_single(gray.clone(), opts)?;
+        if single.stats.n_systems == 0 {
+            // Bild wurde durch Deskew rotiert — re-rendern und Split versuchen.
+            let rotated = image::imageops::rotate90(&gray);
+            if let Some(merged) = try_doublespread_split(&rotated, opts)? {
+                return Ok(merged);
             }
         }
-        // Fallback: simpler split bei w/2
-        let split_x = w / 2;
-        let left = image::imageops::crop_imm(&gray, 0, 0, split_x, h).to_image();
-        let right = image::imageops::crop_imm(&gray, split_x, 0, w - split_x, h).to_image();
-        let lr = process_gray_single(left, opts)?;
-        let rr = process_gray_single(right, opts)?;
-        let total_systems = lr.stats.n_systems + rr.stats.n_systems;
-        if total_systems >= 2 {
-            info!(split_x, total_systems, "doublespread mid-split active");
-            return Ok(merge_two_results(lr, rr));
-        }
-        info!("doublespread fallback to single-pass");
+        return Ok(single);
     }
     process_gray_single(gray, opts)
+}
+
+/// Versucht das Bild über einen Falz-Band oder w/2-Mid-Split aufzuteilen.
+/// Liefert Ok(Some(merged)) wenn der Split eine sinnvolle Anzahl Systeme findet,
+/// Ok(None) wenn der Split scheitert (Caller sollte single-pass nutzen).
+fn try_doublespread_split(gray: &GrayImage, opts: &PipelineOptions) -> Result<Option<PipelineResult>> {
+    let (w, h) = (gray.width(), gray.height());
+    if let Some((left_end, right_start)) = detect_doublespread_band(gray) {
+        let left = image::imageops::crop_imm(gray, 0, 0, left_end, h).to_image();
+        let right = image::imageops::crop_imm(gray, right_start, 0, w - right_start, h).to_image();
+        let lr = process_gray_single(left, opts)?;
+        let rr = process_gray_single(right, opts)?;
+        let total = lr.stats.n_systems + rr.stats.n_systems;
+        if total >= 2 {
+            info!(left_end, right_start, total_systems = total, "doublespread band-split active");
+            return Ok(Some(merge_two_results(lr, rr)));
+        }
+    }
+    let split_x = w / 2;
+    let left = image::imageops::crop_imm(gray, 0, 0, split_x, h).to_image();
+    let right = image::imageops::crop_imm(gray, split_x, 0, w - split_x, h).to_image();
+    let lr = process_gray_single(left, opts)?;
+    let rr = process_gray_single(right, opts)?;
+    let total = lr.stats.n_systems + rr.stats.n_systems;
+    if total >= 2 {
+        info!(split_x, total_systems = total, "doublespread mid-split active");
+        return Ok(Some(merge_two_results(lr, rr)));
+    }
+    Ok(None)
 }
 
 /// Findet den breitesten low-density-Bereich (Falz) in der Bildmitte.

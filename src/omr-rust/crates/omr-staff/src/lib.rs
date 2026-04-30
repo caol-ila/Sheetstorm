@@ -36,14 +36,27 @@ pub fn detect_systems(bin: &Binary) -> Vec<StaffSystem> {
         return vec![];
     }
 
-    let candidates = find_line_candidates(bin, &stats);
-    debug!(n = candidates.len(), "candidate line rows");
+    // Erster Versuch mit konservativer Threshold (40% der Bildbreite).
+    let mut systems = detect_systems_with_threshold(bin, &stats, 0.4);
 
+    // Retry mit niedrigerer Threshold falls nichts gefunden — typisch bei
+    // dünnen/unterbrochenen Stafflinien (Doppelseiten-Scans, schlechter
+    // Druck, fragmentierte Linien). 0.25 erlaubt Linien die nur 25% der
+    // Bildbreite sind, was bei breiten Bildern (wide aspect, mehrere
+    // Stimmen) realistisch ist.
+    if systems.is_empty() {
+        systems = detect_systems_with_threshold(bin, &stats, 0.25);
+    }
+    systems
+}
+
+fn detect_systems_with_threshold(bin: &Binary, stats: &RunStats, pct: f32) -> Vec<StaffSystem> {
+    let candidates = find_line_candidates(bin, stats, pct);
+    debug!(n = candidates.len(), pct, "candidate line rows");
     let lines: Vec<StaffLine> = candidates
         .par_iter()
         .map(|&y0| trace_stable_path(bin, y0, stats.line_thickness))
         .collect();
-
     group_into_systems(lines, stats.line_spacing as f32, stats.line_thickness as f32)
 }
 
@@ -98,9 +111,9 @@ fn analyze_runs(bin: &Binary) -> RunStats {
     RunStats { line_thickness, line_spacing }
 }
 
-fn find_line_candidates(bin: &Binary, stats: &RunStats) -> Vec<u32> {
+fn find_line_candidates(bin: &Binary, stats: &RunStats, pct: f32) -> Vec<u32> {
     let dens = bin.row_density();
-    let threshold = (bin.w as f32 * 0.4) as u32;
+    let threshold = (bin.w as f32 * pct) as u32;
     let mut peaks = Vec::new();
     let mut last = 0u32;
     for (y, &d) in dens.iter().enumerate() {
