@@ -23,8 +23,8 @@ pub fn detect_noteheads_template(
     let spacing = systems[0].line_spacing;
     if spacing < 6.0 { return vec![]; }
 
-    let filled_template = make_notehead_template(spacing, true);
-    let open_template = make_notehead_template(spacing, false);
+    let filled_template = make_notehead_template(spacing, NoteheadKind::Filled);
+    let open_template = make_notehead_template(spacing, NoteheadKind::Open);
 
     let filled_heat = ncc_heatmap(bin, &filled_template);
     let open_heat = ncc_heatmap(bin, &open_template);
@@ -63,15 +63,28 @@ struct Template {
 
 /// Erzeuge ein synthetisches Notehead-Template.
 /// Notenkopf = leicht geneigte Ellipse, Aspect ~1.3 (breiter als hoch).
-fn make_notehead_template(spacing: f32, filled: bool) -> Template {
-    let w = (spacing * 1.3).round() as u32;
-    let h = (spacing * 0.95).round() as u32;
+/// `kind` bestimmt das Aussehen:
+///  - Filled: gefüllte Ellipse (Aspect ~1.3, ähnlich Viertelnote).
+///  - Open: leerer Notenkopf mit Ring (Aspect ~1.3, ähnlich Halbenote).
+///  - Whole: leerer Notenkopf, breiter Aspect ~1.7 mit dünnerem Ring,
+///    typische Form von Ganzennoten (○-Symbol).
+fn make_notehead_template(spacing: f32, kind: NoteheadKind) -> Template {
+    let (w_factor, h_factor, ring_thick) = match kind {
+        NoteheadKind::Filled => (1.3, 0.95, 0.0),
+        NoteheadKind::Open => (1.3, 0.95, 0.55),
+        // Whole: deutlich breiter (1.7×spacing) und dünnerer Ring (Inner-Ratio 0.65)
+        // weil der Outline einer Ganzennote relativ schmal ist.
+        NoteheadKind::Whole => (1.7, 0.95, 0.65),
+    };
+    let w = (spacing * w_factor).round() as u32;
+    let h = (spacing * h_factor).round() as u32;
     let cx = w as f32 * 0.5;
     let cy = h as f32 * 0.5;
     let rx = w as f32 * 0.45;
     let ry = h as f32 * 0.45;
-    let rx_in = rx * 0.55;
-    let ry_in = ry * 0.55;
+    let rx_in = rx * ring_thick;
+    let ry_in = ry * ring_thick;
+    let is_filled = matches!(kind, NoteheadKind::Filled);
 
     let mut raw = vec![0.0f32; (w * h) as usize];
     for y in 0..h {
@@ -79,11 +92,11 @@ fn make_notehead_template(spacing: f32, filled: bool) -> Template {
             let dx = (x as f32 + 0.5) - cx;
             let dy = (y as f32 + 0.5) - cy;
             let outer = (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry);
-            let inner = (dx * dx) / (rx_in * rx_in) + (dy * dy) / (ry_in * ry_in);
-            let v = if filled {
+            let v = if is_filled {
                 if outer <= 1.0 { 1.0 } else { 0.0 }
             } else {
-                // Open notehead: nur der Ring zwischen Außen- und Innen-Ellipse ist 1.
+                // Open/Whole notehead: nur der Ring zwischen Außen- und Innen-Ellipse ist 1.
+                let inner = (dx * dx) / (rx_in * rx_in) + (dy * dy) / (ry_in * ry_in);
                 if outer <= 1.0 && inner > 1.0 { 1.0 } else { 0.0 }
             };
             raw[(y * w + x) as usize] = v;
@@ -253,8 +266,8 @@ pub fn detect_noteheads_template_v2(
     let spacing = systems[0].line_spacing;
     if spacing < 6.0 { return vec![]; }
 
-    let filled_template = make_notehead_template(spacing, true);
-    let open_template = make_notehead_template(spacing, false);
+    let filled_template = make_notehead_template(spacing, NoteheadKind::Filled);
+    let open_template = make_notehead_template(spacing, NoteheadKind::Open);
 
     let filled_heat = ncc_heatmap(bin, &filled_template);
     let open_heat = ncc_heatmap(bin, &open_template);
@@ -297,8 +310,9 @@ pub fn rerank_with_template(
 ) -> Vec<Notehead> {
     if candidates.is_empty() || spacing < 6.0 { return candidates.to_vec(); }
 
-    let filled_tmpl = make_notehead_template(spacing, true);
-    let open_tmpl = make_notehead_template(spacing, false);
+    let filled_tmpl = make_notehead_template(spacing, NoteheadKind::Filled);
+    let open_tmpl = make_notehead_template(spacing, NoteheadKind::Open);
+    let whole_tmpl = make_notehead_template(spacing, NoteheadKind::Whole);
 
     candidates
         .par_iter()
@@ -306,8 +320,12 @@ pub fn rerank_with_template(
             // Suche das beste NCC-Match in einer 3×3-Region um center.
             let cx = nh.center.x as i32;
             let cy = nh.center.y as i32;
-            let half_w = filled_tmpl.w as i32 / 2;
-            let half_h = filled_tmpl.h as i32 / 2;
+            // Verwende die größeren Whole-Template-Dimensionen für Boundary-Checks
+            // damit Whole-Templates auch bei Filled/Open-Kandidaten getestet werden.
+            let half_w_f = filled_tmpl.w as i32 / 2;
+            let half_h_f = filled_tmpl.h as i32 / 2;
+            let half_w_w = whole_tmpl.w as i32 / 2;
+            let half_h_w = whole_tmpl.h as i32 / 2;
 
             let mut best_score = f32::NEG_INFINITY;
             let mut best_x = cx;
@@ -316,26 +334,50 @@ pub fn rerank_with_template(
 
             for dy in -1..=1i32 {
                 for dx in -1..=1i32 {
-                    let top_left_x = cx + dx - half_w;
-                    let top_left_y = cy + dy - half_h;
-                    if top_left_x < 0 || top_left_y < 0 { continue; }
-                    let tlx = top_left_x as u32;
-                    let tly = top_left_y as u32;
-                    if tlx + filled_tmpl.w > staff_removed.w { continue; }
-                    if tly + filled_tmpl.h > staff_removed.h { continue; }
-
-                    let f_score = local_ncc(staff_removed, &filled_tmpl, tlx, tly);
-                    let o_score = local_ncc(staff_removed, &open_tmpl, tlx, tly);
-                    let (score, kind) = if f_score >= o_score {
-                        (f_score, NoteheadKind::Filled)
-                    } else {
-                        (o_score, NoteheadKind::Open)
-                    };
-                    if score > best_score {
-                        best_score = score;
-                        best_x = cx + dx;
-                        best_y = cy + dy;
-                        best_kind = kind;
+                    // Filled+Open Templates (Aspect 1.3)
+                    let tlx_f = cx + dx - half_w_f;
+                    let tly_f = cy + dy - half_h_f;
+                    if tlx_f >= 0 && tly_f >= 0 {
+                        let tlx = tlx_f as u32;
+                        let tly = tly_f as u32;
+                        if tlx + filled_tmpl.w <= staff_removed.w && tly + filled_tmpl.h <= staff_removed.h {
+                            let f_score = local_ncc(staff_removed, &filled_tmpl, tlx, tly);
+                            let o_score = local_ncc(staff_removed, &open_tmpl, tlx, tly);
+                            if f_score > best_score {
+                                best_score = f_score;
+                                best_x = cx + dx;
+                                best_y = cy + dy;
+                                best_kind = NoteheadKind::Filled;
+                            }
+                            if o_score > best_score {
+                                best_score = o_score;
+                                best_x = cx + dx;
+                                best_y = cy + dy;
+                                best_kind = NoteheadKind::Open;
+                            }
+                        }
+                    }
+                    // Whole Template (Aspect 1.7) — separater Boundary-Check, weil
+                    // das Template breiter ist und nicht überall reinpasst.
+                    let tlx_w = cx + dx - half_w_w;
+                    let tly_w = cy + dy - half_h_w;
+                    if tlx_w >= 0 && tly_w >= 0 {
+                        let tlx = tlx_w as u32;
+                        let tly = tly_w as u32;
+                        if tlx + whole_tmpl.w <= staff_removed.w && tly + whole_tmpl.h <= staff_removed.h {
+                            let w_score = local_ncc(staff_removed, &whole_tmpl, tlx, tly);
+                            // Whole bevorzugt wenn Whole-NCC mindestens so gut wie
+                            // das aktuell beste (Filled/Open) Score ist. Kein Margin,
+                            // weil ein hollow-wide Notenkopf besser auf Whole als auf
+                            // Open matched (Open ist schmaler, daher leakt der Hole-
+                            // Bereich in Außenpixel der Open-Template-Bbox).
+                            if w_score > best_score {
+                                best_score = w_score;
+                                best_x = cx + dx;
+                                best_y = cy + dy;
+                                best_kind = NoteheadKind::Whole;
+                            }
+                        }
                     }
                 }
             }
@@ -390,7 +432,7 @@ mod tests {
         // Bild mit einem gefüllten Notenkopf bei (50, 50).
         let mut bin = Binary::new(100, 100);
         let spacing = 12.0;
-        let tmpl = make_notehead_template(spacing, true);
+        let tmpl = make_notehead_template(spacing, NoteheadKind::Filled);
         let off_x = 50i32 - tmpl.w as i32 / 2;
         let off_y = 50i32 - tmpl.h as i32 / 2;
         for y in 0..tmpl.h {
