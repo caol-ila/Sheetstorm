@@ -100,6 +100,11 @@ fn analyze_runs(bin: &Binary) -> RunStats {
 
     let lo = (line_thickness * 2).max(4) as usize;
     let hi = 60.min(white_hist.len() - 1);
+    if lo > hi {
+        // Bild zu mager (leer/nahe leer) — keine sinnvollen Run-Stats. Gib
+        // safe Defaults zurück damit detect_systems sauber 0 Systeme liefert.
+        return RunStats { line_thickness: 0, line_spacing: 0 };
+    }
     let line_spacing = white_hist[lo..=hi]
         .iter()
         .enumerate()

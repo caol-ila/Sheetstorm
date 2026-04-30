@@ -135,15 +135,36 @@ pub fn process_gray(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineR
         // Erst deskew/rotation versuchen — wenn n_systems=0, retry mit Split.
         let single = process_gray_single(gray.clone(), opts)?;
         if single.stats.n_systems == 0 {
-            // Bild wurde durch Deskew rotiert — re-rendern und Split versuchen.
             let rotated = image::imageops::rotate90(&gray);
             if let Some(merged) = try_doublespread_split(&rotated, opts)? {
                 return Ok(merged);
             }
+        } else {
+            return Ok(single);
         }
-        return Ok(single);
     }
-    process_gray_single(gray, opts)
+
+    // Single-Pass; bei n_systems=0 als Letztes versuchen wir 180°-Rotation
+    // (kopfüber gescannte PDFs).
+    let primary = process_gray_single(gray.clone(), opts)?;
+    if primary.stats.n_systems == 0 {
+        info!("primary pass found 0 systems — retrying with 180° rotation");
+        let rotated = image::imageops::rotate180(&gray);
+        // Auch hier ggf. doublespread-Split versuchen
+        let (rw, rh) = (rotated.width(), rotated.height());
+        let r_aspect = rw as f32 / rh.max(1) as f32;
+        if r_aspect > 1.25 {
+            if let Some(merged) = try_doublespread_split(&rotated, opts)? {
+                return Ok(merged);
+            }
+        }
+        let secondary = process_gray_single(rotated, opts)?;
+        if secondary.stats.n_systems > 0 {
+            info!("180° rotation recovered systems — using rotated result");
+            return Ok(secondary);
+        }
+    }
+    Ok(primary)
 }
 
 /// Versucht das Bild über einen Falz-Band oder w/2-Mid-Split aufzuteilen.

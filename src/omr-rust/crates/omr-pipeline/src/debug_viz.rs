@@ -28,14 +28,16 @@ pub struct Overlays<'a> {
     pub measures: Option<&'a [Measure]>,
 }
 
-/// Erzeugt ein RGB-Bild mit Original (transparent eingeblendet) + Overlays.
+/// Erzeugt ein RGB-Bild mit Original (in voller Helligkeit) + Overlays als
+/// halb-transparente Marker. Originalnotation bleibt klar lesbar, erkannte
+/// Symbole werden als farbige Punkte/Linien/Boxes oben drauf gezeichnet.
 pub fn render_debug_image(gray: &Gray, ovr: &Overlays) -> RgbImage {
     let (w, h) = (gray.width(), gray.height());
     let mut rgb = RgbImage::new(w, h);
 
-    // Original als 30% Helligkeit (damit Overlays besser lesbar werden).
+    // Original in voller Helligkeit. Pixels gehen direkt rüber.
     for (x, y, p) in gray.enumerate_pixels() {
-        let v = (p[0] as f32 * 0.3 + 200.0).min(255.0) as u8;
+        let v = p[0];
         rgb.put_pixel(x, y, Rgb([v, v, v]));
     }
 
