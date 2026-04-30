@@ -116,6 +116,10 @@ pub struct ScoreNote {
     pub voice: u8,
     pub kind: NoteheadKind,
     pub center: Point<f32>,
+    /// Anzahl Punktierungen (0 = keine, 1 = einfach punktiert ×1.5,
+    /// 2 = doppelt punktiert ×1.75). Default 0.
+    #[serde(default)]
+    pub augmentation_dots: u8,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

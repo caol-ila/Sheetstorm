@@ -102,7 +102,15 @@ fn measure_xml(m: &Measure, first: bool) -> String {
         let _ = writeln!(s, "        </pitch>");
         let _ = writeln!(s, "        <duration>{}</duration>", n.duration);
         let _ = writeln!(s, "        <voice>{}</voice>", n.voice);
-        let _ = writeln!(s, "        <type>{}</type>", duration_to_type(n.duration, m.divisions));
+        let base_dur = match n.augmentation_dots {
+            1 => (n.duration as f32 / 1.5) as u32,
+            2 => (n.duration as f32 / 1.75) as u32,
+            _ => n.duration,
+        };
+        let _ = writeln!(s, "        <type>{}</type>", duration_to_type(base_dur, m.divisions));
+        for _ in 0..n.augmentation_dots {
+            let _ = writeln!(s, "        <dot/>");
+        }
         let _ = writeln!(s, "      </note>");
     }
     let _ = writeln!(s, "    </measure>");
@@ -192,6 +200,7 @@ mod tests {
                         voice: 1,
                         kind: NoteheadKind::Filled,
                         center: Point { x: 0.0, y: 0.0 },
+                        augmentation_dots: 0,
                     }],
                     time_signature: Some(TimeSignature { beats: 4, beat_type: 4 }),
                     key_signature: Some(omr_core::KeySignature { fifths: 0 }),

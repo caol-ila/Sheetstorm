@@ -196,6 +196,7 @@ mod tests {
             voice: 1,
             kind: NoteheadKind::Filled,
             center: omr_core::Point { x: 0.0, y: 0.0 },
+            augmentation_dots: 0,
         }
     }
 

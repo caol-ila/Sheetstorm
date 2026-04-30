@@ -533,35 +533,35 @@ fn extract_notehead_from_tall(
 
 /// Implied-Stem-Detection für eine Notehead die aus einem tall-narrow-CC kommt.
 /// Returns den Stem WENN das CC oberhalb oder unterhalb der NH-Region noch
-/// ein langes schmales Run-Gebiet hat (d.h. Notehead+Stem zusammen waren
-/// ein einziges CC).
+/// ein langes schmales Run-Gebiet hat.
 ///
-/// Algorithmus: Für jede X-Spalte im NH-Bbox + 2px-Margin, miss wie weit
-/// der vertikale schwarze Run nach oben/unten reicht (auch über Lücken bis
-/// 1px tolerant). Wähle die Spalte mit der LÄNGSTEN Extension; wenn das ≥
-/// 1.3*spacing ist (Stem-Mindestlänge), gilt es als Stem.
+/// Algorithmus mit erhöhter Robustheit für reale Scans:
+/// - 3px Gap-Tolerance (verschmierter Druck, JPEG-Artefakte)
+/// - ±5px Scan-Range um NH-Bbox
+/// - Wählt die Spalte mit längstem zusammenhängenden Run
 pub fn implied_stem_for_tall_notehead(
     bin: &Binary,
     nh: &Notehead,
     spacing: f32,
 ) -> Option<Stem> {
     let bb = nh.bbox;
-    // Für reale Scans: nicht nur direkt-angrenzend prüfen, sondern bis 4px
-    // Lücke tolerieren (verschmierter Druck/JPEG-Artefakt bricht Stem).
-    let bx0 = bb.x.saturating_sub(3);
-    let bx1 = (bb.x + bb.w + 3).min(bin.w);
+    // Erweiterter Scan-Range: bb ± 5px (vorher 3px) — für reale Scans wo Stems
+    // leicht versetzt zur idealen NH-Position liegen.
+    let bx0 = bb.x.saturating_sub(5);
+    let bx1 = (bb.x + bb.w + 5).min(bin.w);
     let min_stem = (spacing * 1.3) as i32;
+    let max_gap = 3u32;
     let mut best: Option<Stem> = None;
 
     for x in bx0..bx1 {
-        // Walk UP from bb.y mit Lücken-Toleranz
+        // Walk UP from bb.y mit erhöhter Lücken-Toleranz (3px statt 1px)
         let mut top = bb.y;
         let mut gap = 0u32;
         while top > 0 {
             if bin.get(x, top - 1) == 1 {
                 top -= 1;
                 gap = 0;
-            } else if gap < 1 {
+            } else if gap < max_gap {
                 top = top.saturating_sub(1);
                 gap += 1;
             } else {
@@ -570,7 +570,7 @@ pub fn implied_stem_for_tall_notehead(
         }
         let above = bb.y as i32 - top as i32;
 
-        // Walk DOWN from bb.y+bb.h-1 mit Lücken-Toleranz
+        // Walk DOWN mit gleicher Toleranz
         let bottom_start = bb.y + bb.h.saturating_sub(1);
         let mut bot = bottom_start;
         gap = 0;
@@ -578,7 +578,7 @@ pub fn implied_stem_for_tall_notehead(
             if bin.get(x, bot + 1) == 1 {
                 bot += 1;
                 gap = 0;
-            } else if gap < 1 {
+            } else if gap < max_gap {
                 bot += 1;
                 gap += 1;
             } else {
@@ -679,6 +679,19 @@ pub fn noteheads_to_notes(
     clef: omr_core::Clef,
     key: omr_core::KeySignature,
 ) -> Vec<ScoreNote> {
+    noteheads_to_notes_with_dots(noteheads, systems, stems, beam_counts, clef, key, &[])
+}
+
+/// Wie `noteheads_to_notes`, aber mit Augmentation-Dot-Counts pro Notehead.
+pub fn noteheads_to_notes_with_dots(
+    noteheads: &[Notehead],
+    systems: &[StaffSystem],
+    stems: &[Stem],
+    beam_counts: &[u32],
+    clef: omr_core::Clef,
+    key: omr_core::KeySignature,
+    dots_per_nh: &[u8],
+) -> Vec<ScoreNote> {
     let mut notes = Vec::with_capacity(noteheads.len());
     for (idx, nh) in noteheads.iter().enumerate() {
         let staff = match systems.get(nh.staff_idx) {
@@ -686,21 +699,27 @@ pub fn noteheads_to_notes(
             None => continue,
         };
         let pitch = pitch::pitch_from_xy(nh.center.x, nh.center.y, staff, clef, key);
-        // Stem für diesen Notehead?
         let stem_idx = stems.iter().position(|s| s.notehead_idx == Some(idx));
         let has_stem = stem_idx.is_some();
         let n_beams = stem_idx.and_then(|i| beam_counts.get(i)).copied().unwrap_or(0);
 
-        // Duration in divisions (divisions=4 → quarter = 4).
-        let duration = match (nh.kind, has_stem, n_beams) {
-            (NoteheadKind::Whole, _, _) => 16,                  // ganze
-            (NoteheadKind::Open, true, _) => 8,                 // halbe
+        let base_duration = match (nh.kind, has_stem, n_beams) {
+            (NoteheadKind::Whole, _, _) => 16,
+            (NoteheadKind::Open, true, _) => 8,
             (NoteheadKind::Open, false, _) => 16,
-            (NoteheadKind::Filled, true, 0) => 4,               // viertel
-            (NoteheadKind::Filled, true, 1) => 2,               // achtel
-            (NoteheadKind::Filled, true, 2) => 1,               // 16th
-            (NoteheadKind::Filled, true, _) => 1,               // 32nd → cap auf 16th
+            (NoteheadKind::Filled, true, 0) => 4,
+            (NoteheadKind::Filled, true, 1) => 2,
+            (NoteheadKind::Filled, true, 2) => 1,
+            (NoteheadKind::Filled, true, _) => 1,
             (NoteheadKind::Filled, false, _) => 4,
+        };
+        let dots = dots_per_nh.get(idx).copied().unwrap_or(0);
+        // Punktierung: 1 Punkt = ×1.5, 2 Punkte = ×1.75
+        let duration = match dots {
+            0 => base_duration,
+            1 => base_duration + base_duration / 2,
+            2 => base_duration + base_duration / 2 + base_duration / 4,
+            _ => base_duration,
         };
         notes.push(ScoreNote {
             midi: pitch.midi,
@@ -712,9 +731,60 @@ pub fn noteheads_to_notes(
             voice: 1,
             kind: nh.kind,
             center: nh.center,
+            augmentation_dots: dots,
         });
     }
     notes
+}
+
+/// Detektiert Augmentation-Dots (Punktierungen) für gegebene Noteheads.
+/// Returns Vec<u8> mit gleicher Länge wie noteheads — jeweils 0, 1 oder 2.
+///
+/// Heuristik: Suche kleine isolierte CCs (radius ~ 0.2-0.35 spacing) im Bereich
+/// 0.3-1.2 spacing rechts von der NH, in Y-Range ±0.5 spacing der NH-Mitte.
+/// Wenn 2 Dots in Reihe: doppelt punktiert.
+pub fn detect_augmentation_dots(
+    bin: &Binary,
+    noteheads: &[Notehead],
+    spacing: f32,
+) -> Vec<u8> {
+    let dot_radius_min = (spacing * 0.15).max(1.0) as u32;
+    let dot_radius_max = (spacing * 0.40) as u32;
+    let dx_min = (spacing * 0.30) as i32;
+    let dx_max = (spacing * 1.40) as i32;
+    let dy_max = (spacing * 0.50) as i32;
+
+    let ccs = connected_components(bin);
+    // Filtere CCs auf "Dot-Größe"
+    let dot_ccs: Vec<&ConnectedComponent> = ccs
+        .iter()
+        .filter(|c| {
+            c.bbox.w >= dot_radius_min
+                && c.bbox.w <= dot_radius_max
+                && c.bbox.h >= dot_radius_min
+                && c.bbox.h <= dot_radius_max
+                && {
+                    let aspect = c.bbox.aspect();
+                    (0.6..=1.7).contains(&aspect)
+                }
+        })
+        .collect();
+
+    let mut dots_per_nh = vec![0u8; noteheads.len()];
+    for (i, nh) in noteheads.iter().enumerate() {
+        // Suche Dots rechts der NH
+        let mut count = 0u8;
+        for cc in &dot_ccs {
+            let cdx = cc.bbox.cx() - nh.center.x;
+            let cdy = cc.bbox.cy() - nh.center.y;
+            if (cdx as i32) >= dx_min && (cdx as i32) <= dx_max && (cdy.abs() as i32) <= dy_max {
+                count += 1;
+                if count >= 2 { break; }
+            }
+        }
+        dots_per_nh[i] = count;
+    }
+    dots_per_nh
 }
 
 #[cfg(test)]

@@ -162,12 +162,22 @@ pub fn process_gray(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineR
     let detected_time = systems.first().and_then(|s| omr_symbols::meta::detect_time_signature(&bin, s))
         .unwrap_or(TimeSignature { beats: 4, beat_type: 4 });
 
+    // Augmentation-Dot-Detection (Punktierungen) auf staff-removed Bild
+    let dots_per_nh = omr_symbols::detect_augmentation_dots(&removed, &noteheads, line_spacing);
+
     let all_measures_per_system: Vec<Vec<Measure>> = (0..systems.len())
         .map(|sys_i| {
-            let mut filtered: Vec<&omr_core::Notehead> =
-                noteheads.iter().filter(|nh| nh.staff_idx == sys_i).collect();
-            filtered.sort_by(|a, b| a.center.x.partial_cmp(&b.center.x).unwrap_or(std::cmp::Ordering::Equal));
-            let nh_local: Vec<omr_core::Notehead> = filtered.into_iter().cloned().collect();
+            // Globale Indices der NH dieses Systems sammeln
+            let global_indices: Vec<usize> = noteheads.iter().enumerate()
+                .filter(|(_, nh)| nh.staff_idx == sys_i)
+                .map(|(i, _)| i)
+                .collect();
+            let mut sorted_global: Vec<usize> = global_indices.clone();
+            sorted_global.sort_by(|&a, &b| {
+                noteheads[a].center.x.partial_cmp(&noteheads[b].center.x).unwrap_or(std::cmp::Ordering::Equal)
+            });
+            let nh_local: Vec<omr_core::Notehead> = sorted_global.iter().map(|&i| noteheads[i].clone()).collect();
+            let dots_local: Vec<u8> = sorted_global.iter().map(|&i| dots_per_nh.get(i).copied().unwrap_or(0)).collect();
             let stems_local: Vec<omr_core::Stem> = stems
                 .iter()
                 .filter(|s| {
@@ -180,12 +190,12 @@ pub fn process_gray(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineR
             let beam_counts_local: Vec<u32> = omr_symbols::beams_per_stem(&stems_local, &beams);
             let clef_for_sys = clefs.get(sys_i).copied().unwrap_or(Clef::Treble);
             let key_for_sys = keys.get(sys_i).copied().unwrap_or(KeySignature::default());
-            let mut all_notes = omr_symbols::noteheads_to_notes(
+            let mut all_notes = omr_symbols::noteheads_to_notes_with_dots(
                 &nh_local, &systems, &stems_local, &beam_counts_local, clef_for_sys, key_for_sys,
+                &dots_local,
             );
             all_notes.sort_by(|a, b| a.center.x.partial_cmp(&b.center.x).unwrap_or(std::cmp::Ordering::Equal));
 
-            // Taktstriche dieses Systems.
             let mut bar_xs: Vec<f32> = bars.iter()
                 .filter(|b| b.system_idx == sys_i)
                 .map(|b| b.x as f32)

@@ -339,8 +339,10 @@ pub fn rerank_with_template(
                     }
                 }
             }
-            // Wenn der NCC-Score < 0.0 ist, ist das wahrscheinlich kein echter Notehead → drop.
-            if best_score < 0.05 { return None; }
+            // NCC-Threshold: < 0.20 → kein echter Notehead.
+            // Erhöht von 0.05 (war zu lax und ließ viele Symbol-False-Positives durch).
+            // Coda/Segno/D.S. liegen typisch bei NCC 0.10-0.18, echte NHs > 0.40.
+            if best_score < 0.20 { return None; }
             Some(Notehead {
                 bbox: nh.bbox,
                 center: Point { x: best_x as f32, y: best_y as f32 },
