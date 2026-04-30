@@ -1,1 +1,3 @@
 src/omr-rust/debug-out/
+src/omr-rust/target/
+src/omr-rust/debug-output/

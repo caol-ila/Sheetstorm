@@ -75,7 +75,9 @@ pub fn detect_noteheads_with_skip(
         let aspect = bb.aspect();
 
         // Schmaler einzelner CC (Notehead allein oder NH+kurzer-Stem).
-        if bb.w <= max_w_simple && bb.h <= max_h_simple && (0.5..=3.0).contains(&aspect) {
+        // Aspect-Filter: 0.85..2.2 (echte NH ist 1.2-1.5*spacing breit, ~0.9*spacing hoch
+        // → aspect ~1.3-1.7). Coda/Segno haben aspect ~1.0, D.S. ~0.5.
+        if bb.w <= max_w_simple && bb.h <= max_h_simple && (0.85..=2.2).contains(&aspect) {
             if let Some(nh) = classify_simple_notehead(staff_removed, bb, spacing, systems) {
                 if is_in_skip_region(&nh, skip_x_per_system) { continue; }
                 noteheads.push(nh);
@@ -170,6 +172,7 @@ fn filter_text_clusters(noteheads: Vec<Notehead>, spacing: f32) -> Vec<Notehead>
 
 /// Prüft ob ein Notehead auf einer Halb-Step-Position liegt (Linie oder Zwischenraum).
 /// Toleranz: 0.3 * spacing. Erlaubt bis zu ±5 Hilfslinien außerhalb des Systems.
+/// Zusätzlich: filtert Volta-Brackets/Digits über der Stafflinie (schmaler aspect).
 fn is_on_pitch_grid(nh: &Notehead, systems: &[StaffSystem]) -> bool {
     let staff = match systems.get(nh.staff_idx) {
         Some(s) => s,
@@ -194,11 +197,18 @@ fn is_on_pitch_grid(nh: &Notehead, systems: &[StaffSystem]) -> bool {
         return false;
     }
     // Range: 5-Linien-Staff hat 8 half-steps (line 0 = pos 0, line 4 = pos 8).
-    // Erlaube ±5 ledger-line-spacings = ±10 half-steps zusätzlich.
-    // Insgesamt: pos ∈ [-10, 18].
     if nearest < -10.0 || nearest > 18.0 {
         return false;
     }
+
+    // Volta-Filter: NHs deutlich über dem Top-Line (>= 1.5 spacings = 3 half-steps)
+    // mit schmalem Aspect (< 0.85, d.h. höher-als-breit) sind wahrscheinlich
+    // Volta-Digits ("1.", "2.").
+    let above_top = top_line_y - cy;
+    if above_top > spacing * 1.5 && nh.bbox.aspect() < 0.85 {
+        return false;
+    }
+
     true
 }
 
