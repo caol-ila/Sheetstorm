@@ -110,6 +110,8 @@ pub fn process_gray(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineR
     // Clef + Key Signature pro System auf Original-Binary detektieren.
     let clefs: Vec<Clef> = systems.iter().map(|s| omr_symbols::detect_clef(&bin, s)).collect();
     let keys: Vec<omr_core::KeySignature> = systems.iter().map(|s| omr_symbols::detect_key_signature(&bin, s)).collect();
+    let detected_time = systems.first().and_then(|s| omr_symbols::meta::detect_time_signature(&bin, s))
+        .unwrap_or(TimeSignature { beats: 4, beat_type: 4 });
 
     let all_measures_per_system: Vec<Vec<Measure>> = (0..systems.len())
         .map(|sys_i| {
@@ -156,7 +158,7 @@ pub fn process_gray(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineR
                 m.clef = clefs.get(sys_i).copied();
                 m.key_signature = keys.get(sys_i).copied();
                 if sys_i == 0 {
-                    m.time_signature = Some(TimeSignature { beats: 4, beat_type: 4 });
+                    m.time_signature = Some(detected_time);
                 }
             }
         }

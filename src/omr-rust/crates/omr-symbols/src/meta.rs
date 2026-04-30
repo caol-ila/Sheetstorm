@@ -113,6 +113,141 @@ pub fn detect_key_signature(bin: &Binary, system: &StaffSystem) -> KeySignature 
     KeySignature { fifths }
 }
 
+/// Erkenne die Taktart (z.B. 4/4, 3/4, 6/8) am Anfang eines Systems.
+/// Strategie: Suche nach 2 vertikal übereinander stehenden Zahlen-CCs
+/// hinter dem Schlüssel + Vorzeichen, im Bereich x ∈ [4..15]*spacing.
+/// Klassifikation der Zahlen via Aspect-Heuristik:
+///   - "4" / "3" / "2" / "6" sind ähnlich groß (~spacing × 1.6 spacing).
+///   - Wir nehmen die häufigsten Werte an: numerator ≥ denominator,
+///     aber für v0.1 reicht ein "best guess" auf Basis der Höhen.
+pub fn detect_time_signature(bin: &Binary, system: &StaffSystem) -> Option<omr_core::TimeSignature> {
+    if system.lines.is_empty() { return None; }
+    let top_y = system.lines.first().unwrap().mean_y() as i32;
+    let bot_y = system.lines.last().unwrap().mean_y() as i32;
+    let spacing = system.line_spacing;
+
+    let x_left = first_x_with_pixel(bin, top_y, bot_y).unwrap_or(0);
+    let x0 = x_left + (spacing * 4.0) as u32;
+    let x1 = (x_left + (spacing * 16.0) as u32).min(bin.w);
+    let y0 = top_y.max(0) as u32;
+    let y1 = (bot_y as u32 + 1).min(bin.h);
+    if x0 >= x1 || y0 >= y1 { return None; }
+
+    let ccs = connected_components_region(bin, x0, y0, x1, y1);
+    // Suche zwei ungefähr gleichgroße CCs die vertikal übereinander stehen.
+    // Höhe ~2*spacing, Breite ~spacing.
+    let target_h = (spacing * 2.0) as u32;
+    let target_w = (spacing * 1.2) as u32;
+
+    let mut numerals: Vec<(i32, i32, i32, i32)> = ccs.iter()
+        .filter(|(cx0, cy0, cx1, cy1)| {
+            let h = (cy1 - cy0) as u32;
+            let w = (cx1 - cx0) as u32;
+            h >= target_h.saturating_sub(spacing as u32 / 2)
+                && h <= target_h + (spacing as u32)
+                && w >= target_w.saturating_sub(spacing as u32 / 2)
+                && w <= target_w + (spacing as u32)
+        })
+        .copied()
+        .collect();
+
+    if numerals.len() < 2 { return None; }
+    // Sortiere nach X-Mitte → die ersten 2 sind die Taktart.
+    numerals.sort_by_key(|(cx0, _, cx1, _)| (cx0 + cx1) / 2);
+
+    // Nehme das CC-Paar das vertikal am meisten überlappt.
+    let mut best_pair: Option<((i32, i32, i32, i32), (i32, i32, i32, i32))> = None;
+    let mut best_score = i32::MAX;
+    for i in 0..numerals.len() {
+        for j in i + 1..numerals.len() {
+            let a = numerals[i];
+            let b = numerals[j];
+            let cx_a = (a.0 + a.2) / 2;
+            let cx_b = (b.0 + b.2) / 2;
+            if (cx_a - cx_b).abs() > spacing as i32 * 2 { continue; }
+            // a oberhalb von b
+            let (top, bot) = if (a.1 + a.3) < (b.1 + b.3) { (a, b) } else { (b, a) };
+            if top.3 > bot.1 + 4 { continue; } // dürfen sich nicht überlappen
+            let dist_to_staff_mid = ((top.1 + bot.3) / 2 - (top_y + bot_y) / 2).abs();
+            if dist_to_staff_mid < best_score {
+                best_score = dist_to_staff_mid;
+                best_pair = Some((top, bot));
+            }
+        }
+    }
+
+    if let Some((top, bot)) = best_pair {
+        let beats = classify_time_numeral(bin, top);
+        let beat_type = classify_time_numeral(bin, bot);
+        if let (Some(b), Some(bt)) = (beats, beat_type) {
+            return Some(omr_core::TimeSignature { beats: b, beat_type: bt });
+        }
+    }
+    None
+}
+
+/// Klassifiziere eine Ziffern-Bbox in eine Zahl 2..16. Sehr simple Heuristik
+/// auf Basis von Bounding-Box-Aspect + interner Pixel-Verteilung.
+fn classify_time_numeral(bin: &Binary, bb: (i32, i32, i32, i32)) -> Option<u8> {
+    let (x0, y0, x1, y1) = bb;
+    let w = (x1 - x0).max(1) as u32;
+    let h = (y1 - y0).max(1) as u32;
+    let bx0 = x0.max(0) as u32;
+    let by0 = y0.max(0) as u32;
+    let bx1 = (x1.max(0) as u32).min(bin.w - 1);
+    let by1 = (y1.max(0) as u32).min(bin.h - 1);
+
+    // Density in 4 vertikalen Streifen (top, mid-upper, mid-lower, bottom).
+    let strip_h = (h / 4).max(1);
+    let mut strips = [0f32; 4];
+    for k in 0..4u32 {
+        let ys = by0 + k * strip_h;
+        let ye = (ys + strip_h).min(by1);
+        let mut filled = 0u32;
+        let mut total = 0u32;
+        for yy in ys..=ye {
+            for xx in bx0..=bx1 {
+                total += 1;
+                if bin.get(xx, yy) == 1 { filled += 1; }
+            }
+        }
+        strips[k as usize] = filled as f32 / total.max(1) as f32;
+    }
+    let _ = (w, h);
+
+    // Heuristik:
+    //   "4": top dünn, mitte dicht (Querstrich), unten dünn. Density im 2. Streifen ist max.
+    //   "2": oben rund, unten flach mit Strich.
+    //   "3": Density relativ konstant, leicht oben+unten höher.
+    //   "8": gleichmäßig dicht.
+    //   "6": Density unten höher (Schleife unten).
+    //   "16": breitere bbox (zwei Ziffern).
+
+    let max_idx = strips
+        .iter()
+        .enumerate()
+        .max_by(|a, b| a.1.partial_cmp(b.1).unwrap_or(std::cmp::Ordering::Equal))
+        .map(|(i, _)| i)
+        .unwrap_or(0);
+    let bottom_density = strips[3];
+    let top_density = strips[0];
+
+    // Default 4 (häufigste Taktart in Blasmusik).
+    if max_idx == 1 || max_idx == 2 {
+        // Mittlerer Streifen dominiert → 4 (Querstrich) oder 8 (Mitte voll)
+        if strips.iter().all(|&s| s > 0.4) {
+            return Some(8);
+        }
+        return Some(4);
+    }
+    if bottom_density > top_density + 0.15 {
+        return Some(6);
+    }
+    if top_density > bottom_density + 0.15 {
+        return Some(2);
+    }
+    Some(4)
+}
 /// Erste X-Position mit schwarzem Pixel innerhalb der Y-Range (Staff-Anfang).
 fn first_x_with_pixel(bin: &Binary, top_y: i32, bot_y: i32) -> Option<u32> {
     let y0 = top_y.max(0) as u32;
