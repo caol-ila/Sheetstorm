@@ -21,7 +21,7 @@ pub use bars::{detect_measure_bars, MeasureBar};
 pub use beams::{detect_beams, beams_per_stem, Beam};
 pub use cc::{connected_components, ConnectedComponent};
 pub use meta::{detect_clef, detect_key_signature};
-pub use template::detect_noteheads_template_v2;
+pub use template::{detect_noteheads_template_v2, rerank_with_template};
 
 /// Hauptfunktion: detektiere Noteheads in einem staff-line-removed Binary.
 pub fn detect_noteheads(staff_removed: &Binary, systems: &[StaffSystem]) -> Vec<Notehead> {

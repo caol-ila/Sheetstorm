@@ -282,6 +282,103 @@ pub fn detect_noteheads_template_v2(
     dedup_candidates(cands, spacing * 0.5)
 }
 
+/// Re-Rank existierende Notehead-Kandidaten via lokales NCC-Matching.
+///
+/// Für jeden Kandidaten wird ein 3×3-NCC-Lookup um sein Center gemacht (3×3 statt
+/// kompletter Bild-Scan). Das gibt eine refined Konfidenz + Sub-Pixel-Center +
+/// Filled-vs-Open-Klassifikation.
+///
+/// Performance: O(n_candidates · template_size · 9) statt O(image_size · template_size).
+/// Bei 200 Kandidaten und 17×12-Template: 200·204·9 ≈ 370k Ops → < 1ms.
+pub fn rerank_with_template(
+    staff_removed: &Binary,
+    candidates: &[Notehead],
+    spacing: f32,
+) -> Vec<Notehead> {
+    if candidates.is_empty() || spacing < 6.0 { return candidates.to_vec(); }
+
+    let filled_tmpl = make_notehead_template(spacing, true);
+    let open_tmpl = make_notehead_template(spacing, false);
+
+    candidates
+        .par_iter()
+        .filter_map(|nh| {
+            // Suche das beste NCC-Match in einer 3×3-Region um center.
+            let cx = nh.center.x as i32;
+            let cy = nh.center.y as i32;
+            let half_w = filled_tmpl.w as i32 / 2;
+            let half_h = filled_tmpl.h as i32 / 2;
+
+            let mut best_score = f32::NEG_INFINITY;
+            let mut best_x = cx;
+            let mut best_y = cy;
+            let mut best_kind = nh.kind;
+
+            for dy in -1..=1i32 {
+                for dx in -1..=1i32 {
+                    let top_left_x = cx + dx - half_w;
+                    let top_left_y = cy + dy - half_h;
+                    if top_left_x < 0 || top_left_y < 0 { continue; }
+                    let tlx = top_left_x as u32;
+                    let tly = top_left_y as u32;
+                    if tlx + filled_tmpl.w > staff_removed.w { continue; }
+                    if tly + filled_tmpl.h > staff_removed.h { continue; }
+
+                    let f_score = local_ncc(staff_removed, &filled_tmpl, tlx, tly);
+                    let o_score = local_ncc(staff_removed, &open_tmpl, tlx, tly);
+                    let (score, kind) = if f_score >= o_score {
+                        (f_score, NoteheadKind::Filled)
+                    } else {
+                        (o_score, NoteheadKind::Open)
+                    };
+                    if score > best_score {
+                        best_score = score;
+                        best_x = cx + dx;
+                        best_y = cy + dy;
+                        best_kind = kind;
+                    }
+                }
+            }
+            // Wenn der NCC-Score < 0.0 ist, ist das wahrscheinlich kein echter Notehead → drop.
+            if best_score < 0.05 { return None; }
+            Some(Notehead {
+                bbox: nh.bbox,
+                center: Point { x: best_x as f32, y: best_y as f32 },
+                confidence: best_score.clamp(0.0, 1.0),
+                kind: best_kind,
+                staff_idx: nh.staff_idx,
+            })
+        })
+        .collect()
+}
+
+/// Lokales NCC für ein einzelnes Template-Patch.
+fn local_ncc(bin: &Binary, tmpl: &Template, top_left_x: u32, top_left_y: u32) -> f32 {
+    let tw = tmpl.w;
+    let th = tmpl.h;
+    // Mean of patch.
+    let mut sum = 0.0f32;
+    for ty in 0..th {
+        for tx in 0..tw {
+            sum += bin.get(top_left_x + tx, top_left_y + ty) as f32;
+        }
+    }
+    let area = (tw * th) as f32;
+    let mean = sum / area;
+    let mut cc = 0.0f32;
+    let mut sq = 0.0f32;
+    for ty in 0..th {
+        for tx in 0..tw {
+            let v = bin.get(top_left_x + tx, top_left_y + ty) as f32 - mean;
+            let t = tmpl.data[(ty * tw + tx) as usize];
+            cc += v * t;
+            sq += v * v;
+        }
+    }
+    let denom = (sq * tmpl.sum_sq.max(1e-6)).sqrt().max(1e-6);
+    cc / denom
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

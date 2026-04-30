@@ -91,7 +91,10 @@ pub fn process_gray(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineR
     // 4) Symbol-Detection: Noteheads + Stems + Beams + Bars.
     let _span = info_span!("symbol_detection").entered();
     let sym_t = std::time::Instant::now();
-    let noteheads = omr_symbols::detect_noteheads(&removed, &systems);
+    let raw_noteheads = omr_symbols::detect_noteheads(&removed, &systems);
+    // Re-Rank via lokales NCC-Template-Matching → bessere Filled/Open-
+    // Klassifikation + Sub-Pixel-Center.
+    let noteheads = omr_symbols::rerank_with_template(&removed, &raw_noteheads, line_spacing);
     let stems = omr_symbols::stems::detect_stems(&removed, &noteheads, line_spacing);
     let beams = omr_symbols::detect_beams(&removed, line_spacing);
     let beam_counts = omr_symbols::beams_per_stem(&stems, &beams);
@@ -99,7 +102,8 @@ pub fn process_gray(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineR
     let symbol_detection_ms = sym_t.elapsed().as_millis();
     drop(_span);
     info!(
-        n_noteheads = noteheads.len(),
+        n_raw = raw_noteheads.len(),
+        n_reranked = noteheads.len(),
         n_stems = stems.len(),
         n_beams = beams.len(),
         n_bars = bars.len(),
