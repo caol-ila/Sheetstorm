@@ -58,7 +58,6 @@ the component name, license, and where to find the full license text.
 | `axum` | MIT | https://github.com/tokio-rs/axum |
 | `pdfium-render` | Apache-2.0 | https://github.com/ajrcarey/pdfium-render |
 | `serde` / `serde_json` | MIT or Apache-2.0 | https://github.com/serde-rs/serde |
-| MUSCIMA++ test corpus (subset, dev-only) | CC-BY 4.0 | https://github.com/OMR-Research/muscima-pp |
 | Bravura font (template generation) | SIL OFL 1.1 | https://github.com/steinbergmedia/bravura |
 
 ## Test tooling (dev-only, not shipped)
@@ -67,3 +66,22 @@ the component name, license, and where to find the full license text.
 |---|---|---|
 | Playwright | Apache-2.0 | https://github.com/microsoft/playwright |
 | xUnit / FluentAssertions | Apache-2.0 / MIT | https://xunit.net/ |
+
+## Optional research datasets (NOT shipped, NOT redistributed)
+
+The following datasets can be **manually** placed by individual developers
+into `tests/fixtures/` for local OMR-accuracy benchmarking. They are
+**NEVER** included in source distributions, container images, or any
+released artifact, because their licenses are incompatible with Apache-2.0.
+
+| Dataset | License | Source |
+|---|---|---|
+| MUSCIMA++ (MuNG annotations) | **CC-BY-NC-SA 4.0** (NonCommercial) | https://github.com/OMR-Research/muscima-pp |
+| CVC-MUSCIMA (page images) | **CC-BY-NC-SA 4.0** (NonCommercial) | http://www.cvc.uab.es/cvcmuscima/ |
+
+> **NonCommercial-Lizenz:** Diese Datensätze dürfen lokal für nicht-kommerzielle
+> Forschungs- und Testzwecke verwendet werden, **niemals** aber von Sheetstorm
+> redistribuiert werden (weder im Source-Tree, noch in Builds, noch in
+> Docker-Images). Versehentliches Einchecken wird durch
+> `tests/fixtures/muscima_plus/.gitignore` blockiert. Details:
+> `tests/fixtures/muscima_plus/README.md`.

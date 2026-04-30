@@ -227,3 +227,138 @@ pub fn print_report(name: &str, m: &StageMetrics, duration: std::time::Duration)
     println!("  Pitch: {:.1}% ({}/{})", m.pitch_accuracy() * 100.0, m.pitch_correct, m.pitch_total);
     println!("  Kind:  {:.1}% ({}/{})", m.kind_accuracy() * 100.0, m.kind_correct, m.kind_total);
 }
+
+/// Evaluiert die Pipeline gegen eine MUSCIMA++-Annotation.
+///
+/// Im Gegensatz zu `evaluate` (synthetisch, mit bekanntem Spacing) müssen
+/// wir hier:
+///  * das Staff-Spacing vom Detektor übernehmen (Fallback: aus
+///    NH-Bounding-Box-Höhen geschätzt)
+///  * Match-Toleranzen relativ zur typischen NH-Höhe wählen, weil
+///    handgeschriebene Symbole stark variieren
+///  * NoteheadKind nicht 1:1 vergleichen (MuNG kennt nur full/half/whole,
+///    ohne Kontext, ob ein "noteheadFull mit stem+beam" eine 8tel ist).
+///
+/// Tolerance-Heuristik: 0.7 * line_spacing (großzügiger als bei synthetisch
+/// rein generierten Bildern, wegen Handschrift-Streuung).
+pub fn evaluate_against_muscima(
+    ann: &crate::muscima::MuscimaAnnotation,
+    detector_spacing: f32,
+    noteheads: &[Notehead],
+    stems: &[Stem],
+    beams: &[Beam],
+    bars: &[MeasureBar],
+) -> StageMetrics {
+    let mut m = StageMetrics::default();
+
+    // Spacing-Fallback: median height of full noteheads als Proxy.
+    let spacing = if detector_spacing > 1.0 {
+        detector_spacing
+    } else {
+        let mut hs: Vec<f32> = ann
+            .noteheads_full
+            .iter()
+            .map(|s| s.bbox.h as f32)
+            .collect();
+        hs.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        hs.get(hs.len() / 2).copied().unwrap_or(20.0)
+    };
+
+    let nh_tol = spacing * 0.7;
+
+    // GT-Noteheads: alle full+half+whole.
+    let gt_nh: Vec<(f32, f32)> = ann.all_noteheads().map(|s| s.center()).collect();
+    let pred_nh: Vec<(f32, f32)> = noteheads
+        .iter()
+        .map(|p| (p.center.x, p.center.y))
+        .collect();
+    let (nh_pr, nh_match) = match_points(&gt_nh, &pred_nh, nh_tol, |g| *g, |p| *p);
+    m.noteheads = nh_pr;
+
+    // Pitch-Accuracy: Y-Position innerhalb 0.4*spacing als grobe Pitch-Korrektheit.
+    let gt_nh_vec: Vec<&crate::muscima::MuscimaSymbol> = ann.all_noteheads().collect();
+    for (gi, &maybe_pi) in nh_match.iter().enumerate() {
+        if let Some(pi) = maybe_pi {
+            m.pitch_total += 1;
+            let dy = (gt_nh_vec[gi].center().1 - noteheads[pi].center.y).abs();
+            if dy < spacing * 0.4 {
+                m.pitch_correct += 1;
+            }
+            // Kind-Match: full→Filled, half→Open, whole→Whole.
+            m.kind_total += 1;
+            let gt_kind = match gt_nh_vec[gi].class_name.as_str() {
+                "noteheadFull" | "noteheadFullSmall" => Some(omr_core::NoteheadKind::Filled),
+                "noteheadHalf" | "noteheadHalfSmall" | "noteheadEmpty" => {
+                    Some(omr_core::NoteheadKind::Open)
+                }
+                "noteheadWhole" => Some(omr_core::NoteheadKind::Whole),
+                _ => None,
+            };
+            if gt_kind == Some(noteheads[pi].kind) {
+                m.kind_correct += 1;
+            }
+        }
+    }
+
+    // Stems: x + y-Mitte vergleichen.
+    let gt_stems: Vec<(f32, f32)> = ann.stems.iter().map(|s| s.center()).collect();
+    let pred_stems: Vec<(f32, f32)> = stems
+        .iter()
+        .map(|p| (p.x as f32, ((p.y_top + p.y_bot) / 2) as f32))
+        .collect();
+    let (stem_pr, _) = match_points(&gt_stems, &pred_stems, spacing * 0.8, |g| *g, |p| *p);
+    m.stems = stem_pr;
+
+    // Beams: Mittelpunkt vs. Mittelpunkt.
+    let gt_beams: Vec<(f32, f32)> = ann.beams.iter().map(|s| s.center()).collect();
+    let pred_beams: Vec<(f32, f32)> = beams
+        .iter()
+        .map(|p| {
+            (
+                (p.x_start + p.x_end) as f32 / 2.0,
+                (p.y_top + p.y_bot) as f32 / 2.0,
+            )
+        })
+        .collect();
+    let (beam_pr, _) = match_points(&gt_beams, &pred_beams, spacing * 0.8, |g| *g, |p| *p);
+    m.beams = beam_pr;
+
+    // Bars: nur x-Position.
+    let gt_bars: Vec<(f32, f32)> = ann.bars.iter().map(|s| (s.center().0, 0.0)).collect();
+    let pred_bars: Vec<(f32, f32)> = bars.iter().map(|p| (p.x as f32, 0.0)).collect();
+    let (bar_pr, _) = match_points(&gt_bars, &pred_bars, spacing * 0.7, |g| *g, |p| *p);
+    m.bars = bar_pr;
+
+    m
+}
+
+/// Pipeline gegen ein reales (MUSCIMA++) Bild laufen lassen und Metriken berechnen.
+///
+/// Im Gegensatz zu `benchmark_pipeline` wird hier mit handgeschriebenen
+/// Scans gearbeitet — weniger Annahmen über Bildgröße, gröbere Toleranzen.
+pub fn benchmark_pipeline_real(
+    image: &image::GrayImage,
+    ann: &crate::muscima::MuscimaAnnotation,
+) -> (StageMetrics, std::time::Duration) {
+    use std::time::Instant;
+    let started = Instant::now();
+    let (gray, _angle) = omr_preprocessing::deskew(image);
+    let noise = omr_preprocessing::estimate_noise_level(&gray);
+    let gray = if noise > 0.04 {
+        omr_preprocessing::despeckle_strong(&gray)
+    } else {
+        omr_preprocessing::median3x3(&gray)
+    };
+    let bin = omr_preprocessing::sauvola(&gray, 25, 0.34);
+    let systems = omr_staff::detect_systems(&bin);
+    let removed = omr_staff::remove_staff(&bin, &systems);
+    let noteheads = omr_symbols::detect_noteheads(&removed, &systems);
+    let line_spacing = systems.first().map(|s| s.line_spacing).unwrap_or(0.0);
+    let stems = omr_symbols::stems::detect_stems(&removed, &noteheads, line_spacing.max(1.0));
+    let beams = omr_symbols::detect_beams(&removed, line_spacing.max(1.0));
+    let bars = omr_symbols::detect_measure_bars(&bin, &systems, &noteheads);
+    let elapsed = started.elapsed();
+
+    let metrics = evaluate_against_muscima(ann, line_spacing, &noteheads, &stems, &beams, &bars);
+    (metrics, elapsed)
+}

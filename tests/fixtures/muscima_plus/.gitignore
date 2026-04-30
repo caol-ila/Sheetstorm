@@ -1,0 +1,9 @@
+# MUSCIMA++ Daten sind CC-BY-NC-SA 4.0 — NICHT mit Apache-2.0 kompatibel.
+# Niemals in dieses Apache-2.0-Repo committen. Siehe README.md.
+*.png
+*.xml
+*.zip
+*.tar.gz
+# Aber dieses .gitignore und das README müssen versioniert sein:
+!.gitignore
+!README.md

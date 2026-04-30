@@ -10,6 +10,7 @@ use tracing::{info, info_span, warn};
 
 pub mod accuracy;
 pub mod debug_viz;
+pub mod muscima;
 pub mod pdf_render;
 pub mod synthetic;
 

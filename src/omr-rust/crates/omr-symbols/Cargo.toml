@@ -12,3 +12,12 @@ imageproc.workspace = true
 ndarray.workspace = true
 rayon.workspace = true
 tracing.workspace = true
+# Font-Rendering für SMuFL-Template-Generierung (Bravura.otf).
+# fontdue ist Apache-2.0 / MIT lizenziert.
+fontdue = "0.9"
+# Deterministische Augmentation der gerenderten Glyphs.
+rand = "0.8"
+rand_chacha = "0.3"
+
+[dev-dependencies]
+image.workspace = true

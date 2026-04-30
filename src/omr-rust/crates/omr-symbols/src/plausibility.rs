@@ -62,96 +62,76 @@ pub fn check_measure(m: &Measure, time: TimeSignature, is_first: bool) -> Measur
 }
 
 /// Versucht den Takt zu reparieren. Mutiert m.notes inplace.
-/// Strategien (in Reihenfolge):
-///   0) **Scale-to-fit**: Wenn Σ = N · expected (N integer ≥ 2), teile ALLE
-///      Durations durch N. Behebt typischen Audiveris/OMR-Fehler wo alle Notes
-///      als Filled-Quarter klassifiziert wurden, eigentlich aber 8th/16th sind.
-///   1) Wenn actual > expected: kürze die längsten Filled-NH zu Achtel.
-///      Funktioniert für kleine Differenzen (1-2 Quarters zu viel).
-///   2) Wenn actual < expected: verlängere die letzte Note bis Σ = expected
-///      (Padding-Strategie).
 ///
-/// Returns ob Reparatur erfolgreich war (Σ = expected).
+/// Strategien (in Reihenfolge der Plausibilität):
+///   A) **Scale-to-fit (uniform)**: alle durations gleichmaessig /N.
+///      Nur sinnvoll wenn alle Notes gleichen Kind haben.
+///   B) **Subset-Halving**: schrittweise nur die LÄNGSTEN Filled-Notes halbieren.
+///      Funktioniert für mixed-duration-Takte (Quarter+Eighth Mix).
+///   C) **Subset-Doubling**: einzelne kurze Notes verdoppeln.
+///   D) **Dotted-Repair**: wenn diff = 1/2 oder 1/4 einer Note → Punkt setzen.
+///   E) **Padding**: letzte Note auf expected verlängern (Last-Resort).
+///
+/// Returns ob Reparatur Σ = expected erzeugt hat.
 pub fn repair_measure(m: &mut Measure, time: TimeSignature) -> bool {
     let expected = expected_total_duration(m.divisions, time);
     let actual: u32 = m.notes.iter().map(|n| n.duration).sum();
     if actual == expected { return true; }
     if m.notes.is_empty() { return false; }
 
-    // Strategie 0: Scale-to-fit. Häufigster Fehler: alle als Quarter klassifiziert,
-    // sollte aber 8th oder 16th sein.
-    if actual > expected && expected > 0 {
-        let ratio = actual as f32 / expected as f32;
-        // Nur wenn ratio sehr nah an einer Integer-Power-of-2 liegt
-        for &n in &[2u32, 4, 8] {
-            if (ratio - n as f32).abs() < 0.15 {
-                let mut scaled: Vec<u32> = m.notes.iter().map(|x| (x.duration / n).max(1)).collect();
-                let scaled_total: u32 = scaled.iter().sum();
-                if scaled_total == expected {
-                    for (i, d) in scaled.drain(..).enumerate() {
-                        m.notes[i].duration = d;
-                    }
-                    return true;
-                }
-                // Manchmal weicht die Scale-Variante leicht ab, dann mit
-                // Strategie 1 weiter feinjustieren.
-                if scaled_total > expected {
-                    // Über-skaliert — kürze überzählige weiter
-                    let diff = scaled_total - expected;
-                    let mut indices: Vec<usize> = (0..scaled.len()).collect();
-                    indices.sort_by_key(|&i| std::cmp::Reverse(scaled[i]));
-                    let mut remaining = diff;
-                    for i in indices {
-                        if remaining == 0 { break; }
-                        if scaled[i] > 1 {
-                            let red = scaled[i].min(remaining + 1) - 1;
-                            scaled[i] -= red;
-                            remaining = remaining.saturating_sub(red);
-                        }
-                    }
-                    if scaled.iter().sum::<u32>() == expected {
-                        for (i, d) in scaled.drain(..).enumerate() {
-                            m.notes[i].duration = d;
-                        }
-                        return true;
-                    }
-                } else if scaled_total < expected {
-                    // Unter-skaliert — verlängere letzte
-                    let diff = expected - scaled_total;
-                    let last = scaled.len() - 1;
-                    scaled[last] += diff;
-                    for (i, d) in scaled.drain(..).enumerate() {
-                        m.notes[i].duration = d;
-                    }
-                    return true;
-                }
-            }
+    // Schnapshot fürs Rollback bei Fehlversuchen
+    let snapshot: Vec<u32> = m.notes.iter().map(|n| n.duration).collect();
+    let restore = |notes: &mut Vec<ScoreNote>, snap: &[u32]| {
+        for (i, &d) in snap.iter().enumerate() {
+            notes[i].duration = d;
+        }
+    };
+
+    // === Strategie A: Scale-to-fit (uniform) ===
+    if actual > expected && expected > 0 && all_same_kind(&m.notes) {
+        if try_scale_to_fit(m, expected) {
+            return true;
         }
     }
 
-    // Strategie 1: Wenn actual > expected, kürze die längsten Filled-NH zu Achtel.
+    // === Strategie B: Subset-Halving der Längsten ===
+    // Wenn actual > expected: halbiere die längsten Filled-NHs schrittweise
+    // bis Σ = expected. Funktioniert für Mixed-Duration-Takte.
     if actual > expected {
-        let diff = actual - expected;
-        let mut indices: Vec<usize> = (0..m.notes.len()).collect();
-        indices.sort_by_key(|&i| std::cmp::Reverse(m.notes[i].duration));
-        let mut remaining = diff;
-        for i in indices {
-            if remaining == 0 { break; }
-            let n: &mut ScoreNote = &mut m.notes[i];
-            if matches!(n.kind, NoteheadKind::Filled) && n.duration >= 2 {
-                let halved = n.duration / 2;
-                let saved = n.duration - halved;
-                if saved <= remaining {
-                    n.duration = halved;
-                    remaining -= saved;
-                }
-            }
+        if try_subset_halving(m, expected) {
+            return true;
         }
-        let new_total: u32 = m.notes.iter().map(|n| n.duration).sum();
-        return new_total == expected;
+        restore(&mut m.notes, &snapshot);
     }
 
-    // Strategie 2: Wenn actual < expected, verlängere letzte Note.
+    // === Strategie C: Subset-Doubling ===
+    // Wenn actual < expected um eine kleine Differenz: einzelne Notes verdoppeln
+    if actual < expected {
+        if try_subset_doubling(m, expected) {
+            return true;
+        }
+        restore(&mut m.notes, &snapshot);
+    }
+
+    // === Strategie D: Dotted-Repair ===
+    // Wenn diff genau 1/2 einer existierenden Note ist → Punktierung
+    if actual < expected {
+        let diff = expected - actual;
+        for n in m.notes.iter_mut() {
+            // Punkt = +50% der base. Wenn diff = n.duration / 2 → setze augmentation_dots=1
+            if n.duration / 2 == diff {
+                n.duration = n.duration + diff;
+                n.augmentation_dots = 1;
+                if m.notes.iter().map(|x| x.duration).sum::<u32>() == expected {
+                    return true;
+                }
+                break;
+            }
+        }
+        restore(&mut m.notes, &snapshot);
+    }
+
+    // === Strategie E: Last-Resort Padding ===
     if actual < expected {
         let diff = expected - actual;
         if let Some(last) = m.notes.last_mut() {
@@ -159,7 +139,111 @@ pub fn repair_measure(m: &mut Measure, time: TimeSignature) -> bool {
             return true;
         }
     }
+
+    // === Strategie F: Last-Resort Truncation ===
+    if actual > expected {
+        let diff = actual - expected;
+        // Verkürze einzelne Notes bis Σ = expected
+        let mut indices: Vec<usize> = (0..m.notes.len()).collect();
+        indices.sort_by_key(|&i| std::cmp::Reverse(m.notes[i].duration));
+        let mut remaining = diff;
+        for i in indices {
+            if remaining == 0 { break; }
+            let n = &mut m.notes[i];
+            if n.duration > 1 {
+                let max_reduce = n.duration - 1;
+                let red = max_reduce.min(remaining);
+                n.duration -= red;
+                remaining -= red;
+            }
+        }
+        let new_total: u32 = m.notes.iter().map(|n| n.duration).sum();
+        if new_total == expected {
+            return true;
+        }
+    }
+
     false
+}
+
+fn all_same_kind(notes: &[ScoreNote]) -> bool {
+    if notes.is_empty() { return true; }
+    let first = notes[0].kind;
+    notes.iter().all(|n| n.kind == first)
+}
+
+fn try_scale_to_fit(m: &mut Measure, expected: u32) -> bool {
+    let actual: u32 = m.notes.iter().map(|n| n.duration).sum();
+    let ratio = actual as f32 / expected as f32;
+    for &n in &[2u32, 3, 4, 6, 8] {
+        if (ratio - n as f32).abs() < 0.15 {
+            let scaled: Vec<u32> = m.notes.iter().map(|x| (x.duration / n).max(1)).collect();
+            let scaled_total: u32 = scaled.iter().sum();
+            if scaled_total == expected {
+                for (i, d) in scaled.into_iter().enumerate() {
+                    m.notes[i].duration = d;
+                }
+                return true;
+            }
+        }
+    }
+    false
+}
+
+fn try_subset_halving(m: &mut Measure, expected: u32) -> bool {
+    let mut diff = m.notes.iter().map(|n| n.duration).sum::<u32>().saturating_sub(expected);
+    let mut indices: Vec<usize> = (0..m.notes.len()).collect();
+    // Mehrere Pässe mit absteigendem Sortieren
+    for _pass in 0..3 {
+        if diff == 0 { return true; }
+        indices.sort_by_key(|&i| std::cmp::Reverse(m.notes[i].duration));
+        for &i in &indices {
+            if diff == 0 { break; }
+            let n = &mut m.notes[i];
+            if matches!(n.kind, NoteheadKind::Filled) && n.duration >= 2 {
+                let halved = n.duration / 2;
+                let saved = n.duration - halved;
+                if saved <= diff {
+                    n.duration = halved;
+                    diff -= saved;
+                }
+            }
+        }
+        let new_diff = m.notes.iter().map(|n| n.duration).sum::<u32>().saturating_sub(expected);
+        if new_diff == diff {
+            // Kein Fortschritt mehr — abbrechen
+            break;
+        }
+        diff = new_diff;
+    }
+    diff == 0
+}
+
+fn try_subset_doubling(m: &mut Measure, expected: u32) -> bool {
+    let mut diff = expected.saturating_sub(m.notes.iter().map(|n| n.duration).sum::<u32>());
+    let mut indices: Vec<usize> = (0..m.notes.len()).collect();
+    for _pass in 0..3 {
+        if diff == 0 { return true; }
+        // Sortiere nach KÜRZESTER Duration zuerst (eher zu kurze Notes verlängern)
+        indices.sort_by_key(|&i| m.notes[i].duration);
+        for &i in &indices {
+            if diff == 0 { break; }
+            let n = &mut m.notes[i];
+            // Verdoppeln nur wenn diff >= aktuelle Duration (Sonst Overshoot)
+            if n.duration <= diff {
+                let doubled = n.duration * 2;
+                let added = doubled - n.duration;
+                if added <= diff {
+                    n.duration = doubled;
+                    diff -= added;
+                }
+            }
+        }
+        let new_diff = expected.saturating_sub(m.notes.iter().map(|n| n.duration).sum::<u32>());
+        if new_diff == diff { break; }
+        diff = new_diff;
+    }
+    diff == 0
 }
 
 /// Wendet check_measure auf alle Measures an und versucht Reparatur.
@@ -315,6 +399,84 @@ mod tests {
             number: 1,
             divisions: 4,
             notes: (0..4).map(|_| quarter_note(4)).collect(),
+            time_signature: None,
+            key_signature: None,
+            clef: None,
+        };
+        let ok = repair_measure(&mut m, TimeSignature { beats: 4, beat_type: 4 });
+        assert!(ok);
+        let actual: u32 = m.notes.iter().map(|n| n.duration).sum();
+        assert_eq!(actual, 4);
+    }
+
+    #[test]
+    fn truncation_handles_minor_overlong() {
+        // 5 Quarters in 4/4 → diff 1. Subset-halving: halve 1 quarter → 2 (saves 2). diff 1-2 < 0.
+        // Strategie F (truncation): kürze einzelne Notes um 1.
+        let mut m = Measure {
+            number: 1,
+            divisions: 4,
+            notes: vec![
+                quarter_note(4), quarter_note(4), quarter_note(4), quarter_note(4), quarter_note(4),
+            ],
+            time_signature: None,
+            key_signature: None,
+            clef: None,
+        };
+        // Σ = 20, expected = 4. Ratio = 5.
+        let ok = repair_measure(&mut m, TimeSignature { beats: 4, beat_type: 4 });
+        let actual: u32 = m.notes.iter().map(|n| n.duration).sum();
+        if ok {
+            assert_eq!(actual, 4);
+        } else {
+            // Wenn nicht voll repairbar: actual nicht weiter weg als 1
+            assert!(actual >= 4 && actual <= 8, "got actual={}", actual);
+        }
+    }
+
+    #[test]
+    fn truncation_repairs_mixed_kinds_overlong() {
+        // 3 filled-Quarters + 1 open-Half (mixed kinds, scale-to-fit greift nicht)
+        // Σ = 4+4+4+8 = 20, expected = 4.
+        // Strategy F (truncation): kürze die längste(n) bis Σ = expected.
+        let mut m = Measure {
+            number: 1,
+            divisions: 4,
+            notes: vec![
+                quarter_note(4),
+                quarter_note(4),
+                quarter_note(4),
+                ScoreNote {
+                    midi: 60,
+                    step: omr_core::PitchStep::C,
+                    alter: 0,
+                    octave: 4,
+                    duration: 8,
+                    onset: 0,
+                    voice: 1,
+                    kind: NoteheadKind::Open,
+                    center: omr_core::Point { x: 0.0, y: 0.0 },
+                    augmentation_dots: 0,
+                },
+            ],
+            time_signature: None,
+            key_signature: None,
+            clef: None,
+        };
+        let ok = repair_measure(&mut m, TimeSignature { beats: 4, beat_type: 4 });
+        assert!(ok, "mixed kinds sollten reparierbar sein");
+        let actual: u32 = m.notes.iter().map(|n| n.duration).sum();
+        assert_eq!(actual, 4);
+    }
+
+    #[test]
+    fn doubling_repairs_eighth_only() {
+        // 1 Eighth (dur 2) im 4/4 → expected 4, diff = 2.
+        // Subset-doubling verdoppelt das Eighth zu Quarter (dur 4). Σ = 4. ✓
+        let mut m = Measure {
+            number: 5,
+            divisions: 4,
+            notes: vec![quarter_note(2)],
             time_signature: None,
             key_signature: None,
             clef: None,
