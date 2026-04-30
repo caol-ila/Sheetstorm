@@ -213,8 +213,14 @@ fn make_notehead(
     kind: NoteheadKind,
     spacing: f32,
 ) -> Option<Notehead> {
-    let w = (spacing * 1.3) as u32;
-    let h = (spacing * 0.95) as u32;
+    // Whole-Notes: bbox ist 1.7×spacing breit (Wide-Aspect).
+    // Filled/Open: bbox ist 1.3×spacing breit (Standard).
+    let (w_factor, h_factor) = match kind {
+        NoteheadKind::Whole => (1.7, 0.95),
+        _ => (1.3, 0.95),
+    };
+    let w = (spacing * w_factor) as u32;
+    let h = (spacing * h_factor) as u32;
     let bbox = Rect { x: x_top_left, y: y_top_left, w, h };
     let staff_idx = closest_staff(&bbox, systems)?;
     let cx = bbox.cx();
@@ -257,6 +263,11 @@ fn dedup_candidates(mut cands: Vec<Notehead>, radius: f32) -> Vec<Notehead> {
 
 /// Wrapper: kombiniert lokal_maxima_2d über die heat-Vec-Länge.
 /// (ncc_heatmap returns flat vec, also we need to know dims here.)
+///
+/// Sucht Filled, Open UND Whole noteheads via NCC-Templating. Wichtig für
+/// Whole-Recall: Open/Whole-Noten werden nach Staff-Removal oft in mehrere
+/// CCs zerschnitten (Top-Arc + Bottom-Arc), die `merge_close_ccs` wegen
+/// aspect>3 nicht mehr fusioniert. Template-Matching findet sie strukturell.
 pub fn detect_noteheads_template_v2(
     bin: &Binary,
     systems: &[StaffSystem],
@@ -268,18 +279,26 @@ pub fn detect_noteheads_template_v2(
 
     let filled_template = make_notehead_template(spacing, NoteheadKind::Filled);
     let open_template = make_notehead_template(spacing, NoteheadKind::Open);
+    let whole_template = make_notehead_template(spacing, NoteheadKind::Whole);
 
     let filled_heat = ncc_heatmap(bin, &filled_template);
     let open_heat = ncc_heatmap(bin, &open_template);
+    let whole_heat = ncc_heatmap(bin, &whole_template);
 
     let suppress_radius = (spacing * 0.6) as i32;
     let out_w_filled = bin.w - filled_template.w + 1;
     let out_h_filled = bin.h - filled_template.h + 1;
     let out_w_open = bin.w - open_template.w + 1;
     let out_h_open = bin.h - open_template.h + 1;
+    let out_w_whole = bin.w - whole_template.w + 1;
+    let out_h_whole = bin.h - whole_template.h + 1;
 
     let filled_peaks = local_maxima_2d(&filled_heat, out_w_filled, out_h_filled, threshold, suppress_radius);
     let open_peaks = local_maxima_2d(&open_heat, out_w_open, out_h_open, threshold, suppress_radius);
+    // Whole-Notes: leicht höherer Threshold als Open weil das Template schwächer
+    // diskriminiert (Whole und Open sehen sich ähnlich, ohne Margin würde jede
+    // Open zu Whole flippen).
+    let whole_peaks = local_maxima_2d(&whole_heat, out_w_whole, out_h_whole, threshold + 0.05, suppress_radius);
 
     let mut cands = Vec::new();
     for (x, y, c) in filled_peaks {
@@ -292,7 +311,64 @@ pub fn detect_noteheads_template_v2(
             cands.push(nh);
         }
     }
+    for (x, y, c) in whole_peaks {
+        if let Some(nh) = make_notehead(bin, systems, x, y, c, NoteheadKind::Whole, spacing) {
+            cands.push(nh);
+        }
+    }
     dedup_candidates(cands, spacing * 0.5)
+}
+
+/// Detect ONLY whole notes via NCC-Template-Matching.
+///
+/// Komplementäre Pipeline neben der CC-basierten Detection: Whole-Noten werden
+/// nach Staff-Removal oft in mehrere CCs zerschnitten (Top-Arc + Bottom-Arc),
+/// die `merge_close_ccs` wegen aspect>3 nicht fusioniert. Dieser Pfad findet
+/// solche Whole-Noten strukturell via Whole-Template-NCC auf dem
+/// staff_removed-Bild.
+///
+/// `existing` ist die Liste bereits detektierter NHs; neue Whole-Kandidaten
+/// werden NUR returned wenn sie nicht innerhalb von `merge_radius` eines
+/// existierenden NHs liegen.
+pub fn detect_wholes_template(
+    bin: &Binary,
+    systems: &[StaffSystem],
+    threshold: f32,
+    existing: &[Notehead],
+) -> Vec<Notehead> {
+    if systems.is_empty() { return vec![]; }
+    let spacing = systems[0].line_spacing;
+    if spacing < 6.0 { return vec![]; }
+
+    let whole_template = make_notehead_template(spacing, NoteheadKind::Whole);
+    if bin.w < whole_template.w || bin.h < whole_template.h { return vec![]; }
+    let whole_heat = ncc_heatmap(bin, &whole_template);
+    let suppress_radius = (spacing * 0.6) as i32;
+    let out_w = bin.w - whole_template.w + 1;
+    let out_h = bin.h - whole_template.h + 1;
+    let peaks = local_maxima_2d(&whole_heat, out_w, out_h, threshold, suppress_radius);
+
+    // Konvertiere zu Noteheads, filter Duplicates relativ zu existing.
+    let merge_radius = spacing * 0.7;
+    let merge_radius_sq = merge_radius * merge_radius;
+    let mut new_wholes = Vec::new();
+    for (x, y, c) in peaks {
+        let nh = match make_notehead(bin, systems, x, y, c, NoteheadKind::Whole, spacing) {
+            Some(n) => n,
+            None => continue,
+        };
+        // Skip wenn bereits in existing in der Nähe
+        let near = existing.iter().any(|e| {
+            let dx = e.center.x - nh.center.x;
+            let dy = e.center.y - nh.center.y;
+            dx * dx + dy * dy < merge_radius_sq
+        });
+        if !near {
+            new_wholes.push(nh);
+        }
+    }
+    // Auch unter sich dedupen
+    dedup_candidates(new_wholes, merge_radius)
 }
 
 /// Re-Rank existierende Notehead-Kandidaten via lokales NCC-Matching.

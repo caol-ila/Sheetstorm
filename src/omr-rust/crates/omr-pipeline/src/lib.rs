@@ -420,6 +420,15 @@ fn process_gray_single(gray: GrayImage, opts: &PipelineOptions) -> Result<Pipeli
 
     let raw_noteheads = omr_symbols::detect_noteheads_with_skip(&removed, &systems, &skip_regions);
     let noteheads = omr_symbols::rerank_with_template(&removed, &raw_noteheads, line_spacing);
+    // Komplementär: Whole-Notes via Template-Matching auf staff_removed.
+    // Recover Wholes die durch CC-Fragmentation (Top-Arc + Bottom-Arc nach
+    // Staff-Removal) verloren gingen — merge_close_ccs filtert wide-thin
+    // Fragmente (aspect>3) und kann sie nicht fusionieren. Threshold 0.40
+    // ist konservativ um False-Positives gering zu halten, aber niedrig
+    // genug um stark-fragmentierte Wholes zu finden.
+    let extra_wholes = omr_symbols::detect_wholes_template(&removed, &systems, 0.40, &noteheads);
+    let mut noteheads = noteheads;
+    noteheads.extend(extra_wholes);
     // Symbol-Klassifikator: filtert Coda/Segno/D.S./Dynamik/Noise.
     // Bevorzugt HoG+SVM (gelernt auf Bravura-Synth-Korpus). Fallback auf
     // Template-NCC, wenn das Modell nicht ladebar ist.

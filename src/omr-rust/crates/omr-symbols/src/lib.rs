@@ -30,7 +30,7 @@ pub use cc::{connected_components, ConnectedComponent};
 pub use meta::{detect_clef, detect_key_signature};
 pub use plausibility::{check_measure, repair_measure, validate_and_repair_part, MeasureCheck, MeasurePlausibility};
 pub use rests::{detect_rests, Rest, RestKind};
-pub use template::{detect_noteheads_template_v2, rerank_with_template};
+pub use template::{detect_noteheads_template_v2, detect_wholes_template, rerank_with_template};
 
 /// Hauptfunktion: detektiere Noteheads in einem staff-line-removed Binary.
 /// `bin_original` wird genutzt um den Schlüssel/Vorzeichen-Bereich zu finden,
