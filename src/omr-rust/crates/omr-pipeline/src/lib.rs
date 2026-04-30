@@ -194,7 +194,9 @@ pub fn process_gray(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineR
     // Template-NCC, wenn das Modell nicht ladebar ist.
     let n_before_classifier = noteheads.len();
     let noteheads = if let Some(clf) = hog_svm_classifier() {
-        omr_symbols::classifier::filter_via_hog_svm(&removed, noteheads, line_spacing, clf)
+        // Klassifikator auf ORIGINAL-Binary (nicht staff-removed) — Coda/Segno-Glyphen
+        // bleiben dort intakter und matchen besser zu den Bravura-Templates.
+        omr_symbols::classifier::filter_via_hog_svm(&bin, noteheads, line_spacing, clf)
     } else {
         omr_symbols::classifier::filter_via_templates(&removed, noteheads, line_spacing)
     };

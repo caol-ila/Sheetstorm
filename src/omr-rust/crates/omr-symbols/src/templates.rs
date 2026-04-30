@@ -236,46 +236,144 @@ fn mix_seed(seed: u64, class: SymbolClass) -> u64 {
         .wrapping_add(class_id.wrapping_mul(0xBF58_476D_1CE4_E5B9))
 }
 
-/// Erzeugt ein synthetisches Noise-Patch (zufällige Pixel + gelegentlich leer).
+/// Erzeugt ein synthetisches Noise-Patch.
+///
+/// Wichtig: Noise-Patches dürfen NICHT NH-shaped sein, sonst lernt der
+/// Klassifikator NH ↔ Noise nicht zu trennen. Daher:
+/// - leere Patches
+/// - reine Streupixel
+/// - horizontale Striche (Stafflinien-Reste)
+/// - vertikale dünne Striche (Stem-Reste)
+/// - diagonale Patterns (Kompressions-Artefakte)
+///
+/// KEINE NH-ähnlichen Halbmonde / Ellipsen / runden Formen!
 fn render_noise(size_px: u32, rng: &mut ChaCha8Rng) -> GrayImage {
     let mut img = GrayImage::from_pixel(size_px, size_px, Luma([0u8]));
-    // ~30 % der Patches bleiben leer (negative "kein Symbol")
-    if rng.gen_bool(0.3) {
-        return img;
-    }
-    let density = rng.gen_range(0.01..0.15);
-    let n = (size_px as f32 * size_px as f32 * density) as u32;
-    for _ in 0..n {
-        let x = rng.gen_range(0..size_px);
-        let y = rng.gen_range(0..size_px);
-        let v = rng.gen_range(60..=255) as u8;
-        img.put_pixel(x, y, Luma([v]));
+    let kind: u32 = rng.gen_range(0..5);
+    match kind {
+        0 => {} // ~1/5 leer
+        1 => {
+            // Streupixel
+            let n = (size_px as f32 * size_px as f32 * 0.05) as u32;
+            for _ in 0..n {
+                let x = rng.gen_range(0..size_px);
+                let y = rng.gen_range(0..size_px);
+                img.put_pixel(x, y, Luma([255]));
+            }
+        }
+        2 => {
+            // Horizontale Striche (Stafflinien-Reste)
+            let n_lines = rng.gen_range(1..=3);
+            for _ in 0..n_lines {
+                let y = rng.gen_range(2..size_px - 2);
+                let x_start = rng.gen_range(0..size_px / 2);
+                let x_end = rng.gen_range(size_px / 2..size_px);
+                for x in x_start..x_end {
+                    img.put_pixel(x, y, Luma([255]));
+                }
+            }
+        }
+        3 => {
+            // Vertikaler dünner Strich (Stem/Bar-Fragmente)
+            let x = rng.gen_range(2..size_px - 2);
+            let thick = rng.gen_range(1..=3);
+            for y in 0..size_px {
+                for tx in 0..thick {
+                    if x + tx < size_px {
+                        img.put_pixel(x + tx, y, Luma([255]));
+                    }
+                }
+            }
+        }
+        _ => {
+            // Diagonal-Pattern
+            for i in 0..size_px {
+                let x = i;
+                let y = (i as f32 * rng.gen_range(0.5..2.0)) as u32 % size_px;
+                img.put_pixel(x, y, Luma([255]));
+            }
+        }
     }
     img
 }
 
 /// Wendet eine zufällige Augmentation-Pipeline auf ein Basis-Template an.
 ///
-/// Reihenfolge: Skalierung → Rotation → Translation → Gauss-Blur → Salt-Pepper.
+/// Pipeline für realistische Pipeline-Patches:
+/// 1. Skalierung (0.85-1.15)
+/// 2. Rotation (±4°)
+/// 3. Translation (±4px)
+/// 4. Gauss-Blur (0-0.8 sigma)
+/// 5. Salt-Pepper (0-2%)
+/// 6. Staff-Removal-Artefakte (30%): horizontale Striche am RAND
 fn augment(base: &GrayImage, rng: &mut ChaCha8Rng) -> GrayImage {
     let size = base.width();
-    let scale = rng.gen_range(0.8..=1.2_f32);
-    let angle_deg = rng.gen_range(-3.0..=3.0_f32);
-    let tx = rng.gen_range(-3..=3_i32);
+    let scale = rng.gen_range(0.85..=1.15_f32);
+    let angle_deg = rng.gen_range(-4.0..=4.0_f32);
+    let tx = rng.gen_range(-4..=4_i32);
+    let ty = rng.gen_range(-4..=4_i32);
     let blur_sigma = rng.gen_range(0.0..=0.8_f32);
     let sp_ratio = rng.gen_range(0.0..=0.02_f32);
 
     let scaled = scale_centered(base, scale);
     let rotated = rotate_image(&scaled, angle_deg.to_radians());
-    let translated = translate_x(&rotated, tx);
+    let translated = translate_xy(&rotated, tx, ty);
     let blurred = if blur_sigma > 0.05 {
         imageproc::filter::gaussian_blur_f32(&translated, blur_sigma)
     } else {
         translated
     };
-    let noised = salt_pepper(&blurred, sp_ratio, rng);
-    debug_assert_eq!(noised.width(), size);
-    noised
+    let mut current = salt_pepper(&blurred, sp_ratio, rng);
+
+    // Staff-Removal-Artefakte: nur am Patch-Rand (oben/unten 1/4),
+    // nicht im Zentrum wo das Symbol liegt.
+    if rng.gen_bool(0.3) {
+        current = add_edge_staff_artifacts(&current, rng);
+    }
+
+    debug_assert_eq!(current.width(), size);
+    current
+}
+
+/// Fügt horizontale Striche NUR am oberen oder unteren Rand hinzu.
+/// Das simuliert Stafflinien-Reste angrenzend an einen Notenkopf.
+fn add_edge_staff_artifacts(src: &GrayImage, rng: &mut ChaCha8Rng) -> GrayImage {
+    let mut dst = src.clone();
+    let h = dst.height();
+    let w = dst.width();
+    let edge_zone = h / 4;
+    // 1 Strich am oberen oder unteren Rand
+    let y = if rng.gen_bool(0.5) {
+        rng.gen_range(0..edge_zone)
+    } else {
+        rng.gen_range(h - edge_zone..h)
+    };
+    let length = rng.gen_range(w / 2..w);
+    let x_start = rng.gen_range(0..w - length + 1);
+    for x in x_start..x_start + length {
+        dst.put_pixel(x, y, Luma([255]));
+    }
+    dst
+}
+
+/// Translation in beide Richtungen.
+fn translate_xy(src: &GrayImage, tx: i32, ty: i32) -> GrayImage {
+    if tx == 0 && ty == 0 {
+        return src.clone();
+    }
+    let w = src.width();
+    let h = src.height();
+    let mut dst = GrayImage::from_pixel(w, h, Luma([0u8]));
+    for y in 0..h {
+        for x in 0..w {
+            let sx = x as i32 - tx;
+            let sy = y as i32 - ty;
+            if sx >= 0 && sy >= 0 && (sx as u32) < w && (sy as u32) < h {
+                dst.put_pixel(x, y, *src.get_pixel(sx as u32, sy as u32));
+            }
+        }
+    }
+    dst
 }
 
 /// Skaliert ein quadratisches Patch um den Mittelpunkt mit Nearest-Neighbor.
@@ -312,25 +410,6 @@ fn rotate_image(src: &GrayImage, angle_rad: f32) -> GrayImage {
         imageproc::geometric_transformations::Interpolation::Bilinear,
         Luma([0u8]),
     )
-}
-
-/// Horizontale Translation mit konstantem Hintergrund (0 = schwarz).
-fn translate_x(src: &GrayImage, tx: i32) -> GrayImage {
-    if tx == 0 {
-        return src.clone();
-    }
-    let w = src.width();
-    let h = src.height();
-    let mut dst = GrayImage::from_pixel(w, h, Luma([0u8]));
-    for y in 0..h {
-        for x in 0..w {
-            let sx = x as i32 - tx;
-            if sx >= 0 && (sx as u32) < w {
-                dst.put_pixel(x, y, *src.get_pixel(sx as u32, y));
-            }
-        }
-    }
-    dst
 }
 
 /// Salt-Pepper-Rauschen mit gegebenem Anteil.

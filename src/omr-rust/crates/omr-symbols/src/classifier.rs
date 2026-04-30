@@ -209,17 +209,23 @@ pub fn filter_via_templates(bin: &Binary, noteheads: Vec<Notehead>, spacing: f32
 
 /// Konfidenz-Schwelle für HoG+SVM Reject. Bei Werten oberhalb dieser
 /// Schwelle UND einer Nicht-NH-Klasse wird der Kandidat verworfen.
-pub const HOG_SVM_REJECT_CONFIDENCE: f32 = 0.65;
+///
+/// Empirisch getuned: Coda/Segno/Dynamic-Klassen haben in unserem Modell
+/// Precision >= 0.90, NH-Klassen sind unzuverlässig (Filled/Open/Whole F1 < 0.4).
+/// Daher nutzen wir den Klassifikator NUR für Reject (Coda/Segno/Dyn) und NICHT
+/// für Kind-Update (Filled/Open/Whole bleibt aus klassischer Hole-Detection).
+pub const HOG_SVM_REJECT_CONFIDENCE: f32 = 0.55;
 
 /// Klassifiziert einen Notehead-Kandidaten via HoG+SVM und entscheidet
-/// über Reject oder Kind-Update.
+/// über Reject.
 ///
 /// * Wenn die Top-Klasse Coda/Segno/Dynamik ist UND Konfidenz >
-///   [`HOG_SVM_REJECT_CONFIDENCE`] → `None` (Reject).
-/// * Wenn die Top-Klasse ein Notehead-Kind ist → `Some(updated_kind)`.
-/// * Wenn die Top-Klasse `Noise` ist → konservativ behalten
-///   (Noise im Synth-Set entspricht oft real-world NH-Crops nach
-///   Staff-Removal — wir wollen lieber FP als FN).
+///   [`HOG_SVM_REJECT_CONFIDENCE`] → `None` (Reject = falscher Notehead).
+/// * Wenn die Top-Klasse ein NH-Kind ist → behalte Original-Kind unverändert
+///   (HoG-Klassifikator ist auf NH-Klassen unzuverlässig, klassisches
+///   Hole-Detection bleibt führend).
+/// * Wenn die Top-Klasse `Noise` ist → behalten (lieber FP als FN).
+/// * Sonst (Coda/Segno/Dyn mit niedriger Konfidenz) → konservativ behalten.
 pub fn classify_via_hog_svm(
     bin: &Binary,
     nh: &Notehead,
@@ -235,8 +241,6 @@ pub fn classify_via_hog_svm(
     if x0 + patch_size > bin.w || y0 + patch_size > bin.h {
         return Some(nh.kind);
     }
-    // Patch aus binärer Maske extrahieren — schwarz=0, weiß=255 entspricht
-    // genau dem Render-Format der Bravura-Templates.
     let mut img = GrayImage::new(patch_size, patch_size);
     for py in 0..patch_size {
         for px in 0..patch_size {
@@ -247,9 +251,7 @@ pub fn classify_via_hog_svm(
     let (best_class, conf) = classifier.predict(&img);
 
     match best_class {
-        SymbolClass::NoteheadFilled => Some(NoteheadKind::Filled),
-        SymbolClass::NoteheadOpen => Some(NoteheadKind::Open),
-        SymbolClass::NoteheadWhole => Some(NoteheadKind::Whole),
+        // Reject-Pfad: nur für klar erkannte Nicht-NH-Symbole
         SymbolClass::Coda
         | SymbolClass::Segno
         | SymbolClass::DynamicPiano
@@ -262,7 +264,11 @@ pub fn classify_via_hog_svm(
                 Some(nh.kind)
             }
         }
-        SymbolClass::Noise => Some(nh.kind),
+        // Behalten: NH-Klassen (auch wenn unzuverlässig) + Noise
+        SymbolClass::NoteheadFilled
+        | SymbolClass::NoteheadOpen
+        | SymbolClass::NoteheadWhole
+        | SymbolClass::Noise => Some(nh.kind),
     }
 }
 
