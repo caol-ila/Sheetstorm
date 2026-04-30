@@ -88,23 +88,30 @@ pub fn process_gray(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineR
         let _ = removed.to_gray().save(dir.join("02_staff_removed.png"));
     }
 
-    // 4) Symbol-Detection: Noteheads + Stems + Beams.
+    // 4) Symbol-Detection: Noteheads + Stems + Beams + Bars.
     let _span = info_span!("symbol_detection").entered();
     let sym_t = std::time::Instant::now();
     let noteheads = omr_symbols::detect_noteheads(&removed, &systems);
     let stems = omr_symbols::stems::detect_stems(&removed, &noteheads, line_spacing);
     let beams = omr_symbols::detect_beams(&removed, line_spacing);
     let beam_counts = omr_symbols::beams_per_stem(&stems, &beams);
+    let bars = omr_symbols::detect_measure_bars(&bin, &systems);
     let symbol_detection_ms = sym_t.elapsed().as_millis();
     drop(_span);
-    info!(n_noteheads = noteheads.len(), n_stems = stems.len(), n_beams = beams.len(), "symbols detected");
+    info!(
+        n_noteheads = noteheads.len(),
+        n_stems = stems.len(),
+        n_beams = beams.len(),
+        n_bars = bars.len(),
+        "symbols detected"
+    );
 
     // 5) Score-Konstruktion: ein Measure pro StaffSystem, Noten in Reading-Order (X).
     // Clef + Key Signature pro System auf Original-Binary detektieren.
     let clefs: Vec<Clef> = systems.iter().map(|s| omr_symbols::detect_clef(&bin, s)).collect();
     let keys: Vec<omr_core::KeySignature> = systems.iter().map(|s| omr_symbols::detect_key_signature(&bin, s)).collect();
 
-    let all_notes_per_system: Vec<Vec<omr_core::ScoreNote>> = (0..systems.len())
+    let all_measures_per_system: Vec<Vec<Measure>> = (0..systems.len())
         .map(|sys_i| {
             let mut filtered: Vec<&omr_core::Notehead> =
                 noteheads.iter().filter(|nh| nh.staff_idx == sys_i).collect();
@@ -122,29 +129,39 @@ pub fn process_gray(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineR
             let beam_counts_local: Vec<u32> = omr_symbols::beams_per_stem(&stems_local, &beams);
             let clef_for_sys = clefs.get(sys_i).copied().unwrap_or(Clef::Treble);
             let key_for_sys = keys.get(sys_i).copied().unwrap_or(KeySignature::default());
-            let mut notes = omr_symbols::noteheads_to_notes(&nh_local, &systems, &stems_local, &beam_counts_local, clef_for_sys, key_for_sys);
-            notes.sort_by(|a, b| a.center.x.partial_cmp(&b.center.x).unwrap_or(std::cmp::Ordering::Equal));
-            let mut onset = 0u32;
-            for n in notes.iter_mut() {
-                n.onset = onset;
-                onset += n.duration;
-            }
-            notes
+            let mut all_notes = omr_symbols::noteheads_to_notes(
+                &nh_local, &systems, &stems_local, &beam_counts_local, clef_for_sys, key_for_sys,
+            );
+            all_notes.sort_by(|a, b| a.center.x.partial_cmp(&b.center.x).unwrap_or(std::cmp::Ordering::Equal));
+
+            // Taktstriche dieses Systems.
+            let mut bar_xs: Vec<f32> = bars.iter()
+                .filter(|b| b.system_idx == sys_i)
+                .map(|b| b.x as f32)
+                .collect();
+            bar_xs.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+
+            split_into_measures(all_notes, &bar_xs)
         })
         .collect();
 
-    let measures: Vec<Measure> = all_notes_per_system
-        .into_iter()
-        .enumerate()
-        .map(|(i, notes)| Measure {
-            number: (i + 1) as u32,
-            divisions: 4,
-            notes,
-            time_signature: if i == 0 { Some(TimeSignature { beats: 4, beat_type: 4 }) } else { None },
-            key_signature: keys.get(i).copied(),
-            clef: clefs.get(i).copied(),
-        })
-        .collect();
+    let mut measures: Vec<Measure> = Vec::new();
+    let mut measure_num = 1u32;
+    for (sys_i, mut sys_measures) in all_measures_per_system.into_iter().enumerate() {
+        for (mi, m) in sys_measures.iter_mut().enumerate() {
+            m.number = measure_num;
+            measure_num += 1;
+            // Erste Measure pro System trägt clef + key. Time nur in System 0.
+            if mi == 0 {
+                m.clef = clefs.get(sys_i).copied();
+                m.key_signature = keys.get(sys_i).copied();
+                if sys_i == 0 {
+                    m.time_signature = Some(TimeSignature { beats: 4, beat_type: 4 });
+                }
+            }
+        }
+        measures.extend(sys_measures);
+    }
 
     let part = Part {
         id: "P1".into(),
@@ -191,6 +208,67 @@ pub fn process_image(path: &Path, opts: &PipelineOptions) -> Result<PipelineResu
     let gray = omr_preprocessing::load_grayscale(path)?;
     let gray = omr_preprocessing::ensure_target_height(&gray, 2000);
     process_gray(gray, opts)
+}
+
+/// Splittet Noten anhand der Taktstrich-X-Positionen in Measures.
+/// Zwischen aufeinanderfolgenden Bars (oder zwischen Anfang/Ende) entsteht ein Measure.
+fn split_into_measures(notes: Vec<omr_core::ScoreNote>, bar_xs: &[f32]) -> Vec<Measure> {
+    if bar_xs.is_empty() {
+        // Kein Bar → ein Measure
+        let mut all = notes;
+        let mut onset = 0u32;
+        for n in all.iter_mut() {
+            n.onset = onset;
+            onset += n.duration;
+        }
+        return vec![Measure {
+            number: 1,
+            divisions: 4,
+            notes: all,
+            time_signature: None,
+            key_signature: None,
+            clef: None,
+        }];
+    }
+    let mut measures = Vec::new();
+    let mut prev_x = 0.0f32;
+    let bar_iter = bar_xs.iter().copied().chain(std::iter::once(f32::INFINITY));
+    for bar_x in bar_iter {
+        let mut measure_notes: Vec<omr_core::ScoreNote> = notes
+            .iter()
+            .filter(|n| n.center.x >= prev_x && n.center.x < bar_x)
+            .cloned()
+            .collect();
+        let mut onset = 0u32;
+        for n in measure_notes.iter_mut() {
+            n.onset = onset;
+            onset += n.duration;
+        }
+        // Skippe leere Measures bevor der erste Notenkopf kommt (Schlüssel/Vorzeichen-Bereich).
+        if !measure_notes.is_empty() || !measures.is_empty() {
+            measures.push(Measure {
+                number: 0, // wird vom caller numerated
+                divisions: 4,
+                notes: measure_notes,
+                time_signature: None,
+                key_signature: None,
+                clef: None,
+            });
+        }
+        prev_x = bar_x;
+    }
+    if measures.is_empty() {
+        // Fallback: alle Noten in 1 Measure
+        return vec![Measure {
+            number: 1,
+            divisions: 4,
+            notes,
+            time_signature: None,
+            key_signature: None,
+            clef: None,
+        }];
+    }
+    measures
 }
 
 /// Verarbeite eine PDF-Datei (rendert ALLE Seiten und merged sie zu einem Score).
