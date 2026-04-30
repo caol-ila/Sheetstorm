@@ -10,11 +10,13 @@
 use omr_core::{Binary, Notehead, NoteheadKind, Point, Rect, ScoreNote, StaffSystem, Stem};
 use tracing::debug;
 
+pub mod bars;
 pub mod beams;
 pub mod cc;
 pub mod meta;
 pub mod pitch;
 pub mod stems;
+pub use bars::{detect_measure_bars, MeasureBar};
 pub use beams::{detect_beams, beams_per_stem, Beam};
 pub use cc::{connected_components, ConnectedComponent};
 pub use meta::{detect_clef, detect_key_signature};

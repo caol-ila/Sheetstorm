@@ -12,6 +12,10 @@ path = "src/main.rs"
 name = "omr-cli"
 path = "src/bin/omr-cli.rs"
 
+[[bin]]
+name = "omr-bench"
+path = "src/bin/omr-bench.rs"
+
 [dependencies]
 omr-pipeline.workspace = true
 omr-musicxml.workspace = true
