@@ -432,6 +432,10 @@ fn process_gray_single(gray: GrayImage, opts: &PipelineOptions) -> Result<Pipeli
         omr_symbols::classifier::filter_via_templates(&removed, noteheads, line_spacing)
     };
     let n_after_classifier = noteheads.len();
+    // Bow-marks (▽) und Articulations: rerank_with_template re-klassifiziert
+    // gefüllte Bbox mit "Loch" (= Triangle-Form) als Open. Diese müssen NACH
+    // rerank gefiltert werden, weil sie als Filled durch den raw-Filter rutschen.
+    let noteheads = omr_symbols::filter_bow_marks_and_articulations(noteheads, &systems);
     let stems = omr_symbols::stems::detect_stems(&removed, &noteheads, line_spacing);
     let beams = omr_symbols::detect_beams(&removed, line_spacing);
     let beam_counts = omr_symbols::beams_per_stem(&stems, &beams);

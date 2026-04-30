@@ -62,7 +62,9 @@ pub fn detect_noteheads_with_skip(
     // entscheiden ob ein NH da ist. Begrenze nur auf "absurd breit" (>20*spacing).
     let max_w_simple = (expected_w as f32 * 2.5).round() as u32;
     let max_w_complex = (spacing * 20.0).round() as u32;
-    let min_h_simple = (expected_h as f32 * 0.4).round() as u32;
+    // Real NHs sind ~0.7-0.9*spacing hoch. Untergrenze 0.55*spacing eliminiert
+    // dünne horizontale Bar-Fragmente (MMR-Slices, Beam-Pieces).
+    let min_h_simple = (expected_h as f32 * 0.55).round() as u32;
     let max_h_simple = (expected_h as f32 * 2.0).round() as u32;
     let max_h_tall = (spacing * 5.0).round() as u32;
 
@@ -82,9 +84,9 @@ pub fn detect_noteheads_with_skip(
         let aspect = bb.aspect();
 
         // Schmaler einzelner CC (Notehead allein oder NH+kurzer-Stem).
-        // Aspect-Filter: 0.85..2.2 (echte NH ist 1.2-1.5*spacing breit, ~0.9*spacing hoch
-        // → aspect ~1.3-1.7). Coda/Segno haben aspect ~1.0, D.S. ~0.5.
-        if bb.w <= max_w_simple && bb.h <= max_h_simple && (0.85..=2.2).contains(&aspect) {
+        // Aspect-Filter: 0.85..1.8 (echte NH ist 1.2-1.5*spacing breit, ~0.9*spacing hoch
+        // → aspect ~1.3-1.7). Aspect > 1.8 ist meistens Bar-Fragment/Beam-Slice.
+        if bb.w <= max_w_simple && bb.h <= max_h_simple && (0.85..=1.8).contains(&aspect) {
             if let Some(nh) = classify_simple_notehead(staff_removed, bb, spacing, systems) {
                 if is_in_skip_region(&nh, skip_x_per_system) { continue; }
                 noteheads.push(nh);
@@ -111,8 +113,85 @@ pub fn detect_noteheads_with_skip(
     // Y-Positionen → wahrscheinlich Text (Tempo-Marken, Liedtext).
     let noteheads = filter_text_clusters(noteheads, spacing);
 
+    // Final-Filter 3: Bow-Marks (▽) und Articulations FAR above/below staff.
+    // Bow-mark ▽ ist eine Triangle-Form ÜBER der Staff, oft DIREKT ÜBER einem
+    // echten NH (das es akzentuiert). Charakteristik:
+    //  - midi-Position deutlich außerhalb der Staff (>= 4 half-steps above top
+    //    oder unter bottom)
+    //  - kind = Open (Triangle hat ein "Hole" wie Open-NH)
+    //  - direkter Nachbar (echter NH) innerhalb ±0.7*spacing in X UND
+    //    1.5..3.5*spacing in Y unterhalb
+    // Filter ausschließlich Open NHs (Filled = real darkened note, kein Bow-mark).
+    let noteheads = filter_bow_marks_and_articulations(noteheads, systems);
+
     debug!(kept = noteheads.len(), "noteheads after filter");
     noteheads
+}
+
+/// Filter bow-marks (▽), staccato dots, and articulation marks that the
+/// classifier picked up as Open NHs.
+pub fn filter_bow_marks_and_articulations(noteheads: Vec<Notehead>, systems: &[StaffSystem]) -> Vec<Notehead> {
+    if noteheads.len() < 2 {
+        return noteheads;
+    }
+    let mut to_remove = vec![false; noteheads.len()];
+
+    for (i, nh) in noteheads.iter().enumerate() {
+        // Nur Open-NHs sind potentielle Bow-Marks (Filled = solider Notenkopf).
+        if nh.kind != NoteheadKind::Filled {
+            let staff = match systems.get(nh.staff_idx) {
+                Some(s) => s,
+                None => continue,
+            };
+            let spacing = staff.line_spacing;
+            let cx = nh.center.x as usize;
+            let top_line = &staff.lines[0];
+            let bot_line = &staff.lines[staff.lines.len() - 1];
+            let top_y = top_line.y_per_x.get(cx).copied()
+                .unwrap_or_else(|| top_line.y_per_x[0]) as f32;
+            let bot_y = bot_line.y_per_x.get(cx).copied()
+                .unwrap_or_else(|| bot_line.y_per_x[0]) as f32;
+            let cy = nh.center.y;
+
+            // Above staff (>= 0.5*spacing über Top-Line) ODER below staff (>= 0.5*spacing unter Bot-Line)
+            // Bow-marks (▽) sitzen typisch 1 ledger line above staff (~1*spacing über top-line).
+            // Dynamics (p, f, mf) sitzen typisch ~1*spacing unter bot-line.
+            let is_above_staff = top_y - cy >= spacing * 0.5;
+            let is_below_staff = cy - bot_y >= spacing * 0.5;
+            if !is_above_staff && !is_below_staff {
+                continue;
+            }
+
+            // Suche einen ECHTEN NH (Filled or Open) in der Nähe:
+            //  - dx <= 0.7 * spacing
+            //  - dy in [1.0..4.0] * spacing
+            //  - der Anker ist VERTIKAL ZWISCHEN Bow-mark und Staff
+            let has_anchor = noteheads.iter().enumerate().any(|(j, other)| {
+                if i == j || to_remove[j] { return false; }
+                if other.staff_idx != nh.staff_idx { return false; }
+                let dx = (other.center.x - nh.center.x).abs();
+                if dx > spacing * 0.7 { return false; }
+                let dy = if is_above_staff {
+                    other.center.y - cy
+                } else {
+                    cy - other.center.y
+                };
+                dy >= spacing * 1.0 && dy <= spacing * 4.0
+            });
+
+            if has_anchor {
+                debug!(x = nh.center.x, y = nh.center.y, kind = ?nh.kind, "rejected as bow-mark/articulation");
+                to_remove[i] = true;
+            }
+        }
+    }
+
+    noteheads
+        .into_iter()
+        .enumerate()
+        .filter(|(i, _)| !to_remove[*i])
+        .map(|(_, nh)| nh)
+        .collect()
 }
 
 /// Filtert NH-Cluster die wie Text aussehen.
@@ -322,6 +401,28 @@ fn extract_noteheads_from_complex(
     spacing: f32,
     systems: &[StaffSystem],
 ) -> Vec<Notehead> {
+    // Multi-Measure-Rest (MMR) Filter:
+    // MMR-Bar = solider horizontaler Strich im Mittelbereich des Systems,
+    // typisch > 4*spacing breit, ~0.4-1.0*spacing hoch, sehr dicht.
+    // Charakteristikum: horizontale Pixel-Reihe(n) mit Density > 70% der Breite
+    // dominieren das CC.
+    let mmr_check = check_multi_measure_rest_bar(bin, bb, spacing);
+    if mmr_check.is_mmr {
+        debug!(x = bb.x, y = bb.y, w = bb.w, h = bb.h, "rejected as multi-measure-rest bar");
+        return vec![];
+    }
+
+    // Hardline-Filter: Thin-Wide CCs können physisch keine Noteheads enthalten.
+    // Real Beam-Group hat h ≥ 2.5*spacing (NH + Stem + Beam, mit Stem ≥ 2*spacing).
+    // Tied-Slur/Underline/Augmentation-Slur hinterlassen wide-thin Reststreifen
+    // (h ≤ 2*spacing, w ≥ 3*spacing), die dem MMR-Check entkommen, weil leichte
+    // Krümmungen das `inner-outside-pixels` Limit reißen. Diese CCs enthalten
+    // keine NHs — REJECT.
+    if (bb.h as f32) <= spacing * 2.0 && (bb.w as f32) >= spacing * 3.0 {
+        debug!(x = bb.x, y = bb.y, w = bb.w, h = bb.h, "rejected as thin-wide non-NH stripe");
+        return vec![];
+    }
+
     // Wenn das CC schmaler als 2*spacing ist, ist es definitiv NUR ein Notehead+Stem.
     let nh_w = (spacing * 1.3).round() as u32;
     if bb.w < (spacing * 2.0) as u32 {
@@ -422,6 +523,115 @@ fn extract_single_notehead_from_tall(
     systems: &[StaffSystem],
 ) -> Option<Notehead> {
     extract_notehead_from_tall(bin, bb, spacing, systems)
+}
+
+/// Erkennt eine Multi-Measure-Rest (MMR) Bar oder ähnlichen "thin horizontal
+/// solid stripe" der durch staff-removal als wide-thin CC übrig bleibt.
+///
+/// Robuste Heuristik (auch wenn End-Ticks im Bbox enthalten sind):
+///  1. Finde die Reihen mit Density >= 50% der Breite (das sind die BAR-Reihen).
+///  2. Diese Reihen müssen kontigues + dünn (≤ 0.9*spacing) sein.
+///  3. Ermittele die X-Range der Bar (bar_x_min..bar_x_max).
+///  4. AUSSERHALB der Bar-Reihen, IM INNEREN der Bar-X-Range (mit Margin von
+///     1*spacing für End-Ticks), darf KAUM Pixel-Aktivität sein.
+///     - MMR-Pattern: Ticks am Rand des Bars → inneres Außerhalb-Gebiet leer.
+///     - Beam-Gruppe: Stems im ganzen Bereich verteilt → inneres Außerhalb voll.
+#[derive(Debug)]
+struct MmrCheck {
+    is_mmr: bool,
+    reason: &'static str,
+    bar_height: f32,
+    bar_width: f32,
+    inner_outside_pixels: u32,
+    max_allowed: u32,
+}
+
+fn check_multi_measure_rest_bar(bin: &Binary, bb: &Rect, spacing: f32) -> MmrCheck {
+    let mut result = MmrCheck {
+        is_mmr: false,
+        reason: "init",
+        bar_height: 0.0,
+        bar_width: 0.0,
+        inner_outside_pixels: 0,
+        max_allowed: 0,
+    };
+    if (bb.w as f32) < spacing * 2.5 { result.reason = "bbox-too-narrow"; return result; }
+    if bb.h < 2 || bb.w < 2 { result.reason = "bbox-tiny"; return result; }
+
+    // Finde dichte (BAR) Zeilen: Density >= 50% der Breite.
+    let row_density = local_row_density(bin, bb);
+    if row_density.len() < 2 { result.reason = "no-rows"; return result; }
+
+    let bar_threshold = (bb.w as f32 * 0.5) as u32;
+    let mut bar_rows: Vec<usize> = row_density.iter().enumerate()
+        .filter(|(_, &d)| d >= bar_threshold)
+        .map(|(i, _)| i)
+        .collect();
+    if bar_rows.is_empty() { result.reason = "no-dense-rows"; return result; }
+    bar_rows.sort();
+
+    let bar_top = *bar_rows.first().unwrap();
+    let bar_bot = *bar_rows.last().unwrap();
+    if bar_rows.len() != (bar_bot - bar_top + 1) { result.reason = "rows-not-contiguous"; return result; }
+    let bar_height = (bar_bot - bar_top + 1) as f32;
+    result.bar_height = bar_height;
+    if bar_height > spacing * 0.9 { result.reason = "bar-too-thick"; return result; }
+
+    // Ermittele die X-Range der Bar.
+    let mut bar_x_min = bb.w;
+    let mut bar_x_max = 0u32;
+    for y_off in bar_top..=bar_bot {
+        let y = bb.y + y_off as u32;
+        if y >= bin.h { continue; }
+        for x_off in 0..bb.w {
+            let x = bb.x + x_off;
+            if x >= bin.w { continue; }
+            if bin.get(x, y) == 1 {
+                if x_off < bar_x_min { bar_x_min = x_off; }
+                if x_off > bar_x_max { bar_x_max = x_off; }
+            }
+        }
+    }
+    if bar_x_max <= bar_x_min { result.reason = "bar-no-extent"; return result; }
+    let bar_width = (bar_x_max - bar_x_min + 1) as f32;
+    result.bar_width = bar_width;
+    if bar_width < spacing * 2.5 { result.reason = "bar-too-narrow"; return result; }
+
+    // Inner-X-Range: 1*spacing margin links und rechts, um End-Ticks
+    // auszuschließen.
+    let margin = spacing as u32;
+    if bar_x_max < bar_x_min + 2 * margin { result.reason = "no-inner-region"; return result; }
+    let inner_x_min = bar_x_min + margin;
+    let inner_x_max = bar_x_max - margin;
+
+    // Zähle aktive Pixel AUSSERHALB der Bar-Reihen, IM INNEREN der X-Range.
+    let mut inner_outside_pixels: u32 = 0;
+    for (i, _) in row_density.iter().enumerate() {
+        if i >= bar_top && i <= bar_bot { continue; }
+        let y = bb.y + i as u32;
+        if y >= bin.h { continue; }
+        for x_off in inner_x_min..=inner_x_max {
+            let x = bb.x + x_off;
+            if x >= bin.w { continue; }
+            if bin.get(x, y) == 1 {
+                inner_outside_pixels += 1;
+            }
+        }
+    }
+    result.inner_outside_pixels = inner_outside_pixels;
+
+    // Schwellwert: erlauben bis zu 2*spacing Pixel als Noise (Punkte, schmale
+    // Tick-Spitzen die in den Inner-Bereich ragen).
+    let max_allowed = (spacing * 2.0) as u32;
+    result.max_allowed = max_allowed;
+    if inner_outside_pixels > max_allowed { result.reason = "inner-pixels-too-many"; return result; }
+
+    // Sanity: Bar must extend at least 50% across the bbox width
+    if bar_width < bb.w as f32 * 0.5 { result.reason = "bar-not-spanning-bbox"; return result; }
+
+    result.is_mmr = true;
+    result.reason = "mmr-confirmed";
+    result
 }
 
 fn is_in_skip_region(nh: &Notehead, skip_x_per_system: &[std::ops::Range<u32>]) -> bool {
