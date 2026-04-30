@@ -21,6 +21,7 @@ pub mod template;
 pub mod templates;
 pub mod classifier;
 pub mod hog;
+pub mod jump_marks;
 pub mod svm_model;
 pub use bars::{detect_measure_bars, MeasureBar};
 pub use beams::{detect_beams, beams_per_stem, Beam};

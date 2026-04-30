@@ -205,6 +205,7 @@ mod tests {
                     time_signature: Some(TimeSignature { beats: 4, beat_type: 4 }),
                     key_signature: Some(omr_core::KeySignature { fifths: 0 }),
                     clef: Some(Clef::Treble),
+                    ..Default::default()
                 }],
             }],
         };

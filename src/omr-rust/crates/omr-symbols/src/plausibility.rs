@@ -308,6 +308,7 @@ mod tests {
             time_signature: None,
             key_signature: None,
             clef: None,
+            ..Default::default()
         };
         let c = check_measure(&m, TimeSignature { beats: 4, beat_type: 4 }, false);
         assert_eq!(c.plausibility, MeasurePlausibility::Exact);
@@ -322,6 +323,7 @@ mod tests {
             time_signature: None,
             key_signature: None,
             clef: None,
+            ..Default::default()
         };
         let c = check_measure(&m, TimeSignature { beats: 4, beat_type: 4 }, false);
         assert_ne!(c.plausibility, MeasurePlausibility::Exact);
@@ -337,6 +339,7 @@ mod tests {
             time_signature: None,
             key_signature: None,
             clef: None,
+            ..Default::default()
         };
         // Wir akzeptieren wenn Reparatur funktioniert, sonst diff ≤ 1
         let _ = repair_measure(&mut m, TimeSignature { beats: 4, beat_type: 4 });
@@ -353,6 +356,7 @@ mod tests {
             time_signature: None,
             key_signature: None,
             clef: None,
+            ..Default::default()
         };
         let ok = repair_measure(&mut m, TimeSignature { beats: 4, beat_type: 4 });
         assert!(ok);
@@ -369,6 +373,7 @@ mod tests {
             time_signature: None,
             key_signature: None,
             clef: None,
+            ..Default::default()
         };
         let c = check_measure(&m, TimeSignature { beats: 4, beat_type: 4 }, true);
         assert_eq!(c.plausibility, MeasurePlausibility::Anacrusis);
@@ -385,6 +390,7 @@ mod tests {
             time_signature: None,
             key_signature: None,
             clef: None,
+            ..Default::default()
         };
         let ok = repair_measure(&mut m, TimeSignature { beats: 4, beat_type: 4 });
         assert!(ok);
@@ -402,6 +408,7 @@ mod tests {
             time_signature: None,
             key_signature: None,
             clef: None,
+            ..Default::default()
         };
         let ok = repair_measure(&mut m, TimeSignature { beats: 4, beat_type: 4 });
         assert!(ok);
@@ -422,6 +429,7 @@ mod tests {
             time_signature: None,
             key_signature: None,
             clef: None,
+            ..Default::default()
         };
         // Σ = 20, expected = 4. Ratio = 5.
         let ok = repair_measure(&mut m, TimeSignature { beats: 4, beat_type: 4 });
@@ -462,6 +470,7 @@ mod tests {
             time_signature: None,
             key_signature: None,
             clef: None,
+            ..Default::default()
         };
         let ok = repair_measure(&mut m, TimeSignature { beats: 4, beat_type: 4 });
         assert!(ok, "mixed kinds sollten reparierbar sein");
@@ -480,6 +489,7 @@ mod tests {
             time_signature: None,
             key_signature: None,
             clef: None,
+            ..Default::default()
         };
         let ok = repair_measure(&mut m, TimeSignature { beats: 4, beat_type: 4 });
         assert!(ok);

@@ -104,6 +104,8 @@ pub struct Stats {
     pub n_measures_exact: usize,
     pub n_measures_repaired: usize,
     pub n_measures_broken: usize,
+    pub n_jump_marks: usize,
+    pub timeline_len: usize,
     pub deskew_angle_deg: f32,
 }
 
@@ -205,6 +207,10 @@ pub fn process_gray(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineR
     let beams = omr_symbols::detect_beams(&removed, line_spacing);
     let beam_counts = omr_symbols::beams_per_stem(&stems, &beams);
     let bars = omr_symbols::detect_measure_bars(&bin, &systems, &noteheads);
+    // Sprungmarken erkennen (Repeat-Bars + Volta) — Phase A für Layered-OMR (Spec 22)
+    let mut jump_detections = Vec::new();
+    jump_detections.extend(omr_symbols::jump_marks::detect_repeat_marks(&bin, &bars, &systems));
+    jump_detections.extend(omr_symbols::jump_marks::detect_voltas(&bin, &bars, &noteheads, &systems));
     let symbol_detection_ms = sym_t.elapsed().as_millis();
     drop(_span);
     info!(
@@ -214,6 +220,7 @@ pub fn process_gray(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineR
         n_stems = stems.len(),
         n_beams = beams.len(),
         n_bars = bars.len(),
+        n_jump_marks = jump_detections.len(),
         "symbols detected"
     );
 
@@ -281,7 +288,44 @@ pub fn process_gray(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineR
                 .collect();
             bar_xs.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
-            split_into_measures(all_notes, &bar_xs)
+            // Bboxes pro Takt aus den Bar-Positionen + Staff-System-Y-Range berechnen.
+            // Wird in den Measures als bbox_orig gespeichert für Phase-A
+            // (Live-Position-Highlighting + Cross-Instrument-Sync, Spec 22).
+            let staff = &systems[sys_i];
+            let line_spacing_local = staff.line_spacing;
+            let staff_top_y = staff.lines.first().and_then(|l| l.y_per_x.iter().min().copied()).unwrap_or(0);
+            let staff_bot_y = staff.lines.last().and_then(|l| l.y_per_x.iter().max().copied()).unwrap_or(staff_top_y);
+            let pad = (line_spacing_local * 1.5) as u32;
+            let bbox_top = staff_top_y.saturating_sub(pad);
+            let bbox_bot = staff_bot_y.saturating_add(pad);
+            // x-Bereich: vom Anfang des Systems (oder Bar-Start) bis zum nächsten Bar
+            let staff_x_start = staff.lines.first()
+                .and_then(|l| l.y_per_x.iter().position(|&y| y > 0))
+                .map(|p| p as u32)
+                .unwrap_or(0);
+
+            let mut split = split_into_measures(all_notes, &bar_xs);
+            // Berechne Bbox pro Takt aus bar_xs
+            let mut bar_xs_full = vec![staff_x_start as f32];
+            bar_xs_full.extend(bar_xs.iter().copied());
+            // Letzter Bar: Bild-Ende
+            bar_xs_full.push(removed.w as f32);
+            for (mi, m) in split.iter_mut().enumerate() {
+                if mi + 1 < bar_xs_full.len() {
+                    let x0 = bar_xs_full[mi].max(0.0) as u32;
+                    let x1 = bar_xs_full[mi + 1].min(removed.w as f32) as u32;
+                    if x1 > x0 {
+                        m.bbox_orig = Some(omr_core::Rect {
+                            x: x0,
+                            y: bbox_top,
+                            w: x1 - x0,
+                            h: bbox_bot.saturating_sub(bbox_top),
+                        });
+                    }
+                }
+                m.system_idx = Some(sys_i as u32);
+            }
+            split
         })
         .collect();
 
@@ -320,11 +364,31 @@ pub fn process_gray(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineR
         "measure plausibility"
     );
 
+    // bar_to_measure-Mapping: jeder Bar wird dem Measure RECHTS davon zugeordnet
+    // (oder dem dem Bar selbst - bei RepeatEnd). Wir suchen für jeden Bar das
+    // erste Measure dessen Bbox-Center.x > bar.x ist.
+    let bar_to_measure: Vec<Option<usize>> = bars.iter().map(|b| {
+        let bar_x = b.x as f32;
+        measures.iter().position(|m| {
+            m.bbox_orig
+                .map(|bb| bb.x as f32 + bb.w as f32 * 0.5 >= bar_x)
+                .unwrap_or(false)
+        })
+    }).collect();
+    omr_symbols::jump_marks::apply_jump_marks(&mut measures, &bar_to_measure, &jump_detections);
+
     let part = Part {
         id: "P1".into(),
         name: "Stimme".into(),
         measures,
     };
+
+    let timeline = omr_core::PerformanceTimeline::from_part(&part);
+    info!(
+        n_jump_detections = jump_detections.len(),
+        timeline_len = timeline.len(),
+        "performance timeline"
+    );
 
     let score = Score {
         work_title: String::new(),
@@ -361,6 +425,8 @@ pub fn process_gray(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineR
             n_measures_exact,
             n_measures_repaired,
             n_measures_broken,
+            n_jump_marks: jump_detections.len(),
+            timeline_len: timeline.len(),
             deskew_angle_deg: deskew_angle,
         },
     })
@@ -391,6 +457,7 @@ fn split_into_measures(notes: Vec<omr_core::ScoreNote>, bar_xs: &[f32]) -> Vec<M
             time_signature: None,
             key_signature: None,
             clef: None,
+            ..Default::default()
         }];
     }
     let mut measures = Vec::new();
@@ -416,6 +483,7 @@ fn split_into_measures(notes: Vec<omr_core::ScoreNote>, bar_xs: &[f32]) -> Vec<M
                 time_signature: None,
                 key_signature: None,
                 clef: None,
+                ..Default::default()
             });
         }
         prev_x = bar_x;
@@ -429,6 +497,7 @@ fn split_into_measures(notes: Vec<omr_core::ScoreNote>, bar_xs: &[f32]) -> Vec<M
             time_signature: None,
             key_signature: None,
             clef: None,
+            ..Default::default()
         }];
     }
     measures
@@ -472,6 +541,8 @@ pub fn process_pdf(path: &Path, opts: &PipelineOptions) -> Result<PipelineResult
         merged_stats.n_measures_exact += r.stats.n_measures_exact;
         merged_stats.n_measures_repaired += r.stats.n_measures_repaired;
         merged_stats.n_measures_broken += r.stats.n_measures_broken;
+        merged_stats.n_jump_marks += r.stats.n_jump_marks;
+        merged_stats.timeline_len += r.stats.timeline_len;
         merged_stats.line_thickness = r.stats.line_thickness;
         merged_stats.line_spacing = r.stats.line_spacing;
         merged_stats.deskew_angle_deg = r.stats.deskew_angle_deg;
