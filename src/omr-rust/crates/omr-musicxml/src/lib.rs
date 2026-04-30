@@ -113,8 +113,75 @@ fn measure_xml(m: &Measure, first: bool) -> String {
         }
         let _ = writeln!(s, "      </note>");
     }
+    // Sprungmarken als <barline> mit <repeat>/<ending> ausgeben
+    write_jump_marks(&mut s, &m.jump_marks);
     let _ = writeln!(s, "    </measure>");
     s
+}
+
+fn write_jump_marks(s: &mut String, marks: &[omr_core::JumpMark]) {
+    use omr_core::JumpMark;
+    for mark in marks {
+        match mark {
+            JumpMark::RepeatStart => {
+                let _ = writeln!(s, "      <barline location=\"left\">");
+                let _ = writeln!(s, "        <bar-style>heavy-light</bar-style>");
+                let _ = writeln!(s, "        <repeat direction=\"forward\"/>");
+                let _ = writeln!(s, "      </barline>");
+            }
+            JumpMark::RepeatEnd => {
+                let _ = writeln!(s, "      <barline location=\"right\">");
+                let _ = writeln!(s, "        <bar-style>light-heavy</bar-style>");
+                let _ = writeln!(s, "        <repeat direction=\"backward\"/>");
+                let _ = writeln!(s, "      </barline>");
+            }
+            JumpMark::Volta { number } => {
+                let _ = writeln!(s, "      <barline location=\"left\">");
+                let _ = writeln!(s, "        <ending number=\"{}\" type=\"start\"/>", number);
+                let _ = writeln!(s, "      </barline>");
+            }
+            JumpMark::Coda => {
+                let _ = writeln!(s, "      <direction placement=\"above\">");
+                let _ = writeln!(s, "        <direction-type><coda/></direction-type>");
+                let _ = writeln!(s, "      </direction>");
+            }
+            JumpMark::Segno => {
+                let _ = writeln!(s, "      <direction placement=\"above\">");
+                let _ = writeln!(s, "        <direction-type><segno/></direction-type>");
+                let _ = writeln!(s, "      </direction>");
+            }
+            JumpMark::Fine => {
+                let _ = writeln!(s, "      <direction placement=\"above\">");
+                let _ = writeln!(s, "        <direction-type><words>Fine</words></direction-type>");
+                let _ = writeln!(s, "        <sound fine=\"yes\"/>");
+                let _ = writeln!(s, "      </direction>");
+            }
+            JumpMark::DaCapo => {
+                let _ = writeln!(s, "      <direction placement=\"above\">");
+                let _ = writeln!(s, "        <direction-type><words>D.C.</words></direction-type>");
+                let _ = writeln!(s, "        <sound dacapo=\"yes\"/>");
+                let _ = writeln!(s, "      </direction>");
+            }
+            JumpMark::DcAlFine => {
+                let _ = writeln!(s, "      <direction placement=\"above\">");
+                let _ = writeln!(s, "        <direction-type><words>D.C. al Fine</words></direction-type>");
+                let _ = writeln!(s, "        <sound dacapo=\"yes\"/>");
+                let _ = writeln!(s, "      </direction>");
+            }
+            JumpMark::DsAlCoda => {
+                let _ = writeln!(s, "      <direction placement=\"above\">");
+                let _ = writeln!(s, "        <direction-type><words>D.S. al Coda</words></direction-type>");
+                let _ = writeln!(s, "        <sound dalsegno=\"segno\"/>");
+                let _ = writeln!(s, "      </direction>");
+            }
+            JumpMark::DsAlFine => {
+                let _ = writeln!(s, "      <direction placement=\"above\">");
+                let _ = writeln!(s, "        <direction-type><words>D.S. al Fine</words></direction-type>");
+                let _ = writeln!(s, "        <sound dalsegno=\"segno\"/>");
+                let _ = writeln!(s, "      </direction>");
+            }
+        }
+    }
 }
 
 fn clef_to_sign_line(c: Clef) -> (&'static str, u32) {
