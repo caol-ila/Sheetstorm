@@ -236,7 +236,7 @@ pub fn noteheads_to_notes(
             Some(s) => s,
             None => continue,
         };
-        let pitch = pitch::pitch_from_y(nh.center.y, staff, clef, key);
+        let pitch = pitch::pitch_from_xy(nh.center.x, nh.center.y, staff, clef, key);
         // Stem für diesen Notehead?
         let stem_idx = stems.iter().position(|s| s.notehead_idx == Some(idx));
         let has_stem = stem_idx.is_some();

@@ -193,17 +193,63 @@ pub fn process_image(path: &Path, opts: &PipelineOptions) -> Result<PipelineResu
     process_gray(gray, opts)
 }
 
-/// Verarbeite eine PDF-Datei (rendert die erste Seite).
-/// Wenn `pdfium` nicht initialisiert werden kann, wird ein deutlicher
-/// Fehler zurückgegeben.
+/// Verarbeite eine PDF-Datei (rendert ALLE Seiten und merged sie zu einem Score).
 pub fn process_pdf(path: &Path, opts: &PipelineOptions) -> Result<PipelineResult> {
     let images = pdf_render::render_pages(path, 200)?;
-    let first = images.into_iter().next().ok_or_else(|| OmrError::PdfRender("PDF enthält keine Seiten".into()))?;
-    process_gray(first, opts)
+    if images.is_empty() {
+        return Err(OmrError::PdfRender("PDF enthält keine Seiten".into()));
+    }
+    if images.len() == 1 {
+        return process_gray(images.into_iter().next().unwrap(), opts);
+    }
+    // Multi-Page: jede Seite separat verarbeiten, Measures konkatenieren.
+    let total_t = std::time::Instant::now();
+    let mut merged_score = Score::default();
+    let mut merged_part = Part {
+        id: "P1".into(),
+        name: "Stimme".into(),
+        measures: Vec::new(),
+    };
+    let mut merged_timings = Timings::default();
+    let mut merged_stats = Stats::default();
+    let mut next_measure = 1u32;
+
+    for (idx, img) in images.into_iter().enumerate() {
+        info!(page = idx + 1, "processing page");
+        let r = process_gray(img, opts)?;
+        merged_timings.preprocessing_ms += r.timings.preprocessing_ms;
+        merged_timings.staff_detection_ms += r.timings.staff_detection_ms;
+        merged_timings.staff_removal_ms += r.timings.staff_removal_ms;
+        merged_timings.symbol_detection_ms += r.timings.symbol_detection_ms;
+        merged_timings.musicxml_ms += r.timings.musicxml_ms;
+        merged_stats.n_systems += r.stats.n_systems;
+        merged_stats.n_noteheads += r.stats.n_noteheads;
+        merged_stats.n_stems += r.stats.n_stems;
+        merged_stats.line_thickness = r.stats.line_thickness;
+        merged_stats.line_spacing = r.stats.line_spacing;
+        merged_stats.deskew_angle_deg = r.stats.deskew_angle_deg;
+
+        if let Some(p) = r.score.parts.into_iter().next() {
+            for mut m in p.measures.into_iter() {
+                m.number = next_measure;
+                next_measure += 1;
+                merged_part.measures.push(m);
+            }
+        }
+    }
+    merged_score.parts.push(merged_part);
+    merged_timings.total_ms = total_t.elapsed().as_millis();
+    let musicxml = omr_musicxml::export(&merged_score)?;
+    Ok(PipelineResult {
+        score: merged_score,
+        musicxml,
+        timings: merged_timings,
+        stats: merged_stats,
+    })
 }
 
-/// Verarbeite eine PDF-Datei mit allen Seiten und liefert PipelineResult pro Seite.
-pub fn process_pdf_all_pages(path: &Path, opts: &PipelineOptions) -> Result<Vec<PipelineResult>> {
+/// Verarbeite eine PDF-Datei mit allen Seiten und liefert ein PipelineResult pro Seite (Detail-Output).
+pub fn process_pdf_pages_separately(path: &Path, opts: &PipelineOptions) -> Result<Vec<PipelineResult>> {
     let images = pdf_render::render_pages(path, 200)?;
     images.into_iter().map(|img| process_gray(img, opts)).collect()
 }
