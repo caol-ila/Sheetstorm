@@ -1,0 +1,62 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/omr-core",
+    "crates/omr-preprocessing",
+    "crates/omr-staff",
+    "crates/omr-symbols",
+    "crates/omr-musicxml",
+    "crates/omr-pipeline",
+    "crates/omr-server",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0-only"
+repository = "https://github.com/caol-ila/Sheetstorm"
+authors = ["Sheetstorm contributors"]
+
+[workspace.dependencies]
+# CV / Image
+image = "0.25"
+imageproc = "0.25"
+ndarray = "0.16"
+# Math
+nalgebra = "0.33"
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# Error handling
+thiserror = "1"
+anyhow = "1"
+# Logging / tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+# Multi-threading
+rayon = "1.10"
+# XML
+quick-xml = { version = "0.36", features = ["serialize"] }
+# Async / HTTP
+tokio = { version = "1", features = ["full"] }
+axum = { version = "0.7", features = ["multipart"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["trace", "cors"] }
+# PDF rendering
+pdfium-render = "0.8"
+
+# Workspace-internal crates
+omr-core = { path = "crates/omr-core" }
+omr-preprocessing = { path = "crates/omr-preprocessing" }
+omr-staff = { path = "crates/omr-staff" }
+omr-symbols = { path = "crates/omr-symbols" }
+omr-musicxml = { path = "crates/omr-musicxml" }
+omr-pipeline = { path = "crates/omr-pipeline" }
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+
+[profile.dev]
+opt-level = 1   # weniger Debugging-Performance-Hit auf Bild-Operationen

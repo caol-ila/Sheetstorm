@@ -84,25 +84,43 @@ builder.Services.AddScoped<PollService>();
 builder.Services.AddScoped<PdfPageImageService>();
 builder.Services.AddScoped<PushNotificationService>();
 
-// OMR-Engine: wenn Audiveris-URL konfiguriert -> echter Adapter, sonst Stub
+// OMR-Engine-Auswahl:
+//   Omr:Provider=sheetstorm  → SheetstormOmrEngine (Rust-Sidecar, Default wenn URL gesetzt)
+//   Omr:Provider=audiveris   → AudiverisOmrEngine (Java-Sidecar, Legacy)
+//   <leer>                   → StubOmrEngine (entwicklungs-only, returned Demo-Daten)
+//
+// Beide Provider haben dieselbe HTTP-API (POST /recognize multipart, GET /health).
+var omrProvider = (builder.Configuration["Omr:Provider"] ?? "").ToLowerInvariant();
+var omrUrl = builder.Configuration["Omr:BaseUrl"] ?? builder.Configuration["ConnectionStrings:sheetstorm-omr"];
 var audiverisUrl = builder.Configuration["Audiveris:BaseUrl"]
     ?? builder.Configuration["ConnectionStrings:audiveris"];
-if (!string.IsNullOrEmpty(audiverisUrl))
+
+#pragma warning disable EXTEXP0001 // Resilience-Handler-Remove ist als experimental markiert, funktioniert aber stabil
+
+// Wenn Sheetstorm-OMR explizit gewählt wurde oder Audiveris fehlt aber Sheetstorm-URL da ist
+if ((omrProvider == "sheetstorm" || string.IsNullOrEmpty(audiverisUrl)) && !string.IsNullOrEmpty(omrUrl))
 {
-    #pragma warning disable EXTEXP0001 // Resilience-Handler-Remove ist als experimental markiert, funktioniert aber stabil
+    builder.Services.AddHttpClient("sheetstorm-omr", c =>
+    {
+        c.BaseAddress = new Uri(omrUrl);
+        c.Timeout = TimeSpan.FromMinutes(15);
+    }).RemoveAllResilienceHandlers();
+    builder.Services.AddScoped<IOmrEngine, SheetstormOmrEngine>();
+}
+else if (!string.IsNullOrEmpty(audiverisUrl))
+{
     builder.Services.AddHttpClient("audiveris", c =>
     {
         c.BaseAddress = new Uri(audiverisUrl);
         c.Timeout = TimeSpan.FromMinutes(15);
-    })
-    .RemoveAllResilienceHandlers();
-    #pragma warning restore EXTEXP0001
+    }).RemoveAllResilienceHandlers();
     builder.Services.AddScoped<IOmrEngine, AudiverisOmrEngine>();
 }
 else
 {
     builder.Services.AddScoped<IOmrEngine, StubOmrEngine>();
 }
+#pragma warning restore EXTEXP0001
 
 builder.Services.AddHostedService<OmrBackgroundWorker>();
 builder.Services.AddHostedService<EventReminderWorker>();

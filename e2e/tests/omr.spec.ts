@@ -16,7 +16,8 @@ function createTinyPdf(label = 'OMR-Test'): string {
 test.describe('Iteration 5 — OMR-Pipeline', () => {
 
   test('Dirigent lädt PDF hoch, Erkennung läuft, Stimmen werden vorgeschlagen, Werk wird angelegt', async ({ page }) => {
-    test.skip(!!process.env.AUDIVERIS_ON, 'Test braucht Stub-OMR; bei echter Audiveris fail mit Mini-PDF.');
+    test.skip(!!process.env.AUDIVERIS_ON || !!process.env.SHEETSTORM_OMR_ON,
+      'Test braucht Stub-OMR; bei echter Engine fail mit Mini-PDF.');
     test.setTimeout(60_000);
 
     await page.goto('/Account/Login');

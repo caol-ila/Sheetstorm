@@ -1,0 +1,13 @@
+[package]
+name = "omr-staff"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+omr-core.workspace = true
+image.workspace = true
+imageproc.workspace = true
+ndarray.workspace = true
+rayon.workspace = true
+tracing.workspace = true
