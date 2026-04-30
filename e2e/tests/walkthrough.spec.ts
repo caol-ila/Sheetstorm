@@ -182,17 +182,17 @@ test.describe('Walkthrough — alle Hauptflows', () => {
     await ctx.close();
   });
 
-  test('OMR-Stub-Banner erscheint NICHT wenn Audiveris konfiguriert ist', async ({ browser }) => {
+  test('OMR-Stub-Banner erscheint NICHT wenn echte Engine konfiguriert ist', async ({ browser }) => {
     test.setTimeout(60_000);
     const ctx = await newDemoContext(browser);
     const page = await ctx.newPage();
     await loginDemo(page);
     await page.goto('/Bands/demo/omr');
-    // Bei laufendem Audiveris (env Audiveris__BaseUrl gesetzt) darf der
+    // Bei laufender echter Engine (Audiveris ODER Sheetstorm-OMR) darf der
     // Stub-Banner NICHT auftauchen. Bei Stub-Engine erwartet der Folge-Test
     // ihn zu sehen (siehe omr.spec.ts).
-    const audiverisOn = !!process.env.AUDIVERIS_ON;
-    if (audiverisOn) {
+    const realEngineOn = !!process.env.AUDIVERIS_ON || !!process.env.SHEETSTORM_OMR_ON;
+    if (realEngineOn) {
       await expect(page.getByTestId('omr-stub-banner')).toHaveCount(0);
     } else {
       await expect(page.getByTestId('omr-stub-banner')).toBeVisible();
