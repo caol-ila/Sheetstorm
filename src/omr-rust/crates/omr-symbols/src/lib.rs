@@ -12,10 +12,12 @@ use tracing::debug;
 
 pub mod beams;
 pub mod cc;
+pub mod meta;
 pub mod pitch;
 pub mod stems;
 pub use beams::{detect_beams, beams_per_stem, Beam};
 pub use cc::{connected_components, ConnectedComponent};
+pub use meta::{detect_clef, detect_key_signature};
 
 /// Hauptfunktion: detektiere Noteheads in einem staff-line-removed Binary.
 pub fn detect_noteheads(staff_removed: &Binary, systems: &[StaffSystem]) -> Vec<Notehead> {

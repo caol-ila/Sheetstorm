@@ -100,18 +100,16 @@ pub fn process_gray(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineR
     info!(n_noteheads = noteheads.len(), n_stems = stems.len(), n_beams = beams.len(), "symbols detected");
 
     // 5) Score-Konstruktion: ein Measure pro StaffSystem, Noten in Reading-Order (X).
-    let clef = Clef::Treble;
-    let key = KeySignature::default();
+    // Clef + Key Signature pro System auf Original-Binary detektieren.
+    let clefs: Vec<Clef> = systems.iter().map(|s| omr_symbols::detect_clef(&bin, s)).collect();
+    let keys: Vec<omr_core::KeySignature> = systems.iter().map(|s| omr_symbols::detect_key_signature(&bin, s)).collect();
 
     let all_notes_per_system: Vec<Vec<omr_core::ScoreNote>> = (0..systems.len())
         .map(|sys_i| {
             let mut filtered: Vec<&omr_core::Notehead> =
                 noteheads.iter().filter(|nh| nh.staff_idx == sys_i).collect();
             filtered.sort_by(|a, b| a.center.x.partial_cmp(&b.center.x).unwrap_or(std::cmp::Ordering::Equal));
-            // notehead_indices in original-Reihenfolge — filter map zur stems lookup
             let nh_local: Vec<omr_core::Notehead> = filtered.into_iter().cloned().collect();
-            // stems neu mappen — wir müssen für die filter ent-indexen, vereinfacht: Match per Index in nh_local fehlt,
-            // wir matchen Stems über räumliche Nähe.
             let stems_local: Vec<omr_core::Stem> = stems
                 .iter()
                 .filter(|s| {
@@ -121,11 +119,11 @@ pub fn process_gray(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineR
                 })
                 .cloned()
                 .collect();
-            // Beam-Counts für die lokal gefilterten Stems neu berechnen.
             let beam_counts_local: Vec<u32> = omr_symbols::beams_per_stem(&stems_local, &beams);
-            let mut notes = omr_symbols::noteheads_to_notes(&nh_local, &systems, &stems_local, &beam_counts_local, clef, key);
+            let clef_for_sys = clefs.get(sys_i).copied().unwrap_or(Clef::Treble);
+            let key_for_sys = keys.get(sys_i).copied().unwrap_or(KeySignature::default());
+            let mut notes = omr_symbols::noteheads_to_notes(&nh_local, &systems, &stems_local, &beam_counts_local, clef_for_sys, key_for_sys);
             notes.sort_by(|a, b| a.center.x.partial_cmp(&b.center.x).unwrap_or(std::cmp::Ordering::Equal));
-            // Onset = sequenzielle Position * 1 (vereinfacht)
             let mut onset = 0u32;
             for n in notes.iter_mut() {
                 n.onset = onset;
@@ -143,8 +141,8 @@ pub fn process_gray(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineR
             divisions: 4,
             notes,
             time_signature: if i == 0 { Some(TimeSignature { beats: 4, beat_type: 4 }) } else { None },
-            key_signature: if i == 0 { Some(key) } else { None },
-            clef: if i == 0 { Some(clef) } else { None },
+            key_signature: keys.get(i).copied(),
+            clef: clefs.get(i).copied(),
         })
         .collect();
 
