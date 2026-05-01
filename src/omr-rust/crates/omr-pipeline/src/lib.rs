@@ -660,6 +660,20 @@ fn process_gray_single(gray: GrayImage, opts: &PipelineOptions) -> Result<Pipeli
                     }
                 }
             }
+
+            // Stem-Direction-Validation: korrigiere offensichtliche Octave-Errors.
+            // Wenn ein NH "hoch" gelabelt ist (z.B. C6) aber stem-up zeigt,
+            // ist die Wahrscheinlichkeit hoch dass es eine Oktave tiefer (C5) ist.
+            let validations = omr_symbols::stem_validation::validate_stem_directions(
+                &nh_local, &stems_local, &systems
+            );
+            // Mapping local_nh_idx → score_note_idx (1:1 nach Sort, aber wir
+            // sortieren nochmal nach center.x später; daher hier vor sort).
+            let nh_to_score: Vec<Option<usize>> = (0..nh_local.len()).map(Some).collect();
+            omr_symbols::stem_validation::apply_octave_corrections(
+                &mut all_notes, &nh_to_score, &validations
+            );
+
             all_notes.sort_by(|a, b| a.center.x.partial_cmp(&b.center.x).unwrap_or(std::cmp::Ordering::Equal));
 
             let mut bar_xs: Vec<f32> = bars.iter()
