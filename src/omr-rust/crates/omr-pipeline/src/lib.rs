@@ -481,6 +481,15 @@ fn process_gray_single(gray: GrayImage, opts: &PipelineOptions) -> Result<Pipeli
         before = n_before_beam_filter, after = noteheads.len(),
         "kind after beam-overlap filter"
     );
+    // Dedup: Cluster-Detections (CC-Splits über Beam-Gruppen) verschmelzen.
+    let n_before_dedup = noteheads.len();
+    let noteheads = omr_symbols::dedupe_close_noteheads(noteheads, line_spacing);
+    let (dedup_f, dedup_o, dedup_w) = count_kinds(&noteheads);
+    info!(
+        dedup_F = dedup_f, dedup_O = dedup_o, dedup_W = dedup_w,
+        before = n_before_dedup, after = noteheads.len(),
+        "kind after dedupe-close filter"
+    );
     let stems = omr_symbols::stems::detect_stems(&removed, &noteheads, line_spacing);
     let _beam_counts = omr_symbols::beams_per_stem(&stems, &beams);
     let bars = omr_symbols::detect_measure_bars(&bin, &systems, &noteheads);

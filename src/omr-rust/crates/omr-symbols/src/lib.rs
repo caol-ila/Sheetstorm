@@ -39,6 +39,47 @@ pub fn detect_noteheads(staff_removed: &Binary, systems: &[StaffSystem]) -> Vec<
     detect_noteheads_with_skip(staff_removed, systems, &[])
 }
 
+/// Filtert Duplicate-Noteheads, die zu nah aneinander liegen (CC-Splits über Beam-Gruppen,
+/// doppelte Detection durch CC-Merge + extract_complex). Behält den NH mit der größeren
+/// Bbox (= mehr Pixel = wahrscheinlich vollständigerer Detection).
+///
+/// Akkord-Schutz: NHs mit dy >= 0.4*spacing werden NICHT verschmolzen (Akkord-NHs am
+/// gleichen Stem haben dy >= 0.5*spacing für benachbarte Pitch-Positionen).
+pub fn dedupe_close_noteheads(noteheads: Vec<Notehead>, spacing: f32) -> Vec<Notehead> {
+    let dx_max = spacing * 0.6;
+    let dy_max = spacing * 0.4;
+    let mut sorted = noteheads;
+    sorted.sort_by(|a, b| {
+        a.staff_idx
+            .cmp(&b.staff_idx)
+            .then(a.center.x.partial_cmp(&b.center.x).unwrap_or(std::cmp::Ordering::Equal))
+    });
+    let mut keep = vec![true; sorted.len()];
+    for i in 0..sorted.len() {
+        if !keep[i] { continue; }
+        for j in (i + 1)..sorted.len() {
+            if !keep[j] { continue; }
+            if sorted[j].staff_idx != sorted[i].staff_idx { break; }
+            if sorted[j].center.x - sorted[i].center.x > dx_max { break; }
+            if (sorted[j].center.y - sorted[i].center.y).abs() < dy_max {
+                let area_i = sorted[i].bbox.area();
+                let area_j = sorted[j].bbox.area();
+                if area_i >= area_j {
+                    keep[j] = false;
+                } else {
+                    keep[i] = false;
+                    break;
+                }
+            }
+        }
+    }
+    sorted
+        .into_iter()
+        .enumerate()
+        .filter_map(|(i, nh)| if keep[i] { Some(nh) } else { None })
+        .collect()
+}
+
 /// Wie [`detect_noteheads`], aber mit explicit "verbotenen" X-Range pro System
 /// (z.B. der Schlüssel/Key/Time-Bereich).
 pub fn detect_noteheads_with_skip(
@@ -151,30 +192,35 @@ pub fn filter_bow_marks_and_articulations(
     let mut to_remove = vec![false; noteheads.len()];
 
     for (i, nh) in noteheads.iter().enumerate() {
-        // Nur Open-NHs sind potentielle Bow-Marks (Filled = solider Notenkopf).
-        if nh.kind != NoteheadKind::Filled {
-            let staff = match systems.get(nh.staff_idx) {
-                Some(s) => s,
-                None => continue,
-            };
-            let spacing = staff.line_spacing;
-            let cx = nh.center.x as usize;
-            let top_line = &staff.lines[0];
-            let bot_line = &staff.lines[staff.lines.len() - 1];
-            let top_y = top_line.y_per_x.get(cx).copied()
-                .unwrap_or_else(|| top_line.y_per_x[0]) as f32;
-            let bot_y = bot_line.y_per_x.get(cx).copied()
-                .unwrap_or_else(|| bot_line.y_per_x[0]) as f32;
-            let cy = nh.center.y;
+        // Open/Whole-NHs: prüfen wenn AUSSERHALB staff (Bow-Marks ▽).
+        // Filled-NHs: prüfen wenn WEIT-AUSSERHALB staff (Akzente, Dynamik "f", "p", "Trp").
+        let outside_threshold = if nh.kind == NoteheadKind::Filled {
+            1.4_f32 // Filled muss WEIT entfernt sein (sonst valide Ledger-Note)
+        } else {
+            0.5_f32
+        };
+        let staff = match systems.get(nh.staff_idx) {
+            Some(s) => s,
+            None => continue,
+        };
+        let spacing = staff.line_spacing;
+        let cx = nh.center.x as usize;
+        let top_line = &staff.lines[0];
+        let bot_line = &staff.lines[staff.lines.len() - 1];
+        let top_y = top_line.y_per_x.get(cx).copied()
+            .unwrap_or_else(|| top_line.y_per_x[0]) as f32;
+        let bot_y = bot_line.y_per_x.get(cx).copied()
+            .unwrap_or_else(|| bot_line.y_per_x[0]) as f32;
+        let cy = nh.center.y;
 
-            // Above staff (>= 0.5*spacing über Top-Line) ODER below staff (>= 0.5*spacing unter Bot-Line)
-            // Bow-marks (▽) sitzen typisch 1 ledger line above staff (~1*spacing über top-line).
-            // Dynamics (p, f, mf) sitzen typisch ~1*spacing unter bot-line.
-            let is_above_staff = top_y - cy >= spacing * 0.5;
-            let is_below_staff = cy - bot_y >= spacing * 0.5;
-            if !is_above_staff && !is_below_staff {
-                continue;
-            }
+        // Above staff (>= threshold*spacing über Top-Line) ODER below staff
+        let is_above_staff = top_y - cy >= spacing * outside_threshold;
+        let is_below_staff = cy - bot_y >= spacing * outside_threshold;
+        if !is_above_staff && !is_below_staff {
+            continue;
+        }
+
+        {
 
             // Sehr-weit-Außerhalb-Filter: Wenn weiter als 5*spacing über/unter Staff,
             // NICHT als Bow-Mark filtern (kann eine valide Ledger-Note sein).
@@ -235,6 +281,15 @@ pub fn filter_bow_marks_and_articulations(
 
             if has_stem_towards_staff {
                 continue; // echter NH mit Stem
+            }
+
+            // Filled-NHs ohne Stem WEIT-AUSSERHALB Staff: direkt rejekten
+            // (Akzente >, Dynamik f/p, Buchstaben Trp/dolce). Stem-Check ist
+            // ausreichend — echte Ledger-Notes haben IMMER einen Stem.
+            if nh.kind == NoteheadKind::Filled {
+                debug!(x = nh.center.x, y = nh.center.y, "rejected as filled-articulation");
+                to_remove[i] = true;
+                continue;
             }
 
             // Whole-Notes haben keinen Stem. Aber sie sitzen auf oder direkt
