@@ -444,31 +444,30 @@ fn process_gray_single(gray: GrayImage, opts: &PipelineOptions) -> Result<Pipeli
             .and_then(|l| l.y_per_x.iter().position(|&y| y > 0))
             .unwrap_or(0) as u32;
 
-        // Pre-detect Clef/KeySig auf dem ORIGINAL-Binary um Skip-Range dynamisch zu schärfen.
-        // Die Variante mit `_extent` liefert zusätzlich die rightmost-X-Position der
-        // detektierten Vorzeichen-CCs. Wenn vorhanden, nutzen wir das für eine
-        // präzisere Skip-Region statt der 0.7×fifths-Heuristik.
+        // Pre-detect Clef + KeySig + TimeSig auf dem ORIGINAL-Binary um Skip-Range
+        // dynamisch zu schaerfen mittels MEASURED-X (nicht heuristic-only):
+        //
+        //   header_end = max(clef_rightmost, keysig_rightmost) + timesig_w + padding
+        //
+        // Heuristik bleibt als Fallback.
+        let (_clef, clef_rightmost) = omr_symbols::meta::detect_clef_with_extent(&bin, s);
         let (key, keysig_rightmost) = omr_symbols::meta::detect_key_signature_with_extent(&bin, s);
         let n_accidentals = key.fifths.unsigned_abs() as f32;
 
         let clef_w = 3.0;
         let keysig_w = 0.7 * n_accidentals.max(0.0);
         let timesig_w = 2.0;
-        let padding = 1.0;
+        let padding = 1.5;
         let heuristic_factor = (clef_w + keysig_w + timesig_w + padding).max(6.0);
         let heuristic_end = line_start_x + (spacing * heuristic_factor) as u32;
 
-        // Wenn echte KeySig-CC-Bbox erkannt → nutze rightmost + TimeSig + Padding.
-        // Sonst Fallback auf Heuristik. Wichtig: rightmost ist mindestens
-        // line_start_x + 4*spacing (das ist der Search-Start), also nie kleiner als
-        // (line_start_x + clef_w*spacing).
-        let measured_end = if keysig_rightmost > line_start_x {
-            keysig_rightmost + (spacing * (timesig_w + padding)) as u32
+        // Use measured rightmost-X (from clef + keysig) + TimeSig estimate + padding.
+        let measured_metasym_end = clef_rightmost.max(keysig_rightmost);
+        let measured_end = if measured_metasym_end > line_start_x {
+            measured_metasym_end + (spacing * (timesig_w + padding)) as u32
         } else {
             heuristic_end
         };
-        // Conservative: nimm das Maximum aus heuristisch und gemessen, damit wir
-        // nicht versehentlich zu wenig skippen.
         let header_end = heuristic_end.max(measured_end);
         line_start_x..header_end
     }).collect();

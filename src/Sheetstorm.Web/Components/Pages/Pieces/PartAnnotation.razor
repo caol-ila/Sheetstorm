@@ -774,6 +774,53 @@ window.sheetstormAnnotate = window.sheetstormAnnotate || {
             }
             ctx.setLineDash([]);
         }
+
+        // ====== Rests, Clefs, KeySig, TimeSig — UNTERSCHIEDLICHE FARBEN/LABEL ======
+        // damit User auf einen Blick sieht: 'das ist ne Pause / Schluessel / Vorzeichen'.
+        const drawLabeledBox = (bbox, color, fillColor, label) => {
+            const [bx, by, bw, bh] = bbox;
+            ctx.strokeStyle = color;
+            ctx.fillStyle = fillColor;
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([]);
+            ctx.fillRect(bx*sx, by*sy, bw*sx, bh*sy);
+            ctx.strokeRect(bx*sx, by*sy, bw*sx, bh*sy);
+            if (label) {
+                ctx.fillStyle = color;
+                ctx.font = 'bold 10px sans-serif';
+                ctx.fillText(label, bx*sx, by*sy - 2);
+            }
+        };
+        if (payload.showNoteheads && payload.rests) {
+            for (const r of payload.rests) {
+                drawLabeledBox(r.bbox, 'rgba(150,80,200,0.9)', 'rgba(150,80,200,0.10)', '⏸ ' + r.kind);
+            }
+        }
+        if (payload.showNoteheads && payload.clefs) {
+            for (const c of payload.clefs) {
+                drawLabeledBox(c.bbox, 'rgba(40,40,200,0.9)', 'rgba(40,40,200,0.10)', '𝄞 ' + c.kind);
+            }
+        }
+        if (payload.showNoteheads && payload.keySignatures) {
+            for (const k of payload.keySignatures) {
+                let s = '';
+                if (k.fifths > 0) s = '+' + k.fifths + '♯';
+                else if (k.fifths < 0) s = k.fifths + '♭';
+                else s = '0';
+                drawLabeledBox(k.bbox, 'rgba(0,140,140,0.9)', 'rgba(0,140,140,0.10)', '♯/♭ ' + s);
+            }
+        }
+        if (payload.showNoteheads && payload.timeSignatures) {
+            for (const t of payload.timeSignatures) {
+                drawLabeledBox(t.bbox, 'rgba(140,80,40,0.9)', 'rgba(140,80,40,0.10)', t.beats + '/' + t.beat_type);
+            }
+        }
+        if (payload.showNoteheads && payload.jumpMarks) {
+            for (const j of payload.jumpMarks) {
+                drawLabeledBox(j.bbox, 'rgba(180,40,180,0.9)', 'rgba(180,40,180,0.10)', '↻ ' + j.kind);
+            }
+        }
+        // ============================================================
         if (payload.showAnnotations && payload.confirmedRegions) {
             for (const r of payload.confirmedRegions) {
                 ctx.strokeStyle = 'rgba(40,180,80,0.9)';
@@ -1461,6 +1508,13 @@ window.sheetstormAnnotate = window.sheetstormAnnotate || {
             noteheads = page.noteheads,
             stems = page.stems?.Select(s => new { x = s.x, yTop = s.y_top, yBot = s.y_bot }),
             bars = page.bars?.Select(b => new { x = b.x, yTop = b.y_top, yBot = b.y_bot }),
+            // Erweiterte Detections: Rests, Clefs, KeySig, TimeSig, JumpMarks
+            // damit User Note vs Pause vs Schluessel/Vorzeichen unterscheiden kann.
+            rests = page.rests,
+            clefs = page.clefs,
+            keySignatures = page.key_signatures,
+            timeSignatures = page.time_signatures,
+            jumpMarks = page.jump_marks,
             annotatedIds = annKindByNhId,
             missedAnnotations,
             confirmedRegions,
@@ -1949,7 +2003,12 @@ window.sheetstormAnnotate = window.sheetstormAnnotate || {
     private sealed record DetectionPageDto(
         int page_index, int width, int height, float line_spacing,
         List<NoteheadDto>? noteheads, List<StemDto>? stems, List<BarDto>? bars,
-        ReadingStreamDto? reading_stream);
+        ReadingStreamDto? reading_stream,
+        List<RestDto>? rests = null,
+        List<ClefDto>? clefs = null,
+        List<KeySignatureDto>? key_signatures = null,
+        List<TimeSignatureDto>? time_signatures = null,
+        List<JumpMarkDto>? jump_marks = null);
     private sealed record NoteheadDto(
         long id, int[] bbox, string kind,
         int? midi, string? step, int? alter, int? octave,
@@ -1957,6 +2016,11 @@ window.sheetstormAnnotate = window.sheetstormAnnotate || {
         double? confidence = null);
     private sealed record StemDto(int x, int y_top, int y_bot);
     private sealed record BarDto(int x, int y_top, int y_bot);
+    private sealed record RestDto(string kind, int[] bbox, int? system_idx);
+    private sealed record ClefDto(int system_idx, string kind, int[] bbox);
+    private sealed record KeySignatureDto(int system_idx, int fifths, int[] bbox);
+    private sealed record TimeSignatureDto(int system_idx, int beats, int beat_type, int[] bbox);
+    private sealed record JumpMarkDto(string kind, int[] bbox, int? system_idx);
     private sealed record AnnotationDto(Guid id, int pageIndex, int x, int y, int w, int h, int kind, string? correctionJson, string? comment);
     private sealed record ReadingStreamDto(List<ReadingSystemDto>? systems);
     private sealed record ReadingSystemDto(int system_idx, List<ReadingAnomalyDto>? anomalies, int header_end_x);

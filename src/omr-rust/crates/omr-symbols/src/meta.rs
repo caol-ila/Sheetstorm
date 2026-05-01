@@ -14,8 +14,14 @@ use crate::cc::connected_components;
 
 /// Erkenne den Schlüssel am Anfang eines Systems.
 pub fn detect_clef(bin: &Binary, system: &StaffSystem) -> Clef {
+    detect_clef_with_extent(bin, system).0
+}
+
+/// Wie [`detect_clef`], aber liefert zusätzlich die rightmost-X der detektierten
+/// Clef-Glyph-Bbox. Erlaubt eine genauere Skip-Region (Pipeline-Pre-Filter).
+pub fn detect_clef_with_extent(bin: &Binary, system: &StaffSystem) -> (Clef, u32) {
     if system.lines.is_empty() {
-        return Clef::Treble;
+        return (Clef::Treble, 0);
     }
     let top_y = system.lines.first().unwrap().mean_y() as i32;
     let bot_y = system.lines.last().unwrap().mean_y() as i32;
@@ -28,8 +34,7 @@ pub fn detect_clef(bin: &Binary, system: &StaffSystem) -> Clef {
     let y0 = (top_y - (spacing * 2.0) as i32).max(0) as u32;
     let y1 = ((bot_y + (spacing * 2.0) as i32).max(0) as u32).min(bin.h);
 
-    // CCs in diesem Region.
-    let mut max_cc: Option<(i32, i32, i32, i32)> = None; // (x0, y0, x1, y1)
+    let mut max_cc: Option<(i32, i32, i32, i32)> = None;
     let ccs = connected_components_region(bin, x0, y0, x1, y1);
     for (cx0, cy0, cx1, cy1) in ccs {
         let h = cy1 - cy0;
@@ -40,27 +45,22 @@ pub fn detect_clef(bin: &Binary, system: &StaffSystem) -> Clef {
         }
     }
 
-    if let Some((_cx0, cy0, _cx1, cy1)) = max_cc {
+    if let Some((_cx0, cy0, cx1, cy1)) = max_cc {
         let cc_h = (cy1 - cy0) as f32;
         let cc_top = cy0 as f32;
         let cc_bot = cy1 as f32;
+        let rightmost_x = cx1 as u32;
 
-        // Heuristik:
-        //  - G-Schlüssel: cc_h ≥ 1.4 * staff_h, ragt deutlich oben + unten raus
-        //  - F-Schlüssel: cc_h ≈ 0.7-1.1 * staff_h, schwerpunkt im oberen Drittel
-        //  - C-Schlüssel: cc_h ≈ staff_h, zentriert
-        if cc_h >= staff_h * 1.4 {
-            return Clef::Treble;
-        }
-        // Schwerpunkt-relative Position.
-        let cc_mid = (cc_top + cc_bot) * 0.5;
-        let staff_mid = (top_y + bot_y) as f32 * 0.5;
-        if cc_mid < staff_mid - spacing * 0.5 {
-            return Clef::Bass;
-        }
-        return Clef::Alto;
+        let clef = if cc_h >= staff_h * 1.4 {
+            Clef::Treble
+        } else {
+            let cc_mid = (cc_top + cc_bot) * 0.5;
+            let staff_mid = (top_y + bot_y) as f32 * 0.5;
+            if cc_mid < staff_mid - spacing * 0.5 { Clef::Bass } else { Clef::Alto }
+        };
+        return (clef, rightmost_x);
     }
-    Clef::Treble
+    (Clef::Treble, 0)
 }
 
 /// Zähle Vorzeichen (# oder b) nach dem Schlüssel.
