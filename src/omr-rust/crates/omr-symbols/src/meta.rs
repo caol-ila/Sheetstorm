@@ -113,6 +113,48 @@ pub fn detect_key_signature(bin: &Binary, system: &StaffSystem) -> KeySignature 
     KeySignature { fifths }
 }
 
+/// Wie [`detect_key_signature`], aber zusätzlich der rightmost-X aller
+/// detektierten Vorzeichen-CCs. Erlaubt eine tightere Header-Skip-Region:
+/// statt 0.7×fifths-Heuristik nutzen wir die echte Position des letzten
+/// Vorzeichens.
+///
+/// Returns: `(KeySignature, rightmost_x)` — `rightmost_x` ist 0 wenn keine
+/// Vorzeichen erkannt wurden.
+pub fn detect_key_signature_with_extent(bin: &Binary, system: &StaffSystem) -> (KeySignature, u32) {
+    if system.lines.is_empty() {
+        return (KeySignature::default(), 0);
+    }
+    let top_y = system.lines.first().unwrap().mean_y() as i32;
+    let bot_y = system.lines.last().unwrap().mean_y() as i32;
+    let spacing = system.line_spacing;
+
+    let x_left = first_x_with_pixel(bin, top_y, bot_y).unwrap_or(0);
+    let x0 = x_left + (spacing * 4.0) as u32;
+    let x1 = (x_left + (spacing * 14.0) as u32).min(bin.w);
+    let y0 = (top_y - (spacing * 2.0) as i32).max(0) as u32;
+    let y1 = ((bot_y + (spacing * 2.0) as i32).max(0) as u32).min(bin.h);
+    if x0 >= x1 || y0 >= y1 {
+        return (KeySignature::default(), 0);
+    }
+
+    let ccs = connected_components_region(bin, x0, y0, x1, y1);
+
+    let mut sharps = 0i8;
+    let mut flats = 0i8;
+    let mut rightmost_x = 0u32;
+    for (cx0, cy0, cx1, cy1) in &ccs {
+        let h = (cy1 - cy0) as f32;
+        let w = (cx1 - cx0) as f32;
+        if !(h > spacing * 1.2 && h < spacing * 2.5) { continue; }
+        if !(w > spacing * 0.3 && w < spacing * 1.3) { continue; }
+        let aspect = w / h.max(1.0);
+        if aspect < 0.55 { sharps += 1; } else { flats += 1; }
+        rightmost_x = rightmost_x.max((*cx1).max(0) as u32);
+    }
+    let fifths = if sharps > flats { sharps.min(7) } else { -(flats.min(7)) };
+    (KeySignature { fifths }, rightmost_x)
+}
+
 /// Erkenne die Taktart (z.B. 4/4, 3/4, 6/8) am Anfang eines Systems.
 /// Strategie: Suche nach 2 vertikal übereinander stehenden Zahlen-CCs
 /// hinter dem Schlüssel + Vorzeichen, im Bereich x ∈ [4..15]*spacing.

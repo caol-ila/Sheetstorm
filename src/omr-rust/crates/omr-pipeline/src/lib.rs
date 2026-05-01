@@ -445,17 +445,32 @@ fn process_gray_single(gray: GrayImage, opts: &PipelineOptions) -> Result<Pipeli
             .unwrap_or(0) as u32;
 
         // Pre-detect Clef/KeySig auf dem ORIGINAL-Binary um Skip-Range dynamisch zu schärfen.
-        let key = omr_symbols::detect_key_signature(&bin, s);
+        // Die Variante mit `_extent` liefert zusätzlich die rightmost-X-Position der
+        // detektierten Vorzeichen-CCs. Wenn vorhanden, nutzen wir das für eine
+        // präzisere Skip-Region statt der 0.7×fifths-Heuristik.
+        let (key, keysig_rightmost) = omr_symbols::meta::detect_key_signature_with_extent(&bin, s);
         let n_accidentals = key.fifths.unsigned_abs() as f32;
 
         let clef_w = 3.0;
         let keysig_w = 0.7 * n_accidentals.max(0.0);
         let timesig_w = 2.0;
         let padding = 1.0;
-        let header_factor = (clef_w + keysig_w + timesig_w + padding).max(6.0);
-        let header_extent = (spacing * header_factor) as u32;
+        let heuristic_factor = (clef_w + keysig_w + timesig_w + padding).max(6.0);
+        let heuristic_end = line_start_x + (spacing * heuristic_factor) as u32;
 
-        line_start_x..(line_start_x + header_extent)
+        // Wenn echte KeySig-CC-Bbox erkannt → nutze rightmost + TimeSig + Padding.
+        // Sonst Fallback auf Heuristik. Wichtig: rightmost ist mindestens
+        // line_start_x + 4*spacing (das ist der Search-Start), also nie kleiner als
+        // (line_start_x + clef_w*spacing).
+        let measured_end = if keysig_rightmost > line_start_x {
+            keysig_rightmost + (spacing * (timesig_w + padding)) as u32
+        } else {
+            heuristic_end
+        };
+        // Conservative: nimm das Maximum aus heuristisch und gemessen, damit wir
+        // nicht versehentlich zu wenig skippen.
+        let header_end = heuristic_end.max(measured_end);
+        line_start_x..header_end
     }).collect();
 
     let raw_noteheads = omr_symbols::detect_noteheads_with_skip(&removed, &systems, &skip_regions);
