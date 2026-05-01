@@ -784,6 +784,11 @@ fn process_gray_single(gray: GrayImage, opts: &PipelineOptions) -> Result<Pipeli
             &bars,
             part_measures,
             &measure_checks,
+            &clefs,
+            &keys,
+            Some(detected_time),
+            &jump_detections,
+            &rests,
         );
         Some(detections::DetectionsResult {
             schema_version: 1,

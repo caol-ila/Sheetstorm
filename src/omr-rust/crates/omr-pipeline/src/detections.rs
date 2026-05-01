@@ -32,6 +32,16 @@ pub struct DetectionPage {
     pub beams: Vec<BeamEntry>,
     pub bars: Vec<BarEntry>,
     pub measures: Vec<MeasureEntry>,
+    /// Erkannte Notenschlüssel pro System (typischerweise einer pro Zeile am Anfang).
+    pub clefs: Vec<ClefEntry>,
+    /// Erkannte Tonart-Vorzeichen pro System.
+    pub key_signatures: Vec<KeySignatureEntry>,
+    /// Erkannte Taktarten (typisch nur einmal am Anfang).
+    pub time_signatures: Vec<TimeSignatureEntry>,
+    /// Sprungmarken: Repeat, Volta, Coda, Segno, D.C., D.S., Fine.
+    pub jump_marks: Vec<JumpMarkEntry>,
+    /// Erkannte Pausen.
+    pub rests: Vec<RestEntry>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -99,6 +109,44 @@ pub struct MeasureEntry {
     pub plausibility: &'static str,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct ClefEntry {
+    pub system_idx: u32,
+    pub kind: &'static str, // "Treble", "Bass", "Alto", "Tenor", "Percussion"
+    /// Approximative Bbox am Zeilenanfang.
+    pub bbox: [u32; 4],
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct KeySignatureEntry {
+    pub system_idx: u32,
+    /// -7 bis +7 (negativ = Bs, positiv = Kreuze).
+    pub fifths: i8,
+    pub bbox: [u32; 4],
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct TimeSignatureEntry {
+    pub system_idx: u32,
+    pub beats: u32,
+    pub beat_type: u32,
+    pub bbox: [u32; 4],
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct JumpMarkEntry {
+    pub kind: &'static str, // "RepeatStart", "RepeatEnd", "Volta1", "Volta2", "Coda", "Segno", "DC", "DS", "Fine"
+    pub bbox: [u32; 4],
+    pub system_idx: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RestEntry {
+    pub kind: &'static str, // "Whole", "Half", "Quarter", "Eighth", "Sixteenth"
+    pub bbox: [u32; 4],
+    pub system_idx: Option<u32>,
+}
+
 fn kind_str(k: NoteheadKind) -> &'static str {
     match k {
         NoteheadKind::Filled => "Filled",
@@ -136,6 +184,11 @@ pub fn build_detection_page(
     bars: &[MeasureBar],
     measures: &[Measure],
     plausibility: &[omr_symbols::MeasureCheck],
+    clefs: &[omr_core::Clef],
+    keys: &[omr_core::KeySignature],
+    time_signature: Option<omr_core::TimeSignature>,
+    jump_detections: &[(usize, omr_core::JumpMark)],
+    rests: &[omr_symbols::Rest],
 ) -> DetectionPage {
     let line_spacing = systems.first().map(|s| s.line_spacing).unwrap_or(0.0);
     let line_thickness = systems.first().map(|s| s.line_thickness).unwrap_or(0.0);
@@ -292,6 +345,120 @@ pub fn build_detection_page(
         })
         .collect();
 
+    // Clef/KeySig/TimeSig — eine "logische" Bbox pro System: Header-Bereich am
+    // Anfang der Zeile, ca. 0..6*spacing breit. Wir liefern eine grobe Bbox.
+    let clef_entries: Vec<ClefEntry> = clefs
+        .iter()
+        .enumerate()
+        .filter_map(|(sys_i, c)| {
+            let s = systems.get(sys_i)?;
+            let line = s.lines.first()?;
+            let line_start_x = line.y_per_x.iter().position(|&y| y > 0)? as u32;
+            let top_y = line.mean_y() as u32;
+            let bot_y = s.lines.last().map(|l| l.mean_y()).unwrap_or(0.0) as u32;
+            let h = bot_y.saturating_sub(top_y);
+            Some(ClefEntry {
+                system_idx: sys_i as u32,
+                kind: match c {
+                    omr_core::Clef::Treble => "Treble",
+                    omr_core::Clef::Bass => "Bass",
+                    omr_core::Clef::Alto => "Alto",
+                    omr_core::Clef::Tenor => "Tenor",
+                },
+                bbox: [line_start_x, top_y.saturating_sub(line_spacing as u32),
+                       (line_spacing * 3.0) as u32, h + 2 * line_spacing as u32],
+            })
+        })
+        .collect();
+
+    let key_entries: Vec<KeySignatureEntry> = keys
+        .iter()
+        .enumerate()
+        .filter_map(|(sys_i, k)| {
+            if k.fifths == 0 { return None; }
+            let s = systems.get(sys_i)?;
+            let line = s.lines.first()?;
+            let line_start_x = line.y_per_x.iter().position(|&y| y > 0)? as u32;
+            let top_y = line.mean_y() as u32;
+            let bot_y = s.lines.last().map(|l| l.mean_y()).unwrap_or(0.0) as u32;
+            let h = bot_y.saturating_sub(top_y);
+            // Nach Clef (~3*spacing): KeySig-Bereich
+            let key_x = line_start_x + (line_spacing * 3.0) as u32;
+            let key_w = (line_spacing * 0.7 * k.fifths.unsigned_abs() as f32) as u32;
+            Some(KeySignatureEntry {
+                system_idx: sys_i as u32,
+                fifths: k.fifths,
+                bbox: [key_x, top_y, key_w, h],
+            })
+        })
+        .collect();
+
+    let time_entries: Vec<TimeSignatureEntry> = time_signature
+        .map(|t| {
+            let mut v = Vec::new();
+            if let Some(s) = systems.first() {
+                if let Some(line) = s.lines.first() {
+                    if let Some(line_start_x) = line.y_per_x.iter().position(|&y| y > 0) {
+                        let top_y = line.mean_y() as u32;
+                        let bot_y = s.lines.last().map(|l| l.mean_y()).unwrap_or(0.0) as u32;
+                        let h = bot_y.saturating_sub(top_y);
+                        // Nach Clef + KeySig
+                        let n_acc = keys.first().map(|k| k.fifths.unsigned_abs()).unwrap_or(0) as f32;
+                        let time_x = line_start_x as u32 + (line_spacing * (3.0 + 0.7 * n_acc)) as u32;
+                        v.push(TimeSignatureEntry {
+                            system_idx: 0,
+                            beats: t.beats as u32,
+                            beat_type: t.beat_type as u32,
+                            bbox: [time_x, top_y, (line_spacing * 1.5) as u32, h],
+                        });
+                    }
+                }
+            }
+            v
+        })
+        .unwrap_or_default();
+
+    let jump_entries: Vec<JumpMarkEntry> = jump_detections
+        .iter()
+        .map(|(_idx, jm)| {
+            // JumpMark hat keine Bbox direkt — wir nehmen den nächsten Bar als Position
+            let kind: &'static str = match jm {
+                omr_core::JumpMark::RepeatStart => "RepeatStart",
+                omr_core::JumpMark::RepeatEnd => "RepeatEnd",
+                omr_core::JumpMark::Volta { number: 1 } => "Volta1",
+                omr_core::JumpMark::Volta { number: 2 } => "Volta2",
+                omr_core::JumpMark::Volta { .. } => "VoltaOther",
+                omr_core::JumpMark::Coda => "Coda",
+                omr_core::JumpMark::Segno => "Segno",
+                omr_core::JumpMark::DaCapo => "DC",
+                omr_core::JumpMark::DcAlFine => "DCalFine",
+                omr_core::JumpMark::DsAlCoda => "DSalCoda",
+                omr_core::JumpMark::DsAlFine => "DSalFine",
+                omr_core::JumpMark::Fine => "Fine",
+            };
+            JumpMarkEntry {
+                kind,
+                bbox: [0, 0, 0, 0],
+                system_idx: None,
+            }
+        })
+        .collect();
+
+    let rest_entries: Vec<RestEntry> = rests
+        .iter()
+        .map(|r| RestEntry {
+            kind: match r.kind {
+                omr_symbols::RestKind::Whole => "Whole",
+                omr_symbols::RestKind::Half => "Half",
+                omr_symbols::RestKind::Quarter => "Quarter",
+                omr_symbols::RestKind::Eighth => "Eighth",
+                omr_symbols::RestKind::Sixteenth => "Sixteenth",
+            },
+            bbox: [r.bbox.x, r.bbox.y, r.bbox.w, r.bbox.h],
+            system_idx: Some(r.staff_idx as u32),
+        })
+        .collect();
+
     DetectionPage {
         page_index,
         width,
@@ -305,5 +472,10 @@ pub fn build_detection_page(
         beams: beam_entries,
         bars: bar_entries,
         measures: measure_entries,
+        clefs: clef_entries,
+        key_signatures: key_entries,
+        time_signatures: time_entries,
+        jump_marks: jump_entries,
+        rests: rest_entries,
     }
 }
