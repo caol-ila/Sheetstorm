@@ -643,6 +643,35 @@ fn process_gray_single(gray: GrayImage, opts: &PipelineOptions) -> Result<Pipeli
                 .collect();
             bar_xs.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
+            let staff_for_virtual = &systems[sys_i];
+            let line_spacing_for_virtual = staff_for_virtual.line_spacing;
+
+            // Virtuelles End-of-System-Bar: wenn nach dem letzten echten Bar
+            // noch viele NHs kommen, fehlt wahrscheinlich der finale Taktstrich
+            // am Zeilenende. Wir fügen einen virtuellen Bar an der Position
+            // der rechtmäßigsten NH hinzu (etwas nach rechts versetzt) damit
+            // das letzte Measure korrekt geschlossen wird.
+            //
+            // Heuristik: Wenn >= 4 NHs hinter dem letzten Bar (oder hinter
+            // staff_x_start falls keine Bars), füge virtuellen Bar hinzu.
+            // Threshold 4 ist konservativ (typische letzte-Measure haben 1-3 NHs).
+            let last_real_bar_x = bar_xs.last().copied().unwrap_or(0.0);
+            let n_after = all_notes.iter().filter(|n| n.center.x > last_real_bar_x + line_spacing_for_virtual * 0.5).count();
+            if n_after >= 4 {
+                let max_nh_x = all_notes.iter()
+                    .filter(|n| n.center.x > last_real_bar_x)
+                    .map(|n| n.center.x)
+                    .fold(0.0_f32, f32::max);
+                if max_nh_x > 0.0 {
+                    let virtual_bar_x = max_nh_x + line_spacing_for_virtual * 1.5;
+                    bar_xs.push(virtual_bar_x);
+                    tracing::info!(
+                        sys = sys_i, n_orphan_nh = n_after, virtual_bar_x,
+                        "added virtual end-of-system bar"
+                    );
+                }
+            }
+
             // Bboxes pro Takt aus den Bar-Positionen + Staff-System-Y-Range berechnen.
             // Wird in den Measures als bbox_orig gespeichert für Phase-A
             // (Live-Position-Highlighting + Cross-Instrument-Sync, Spec 22).

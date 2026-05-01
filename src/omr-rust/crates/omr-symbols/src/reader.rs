@@ -327,14 +327,38 @@ pub fn read_system_sequentially(
         prev_x = measure_end_x;
     }
 
-    // Orphan-NHs nach dem letzten bekannten Bar
+    // Orphan-NHs nach dem letzten bekannten Bar.
+    // **Heuristik**: Wenn >3 Orphans in einem System, ist das LETZTE BAR
+    // wahrscheinlich nicht detektiert worden (häufig am Zeilenende). Statt
+    // jede einzelne als Anomaly zu reporten, melden wir EINE
+    // "MissingFinalBar"-Anomaly. Bei <=3 Orphans melden wir wie bisher
+    // einzelne (z.B. Volta-Digits oder Anhang-Symbole).
+    let mut orphans: Vec<(u32, u32)> = Vec::new(); // (x, idx)
     let last_x = sys_bars.last().map(|b| b.x).unwrap_or(prev_x);
     for (idx, nh) in noteheads.iter().enumerate() {
         if nh.staff_idx as u32 != system_idx { continue; }
         if nh.center.x > last_x as f32 + line_spacing * 0.5 {
+            orphans.push((nh.center.x as u32, idx as u32));
+        }
+    }
+    if orphans.len() > 3 {
+        // Wahrscheinlich Bar am Zeilenende verpasst. Reportiere als Cluster.
+        if let (Some((min_x, _)), Some((max_x, _))) = (orphans.iter().min(), orphans.iter().max()) {
             anomalies.push(ReadingAnomaly::OrphanNoteAfterFinalBar {
-                x: nh.center.x as u32,
-                notehead_idx: idx as u32,
+                x: *min_x,
+                notehead_idx: orphans.first().unwrap().1,
+            });
+            // Zusätzlich noch den letzten:
+            anomalies.push(ReadingAnomaly::OrphanNoteAfterFinalBar {
+                x: *max_x,
+                notehead_idx: orphans.last().unwrap().1,
+            });
+        }
+    } else {
+        for (x, idx) in &orphans {
+            anomalies.push(ReadingAnomaly::OrphanNoteAfterFinalBar {
+                x: *x,
+                notehead_idx: *idx,
             });
         }
     }
