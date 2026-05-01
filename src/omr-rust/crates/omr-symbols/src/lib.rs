@@ -17,13 +17,14 @@ pub mod meta;
 pub mod pitch;
 pub mod plausibility;
 pub mod reader;
+pub mod rests;
+pub mod slurs;
 pub mod stems;
 pub mod template;
 pub mod templates;
 pub mod classifier;
 pub mod hog;
 pub mod jump_marks;
-pub mod rests;
 pub mod svm_model;
 pub use bars::{detect_measure_bars, MeasureBar};
 pub use beams::{detect_beams, beams_per_stem, filter_noteheads_on_beams, Beam};
@@ -32,6 +33,7 @@ pub use meta::{detect_clef, detect_key_signature};
 pub use plausibility::{check_measure, repair_measure, validate_and_repair_part, MeasureCheck, MeasurePlausibility};
 pub use reader::{read_page_sequentially, read_system_sequentially, PageReadingStream, ReadingAnomaly, ReadingEvent, SystemReadingStream};
 pub use rests::{detect_rests, Rest, RestKind};
+pub use slurs::{detect_slurs, Slur};
 pub use template::{detect_noteheads_template_v2, detect_wholes_template, rerank_with_template};
 
 /// Hauptfunktion: detektiere Noteheads in einem staff-line-removed Binary.

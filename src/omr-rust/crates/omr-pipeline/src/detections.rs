@@ -42,6 +42,8 @@ pub struct DetectionPage {
     pub jump_marks: Vec<JumpMarkEntry>,
     /// Erkannte Pausen.
     pub rests: Vec<RestEntry>,
+    /// Erkannte Slurs/Bögen über NH-Gruppen.
+    pub slurs: Vec<SlurEntry>,
     /// Layered Reader Phase A: sequenzielle Lese-Streams + Anomalien pro System.
     /// Wird über `read_page_sequentially` produziert.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -151,6 +153,16 @@ pub struct RestEntry {
     pub system_idx: Option<u32>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct SlurEntry {
+    pub bbox: [u32; 4],
+    pub system_idx: u32,
+    pub above: bool,
+    pub start_nh_idx: Option<u32>,
+    pub end_nh_idx: Option<u32>,
+    pub is_tie: bool,
+}
+
 fn kind_str(k: NoteheadKind) -> &'static str {
     match k {
         NoteheadKind::Filled => "Filled",
@@ -193,6 +205,7 @@ pub fn build_detection_page(
     time_signature: Option<omr_core::TimeSignature>,
     jump_detections: &[(usize, omr_core::JumpMark)],
     rests: &[omr_symbols::Rest],
+    slurs: &[omr_symbols::Slur],
 ) -> DetectionPage {
     let line_spacing = systems.first().map(|s| s.line_spacing).unwrap_or(0.0);
     let line_thickness = systems.first().map(|s| s.line_thickness).unwrap_or(0.0);
@@ -463,6 +476,18 @@ pub fn build_detection_page(
         })
         .collect();
 
+    let slur_entries: Vec<SlurEntry> = slurs
+        .iter()
+        .map(|s| SlurEntry {
+            bbox: [s.bbox.x, s.bbox.y, s.bbox.w, s.bbox.h],
+            system_idx: s.system_idx as u32,
+            above: s.above,
+            start_nh_idx: s.start_nh_idx.map(|i| i as u32),
+            end_nh_idx: s.end_nh_idx.map(|i| i as u32),
+            is_tie: s.is_tie,
+        })
+        .collect();
+
     // Layered Reader Phase A: sequenzielles Lesen pro System
     let measures_for_reader: Vec<omr_core::Measure> = measures.to_vec();
     let reading_stream = Some(omr_symbols::read_page_sequentially(
@@ -495,6 +520,7 @@ pub fn build_detection_page(
         time_signatures: time_entries,
         jump_marks: jump_entries,
         rests: rest_entries,
+        slurs: slur_entries,
         reading_stream,
     }
 }

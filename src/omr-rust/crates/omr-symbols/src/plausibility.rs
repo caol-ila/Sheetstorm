@@ -177,6 +177,20 @@ pub fn repair_measure(m: &mut Measure, time: TimeSignature) -> bool {
         }
     }
 
+    // === Strategie E2: Drop-Edge-FP ===
+    // Wenn actual > expected exakt um die duration EINER existierenden Note,
+    // und diese Note am Edge des Measures sitzt (innerhalb 0.5*spacing) →
+    // ist das wahrscheinlich ein FP-NH (Bar-Artefakt, Header-Artefakt). Drop.
+    //
+    // Konservativ: Nur wenn die Position eindeutig FP-typisch ist, sonst
+    // Truncation-Strategy (F) übernimmt.
+    if actual > expected {
+        if try_drop_edge_fp(m, expected) {
+            return true;
+        }
+        restore(&mut m.notes, &snapshot);
+    }
+
     // === Strategie F: Last-Resort Truncation ===
     if actual > expected {
         let diff = actual - expected;
@@ -200,6 +214,70 @@ pub fn repair_measure(m: &mut Measure, time: TimeSignature) -> bool {
         }
     }
 
+    false
+}
+
+/// Strategie E2: Drop einer einzelnen Note die wahrscheinlich FP ist.
+///
+/// Suche eine Note mit Duration == diff, die am EDGE des Measures sitzt
+/// (innerhalb 0.5×spacing-typischer Distanz von measure-min-x oder -max-x).
+/// FP-Heuristiken:
+///   - x sehr nah am linken Rand des Measures (Header-Artefakt nach skip_region)
+///   - x sehr nah am rechten Rand des Measures (Bar-Artefakt: Bar als NH detektiert)
+///   - Note hat keine Akkord-Beziehung
+fn try_drop_edge_fp(m: &mut Measure, expected: u32) -> bool {
+    let actual: u32 = lead_duration_sum(&m.notes);
+    if actual <= expected { return false; }
+    let diff = actual - expected;
+
+    if m.notes.is_empty() { return false; }
+
+    // Sammele eligible candidates: duration == diff, not in_chord, not is_rest
+    let candidates: Vec<usize> = m.notes.iter().enumerate()
+        .filter(|(_, n)| !n.in_chord && !n.is_rest && n.duration == diff)
+        .map(|(i, _)| i)
+        .collect();
+    if candidates.is_empty() { return false; }
+
+    // Bestimme x-Range des Measures
+    let xs: Vec<f32> = m.notes.iter().filter(|n| !n.in_chord).map(|n| n.center.x).collect();
+    if xs.len() < 2 { return false; }
+    let min_x = xs.iter().cloned().fold(f32::INFINITY, f32::min);
+    let max_x = xs.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
+    let span = (max_x - min_x).max(1.0);
+
+    // Wir definieren "Edge" als die ersten/letzten 15% des Measures.
+    // Note die in den ersten 15% sitzt UND es gibt mehrere Notes nach ihr → linker Edge-FP.
+    // Analog für rechts.
+    let edge_threshold = span * 0.15;
+
+    // Bevorzuge Note mit MAXIMALER Edge-Distanz (= näher am Rand)
+    let mut best_idx: Option<usize> = None;
+    let mut best_edge_dist: f32 = -1.0;
+    for &i in &candidates {
+        let cx = m.notes[i].center.x;
+        let dist_left = cx - min_x;
+        let dist_right = max_x - cx;
+        let edge_dist = dist_left.min(dist_right);
+        // Nur wenn die Note eindeutig am Rand ist
+        if edge_dist > edge_threshold { continue; }
+        // Wir bevorzugen NEGATIVES edge_dist-Score (= näher am Rand)
+        // → speichere edge_dist und wähle minimum
+        if best_idx.is_none() || edge_dist < best_edge_dist {
+            best_edge_dist = edge_dist;
+            best_idx = Some(i);
+        }
+    }
+
+    if let Some(idx) = best_idx {
+        m.notes.remove(idx);
+        let new_total: u32 = lead_duration_sum(&m.notes);
+        if new_total == expected {
+            return true;
+        }
+        // Wenn nicht exakt, war das wohl die falsche Note — restore
+        // (caller macht das via snapshot)
+    }
     false
 }
 

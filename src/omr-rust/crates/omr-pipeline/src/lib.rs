@@ -555,6 +555,12 @@ fn process_gray_single(gray: GrayImage, opts: &PipelineOptions) -> Result<Pipeli
     let mut jump_detections = Vec::new();
     jump_detections.extend(omr_symbols::jump_marks::detect_repeat_marks(&bin, &bars, &systems));
     jump_detections.extend(omr_symbols::jump_marks::detect_voltas(&bin, &bars, &noteheads, &systems));
+
+    // Slur-Detection: Bögen über/unter NH-Gruppen erkennen.
+    // Wir nutzen das ORIGINAL-Binary (vor Staff-Removal) — Slurs überqueren
+    // Stafflinien und werden vom Removal teilweise zerschnitten.
+    let slurs = omr_symbols::detect_slurs(&bin, &noteheads, &systems);
+
     let symbol_detection_ms = sym_t.elapsed().as_millis();
     drop(_span);
     info!(
@@ -566,6 +572,7 @@ fn process_gray_single(gray: GrayImage, opts: &PipelineOptions) -> Result<Pipeli
         n_bars = bars.len(),
         n_rests = rests.len(),
         n_jump_marks = jump_detections.len(),
+        n_slurs = slurs.len(),
         "symbols detected"
     );
 
@@ -804,6 +811,7 @@ fn process_gray_single(gray: GrayImage, opts: &PipelineOptions) -> Result<Pipeli
             Some(detected_time),
             &jump_detections,
             &rests,
+            &slurs,
         );
         Some(detections::DetectionsResult {
             schema_version: 1,
