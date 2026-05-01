@@ -2,6 +2,7 @@
 @layout MainLayout
 @attribute [Authorize]
 @rendermode InteractiveServer
+@implements IDisposable
 @inject UserManager<ApplicationUser> UserManager
 @inject SheetstormDbContext Db
 @inject AuthenticationStateProvider AuthState
@@ -36,6 +37,22 @@ else if (part is null)
 {
     <p class="alert alert-warning">Stimme nicht gefunden.</p>
 }
+else if (detections is null)
+{
+    <p><a href="/Bands/@slug/pieces/@pieceId" data-testid="annotate-back">← Zurück zum Werk</a></p>
+    <h1>@part.DisplayName — Erkennung prüfen</h1>
+    <div class="alert alert-info" data-testid="annotate-pending">
+        <strong>⚙ Erkennung läuft…</strong>
+        <p class="mb-0 small">
+            Die OMR-Pipeline analysiert gerade die Notenseiten und erzeugt die Detection-Bboxes.
+            Das dauert je nach Seitenzahl 5–30 Sekunden. Diese Seite aktualisiert sich automatisch.
+        </p>
+        <button type="button" class="btn btn-sm btn-outline-primary mt-2"
+                @onclick="ReloadAfterDetectionAsync" disabled="@runningDetections" data-testid="annotate-retry">
+            @(runningDetections ? "🔄 Läuft…" : "🔄 Jetzt prüfen")
+        </button>
+    </div>
+}
 else
 {
     <p><a href="/Bands/@slug/pieces/@pieceId" data-testid="annotate-back">← Zurück zum Werk</a></p>
@@ -56,8 +73,10 @@ else
                         @onclick="NextPage" disabled="@(currentPage + 1 >= pageCount)" data-testid="annotate-next">→</button>
 
                 <span class="ms-3">Zoom:</span>
-                <input type="range" min="0.5" max="3" step="0.1" @bind="zoom" data-testid="annotate-zoom" />
-                <span>@(zoom.ToString("F1"))×</span>
+                <input type="range" min="50" max="300" step="10"
+                       value="@zoomPercent" @oninput="OnZoomInput"
+                       data-testid="annotate-zoom" />
+                <span>@zoomPercent%</span>
 
                 <span class="ms-3">Anzeige:</span>
                 <label class="ms-2"><input type="checkbox" @bind="showNoteheads" /> Noten</label>
@@ -69,11 +88,23 @@ else
                         @onclick="RerunDetectionsAsync" disabled="@runningDetections" data-testid="annotate-rerun">
                     @(runningDetections ? "Erkennung läuft…" : "🔄 Erkennung neu starten")
                 </button>
+
+                <span class="ms-3">|</span>
+                <button type="button" class="btn btn-sm @(toolMode == ToolMode.Click ? "btn-primary" : "btn-outline-primary")"
+                        @onclick="@(() => SetToolModeAsync(ToolMode.Click))" data-testid="annotate-tool-click"
+                        title="Klick: Einzelne Notes auswählen + korrigieren">
+                    🖱 Klick
+                </button>
+                <button type="button" class="btn btn-sm @(toolMode == ToolMode.ConfirmRegion ? "btn-success" : "btn-outline-success")"
+                        @onclick="@(() => SetToolModeAsync(ToolMode.ConfirmRegion))" data-testid="annotate-tool-region"
+                        title="Drag: Bereich auswählen und als komplett richtig bestätigen">
+                    ✓ Bereich bestätigen
+                </button>
             </div>
 
             <div class="annotate-canvas-wrap" id="annotate-wrap">
                 <canvas id="annotate-canvas"
-                        @onclick="OnCanvasClick"
+                        @onclick="OnCanvasClickEvent"
                         @onclick:preventDefault="true"
                         data-testid="annotate-canvas"></canvas>
             </div>
@@ -81,10 +112,30 @@ else
 
         <div class="annotate-right">
             <h4>Korrekturen Seite @(currentPage + 1)</h4>
-            <p class="text-muted small">
-                @annotationsThisPage.Count Korrektur(en) auf dieser Seite,
+            <p class="text-muted small mb-2">
+                @annotationsThisPage.Count Eintrag/Einträge auf dieser Seite,
                 @allAnnotations.Count gesamt.
             </p>
+            @if (coverage.total > 0)
+            {
+                var pct = (int)(100.0 * (coverage.confirmed + coverage.corrected) / Math.Max(1, coverage.total));
+                <div class="progress mb-2" style="height:14px;" data-testid="annotate-coverage">
+                    <div class="progress-bar bg-success" role="progressbar"
+                         style="width: @(100.0 * coverage.confirmed / Math.Max(1, coverage.total))%"
+                         title="Bestätigt: @coverage.confirmed">
+                    </div>
+                    <div class="progress-bar bg-warning" role="progressbar"
+                         style="width: @(100.0 * coverage.corrected / Math.Max(1, coverage.total))%"
+                         title="Korrigiert: @coverage.corrected">
+                    </div>
+                </div>
+                <p class="small text-muted mb-2" data-testid="annotate-coverage-text">
+                    ✓ @coverage.confirmed bestätigt &middot;
+                    ✏ @coverage.corrected korrigiert &middot;
+                    ⏳ @coverage.uncertain unbestätigt
+                    (@pct% gelabelt)
+                </p>
+            }
 
             @if (selectedDetectionId.HasValue && selectedDetection is not null)
             {
@@ -107,8 +158,11 @@ else
                             }
                         </ul>
 
-                        <p class="small mb-1"><b>Was ist falsch?</b></p>
+                        <p class="small mb-1"><b>Was ist mit dieser Note?</b></p>
                         <div class="d-grid gap-1">
+                            <button type="button" class="btn btn-sm btn-success"
+                                    @onclick="() => MarkAsync(PartAnnotationKind.Confirmed, null)"
+                                    data-testid="annotate-confirmed">✓ Korrekt erkannt</button>
                             <button type="button" class="btn btn-sm btn-outline-danger"
                                     @onclick="() => MarkAsync(PartAnnotationKind.NotANote, null)"
                                     data-testid="annotate-not-a-note">❌ Keine Note (False-Positive)</button>
@@ -242,21 +296,103 @@ else
 <script>
 window.sheetstormAnnotate = window.sheetstormAnnotate || {
     pageImage: null,
+    mode: 'click',
+    dotnetRef: null,
+    dragStart: null,
+    dragEnd: null,
+    dragging: false,
+    lastPayload: null,
+    setMode: function(mode, dotnetRef) {
+        this.mode = mode;
+        if (dotnetRef) this.dotnetRef = dotnetRef;
+        const canvas = document.getElementById('annotate-canvas');
+        if (!canvas) return;
+        if (canvas._ssBound) return;
+        canvas._ssBound = true;
+        canvas.addEventListener('mousedown', (e) => {
+            if (this.mode !== 'region') return;
+            const c = this._coord(canvas, e.clientX, e.clientY);
+            this.dragStart = c;
+            this.dragEnd = c;
+            this.dragging = true;
+            this._renderOverlay();
+            e.preventDefault();
+        });
+        canvas.addEventListener('mousemove', (e) => {
+            if (!this.dragging) return;
+            this.dragEnd = this._coord(canvas, e.clientX, e.clientY);
+            this._renderOverlay();
+        });
+        canvas.addEventListener('mouseup', (e) => {
+            if (!this.dragging) return;
+            this.dragging = false;
+            const s = this.dragStart, ed = this.dragEnd;
+            this.dragStart = null;
+            this.dragEnd = null;
+            this._renderOverlay();
+            if (s && ed && this.dotnetRef) {
+                const x = Math.min(s.x, ed.x);
+                const y = Math.min(s.y, ed.y);
+                const w = Math.abs(ed.x - s.x);
+                const h = Math.abs(ed.y - s.y);
+                if (w >= 8 && h >= 8) {
+                    this.dotnetRef.invokeMethodAsync('OnRegionConfirmed', x, y, w, h)
+                        .catch(err => console.warn('Region-Confirm fehlgeschlagen', err));
+                }
+            }
+            e.preventDefault();
+        });
+        canvas.addEventListener('mouseleave', () => {
+            if (this.dragging) {
+                this.dragging = false;
+                this.dragStart = null;
+                this.dragEnd = null;
+                this._renderOverlay();
+            }
+        });
+    },
+    _coord: function(canvas, clientX, clientY) {
+        const r = canvas.getBoundingClientRect();
+        const localX = clientX - r.left;
+        const localY = clientY - r.top;
+        const p = this.lastPayload;
+        if (!p) return { x: 0, y: 0 };
+        const sx = canvas.width / p.detW;
+        const sy = canvas.height / p.detH;
+        return { x: Math.round(localX / sx), y: Math.round(localY / sy) };
+    },
+    _renderOverlay: function() {
+        // Re-render basierend auf letztem Payload (zeichnet auch dragRect)
+        if (this.lastPayload) this.render('annotate-canvas', { ...this.lastPayload, _liveDrag: true });
+    },
     bind: function(canvasId, imageUrl, width, height) {
         const canvas = document.getElementById(canvasId);
         if (!canvas) return;
         const img = new Image();
         img.onload = () => {
             window.sheetstormAnnotate.pageImage = img;
-            // Initial draw will be triggered by Blazor render
-            const evt = new CustomEvent('ss-image-loaded', { detail: { width: img.naturalWidth, height: img.naturalHeight } });
-            window.dispatchEvent(evt);
+            // Sofort re-rendern wenn ein Payload schon da ist (LoadDetections lief vor Bild-Load).
+            if (window.sheetstormAnnotate.lastPayload) {
+                window.sheetstormAnnotate.render(canvasId, window.sheetstormAnnotate.lastPayload);
+            }
+        };
+        img.onerror = (e) => {
+            console.warn('Page-Image konnte nicht geladen werden:', imageUrl, e);
         };
         img.src = imageUrl;
     },
     render: function(canvasId, payload) {
         const canvas = document.getElementById(canvasId);
         if (!canvas) return;
+        // Live-Drag merge: dragRect aus JS-State kommt aus Drag-Handler
+        if (this.dragging && this.dragStart && this.dragEnd) {
+            const s = this.dragStart, ed = this.dragEnd;
+            payload = { ...payload, dragRect: {
+                x: Math.min(s.x, ed.x), y: Math.min(s.y, ed.y),
+                w: Math.abs(ed.x - s.x), h: Math.abs(ed.y - s.y)
+            }};
+        }
+        if (!payload._liveDrag) this.lastPayload = payload;
         const ctx = canvas.getContext('2d');
         const img = window.sheetstormAnnotate.pageImage;
         if (!img) return;
@@ -268,12 +404,9 @@ window.sheetstormAnnotate = window.sheetstormAnnotate || {
         ctx.imageSmoothingEnabled = true;
         ctx.drawImage(img, 0, 0, W, H);
 
-        // Skalierungs-Faktoren: Detections sind in Pipeline-Pixel-System;
-        // PageImage kann andere DPI haben. payload.detW/detH = Pipeline-Render-Size.
         const sx = (W / payload.detW);
         const sy = (H / payload.detH);
 
-        // Beam/Stems hinter NHs
         if (payload.showStems) {
             ctx.strokeStyle = 'rgba(0,200,0,0.6)';
             ctx.lineWidth = 1;
@@ -298,10 +431,13 @@ window.sheetstormAnnotate = window.sheetstormAnnotate || {
             for (const nh of payload.noteheads) {
                 const annKind = payload.annotatedIds[nh.id];
                 if (annKind === 0) {
-                    // NotANote — gestrichelt durchstreichen
                     ctx.strokeStyle = 'rgba(180,180,180,0.9)';
                     ctx.lineWidth = 1;
                     ctx.setLineDash([3,3]);
+                } else if (annKind === 6) {
+                    ctx.strokeStyle = 'rgba(40,180,80,1.0)';
+                    ctx.lineWidth = 2;
+                    ctx.setLineDash([]);
                 } else if (annKind !== undefined) {
                     ctx.strokeStyle = 'rgba(255,165,0,0.9)';
                     ctx.lineWidth = 2;
@@ -327,15 +463,33 @@ window.sheetstormAnnotate = window.sheetstormAnnotate || {
             }
             ctx.setLineDash([]);
         }
-        // Missed-Notes (Annotations vom Typ MissedNote)
+        if (payload.showAnnotations && payload.confirmedRegions) {
+            for (const r of payload.confirmedRegions) {
+                ctx.strokeStyle = 'rgba(40,180,80,0.9)';
+                ctx.fillStyle = 'rgba(40,180,80,0.10)';
+                ctx.lineWidth = 2;
+                ctx.fillRect(r.x*sx, r.y*sy, r.w*sx, r.h*sy);
+                ctx.strokeRect(r.x*sx, r.y*sy, r.w*sx, r.h*sy);
+            }
+        }
         if (payload.showAnnotations) {
             for (const ma of payload.missedAnnotations) {
-                ctx.strokeStyle = 'rgba(0,200,0,0.9)';
-                ctx.fillStyle = 'rgba(0,200,0,0.15)';
+                ctx.strokeStyle = 'rgba(0,140,255,0.95)';
+                ctx.fillStyle = 'rgba(0,140,255,0.18)';
                 ctx.lineWidth = 2;
                 ctx.fillRect(ma.x*sx, ma.y*sy, ma.w*sx, ma.h*sy);
                 ctx.strokeRect(ma.x*sx, ma.y*sy, ma.w*sx, ma.h*sy);
             }
+        }
+        if (payload.dragRect) {
+            const r = payload.dragRect;
+            ctx.strokeStyle = 'rgba(40,180,80,1.0)';
+            ctx.fillStyle = 'rgba(40,180,80,0.20)';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([6,4]);
+            ctx.fillRect(r.x*sx, r.y*sy, r.w*sx, r.h*sy);
+            ctx.strokeRect(r.x*sx, r.y*sy, r.w*sx, r.h*sy);
+            ctx.setLineDash([]);
         }
     },
     getClickInDetectionCoords: function(canvasId, evtX, evtY, detW, detH) {
@@ -372,7 +526,8 @@ window.sheetstormAnnotate = window.sheetstormAnnotate || {
     private List<AnnotationDto> annotationsThisPage => allAnnotations.Where(a => a.pageIndex == currentPage).ToList();
 
     // UI-State
-    private double zoom = 1.0;
+    private int zoomPercent = 100;
+    private double zoom => zoomPercent / 100.0;
     private bool showNoteheads = true;
     private bool showStems = true;
     private bool showBars = true;
@@ -383,6 +538,14 @@ window.sheetstormAnnotate = window.sheetstormAnnotate || {
 
     private (int x, int y)? pendingMissedClick;
     private EditorMode editorMode = EditorMode.None;
+
+    // Region-Tool State
+    private ToolMode toolMode = ToolMode.Click;
+    private (int x, int y)? regionDragStart;
+    private (int x, int y)? regionDragEnd;
+    private bool regionDragging;
+
+    private enum ToolMode { Click, ConfirmRegion }
     private string editorTitle = "";
     private int editorMidi = 60;
     private int editorDuration = 4;
@@ -414,8 +577,52 @@ window.sheetstormAnnotate = window.sheetstormAnnotate || {
         await LoadDetectionsAsync();
         // Stelle sicher, dass Page-Images existieren (bei direktem Aufruf via URL)
         try { await PageImagesService.EnsurePageImagesAsync(partId); } catch { }
+
+        // Auto-Trigger: wenn keine Detections vorhanden, Pipeline starten + alle 3s neu prüfen
+        if (detections is null && !PartDetectionService.IsDetectionsRunning(partId))
+        {
+            try
+            {
+                await PartDetectionService.StartDetectionsOnPartAsync(partId, ScopeFactory, Logger);
+                _ = AutoReloadDetectionsAsync();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Auto-Trigger fuer Detections fehlgeschlagen");
+            }
+        }
+        else if (detections is null && PartDetectionService.IsDetectionsRunning(partId))
+        {
+            _ = AutoReloadDetectionsAsync();
+        }
+
         loading = false;
     }
+
+    private async Task AutoReloadDetectionsAsync()
+    {
+        // Polle bis Detections fertig sind oder Timeout
+        var deadline = DateTime.UtcNow.AddMinutes(3);
+        while (detections is null && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(3000);
+            await LoadDetectionsAsync();
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task ReloadAfterDetectionAsync()
+    {
+        if (!PartDetectionService.IsDetectionsRunning(partId))
+        {
+            await PartDetectionService.StartDetectionsOnPartAsync(partId, ScopeFactory, Logger);
+        }
+        await LoadDetectionsAsync();
+        StateHasChanged();
+    }
+
+    // Coverage-Stats für Progress-Bar
+    private (int total, int confirmed, int corrected, int uncertain) coverage = (0, 0, 0, 0);
 
     private async Task LoadDetectionsAsync()
     {
@@ -436,6 +643,7 @@ window.sheetstormAnnotate = window.sheetstormAnnotate || {
             allAnnotations = anns.Select(a => new AnnotationDto(
                 a.Id, a.PageIndex, a.BboxX, a.BboxY, a.BboxW, a.BboxH,
                 (int)a.Kind, a.CorrectionJson, a.Comment)).ToList();
+            try { coverage = await PartDetectionService.GetCoverageAsync(partId); } catch { }
         }
         catch (Exception)
         {
@@ -446,15 +654,51 @@ window.sheetstormAnnotate = window.sheetstormAnnotate || {
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (loading || part is null || detections is null) return;
-        // Bind Page-Image: PartFile.PageImage mit pageNumber == currentPage+1
+
+        // setMode + canvas-event-handler beim ersten Render mit Detections registrieren
+        if (firstRender || !canvasInitialized)
+        {
+            try
+            {
+                dotnetRef ??= DotNetObjectReference.Create(this);
+                await JS.InvokeVoidAsync("sheetstormAnnotate.setMode",
+                    toolMode == ToolMode.ConfirmRegion ? "region" : "click", dotnetRef);
+                canvasInitialized = true;
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "setMode init fehlgeschlagen");
+            }
+        }
+
+        // Page-Image binden + rendern
         var pageFile = await Db.PartFiles
             .Where(f => f.PartId == partId && f.Kind == PartFileKind.PageImage && f.PageNumber == currentPage + 1)
             .FirstOrDefaultAsync();
         if (pageFile is null) return;
         var imageUrl = $"/files/parts/{partId}/{pageFile.Id}";
-        await JS.InvokeVoidAsync("sheetstormAnnotate.bind", "annotate-canvas", imageUrl, 0, 0);
-        await Task.Delay(300); // Image-Load abwarten
+        if (imageUrl != lastBoundImageUrl)
+        {
+            lastBoundImageUrl = imageUrl;
+            try
+            {
+                await JS.InvokeVoidAsync("sheetstormAnnotate.bind", "annotate-canvas", imageUrl, 0, 0);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Image-bind fehlgeschlagen");
+            }
+        }
         await RenderCanvasAsync();
+    }
+
+    private DotNetObjectReference<PartAnnotation>? dotnetRef;
+    private bool canvasInitialized;
+    private string? lastBoundImageUrl;
+
+    public void Dispose()
+    {
+        dotnetRef?.Dispose();
     }
 
     private async Task RenderCanvasAsync()
@@ -462,11 +706,16 @@ window.sheetstormAnnotate = window.sheetstormAnnotate || {
         if (detections is null || currentPage >= (detections.pages?.Count ?? 0)) return;
         var page = detections.pages![currentPage];
 
-        // Annotations: pro NH-Id ermitteln (via Bbox-Match: Annotation auf existierender NH)
         var annKindByNhId = new Dictionary<long, int>();
         var missedAnnotations = new List<object>();
+        var confirmedRegions = new List<object>();
         foreach (var a in annotationsThisPage)
         {
+            if (a.kind == 7) // RegionConfirmed
+            {
+                confirmedRegions.Add(new { x = a.x, y = a.y, w = a.w, h = a.h, id = a.id });
+                continue;
+            }
             // Versuche Match zu einem existierenden NH (overlap > 50%)
             NoteheadDto? matched = null;
             foreach (var nh in page.noteheads ?? new List<NoteheadDto>())
@@ -489,6 +738,16 @@ window.sheetstormAnnotate = window.sheetstormAnnotate || {
             }
         }
 
+        object? dragRect = null;
+        if (regionDragging && regionDragStart is { } s && regionDragEnd is { } end)
+        {
+            var rx = Math.Min(s.x, end.x);
+            var ry = Math.Min(s.y, end.y);
+            var rw = Math.Abs(end.x - s.x);
+            var rh = Math.Abs(end.y - s.y);
+            dragRect = new { x = rx, y = ry, w = rw, h = rh };
+        }
+
         var payload = new
         {
             zoom = zoom,
@@ -501,47 +760,126 @@ window.sheetstormAnnotate = window.sheetstormAnnotate || {
             bars = page.bars?.Select(b => new { x = b.x, yTop = b.y_top, yBot = b.y_bot }),
             annotatedIds = annKindByNhId,
             missedAnnotations,
+            confirmedRegions,
+            dragRect,
         };
         await JS.InvokeVoidAsync("sheetstormAnnotate.render", "annotate-canvas", payload);
     }
 
+    private async Task OnZoomInput(Microsoft.AspNetCore.Components.ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), System.Globalization.NumberStyles.Integer,
+                System.Globalization.CultureInfo.InvariantCulture, out var v))
+        {
+            zoomPercent = Math.Clamp(v, 25, 400);
+            await RenderCanvasAsync();
+        }
+    }
+
+    private async Task<ClickCoord?> GetClickCoordAsync(double clientX, double clientY)
+    {
+        if (detections is null || detections.pages is null || currentPage >= detections.pages.Count)
+            return null;
+        var page = detections.pages[currentPage];
+        try
+        {
+            return await JS.InvokeAsync<ClickCoord?>(
+                "sheetstormAnnotate.getClickInDetectionCoords",
+                "annotate-canvas", clientX, clientY, page.width, page.height);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "JS-Interop Klick fehlgeschlagen");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Wird vom JS-Drag-Handler aufgerufen wenn der User ein Region-Rechteck
+    /// gezogen hat (Tool-Mode = ConfirmRegion).
+    /// </summary>
+    [JSInvokable]
+    public async Task OnRegionConfirmed(int x, int y, int w, int h)
+    {
+        try
+        {
+            if (w < 8 || h < 8) return;
+            await PartDetectionService.AddAnnotationAsync(
+                partId, currentUserId, currentPage,
+                x, y, w, h,
+                PartAnnotationKind.RegionConfirmed, null, null);
+            await ReloadAnnotationsAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "OnRegionConfirmed fehlgeschlagen");
+        }
+    }
+
+    private async Task OnCanvasClickEvent(Microsoft.AspNetCore.Components.Web.MouseEventArgs e)
+    {
+        // Tool-Mode entscheidet: ConfirmRegion ignoriert Click (das macht JS-Drag),
+        // Click-Mode behandelt NH-Selektion + Missed-Note-Klicks.
+        if (toolMode == ToolMode.ConfirmRegion) return;
+        await OnCanvasClick(e);
+    }
+
     private async Task OnCanvasClick(Microsoft.AspNetCore.Components.Web.MouseEventArgs e)
     {
-        if (detections is null) return;
-        var page = detections.pages![currentPage];
-        var coord = await JS.InvokeAsync<ClickCoord?>(
-            "sheetstormAnnotate.getClickInDetectionCoords",
-            "annotate-canvas", e.ClientX, e.ClientY, page.width, page.height);
-        if (coord is null) return;
+        try
+        {
+            if (detections is null || detections.pages is null || currentPage >= detections.pages.Count)
+                return;
+            var page = detections.pages[currentPage];
+            var coord = await GetClickCoordAsync(e.ClientX, e.ClientY);
+            if (coord is null) return;
 
-        // Treffer auf NH?
-        NoteheadDto? hit = null;
-        foreach (var nh in page.noteheads ?? new List<NoteheadDto>())
-        {
-            if (coord.x >= nh.bbox[0] && coord.x <= nh.bbox[0] + nh.bbox[2]
-                && coord.y >= nh.bbox[1] && coord.y <= nh.bbox[1] + nh.bbox[3])
-            { hit = nh; break; }
+            NoteheadDto? hit = null;
+            foreach (var nh in page.noteheads ?? new List<NoteheadDto>())
+            {
+                if (nh.bbox is null || nh.bbox.Length < 4) continue;
+                if (coord.x >= nh.bbox[0] && coord.x <= nh.bbox[0] + nh.bbox[2]
+                    && coord.y >= nh.bbox[1] && coord.y <= nh.bbox[1] + nh.bbox[3])
+                { hit = nh; break; }
+            }
+            if (hit is not null)
+            {
+                selectedDetectionId = hit.id;
+                pendingMissedClick = null;
+                editorMode = EditorMode.None;
+                await RenderCanvasAsync();
+            }
+            else
+            {
+                selectedDetectionId = null;
+                var sp = (int)Math.Max(page.line_spacing, 8.0f);
+                pendingMissedClick = (coord.x - sp / 2, coord.y - sp / 2);
+                editorMidi = 60;
+                editorDuration = 4;
+                editorKind = "Filled";
+                await RenderCanvasAsync();
+            }
+            StateHasChanged();
         }
-        if (hit is not null)
+        catch (Exception ex)
         {
-            selectedDetectionId = hit.id;
-            pendingMissedClick = null;
-            editorMode = EditorMode.None;
-            await RenderCanvasAsync();
+            Logger.LogError(ex, "OnCanvasClick fehlgeschlagen");
         }
-        else
+    }
+
+    private async Task SetToolModeAsync(ToolMode m)
+    {
+        toolMode = m;
+        try
         {
-            // Leere Stelle → "Missed Note" Workflow
-            selectedDetectionId = null;
-            // Default-Bbox: 1*spacing × 1*spacing zentriert auf Klick
-            var sp = (int)Math.Max(page.line_spacing, 8.0f);
-            pendingMissedClick = (coord.x - sp / 2, coord.y - sp / 2);
-            editorMidi = 60;
-            editorDuration = 4;
-            editorKind = "Filled";
-            await RenderCanvasAsync();
+            // JS über aktuellen Tool-Mode informieren
+            var dotnetRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("sheetstormAnnotate.setMode", m == ToolMode.ConfirmRegion ? "region" : "click", dotnetRef);
         }
-        StateHasChanged();
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "JS setMode fehlgeschlagen");
+        }
     }
 
     private async Task PrevPage()
@@ -660,6 +998,7 @@ window.sheetstormAnnotate = window.sheetstormAnnotate || {
         allAnnotations = anns.Select(a => new AnnotationDto(
             a.Id, a.PageIndex, a.BboxX, a.BboxY, a.BboxW, a.BboxH,
             (int)a.Kind, a.CorrectionJson, a.Comment)).ToList();
+        try { coverage = await PartDetectionService.GetCoverageAsync(partId); } catch { }
         await RenderCanvasAsync();
         StateHasChanged();
     }
@@ -673,11 +1012,13 @@ window.sheetstormAnnotate = window.sheetstormAnnotate || {
     {
         0 => "Keine Note", 1 => "Falscher Pitch", 2 => "Falsche Dauer",
         3 => "Falsche Klassifikation", 4 => "Fehlende Note", 5 => "Kommentar",
+        6 => "Bestätigt", 7 => "Bereich bestätigt",
         _ => $"#{kind}"
     };
     private static string KindBadgeColor(int kind) => kind switch
     {
-        0 => "danger", 1 or 2 or 3 => "warning", 4 => "success", _ => "secondary"
+        0 => "danger", 1 or 2 or 3 => "warning",
+        4 => "primary", 6 or 7 => "success", _ => "secondary"
     };
 
     private sealed record DetectionsDto(int schema_version, List<DetectionPageDto> pages);
@@ -691,5 +1032,5 @@ window.sheetstormAnnotate = window.sheetstormAnnotate || {
     private sealed record StemDto(int x, int y_top, int y_bot);
     private sealed record BarDto(int x, int y_top, int y_bot);
     private sealed record AnnotationDto(Guid id, int pageIndex, int x, int y, int w, int h, int kind, string? correctionJson, string? comment);
-    private sealed record ClickCoord(int x, int y);
+    public sealed class ClickCoord { public int x { get; set; } public int y { get; set; } }
 }

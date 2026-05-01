@@ -202,17 +202,43 @@ public sealed class PartDetectionService(
         Guid PartId,
         string PartName,
         List<TrainingPage> Pages,
-        List<PartAnnotation> Annotations);
+        List<PartAnnotation> Annotations,
+        TrainingScope Scope);
 
     public sealed record TrainingPage(
         int PageIndex,
         string ImageBlobKey,
         string DetectionsJson);
 
-    public async Task<TrainingExport?> ExportForTrainingAsync(Guid partId, CancellationToken ct = default)
+    /// <summary>
+    /// Steuert welche Detection-Bereiche in den Trainings-Export einfließen.
+    /// </summary>
+    public enum TrainingScope
+    {
+        /// Komplettes Bild + alle Detections (auch unbestätigte) — nur sinnvoll
+        /// für vollständig durchgelabelte Stimmen.
+        Full = 0,
+        /// Nur Detections in confirmed/corrected Bereichen — andere Detections
+        /// werden gestrichelt (uncertain) und vom Training ignoriert.
+        /// Empfohlen für teilweise gelabelte Stimmen — keine schlechten
+        /// Trainingsdaten durch unbestätigte Bereiche.
+        ConfirmedOnly = 1,
+    }
+
+    public async Task<TrainingExport?> ExportForTrainingAsync(
+        Guid partId, TrainingScope scope = TrainingScope.ConfirmedOnly, CancellationToken ct = default)
     {
         var part = await db.Parts.Include(p => p.Files).FirstOrDefaultAsync(p => p.Id == partId, ct);
         if (part is null) return null;
+        // E2E-Test-Daten ausschliessen: Pieces mit Title-Prefix [E2E-TEST] werden
+        // niemals exportiert. Marker dient als sichere Trennung zwischen
+        // Test-Daten und produktiven Trainings-Daten.
+        var piece = await db.Pieces.FirstOrDefaultAsync(p => p.Id == part.PieceId, ct);
+        if (piece is not null && (piece.Title?.StartsWith("[E2E-TEST]", StringComparison.Ordinal) ?? false))
+        {
+            log.LogInformation("Training-Export fuer {PartId} uebersprungen (Test-Marker im Piece-Title)", partId);
+            return null;
+        }
         var detJson = await GetDetectionsJsonAsync(partId, ct);
         if (string.IsNullOrEmpty(detJson)) return null;
         var pages = part.Files.Where(f => f.Kind == PartFileKind.PageImage)
@@ -220,6 +246,43 @@ public sealed class PartDetectionService(
             .Select(f => new TrainingPage((f.PageNumber ?? 1) - 1, f.BlobKey, detJson))
             .ToList();
         var anns = await GetAnnotationsAsync(partId, null, ct);
-        return new TrainingExport(partId, part.DisplayName, pages, anns);
+        return new TrainingExport(partId, part.DisplayName, pages, anns, scope);
+    }
+
+    /// <summary>
+    /// Liefert eine kompakte Übersicht: wie viele Detections sind bestätigt/korrigiert
+    /// vs unbestätigt (für UI-Progress + Training-Eligibility-Hinweis).
+    /// </summary>
+    public async Task<(int total, int confirmed, int corrected, int uncertain)> GetCoverageAsync(
+        Guid partId, CancellationToken ct = default)
+    {
+        var detJson = await GetDetectionsJsonAsync(partId, ct);
+        if (string.IsNullOrEmpty(detJson)) return (0, 0, 0, 0);
+        var anns = await GetAnnotationsAsync(partId, null, ct);
+        // Confirmed: PartAnnotationKind.Confirmed (6) + RegionConfirmed (7)
+        // Corrected: WrongPitch/WrongDuration/WrongKind/NotANote (1,2,3,0)
+        var confirmed = anns.Count(a => a.Kind == PartAnnotationKind.Confirmed);
+        var regions = anns.Count(a => a.Kind == PartAnnotationKind.RegionConfirmed);
+        var corrected = anns.Count(a => a.Kind == PartAnnotationKind.WrongPitch
+            || a.Kind == PartAnnotationKind.WrongDuration
+            || a.Kind == PartAnnotationKind.WrongKind
+            || a.Kind == PartAnnotationKind.NotANote
+            || a.Kind == PartAnnotationKind.MissedNote);
+        // total: NHs aus DetectionsJson zaehlen
+        var total = 0;
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(detJson);
+            if (doc.RootElement.TryGetProperty("pages", out var pages))
+            {
+                foreach (var p in pages.EnumerateArray())
+                {
+                    if (p.TryGetProperty("noteheads", out var nhs)) total += nhs.GetArrayLength();
+                }
+            }
+        }
+        catch { }
+        var uncertain = Math.Max(0, total - confirmed - corrected);
+        return (total, confirmed + regions, corrected, uncertain);
     }
 }

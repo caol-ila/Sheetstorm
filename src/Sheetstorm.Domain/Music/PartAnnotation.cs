@@ -105,5 +105,15 @@ public enum PartAnnotationKind
     MissedNote = 4,
     /// Freitext-Kommentar zu einer Stelle (keine konkrete Korrektur).
     Comment = 5,
+    /// Notenverwalter bestätigt, dass DIESE Detection korrekt erkannt wurde
+    /// (Pitch + Duration + Kind alles richtig). Wird beim Training als
+    /// "Positiv-Beispiel" verwendet.
+    Confirmed = 6,
+    /// Notenverwalter bestätigt einen rechteckigen Bereich als komplett korrekt:
+    /// alle Detections deren Center in diesem Bbox liegen gelten als "richtig".
+    /// Reduziert Klick-Aufwand bei sauberen Stellen — der Verwalter kann eine
+    /// ganze Zeile / einen Takt mit einem Drag bestätigen.
+    /// CorrectionJson optional leer; Bbox = der bestätigte Bereich.
+    RegionConfirmed = 7,
 }
 
