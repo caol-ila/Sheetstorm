@@ -11,6 +11,7 @@ use tracing::{info, info_span, warn};
 
 pub mod accuracy;
 pub mod debug_viz;
+pub mod detections;
 pub mod muscima;
 pub mod pdf_render;
 pub mod synthetic;
@@ -79,6 +80,9 @@ pub struct PipelineResult {
     pub timings: Timings,
     /// Diagnose-Statistiken.
     pub stats: Stats,
+    /// Optional: Detection-Bboxes für UI/Annotation. Nur gefüllt wenn
+    /// `PipelineOptions.collect_detections == true`.
+    pub detections: Option<detections::DetectionsResult>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -318,11 +322,28 @@ fn merge_two_results(left: PipelineResult, right: PipelineResult) -> PipelineRes
     timings.musicxml_ms += right.timings.musicxml_ms;
     timings.total_ms += right.timings.total_ms;
     let musicxml = omr_musicxml::export(&score).unwrap_or_default();
+    // Detection-Merge: linke + rechte Seite konkatenieren (gleicher page_index 0
+    // wie der Original-Doppelseiten-Scan).
+    let detections = match (left.detections, right.detections) {
+        (Some(l), Some(r)) => {
+            let mut pages: Vec<detections::DetectionPage> = Vec::new();
+            pages.extend(l.pages.into_iter());
+            pages.extend(r.pages.into_iter());
+            Some(detections::DetectionsResult {
+                schema_version: 1,
+                pages,
+            })
+        }
+        (Some(l), None) => Some(l),
+        (None, Some(r)) => Some(r),
+        (None, None) => None,
+    };
     PipelineResult {
         score,
         musicxml,
         timings,
         stats,
+        detections,
     }
 }
 
@@ -365,6 +386,7 @@ fn process_gray_single(gray: GrayImage, opts: &PipelineOptions) -> Result<Pipeli
             musicxml: omr_musicxml::export(&Score::default())?,
             timings: Timings { preprocessing_ms, staff_detection_ms, total_ms: total_t.elapsed().as_millis(), ..Default::default() },
             stats: Stats { deskew_angle_deg: deskew_angle, ..Default::default() },
+            detections: None,
         });
     }
 
@@ -725,6 +747,34 @@ fn process_gray_single(gray: GrayImage, opts: &PipelineOptions) -> Result<Pipeli
     let musicxml = omr_musicxml::export(&score)?;
     let musicxml_ms = mx_t.elapsed().as_millis();
 
+    // 7) Optional: Detection-Dump für Annotation-Tool sammeln.
+    let detections_dump = if opts.collect_detections {
+        let part_measures = score
+            .parts
+            .first()
+            .map(|p| p.measures.as_slice())
+            .unwrap_or(&[]);
+        let page = detections::build_detection_page(
+            0, // page_index — wird im Multi-Page-Wrapper gesetzt
+            gray.width(),
+            gray.height(),
+            deskew_angle,
+            &systems,
+            &noteheads,
+            &stems,
+            &beams,
+            &bars,
+            part_measures,
+            &measure_checks,
+        );
+        Some(detections::DetectionsResult {
+            schema_version: 1,
+            pages: vec![page],
+        })
+    } else {
+        None
+    };
+
     let total_ms = total_t.elapsed().as_millis();
     Ok(PipelineResult {
         score,
@@ -764,6 +814,7 @@ fn process_gray_single(gray: GrayImage, opts: &PipelineOptions) -> Result<Pipeli
             doc_gray_variance: doc_class.gray_variance,
             doc_nh_size_cv: nh_size_cv(&noteheads),
         },
+        detections: detections_dump,
     })
 }
 
@@ -971,6 +1022,7 @@ pub fn process_pdf(path: &Path, opts: &PipelineOptions) -> Result<PipelineResult
     let mut merged_timings = Timings::default();
     let mut merged_stats = Stats::default();
     let mut next_measure = 1u32;
+    let mut merged_pages: Vec<detections::DetectionPage> = Vec::new();
 
     for (idx, img) in images.into_iter().enumerate() {
         info!(page = idx + 1, "processing page");
@@ -996,6 +1048,22 @@ pub fn process_pdf(path: &Path, opts: &PipelineOptions) -> Result<PipelineResult
         merged_stats.line_spacing = r.stats.line_spacing;
         merged_stats.deskew_angle_deg = r.stats.deskew_angle_deg;
 
+        // Detection-Seite mit page_index/measure_number anpassen
+        if let Some(mut det) = r.detections {
+            for page in det.pages.iter_mut() {
+                page.page_index = idx as u32;
+                for nh in page.noteheads.iter_mut() {
+                    if let Some(mn) = nh.measure_number {
+                        nh.measure_number = Some(mn + next_measure - 1);
+                    }
+                }
+                for m in page.measures.iter_mut() {
+                    m.number = m.number + next_measure - 1;
+                }
+            }
+            merged_pages.extend(det.pages.into_iter());
+        }
+
         if let Some(p) = r.score.parts.into_iter().next() {
             for mut m in p.measures.into_iter() {
                 m.number = next_measure;
@@ -1007,11 +1075,20 @@ pub fn process_pdf(path: &Path, opts: &PipelineOptions) -> Result<PipelineResult
     merged_score.parts.push(merged_part);
     merged_timings.total_ms = total_t.elapsed().as_millis();
     let musicxml = omr_musicxml::export(&merged_score)?;
+    let detections_dump = if opts.collect_detections {
+        Some(detections::DetectionsResult {
+            schema_version: 1,
+            pages: merged_pages,
+        })
+    } else {
+        None
+    };
     Ok(PipelineResult {
         score: merged_score,
         musicxml,
         timings: merged_timings,
         stats: merged_stats,
+        detections: detections_dump,
     })
 }
 

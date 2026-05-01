@@ -446,4 +446,8 @@ pub struct PipelineOptions {
     /// Wird nur verwendet, wenn `omr-staff` mit `--features unet` gebaut
     /// wurde UND die Datei ladbar ist; ansonsten greift der RLE-Fallback.
     pub unet_model_path: Option<PathBuf>,
+    /// Wenn true, sammelt die Pipeline alle Detection-Bboxes (NHs, Stems,
+    /// Beams, Bars) und gibt sie im `PipelineResult.detections` zurück.
+    /// Nötig für das Annotation-/Training-Tool. Default: false.
+    pub collect_detections: bool,
 }

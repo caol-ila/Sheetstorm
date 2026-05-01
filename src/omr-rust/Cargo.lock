@@ -1484,6 +1484,8 @@ dependencies = [
  "omr-symbols",
  "pdfium-render",
  "quick-xml",
+ "serde",
+ "serde_json",
  "tracing",
 ]
 
