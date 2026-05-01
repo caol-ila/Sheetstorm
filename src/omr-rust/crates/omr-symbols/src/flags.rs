@@ -24,6 +24,8 @@ use omr_core::{Binary, Notehead, Stem};
 ///   - `stems`: detektierte Stems.
 ///   - `noteheads`: zugehörige NHs (für Stem-Direction-Bestimmung).
 ///   - `beam_counts`: pro Stem die Anzahl Beams (0 = keine Beam-Gruppe → Flag möglich).
+///   - `staff_top_y`: oberer Y-Bereich der Stafflinien (für Außerhalb-Check).
+///   - `staff_bot_y`: unterer Y-Bereich.
 ///   - `spacing`: line spacing.
 ///
 /// Returns: pro Stem die Anzahl Flags. Konservativ: nur wenn deutlich erkennbar.
@@ -42,32 +44,27 @@ pub fn detect_flags(
         let nh_idx = match stem.notehead_idx { Some(i) => i, None => continue };
         let nh = match noteheads.get(nh_idx) { Some(n) => n, None => continue };
 
-        // Stem-Direction: stem geht von NH-Center weg.
-        // Wenn nh.center.y > stem.y_top: NH ist UNTEN, Stem geht nach OBEN (stem-up).
-        // Sonst: stem-down.
+        // Stem-Direction
         let stem_up = nh.center.y > stem.y_top as f32;
-
-        // Stem-Tip Position (das Ende weg vom NH)
         let tip_y = if stem_up { stem.y_top } else { stem.y_bot };
         let stem_x = stem.x;
 
-        // Search-Region: ±0.1*spacing in X (stem-Spalte), 0..2*spacing in Y vom Tip.
-        // Flag erweitert den Stem nach RECHTS (in Reading-Order). Wir scannen
-        // also Pixel rechts vom Stem in einem schmalen Bereich.
-        let stem_w_half = 2u32; // Stem-Pixel-Breite halbiert
-        let search_w = (spacing * 1.5) as u32;
-        let search_h = (spacing * 2.0) as u32;
-        let x0 = (stem_x.saturating_add(stem_w_half + 1)).min(bin.w);
+        // KONSERVATIV-Heuristik:
+        // 1. Suche-Region beginnt 3px rechts vom Stem (Skip Stem-Pixel)
+        // 2. Begrenzt auf 1.0 spacing breit (nicht 1.5) — Flags sind ~0.6-0.8 spacing breit
+        // 3. Y-Range: nur die ersten 1.0 spacing vom Tip — Flags sitzen DIREKT am Tip
+        let stem_w_half = 2u32;
+        let search_w = (spacing * 1.0) as u32;
+        let search_h = (spacing * 1.5) as u32;
+        let x0 = (stem_x.saturating_add(stem_w_half + 2)).min(bin.w);
         let x1 = (stem_x + stem_w_half + search_w).min(bin.w);
 
-        // Y-Range: vom Tip in Richtung Stem-Mitte (gegen NH) für ~2 Spacings
+        // Y-Range vom Tip aus 1.5 spacings tief (Flag-Höhe max)
         let (y0, y1) = if stem_up {
-            // Stem geht nach oben, Tip ist OBEN. Suche von Tip nach UNTEN (Richtung NH).
             let y0 = tip_y;
             let y1 = (tip_y + search_h).min(bin.h);
             (y0, y1)
         } else {
-            // Stem-down, Tip ist unten. Suche von Tip nach OBEN.
             let y1 = tip_y;
             let y0 = tip_y.saturating_sub(search_h);
             (y0, y1)
@@ -75,27 +72,44 @@ pub fn detect_flags(
 
         if x0 >= x1 || y0 >= y1 { continue; }
 
-        // Zähle die Y-Reihen die schwarze Pixel haben (= Flag-Höhe)
+        // Zähle die Y-Reihen die schwarze Pixel haben UND prüfe Verbindung zum Stem.
+        // Flag muss BEIM Tip starten — wenn die ersten 0.2 spacing leer sind, ist
+        // es wahrscheinlich ein anderer Notenkopf/CC.
         let mut flag_rows = 0u32;
-        for y in y0..y1 {
+        let mut connected_to_tip = false;
+        let check_first_rows = (spacing * 0.3) as u32;
+
+        for (rel_y, y) in (y0..y1).enumerate() {
             let mut has_pixel = false;
             for x in x0..x1 {
                 if bin.get(x, y) != 0 { has_pixel = true; break; }
             }
-            if has_pixel { flag_rows += 1; }
+            if has_pixel {
+                if (rel_y as u32) < check_first_rows && !stem_up { connected_to_tip = true; }
+                if stem_up && (rel_y as u32) < check_first_rows { connected_to_tip = true; }
+                flag_rows += 1;
+            } else if flag_rows > 0 {
+                // Lücke gefunden — wenn Flag-Bereich schon angefangen, beenden
+                break;
+            }
         }
 
-        // Klassifikation:
-        //   < 0.4 spacing: keine Flag (zu wenig)
-        //   0.4 - 1.2 spacing: 1 Flag (8th)
-        //   > 1.2 spacing: 2 Flags (16th)
+        if !connected_to_tip { continue; }
+
+        // Strenge Klassifikation:
+        //   < 0.4 spacing: keine Flag (zu wenig — ggf. Stem-Schatten)
+        //   0.4 - 1.3 spacing: 1 Flag (8th)
+        //   1.3 - 2.0 spacing: 2 Flags (16th)
+        //   > 2.0 spacing: zu viele Pixel — wahrscheinlich angrenzendes Symbol, nicht Flag
         let flag_rows_f = flag_rows as f32;
         let n_flags = if flag_rows_f < spacing * 0.4 {
             0
-        } else if flag_rows_f < spacing * 1.2 {
+        } else if flag_rows_f < spacing * 1.3 {
             1
-        } else {
+        } else if flag_rows_f < spacing * 2.0 {
             2
+        } else {
+            0
         };
         flags_per_stem[i] = n_flags;
     }
