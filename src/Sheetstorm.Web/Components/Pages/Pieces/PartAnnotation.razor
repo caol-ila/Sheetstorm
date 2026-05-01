@@ -7,6 +7,7 @@
 @inject AuthenticationStateProvider AuthState
 @inject NavigationManager Navigation
 @inject Sheetstorm.Web.Application.PartDetectionService PartDetectionService
+@inject Sheetstorm.Web.Application.PdfPageImageService PageImagesService
 @inject IServiceScopeFactory ScopeFactory
 @inject ILogger<PartAnnotation> Logger
 @inject IJSRuntime JS
@@ -411,6 +412,8 @@ window.sheetstormAnnotate = window.sheetstormAnnotate || {
         }
 
         await LoadDetectionsAsync();
+        // Stelle sicher, dass Page-Images existieren (bei direktem Aufruf via URL)
+        try { await PageImagesService.EnsurePageImagesAsync(partId); } catch { }
         loading = false;
     }
 
