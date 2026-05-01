@@ -43,15 +43,24 @@ pub fn detect_noteheads(staff_removed: &Binary, systems: &[StaffSystem]) -> Vec<
 /// doppelte Detection durch CC-Merge + extract_complex). Behält den NH mit der größeren
 /// Bbox (= mehr Pixel = wahrscheinlich vollständigerer Detection).
 ///
-/// Akkord-Schutz: Zwei-Schwellen-Heuristik:
-///   - Sehr-gleiche-Y (dy < 0.2*spacing) UND dx < 0.9*spacing → DUPLICATE
-///   - Mittel-Y (dy < 0.4*spacing) UND dx < 0.6*spacing → DUPLICATE
-/// Akkord-NHs am gleichen Stem haben dy >= 0.5*spacing (≥ 1 Pitch-Step).
+/// Drei-Schwellen-Heuristik:
+///   - VERY-SAME-Y (dy < max(3px, 0.15*spacing)) UND dx < max(16px, 1.0*spacing) → DUPLICATE
+///   - SAME-Y     (dy < 0.2*spacing)            UND dx < 0.9*spacing            → DUPLICATE
+///   - NEAR-Y     (dy < 0.4*spacing)            UND dx < 0.6*spacing            → DUPLICATE
+///
+/// Akkord-NHs am gleichen Stem haben dy >= 0.5*spacing. Sechzehntel-Sequenz hat
+/// dx >= 1.0*spacing (ca. 0.8-1.2*spacing). Bei sehr kleinem spacing (~11px in
+/// hoch aufgelösten Scans) decken die absoluten Untergrenzen physikalische
+/// Mindest-Pixel-Distanzen ab.
 pub fn dedupe_close_noteheads(noteheads: Vec<Notehead>, spacing: f32) -> Vec<Notehead> {
-    let dx_loose = spacing * 0.9; // bei dy~0
-    let dx_strict = spacing * 0.6;
-    let dy_strict = spacing * 0.2;
-    let dy_loose = spacing * 0.4;
+    let very_dx_max = (spacing * 1.0).max(16.0);
+    let very_dy_max = (spacing * 0.15).max(3.0);
+    let same_dx_max = spacing * 0.9;
+    let same_dy_max = spacing * 0.2;
+    let near_dx_max = spacing * 0.6;
+    let near_dy_max = spacing * 0.4;
+    let break_dx = very_dx_max.max(near_dx_max).max(same_dx_max);
+
     let mut sorted = noteheads;
     sorted.sort_by(|a, b| {
         a.staff_idx
@@ -65,10 +74,11 @@ pub fn dedupe_close_noteheads(noteheads: Vec<Notehead>, spacing: f32) -> Vec<Not
             if !keep[j] { continue; }
             if sorted[j].staff_idx != sorted[i].staff_idx { break; }
             let dx = sorted[j].center.x - sorted[i].center.x;
-            if dx > dx_loose { break; }
+            if dx > break_dx { break; }
             let dy = (sorted[j].center.y - sorted[i].center.y).abs();
-            let is_dup = (dy < dy_strict && dx < dx_loose)
-                || (dy < dy_loose && dx < dx_strict);
+            let is_dup = (dy < very_dy_max && dx < very_dx_max)
+                || (dy < same_dy_max && dx < same_dx_max)
+                || (dy < near_dy_max && dx < near_dx_max);
             if is_dup {
                 let area_i = sorted[i].bbox.area();
                 let area_j = sorted[j].bbox.area();
