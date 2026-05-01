@@ -137,6 +137,25 @@ public sealed class PartDetectionService(
     }
 
     /// <summary>
+    /// Liefert die persistierte MusicXML einer Stimme (Pipeline-Output) — wird
+    /// vom Annotation-Tool für die "Notenansicht" verwendet (Verovio-Render).
+    /// pageIndex ignored aktuell (wir haben pro Part nur EINE MusicXML, die alle
+    /// Pages enthält); kann später erweitert werden.
+    /// </summary>
+    public async Task<string?> GetMusicXmlAsync(Guid partId, int pageIndex = 0, CancellationToken ct = default)
+    {
+        _ = pageIndex; // reserved für künftige per-page MusicXML
+        var pf = await db.PartFiles
+            .Where(f => f.PartId == partId && f.Kind == PartFileKind.MusicXml)
+            .OrderByDescending(f => f.CreatedAt)
+            .FirstOrDefaultAsync(ct);
+        if (pf is null || !store.Exists(pf.BlobKey)) return null;
+        await using var stream = store.OpenRead(pf.BlobKey);
+        using var reader = new StreamReader(stream);
+        return await reader.ReadToEndAsync(ct);
+    }
+
+    /// <summary>
     /// True wenn für die Stimme bereits Detections persistiert sind.
     /// </summary>
     public Task<bool> HasDetectionsAsync(Guid partId, CancellationToken ct = default)

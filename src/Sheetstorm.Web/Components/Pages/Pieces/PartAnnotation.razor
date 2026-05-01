@@ -116,6 +116,29 @@ else
                         @onclick:preventDefault="true"
                         data-testid="annotate-canvas"></canvas>
             </div>
+
+            <!-- Notenansicht: gerendert aus MusicXML via Verovio.
+                 User kann diese Ansicht parallel zum Original sehen,
+                 versteht WAS die Pipeline aus den Detections gemacht hat,
+                 und kann via Click-Cross-Highlighting zwischen den
+                 Ansichten navigieren. -->
+            <div class="annotate-rendered-wrap mt-3" data-testid="annotate-rendered-wrap">
+                <div class="d-flex align-items-center mb-1">
+                    <h6 class="mb-0 me-3">🎼 Erkannte Noten (gerendert)</h6>
+                    <div class="form-check form-check-inline form-switch mb-0">
+                        <input class="form-check-input" type="checkbox" id="showRenderedView"
+                               checked="@showRenderedView"
+                               @onchange="@(EventCallback.Factory.Create<ChangeEventArgs>(this, e => ToggleRenderedView((bool)(e.Value ?? false))))"
+                               data-testid="toggle-rendered-view">
+                        <label class="form-check-label small" for="showRenderedView">aktiv</label>
+                    </div>
+                    <small class="text-muted ms-2">Klick auf Note links → highlight rechts und umgekehrt</small>
+                </div>
+                @if (showRenderedView)
+                {
+                    <div id="annotate-rendered" class="annotate-rendered-svg" data-testid="annotate-rendered"></div>
+                }
+            </div>
         </div>
 
         <div class="annotate-right">
@@ -544,6 +567,7 @@ else
     </div>
 }
 
+<script src="https://www.verovio.org/javascript/latest/verovio-toolkit-wasm.js" defer></script>
 <script>
 window.sheetstormAnnotate = window.sheetstormAnnotate || {
     pageImage: null,
@@ -554,6 +578,99 @@ window.sheetstormAnnotate = window.sheetstormAnnotate || {
     dragging: false,
     lastPayload: null,
     audioCtx: null,
+    verovioToolkit: null,
+    renderedNoteIds: {}, // SVG-element-id → notehead-id (für Cross-Highlighting)
+    /// Lazy-loadet die Verovio-Toolkit-Instanz (WASM).
+    getVerovioToolkit: async function() {
+        if (this.verovioToolkit) return this.verovioToolkit;
+        // verovio sets a global `verovio.toolkit` after wasm load
+        try {
+            // Wait for VerovioToolkit module to be available
+            for (let i = 0; i < 50; i++) {
+                if (typeof verovio !== 'undefined' && verovio.toolkit) break;
+                await new Promise(r => setTimeout(r, 200));
+            }
+            if (typeof verovio === 'undefined' || !verovio.toolkit) {
+                console.warn('Verovio toolkit nicht geladen — Notenansicht deaktiviert');
+                return null;
+            }
+            this.verovioToolkit = new verovio.toolkit();
+            this.verovioToolkit.setOptions({
+                scale: 50,
+                pageWidth: 2400,
+                pageHeight: 600,
+                adjustPageHeight: true,
+                breaks: 'auto',
+                spacingNonLinear: 0.6,
+            });
+            return this.verovioToolkit;
+        } catch (e) {
+            console.warn('Verovio init failed', e);
+            return null;
+        }
+    },
+    /// Rendert die MusicXML in den #annotate-rendered Container und
+    /// versieht jede gerenderte Note mit einem data-nh-id-Attribut für
+    /// Cross-Highlighting zwischen Original-Bild und Notenansicht.
+    renderMusicXml: async function(musicXml, nhMapping) {
+        const tk = await this.getVerovioToolkit();
+        const container = document.getElementById('annotate-rendered');
+        if (!container) return;
+        if (!tk) {
+            container.innerHTML = '<p class="text-muted small">Verovio nicht geladen — Notenansicht nicht verfügbar.</p>';
+            return;
+        }
+        if (!musicXml || musicXml.length < 100) {
+            container.innerHTML = '<p class="text-muted small">Keine MusicXML verfügbar — Pipeline lieferte noch nichts.</p>';
+            return;
+        }
+        try {
+            tk.loadData(musicXml);
+            const svg = tk.renderToSVG(1, {});
+            container.innerHTML = svg;
+            // Verovio gibt jeder Note eine ID wie 'note-12345'. Wir mappen das
+            // auf nh.id via Reading-Order-Sequence — die Pipeline gibt uns die
+            // Reihenfolge der NHs in nhMapping (sortiert wie Verovio).
+            this.renderedNoteIds = {};
+            const svgNotes = container.querySelectorAll('g.note, g.rest');
+            svgNotes.forEach((el, idx) => {
+                if (idx < (nhMapping || []).length) {
+                    const nhId = nhMapping[idx];
+                    el.setAttribute('data-nh-id', nhId);
+                    el.style.cursor = 'pointer';
+                    this.renderedNoteIds['v-' + (el.id || idx)] = nhId;
+                    el.addEventListener('click', (e) => {
+                        if (this.dotnetRef) {
+                            e.preventDefault();
+                            this.dotnetRef.invokeMethodAsync('OnRenderedNoteClick', nhId);
+                        }
+                    });
+                }
+            });
+        } catch (e) {
+            console.warn('Verovio render failed', e);
+            container.innerHTML = '<p class="text-muted small">Render-Fehler: ' + (e.message || e) + '</p>';
+        }
+    },
+    /// Highlight die gerenderte Note mit der gegebenen nh-id (von Original-Canvas).
+    highlightRenderedNote: function(nhId) {
+        const container = document.getElementById('annotate-rendered');
+        if (!container) return;
+        container.querySelectorAll('[data-nh-highlighted]').forEach(el => {
+            el.removeAttribute('data-nh-highlighted');
+            el.style.fill = '';
+            el.style.stroke = '';
+        });
+        if (nhId === null || nhId === undefined) return;
+        const target = container.querySelector('[data-nh-id="' + nhId + '"]');
+        if (target) {
+            target.setAttribute('data-nh-highlighted', '1');
+            target.style.fill = '#ff8800';
+            target.style.stroke = '#ff8800';
+            // Scroll into view
+            target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    },
     /// Spielt einen MIDI-Pitch als Sinuston für ms Millisekunden.
     /// Erlaubt Pitch-Validation per Ohr im Step-Mode.
     playMidi: function(midi, durationMs) {
@@ -935,6 +1052,11 @@ window.sheetstormAnnotate = window.sheetstormAnnotate || {
     /// mit MIDI-Pitch der detection. Erlaubt Pitch-Validation per Ohr.
     private bool playAudio = false;
 
+    /// Wenn true, wird die MusicXML der aktuellen Seite via Verovio
+    /// als SVG unter dem Original-Bild gerendert. Erlaubt Cross-View
+    /// + visuellen Vergleich Pipeline-Output vs Original-Scan.
+    private bool showRenderedView = true;
+
     /// Confidence-Threshold für Auto-Confirm. Wenn nh.confidence >= confThreshold,
     /// wird das NH automatisch übersprungen UND als bestätigt gezählt.
     /// Default 1.0 = deaktiviert.
@@ -1269,6 +1391,69 @@ window.sheetstormAnnotate = window.sheetstormAnnotate || {
         if (value) _ = MaybePlayAudioAsync();
     }
 
+    /// Toggle für Notenansicht: aktiviert/deaktiviert die Verovio-Render-View.
+    private void ToggleRenderedView(bool value)
+    {
+        showRenderedView = value;
+        if (value) _ = RenderMusicXmlAsync();
+    }
+
+    /// Lädt die MusicXML vom Backend und rendert sie via Verovio.
+    /// Wird automatisch nach jedem LoadDetections aufgerufen (wenn
+    /// showRenderedView aktiv).
+    private async Task RenderMusicXmlAsync()
+    {
+        if (!showRenderedView) return;
+        if (detections is null) return;
+        try
+        {
+            // Backend liefert MusicXML via Service-Layer (Detections → Score → MusicXML)
+            var musicXml = await PartDetectionService.GetMusicXmlAsync(partId, currentPage);
+            if (string.IsNullOrEmpty(musicXml)) return;
+
+            // NH-Mapping: Reihenfolge der NHs auf der aktuellen Seite (Reading-Order)
+            // — Verovio rendert in dieser Reihenfolge, also können wir 1:1 mappen.
+            var page = detections.pages?.ElementAtOrDefault(currentPage);
+            var nhIds = page?.noteheads?
+                .OrderBy(n => n.measure_number ?? 0)
+                .ThenBy(n => n.bbox[0])
+                .Select(n => n.id)
+                .ToList() ?? new List<long>();
+
+            await JS.InvokeVoidAsync("sheetstormAnnotate.renderMusicXml", musicXml, nhIds);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "RenderMusicXmlAsync failed");
+        }
+    }
+
+    /// Wird vom JS aufgerufen wenn der User auf eine gerenderte Note klickt.
+    /// Wir setzen die selectedDetectionId → Original-Canvas highlightet die
+    /// entsprechende Bbox.
+    [JSInvokable]
+    public async Task OnRenderedNoteClick(long nhId)
+    {
+        try
+        {
+            selectedDetectionId = nhId;
+            // Im Step-Modus zur Note springen
+            if (viewMode == ViewMode.Step)
+            {
+                var page = detections?.pages?.ElementAtOrDefault(currentPage);
+                if (page?.noteheads is not null)
+                {
+                    var idx = page.noteheads.FindIndex(n => n.id == nhId);
+                    if (idx >= 0) stepIndex = idx;
+                }
+            }
+            scrollToSelectionPending = true;
+            StateHasChanged();
+            await RenderCanvasAsync();
+        }
+        catch (Exception ex) { Logger.LogWarning(ex, "OnRenderedNoteClick failed"); }
+    }
+
     private void UpdateConfThreshold(ChangeEventArgs e)
     {
         if (e.Value is null) return;
@@ -1380,6 +1565,9 @@ window.sheetstormAnnotate = window.sheetstormAnnotate || {
                 a.Id, a.PageIndex, a.BboxX, a.BboxY, a.BboxW, a.BboxH,
                 (int)a.Kind, a.CorrectionJson, a.Comment)).ToList();
             try { coverage = await PartDetectionService.GetCoverageAsync(partId); } catch { }
+
+            // Trigger Verovio-Render für Notenansicht (asynchron, blockt nicht)
+            _ = RenderMusicXmlAsync();
         }
         catch (Exception)
         {
@@ -1522,6 +1710,16 @@ window.sheetstormAnnotate = window.sheetstormAnnotate || {
         };
         scrollToSelectionPending = false;
         await JS.InvokeVoidAsync("sheetstormAnnotate.render", "annotate-canvas", payload);
+        // Cross-Highlight: gerenderte Note in Verovio-SVG
+        if (showRenderedView)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("sheetstormAnnotate.highlightRenderedNote",
+                    selectedDetectionId.HasValue ? (object)selectedDetectionId.Value : null);
+            }
+            catch { }
+        }
     }
 
     private bool scrollToSelectionPending;
