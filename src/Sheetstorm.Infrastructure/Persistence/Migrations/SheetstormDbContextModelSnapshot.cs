@@ -1110,6 +1110,58 @@ namespace Sheetstorm.Infrastructure.Persistence.Migrations
                     b.ToTable("Parts", (string)null);
                 });
 
+            modelBuilder.Entity("Sheetstorm.Domain.Music.PartAnnotation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("BboxH")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("BboxW")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("BboxX")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("BboxY")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Comment")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("CorrectionJson")
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("PageIndex")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("PartId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("PartId", "PageIndex");
+
+                    b.ToTable("PartAnnotations", (string)null);
+                });
+
             modelBuilder.Entity("Sheetstorm.Domain.Music.PartFile", b =>
                 {
                     b.Property<Guid>("Id")

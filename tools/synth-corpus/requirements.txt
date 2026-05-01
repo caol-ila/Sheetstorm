@@ -1,0 +1,22 @@
+# Synth-Corpus Pipeline-Dependencies
+# Installation: pip install -r requirements.txt
+
+# MIDI-Parsing + MusicXML-Konversion
+music21>=9.1
+mido>=1.3
+
+# MusicXML-Rendering (SVG/PNG ohne MuseScore)
+verovio>=4.0
+
+# SVG -> PNG (für Verovio-Output)
+cairosvg>=2.7
+
+# Augmentation + Bildverarbeitung
+Pillow>=10.0
+numpy>=1.26
+
+# HTTP-Downloads
+requests>=2.31
+
+# Pipeline-Output-Parsing
+lxml>=5.0

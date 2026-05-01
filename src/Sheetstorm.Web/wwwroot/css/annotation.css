@@ -1,0 +1,124 @@
+/* OMR Annotation-Tool — Layout & Visual */
+
+.annotate-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: 12px;
+    align-items: start;
+    width: 100%;
+    margin: 0;
+}
+
+.annotate-layout.annotate-step {
+    grid-template-columns: minmax(0, 1fr) 380px;
+}
+
+@media (max-width: 1024px) {
+    .annotate-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
+.annotate-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px;
+    background: var(--bs-light, #f5f5f5);
+    border-radius: 6px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+    font-size: 0.9rem;
+}
+
+.annotate-toolbar input[type="range"] {
+    width: 120px;
+}
+
+.annotate-canvas-wrap {
+    position: relative;
+    border: 1px solid #ddd;
+    background: #fafafa;
+    overflow: auto;
+    max-height: 85vh;
+    max-width: 100%;
+}
+
+#annotate-canvas {
+    display: block;
+    cursor: crosshair;
+    user-select: none;
+    max-width: 100%;
+}
+
+.annotate-right {
+    position: sticky;
+    top: 16px;
+    max-height: 92vh;
+    overflow-y: auto;
+}
+
+.annotate-selected-card {
+    border-color: #0d6efd;
+    border-width: 2px;
+}
+
+.annotate-missed-card {
+    border-color: #198754;
+    border-width: 2px;
+    background: rgba(25, 135, 84, 0.05);
+}
+
+/* Step-Modus: kompakt + große Bestätigen-/Verwerfen-Buttons */
+.annotate-step-card {
+    border: 2px solid #0d6efd;
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 8px;
+    background: #f8f9ff;
+}
+
+.annotate-step-card .step-progress {
+    font-size: 0.85rem;
+    color: #6c757d;
+    margin-bottom: 6px;
+}
+
+.annotate-step-card .step-summary {
+    font-size: 1.1rem;
+    font-weight: 500;
+    margin-bottom: 12px;
+}
+
+.annotate-step-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.annotate-step-actions button {
+    padding: 12px;
+    font-size: 1rem;
+    font-weight: 500;
+}
+
+.annotate-step-nav {
+    display: flex;
+    gap: 8px;
+    justify-content: space-between;
+    margin-top: 8px;
+}
+
+/* Bei Step-Modus: das Canvas darf den Bereich maximal nutzen (kein max-height) */
+.annotate-layout.annotate-step .annotate-canvas-wrap {
+    max-height: 88vh;
+}
+
+/* Page-Wrapper: nutzt volle Bildschirmbreite (überschreibt MainLayout-Container) */
+.annotate-page-fullwidth {
+    margin-left: -16px;
+    margin-right: -16px;
+    padding-left: 8px;
+    padding-right: 8px;
+}
+

@@ -1,0 +1,2227 @@
+@page "/Bands/{slug}/pieces/{pieceId:guid}/parts/{partId:guid}/annotate"
+@layout MainLayout
+@attribute [Authorize]
+@rendermode InteractiveServer
+@implements IDisposable
+@inject UserManager<ApplicationUser> UserManager
+@inject SheetstormDbContext Db
+@inject AuthenticationStateProvider AuthState
+@inject NavigationManager Navigation
+@inject Sheetstorm.Web.Application.PartDetectionService PartDetectionService
+@inject Sheetstorm.Web.Application.PdfPageImageService PageImagesService
+@inject IServiceScopeFactory ScopeFactory
+@inject ILogger<PartAnnotation> Logger
+@inject IJSRuntime JS
+
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using Sheetstorm.Domain.Identity
+@using Sheetstorm.Domain.Music
+@using Sheetstorm.Infrastructure.Persistence
+
+<PageTitle>Erkennung prüfen — @part?.DisplayName</PageTitle>
+
+<HeadContent>
+    <link rel="stylesheet" href="css/annotation.css" />
+</HeadContent>
+
+@if (loading)
+{
+    <p>Lädt…</p>
+}
+else if (notAuthorized)
+{
+    <p class="alert alert-danger">Du hast keine Berechtigung, diese Stimme zu korrigieren.</p>
+}
+else if (part is null)
+{
+    <p class="alert alert-warning">Stimme nicht gefunden.</p>
+}
+else if (detections is null)
+{
+    <p><a href="/Bands/@slug/pieces/@pieceId" data-testid="annotate-back">← Zurück zum Werk</a></p>
+    <h1>@part.DisplayName — Erkennung prüfen</h1>
+    <div class="alert alert-info" data-testid="annotate-pending">
+        <strong>⚙ Erkennung läuft…</strong>
+        <p class="mb-0 small">
+            Die OMR-Pipeline analysiert gerade die Notenseiten und erzeugt die Detection-Bboxes.
+            Das dauert je nach Seitenzahl 5–30 Sekunden. Diese Seite aktualisiert sich automatisch.
+        </p>
+        <button type="button" class="btn btn-sm btn-outline-primary mt-2"
+                @onclick="ReloadAfterDetectionAsync" disabled="@runningDetections" data-testid="annotate-retry">
+            @(runningDetections ? "🔄 Läuft…" : "🔄 Jetzt prüfen")
+        </button>
+    </div>
+}
+else
+{
+    <p><a href="/Bands/@slug/pieces/@pieceId" data-testid="annotate-back">← Zurück zum Werk</a></p>
+    <h1 data-testid="annotate-title">@part.DisplayName — Erkennung prüfen</h1>
+    <p class="text-muted small">
+        Klicke auf einen erkannten Notenkopf für Korrekturen, oder auf eine leere Stelle um eine
+        fehlende Note zu ergänzen. Im Schnell-Modus steppst du durch alle Erkennungen.
+    </p>
+
+    <div class="annotate-layout @(viewMode == ViewMode.Step ? "annotate-step" : "")">
+        <div class="annotate-left">
+            <div class="annotate-toolbar">
+                <button type="button" class="btn btn-sm btn-outline-secondary"
+                        @onclick="PrevPage" disabled="@(currentPage == 0)" data-testid="annotate-prev">←</button>
+                <span data-testid="annotate-page-label">Seite @(currentPage + 1) / @pageCount</span>
+                <button type="button" class="btn btn-sm btn-outline-secondary"
+                        @onclick="NextPage" disabled="@(currentPage + 1 >= pageCount)" data-testid="annotate-next">→</button>
+
+                <span class="ms-2">Modus:</span>
+                <button type="button" class="btn btn-sm @(viewMode == ViewMode.Step ? "btn-primary" : "btn-outline-primary")"
+                        @onclick="@(() => SetViewMode(ViewMode.Step))" data-testid="annotate-mode-step"
+                        title="Schnell-Modus: durch alle Detections steppen">
+                    ⚡ Schnell
+                </button>
+                <button type="button" class="btn btn-sm @(viewMode == ViewMode.Free ? "btn-primary" : "btn-outline-primary")"
+                        @onclick="@(() => SetViewMode(ViewMode.Free))" data-testid="annotate-mode-free"
+                        title="Freier Modus: Klick + Drag">
+                    🖱 Frei
+                </button>
+
+                <span class="ms-2">Zoom:</span>
+                <input type="range" min="50" max="300" step="10"
+                       value="@zoomPercent" @oninput="OnZoomInput"
+                       data-testid="annotate-zoom" />
+                <span>@zoomPercent%</span>
+
+                <span class="ms-2">|</span>
+                <label><input type="checkbox" @bind="showNoteheads" /> Noten</label>
+                <label class="ms-1"><input type="checkbox" @bind="showStems" /> Stems</label>
+                <label class="ms-1"><input type="checkbox" @bind="showBars" /> Takte</label>
+
+                @if (viewMode == ViewMode.Free)
+                {
+                    <span class="ms-2">|</span>
+                    <button type="button" class="btn btn-sm @(toolMode == ToolMode.Click ? "btn-primary" : "btn-outline-primary")"
+                            @onclick="@(() => SetToolModeAsync(ToolMode.Click))" data-testid="annotate-tool-click">
+                        🖱 Klick
+                    </button>
+                    <button type="button" class="btn btn-sm @(toolMode == ToolMode.ConfirmRegion ? "btn-success" : "btn-outline-success")"
+                            @onclick="@(() => SetToolModeAsync(ToolMode.ConfirmRegion))" data-testid="annotate-tool-region">
+                        ✓ Bereich
+                    </button>
+                }
+            </div>
+
+            <div class="annotate-canvas-wrap" id="annotate-wrap">
+                <canvas id="annotate-canvas"
+                        @onclick="OnCanvasClickEvent"
+                        @onclick:preventDefault="true"
+                        data-testid="annotate-canvas"></canvas>
+            </div>
+
+            <!-- Notenansicht: gerendert aus MusicXML via Verovio.
+                 User kann diese Ansicht parallel zum Original sehen,
+                 versteht WAS die Pipeline aus den Detections gemacht hat,
+                 und kann via Click-Cross-Highlighting zwischen den
+                 Ansichten navigieren. -->
+            <div class="annotate-rendered-wrap mt-3" data-testid="annotate-rendered-wrap">
+                <div class="d-flex align-items-center mb-1">
+                    <h6 class="mb-0 me-3">🎼 Erkannte Noten (gerendert)</h6>
+                    <div class="form-check form-check-inline form-switch mb-0">
+                        <input class="form-check-input" type="checkbox" id="showRenderedView"
+                               checked="@showRenderedView"
+                               @onchange="@(EventCallback.Factory.Create<ChangeEventArgs>(this, e => ToggleRenderedView((bool)(e.Value ?? false))))"
+                               data-testid="toggle-rendered-view">
+                        <label class="form-check-label small" for="showRenderedView">aktiv</label>
+                    </div>
+                    <small class="text-muted ms-2">Klick auf Note links → highlight rechts und umgekehrt</small>
+                </div>
+                @if (showRenderedView)
+                {
+                    <div id="annotate-rendered" class="annotate-rendered-svg" data-testid="annotate-rendered"></div>
+                }
+            </div>
+        </div>
+
+        <div class="annotate-right">
+            @if (viewMode == ViewMode.Step)
+            {
+                @if (stepDetection is not null)
+                {
+                    <div class="annotate-step-card" data-testid="annotate-step-card">
+                        <div class="step-progress">
+                            Element @(stepIndex + 1) von @(StepCandidateCount)
+                            @if (stepCurrentAnnotation is not null)
+                            {
+                                <span class="badge bg-@KindBadgeColor(stepCurrentAnnotation.kind) ms-1">@KindLabel(stepCurrentAnnotation.kind)</span>
+                            }
+                        </div>
+                        <div class="step-summary">
+                            Pipeline meint:
+                            @if (stepDetection.midi.HasValue)
+                            {
+                                <span><b>Note @stepDetection.step@stepDetection.octave</b> (@DurationLabel(stepDetection.duration ?? 0))</span>
+                            }
+                            else
+                            {
+                                <span><b>@stepDetection.kind</b></span>
+                            }
+                        </div>
+
+                        <div class="annotate-step-actions">
+                            <button type="button" class="btn btn-success"
+                                    @onclick="StepConfirmAsync" data-testid="step-correct"
+                                    title="Pipeline-Erkennung ist genau richtig (Hotkey: Y)">
+                                ✓ Korrekt <kbd class="ms-1">Y</kbd>
+                            </button>
+                            <button type="button" class="btn btn-outline-danger"
+                                    @onclick="StepNotANoteAsync" data-testid="step-wrong"
+                                    title="Hier ist gar kein Symbol (Hotkey: N)">
+                                ✗ Hier ist nichts <kbd class="ms-1">N</kbd>
+                            </button>
+                        </div>
+
+                        <div class="annotate-step-nav">
+                            <button type="button" class="btn btn-sm btn-outline-secondary"
+                                    @onclick="StepPrev" disabled="@(stepIndex == 0)" data-testid="step-prev">
+                                ← Zurück
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary"
+                                    @onclick="StepSkip" data-testid="step-skip">
+                                Überspringen
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary"
+                                    @onclick="StepNext" data-testid="step-next">
+                                Weiter →
+                            </button>
+                        </div>
+
+                        <div class="annotate-quickconfirm mt-2 small">
+                            @if (stepDetection.measure_number.HasValue)
+                            {
+                                <button type="button" class="btn btn-sm btn-outline-success w-100 mb-1"
+                                        @onclick="() => ConfirmEntireMeasureAsync(stepDetection.measure_number!.Value)"
+                                        data-testid="confirm-measure"
+                                        title="Alle erkannten Symbole in diesem Takt als korrekt bestätigen">
+                                    ✓✓ Ganzen Takt @stepDetection.measure_number bestätigen
+                                </button>
+                            }
+                            <button type="button" class="btn btn-sm btn-outline-primary w-100"
+                                    @onclick="ConfirmHighConfidencePageAsync"
+                                    data-testid="confirm-page"
+                                    title="Alle Detections auf dieser Seite mit Confidence ≥ 0.85 als korrekt bestätigen">
+                                ✓✓✓ Alle sicheren auf dieser Seite (≥ 85% conf)
+                            </button>
+                        </div>
+
+                        <details class="mt-2 step-options-details">
+                            <summary class="small text-muted">⚙ Workflow-Optionen</summary>
+                            <div class="form-check form-switch mt-1">
+                                <input class="form-check-input" type="checkbox" id="anomalyOnly"
+                                       checked="@onlyAnomalies"
+                                       @onchange="@(EventCallback.Factory.Create<ChangeEventArgs>(this, e => ToggleOnlyAnomalies((bool)(e.Value ?? false))))"
+                                       data-testid="toggle-anomaly-only">
+                                <label class="form-check-label small" for="anomalyOnly">
+                                    🚨 Nur Auffälligkeiten (@(CurrentPageAnomalies().Count) auf dieser Seite)
+                                </label>
+                            </div>
+                            <div class="form-check form-switch mt-1">
+                                <input class="form-check-input" type="checkbox" id="audioPlay"
+                                       checked="@playAudio"
+                                       @onchange="@(EventCallback.Factory.Create<ChangeEventArgs>(this, e => ToggleAudioPlay((bool)(e.Value ?? false))))"
+                                       data-testid="toggle-audio">
+                                <label class="form-check-label small" for="audioPlay">
+                                    🔊 Audio-Playback beim Step (~200ms Pulse)
+                                </label>
+                            </div>
+                            <div class="mt-1 small">
+                                <label for="confThresh">Auto-confirm Confidence ≥</label>
+                                <input type="number" min="0.5" max="1.0" step="0.05" class="form-control form-control-sm w-25 d-inline-block"
+                                       id="confThresh" value="@confThreshold.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)"
+                                       @oninput="@(EventCallback.Factory.Create<ChangeEventArgs>(this, e => UpdateConfThreshold(e)))">
+                                <small class="text-muted ms-2">(deaktiviert wenn 1.0)</small>
+                            </div>
+                        </details>
+
+                        <details class="mt-2" open="@(editorMode != EditorMode.None)">
+                            <summary class="small text-muted">Was anderes…</summary>
+                            <div class="mt-2">
+                                <p class="small mb-1"><b>Korrekter Symboltyp:</b></p>
+                                <div class="d-grid gap-1">
+                                    <button type="button" class="btn btn-sm btn-outline-warning"
+                                            @onclick="OpenNoteEditor" data-testid="step-symbol-note">🎵 Note (anderer Pitch/Dauer)</button>
+                                    <button type="button" class="btn btn-sm btn-outline-warning"
+                                            @onclick="OpenRestEditor" data-testid="step-symbol-rest">😶 Pause</button>
+                                    <button type="button" class="btn btn-sm btn-outline-info"
+                                            @onclick="@(() => OpenSymbolEditor(SymbolCategory.Clef))">🎼 Notenschlüssel</button>
+                                    <button type="button" class="btn btn-sm btn-outline-info"
+                                            @onclick="@(() => OpenSymbolEditor(SymbolCategory.TimeSignature))">⏱ Taktangabe</button>
+                                    <button type="button" class="btn btn-sm btn-outline-info"
+                                            @onclick="@(() => OpenSymbolEditor(SymbolCategory.KeySignature))">♯♭ Vorzeichen</button>
+                                    <button type="button" class="btn btn-sm btn-outline-info"
+                                            @onclick="@(() => OpenSymbolEditor(SymbolCategory.Barline))">| Taktstrich/Repeat</button>
+                                    <button type="button" class="btn btn-sm btn-outline-info"
+                                            @onclick="@(() => OpenSymbolEditor(SymbolCategory.Jump))">𝄋 Sprungmarke (DC/DS/Coda/Segno/Fine/Volta)</button>
+                                    <button type="button" class="btn btn-sm btn-outline-info"
+                                            @onclick="@(() => OpenSymbolEditor(SymbolCategory.Dynamics))">𝆑 Dynamik (p/f/cresc./...)</button>
+                                    <button type="button" class="btn btn-sm btn-outline-info"
+                                            @onclick="@(() => OpenSymbolEditor(SymbolCategory.Tempo))">⏩ Tempo (rit/accel/BPM)</button>
+                                    <button type="button" class="btn btn-sm btn-outline-info"
+                                            @onclick="@(() => OpenSymbolEditor(SymbolCategory.Articulation))">⌃ Artikulation (Akzent/Staccato/Bogen)</button>
+                                    <button type="button" class="btn btn-sm btn-outline-info"
+                                            @onclick="@(() => OpenSymbolEditor(SymbolCategory.SlurTie))">⌒ Bindebogen/Haltebogen</button>
+                                    <button type="button" class="btn btn-sm btn-outline-info"
+                                            @onclick="@(() => OpenSymbolEditor(SymbolCategory.Other))">🔣 Sonstiges/Text</button>
+                                </div>
+                            </div>
+
+                            @if (editorMode == EditorMode.Note)
+                            {
+                                <hr/>
+                                <p class="small mb-1"><b>Note-Korrektur</b></p>
+                                <label class="small">MIDI-Pitch (60 = C4, 72 = C5)</label>
+                                <input type="number" min="0" max="127" @bind="editorMidi" class="form-control form-control-sm mb-1" />
+                                <label class="small">Dauer</label>
+                                <select @bind="editorDuration" class="form-select form-select-sm mb-1">
+                                    <option value="1">Sechzehntel</option>
+                                    <option value="2">Achtel</option>
+                                    <option value="3">Punkt. Achtel</option>
+                                    <option value="4">Viertel</option>
+                                    <option value="6">Punkt. Viertel</option>
+                                    <option value="8">Halbe</option>
+                                    <option value="12">Punkt. Halbe</option>
+                                    <option value="16">Ganze</option>
+                                </select>
+                                <button class="btn btn-sm btn-primary" @onclick="SaveNoteAsync" data-testid="step-save-note">Speichern + Weiter</button>
+                            }
+                            else if (editorMode == EditorMode.Rest)
+                            {
+                                <hr/>
+                                <p class="small mb-1"><b>Pause</b></p>
+                                <label class="small">Dauer</label>
+                                <select @bind="editorDuration" class="form-select form-select-sm mb-1">
+                                    <option value="1">Sechzehntel</option>
+                                    <option value="2">Achtel</option>
+                                    <option value="4">Viertel</option>
+                                    <option value="8">Halbe</option>
+                                    <option value="16">Ganze</option>
+                                </select>
+                                <button class="btn btn-sm btn-primary" @onclick="SaveRestAsync" data-testid="step-save-rest">Speichern + Weiter</button>
+                            }
+                            else if (editorMode == EditorMode.SymbolPick && symbolOptions.Count > 0)
+                            {
+                                <hr/>
+                                <p class="small mb-1"><b>@symbolCategoryLabel</b></p>
+                                <div class="d-grid gap-1">
+                                    @foreach (var opt in symbolOptions)
+                                    {
+                                        <button type="button" class="btn btn-sm btn-outline-primary text-start"
+                                                @onclick="@(() => SaveSymbolAsync(opt.type))">@opt.label</button>
+                                    }
+                                </div>
+                                @if (editorAllowsText)
+                                {
+                                    <label class="small mt-2">Optionaler Text</label>
+                                    <input type="text" @bind="editorText" class="form-control form-control-sm" placeholder="z.B. 'molto rit.'" />
+                                }
+                            }
+                        </details>
+                    </div>
+                }
+                else
+                {
+                    <p class="text-muted">Keine Detections auf dieser Seite.</p>
+                }
+
+                <hr/>
+                <h5 class="mt-2">Statistik</h5>
+                @if (coverage.total > 0)
+                {
+                    var pct = (int)(100.0 * (coverage.confirmed + coverage.corrected) / Math.Max(1, coverage.total));
+                    <div class="progress mb-2" style="height:14px;" data-testid="annotate-coverage">
+                        <div class="progress-bar bg-success" style="width:@(100.0*coverage.confirmed/Math.Max(1,coverage.total))%"></div>
+                        <div class="progress-bar bg-warning" style="width:@(100.0*coverage.corrected/Math.Max(1,coverage.total))%"></div>
+                    </div>
+                    <p class="small text-muted" data-testid="annotate-coverage-text">
+                        ✓ @coverage.confirmed bestätigt, ✏ @coverage.corrected korrigiert, ⏳ @coverage.uncertain unbestätigt (@pct% gelabelt)
+                    </p>
+                }
+            }
+            else
+            {
+                <h4>Korrekturen Seite @(currentPage + 1)</h4>
+                <p class="text-muted small mb-2">
+                    @annotationsThisPage.Count Eintrag/Einträge auf dieser Seite,
+                    @allAnnotations.Count gesamt.
+                </p>
+                @if (coverage.total > 0)
+                {
+                    var pct = (int)(100.0 * (coverage.confirmed + coverage.corrected) / Math.Max(1, coverage.total));
+                    <div class="progress mb-2" style="height:14px;" data-testid="annotate-coverage">
+                        <div class="progress-bar bg-success" style="width:@(100.0*coverage.confirmed/Math.Max(1,coverage.total))%"></div>
+                        <div class="progress-bar bg-warning" style="width:@(100.0*coverage.corrected/Math.Max(1,coverage.total))%"></div>
+                    </div>
+                    <p class="small text-muted mb-2" data-testid="annotate-coverage-text">
+                        ✓ @coverage.confirmed bestätigt &middot;
+                        ✏ @coverage.corrected korrigiert &middot;
+                        ⏳ @coverage.uncertain unbestätigt
+                        (@pct% gelabelt)
+                    </p>
+                }
+
+                @if (CurrentPageAnomalies().Count > 0)
+                {
+                    var anomalies = CurrentPageAnomalies();
+                    <div class="card mb-2 border-warning" data-testid="annotate-anomalies">
+                        <div class="card-body py-2">
+                            <h6 class="card-title mb-1">⚠ Auffälligkeiten beim Lesen (@anomalies.Count)</h6>
+                            <p class="small text-muted mb-2">Stellen, an denen das System unsicher gelesen hat — diese zuerst prüfen!</p>
+                            <ul class="small mb-0">
+                                @foreach (var a in anomalies.Take(10))
+                                {
+                                    <li>
+                                        @switch (a.type)
+                                        {
+                                            case "note_in_header":
+                                                <span><b>Note im Header</b> (x=@a.x): vermutlich Vorzeichen oder Schlüssel falsch erkannt</span>
+                                                break;
+                                            case "beat_mismatch":
+                                                <span><b>Takt @a.measure</b>: erwartet @a.expected_beats Beats, gefunden @a.actual_beats — fehlende oder zusätzliche Note?</span>
+                                                break;
+                                            case "empty_measure":
+                                                <span><b>Takt @a.measure</b> ist leer — Pause vergessen oder Erkennung fehlgeschlagen</span>
+                                                break;
+                                            case "orphan_note_after_final_bar":
+                                                <span><b>Orphan-Note</b> nach letztem Taktstrich (x=@a.x): vermutlich Volta-Digit oder Anhang-Symbol</span>
+                                                break;
+                                            case "duplicate_clef":
+                                                <span>Mehrere Notenschlüssel direkt hintereinander — einer falsch erkannt</span>
+                                                break;
+                                            default:
+                                                <span>@a.type</span>
+                                                break;
+                                        }
+                                    </li>
+                                }
+                                @if (anomalies.Count > 10)
+                                {
+                                    <li class="text-muted">... und @(anomalies.Count - 10) weitere</li>
+                                }
+                            </ul>
+                        </div>
+                    </div>
+                }
+
+            @if (selectedDetectionId.HasValue && selectedDetection is not null)
+            {
+                <div class="card mb-2 annotate-selected-card" data-testid="annotate-selected-card">
+                    <div class="card-body">
+                        <h5 class="card-title">Erkannte Note (id #@selectedDetection.id)</h5>
+                        <ul class="small">
+                            <li>Typ: <b>@selectedDetection.kind</b></li>
+                            @if (selectedDetection.midi.HasValue)
+                            {
+                                <li>Pitch: <b>@selectedDetection.step@selectedDetection.octave</b> (MIDI @selectedDetection.midi)</li>
+                            }
+                            @if (selectedDetection.duration.HasValue)
+                            {
+                                <li>Dauer: <b>@DurationLabel(selectedDetection.duration.Value)</b> (@selectedDetection.duration ticks)</li>
+                            }
+                            @if (selectedDetection.measure_number.HasValue)
+                            {
+                                <li>Takt: @selectedDetection.measure_number</li>
+                            }
+                        </ul>
+
+                        <p class="small mb-1"><b>Was ist mit dieser Note?</b></p>
+                        <div class="d-grid gap-1">
+                            <button type="button" class="btn btn-sm btn-success"
+                                    @onclick="() => MarkAsync(PartAnnotationKind.Confirmed, null)"
+                                    data-testid="annotate-confirmed">✓ Korrekt erkannt</button>
+                            <button type="button" class="btn btn-sm btn-outline-danger"
+                                    @onclick="() => MarkAsync(PartAnnotationKind.NotANote, null)"
+                                    data-testid="annotate-not-a-note">❌ Keine Note (False-Positive)</button>
+                            <button type="button" class="btn btn-sm btn-outline-warning"
+                                    @onclick="() => OpenPitchEditor()"
+                                    data-testid="annotate-wrong-pitch">🎵 Falscher Pitch…</button>
+                            <button type="button" class="btn btn-sm btn-outline-warning"
+                                    @onclick="() => OpenDurationEditor()"
+                                    data-testid="annotate-wrong-duration">⏱ Falsche Dauer…</button>
+                            <button type="button" class="btn btn-sm btn-outline-warning"
+                                    @onclick="() => OpenKindEditor()"
+                                    data-testid="annotate-wrong-kind">⚪ Falsche Klassifikation…</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary"
+                                    @onclick="() => OpenCommentEditor()"
+                                    data-testid="annotate-comment">💬 Kommentar…</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary"
+                                    @onclick="() => selectedDetectionId = null"
+                                    data-testid="annotate-deselect">Auswahl aufheben</button>
+                        </div>
+
+                        @if (editorMode != EditorMode.None)
+                        {
+                            <hr/>
+                            <p class="small mb-1"><b>@editorTitle</b></p>
+                            @if (editorMode == EditorMode.Pitch)
+                            {
+                                <div class="d-flex gap-1">
+                                    <input type="number" min="0" max="127" @bind="editorMidi" class="form-control form-control-sm" placeholder="MIDI 0-127" />
+                                    <button class="btn btn-sm btn-primary" @onclick="SavePitchAsync">OK</button>
+                                </div>
+                            }
+                            else if (editorMode == EditorMode.Duration)
+                            {
+                                <select @bind="editorDuration" class="form-select form-select-sm">
+                                    <option value="1">Sechzehntel (1)</option>
+                                    <option value="2">Achtel (2)</option>
+                                    <option value="4">Viertel (4)</option>
+                                    <option value="8">Halbe (8)</option>
+                                    <option value="16">Ganze (16)</option>
+                                </select>
+                                <button class="btn btn-sm btn-primary mt-1" @onclick="SaveDurationAsync">OK</button>
+                            }
+                            else if (editorMode == EditorMode.Kind)
+                            {
+                                <select @bind="editorKind" class="form-select form-select-sm">
+                                    <option value="Filled">Filled (Viertel/Achtel)</option>
+                                    <option value="Open">Open (Halbe)</option>
+                                    <option value="Whole">Whole (Ganze)</option>
+                                </select>
+                                <button class="btn btn-sm btn-primary mt-1" @onclick="SaveKindAsync">OK</button>
+                            }
+                            else if (editorMode == EditorMode.Comment)
+                            {
+                                <textarea @bind="editorComment" class="form-control form-control-sm" rows="3" placeholder="Anmerkung…"></textarea>
+                                <button class="btn btn-sm btn-primary mt-1" @onclick="SaveCommentAsync">OK</button>
+                            }
+                        }
+                    </div>
+                </div>
+            }
+            else if (pendingMissedClick is not null)
+            {
+                <div class="card mb-2 annotate-missed-card" data-testid="annotate-missed-card">
+                    <div class="card-body">
+                        <h5 class="card-title">Fehlende Note ergänzen</h5>
+                        <p class="small">An dieser Stelle ist keine Note erkannt. Welche Note sollte hier sein?</p>
+                        <label class="small">MIDI</label>
+                        <input type="number" min="0" max="127" @bind="editorMidi" class="form-control form-control-sm mb-1" />
+                        <label class="small">Dauer</label>
+                        <select @bind="editorDuration" class="form-select form-select-sm mb-1">
+                            <option value="1">Sechzehntel</option>
+                            <option value="2">Achtel</option>
+                            <option value="4">Viertel</option>
+                            <option value="8">Halbe</option>
+                            <option value="16">Ganze</option>
+                        </select>
+                        <label class="small">Typ</label>
+                        <select @bind="editorKind" class="form-select form-select-sm mb-1">
+                            <option value="Filled">Filled</option>
+                            <option value="Open">Open</option>
+                            <option value="Whole">Whole</option>
+                        </select>
+                        <div class="d-flex gap-1 mt-2">
+                            <button class="btn btn-sm btn-success" @onclick="SaveMissedAsync" data-testid="annotate-save-missed">Speichern</button>
+                            <button class="btn btn-sm btn-outline-secondary" @onclick="() => pendingMissedClick = null">Abbrechen</button>
+                        </div>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <p class="text-muted small" data-testid="annotate-help">
+                    💡 Klick auf eine erkannte Note (rotes/gelbes Kästchen) für Korrekturen,
+                    oder auf eine leere Stelle für eine fehlende Note.
+                </p>
+            }
+
+            <h5 class="mt-3">Liste der Korrekturen</h5>
+            @if (annotationsThisPage.Count == 0)
+            {
+                <p class="text-muted small">Noch keine Korrekturen auf dieser Seite.</p>
+            }
+            else
+            {
+                <ul class="list-group list-group-flush small">
+                    @foreach (var a in annotationsThisPage)
+                    {
+                        <li class="list-group-item d-flex justify-content-between align-items-start">
+                            <div>
+                                <span class="badge bg-@KindBadgeColor(a.kind)">@KindLabel(a.kind)</span>
+                                @if (!string.IsNullOrEmpty(a.correctionJson))
+                                {
+                                    <code class="ms-1">@a.correctionJson</code>
+                                }
+                                @if (!string.IsNullOrEmpty(a.comment))
+                                {
+                                    <div class="text-muted">"@a.comment"</div>
+                                }
+                            </div>
+                            <button class="btn btn-sm btn-link text-danger p-0"
+                                    @onclick="() => DeleteAnnotationAsync(a.id)"
+                                    data-testid="annotate-delete-@a.id">×</button>
+                        </li>
+                    }
+                </ul>
+            }
+            }
+        </div>
+    </div>
+}
+
+<script src="https://www.verovio.org/javascript/latest/verovio-toolkit-wasm.js" defer></script>
+<script>
+window.sheetstormAnnotate = window.sheetstormAnnotate || {
+    pageImage: null,
+    mode: 'click',
+    dotnetRef: null,
+    dragStart: null,
+    dragEnd: null,
+    dragging: false,
+    lastPayload: null,
+    audioCtx: null,
+    verovioToolkit: null,
+    renderedNoteIds: {}, // SVG-element-id → notehead-id (für Cross-Highlighting)
+    /// Lazy-loadet die Verovio-Toolkit-Instanz (WASM).
+    getVerovioToolkit: async function() {
+        if (this.verovioToolkit) return this.verovioToolkit;
+        // verovio sets a global `verovio.toolkit` after wasm load
+        try {
+            // Wait for VerovioToolkit module to be available
+            for (let i = 0; i < 50; i++) {
+                if (typeof verovio !== 'undefined' && verovio.toolkit) break;
+                await new Promise(r => setTimeout(r, 200));
+            }
+            if (typeof verovio === 'undefined' || !verovio.toolkit) {
+                console.warn('Verovio toolkit nicht geladen — Notenansicht deaktiviert');
+                return null;
+            }
+            this.verovioToolkit = new verovio.toolkit();
+            this.verovioToolkit.setOptions({
+                scale: 50,
+                pageWidth: 2400,
+                pageHeight: 600,
+                adjustPageHeight: true,
+                breaks: 'auto',
+                spacingNonLinear: 0.6,
+            });
+            return this.verovioToolkit;
+        } catch (e) {
+            console.warn('Verovio init failed', e);
+            return null;
+        }
+    },
+    /// Rendert die MusicXML in den #annotate-rendered Container und
+    /// versieht jede gerenderte Note mit einem data-nh-id-Attribut für
+    /// Cross-Highlighting zwischen Original-Bild und Notenansicht.
+    renderMusicXml: async function(musicXml, nhMapping) {
+        const tk = await this.getVerovioToolkit();
+        const container = document.getElementById('annotate-rendered');
+        if (!container) return;
+        if (!tk) {
+            container.innerHTML = '<p class="text-muted small">Verovio nicht geladen — Notenansicht nicht verfügbar.</p>';
+            return;
+        }
+        if (!musicXml || musicXml.length < 100) {
+            container.innerHTML = '<p class="text-muted small">Keine MusicXML verfügbar — Pipeline lieferte noch nichts.</p>';
+            return;
+        }
+        try {
+            tk.loadData(musicXml);
+            const svg = tk.renderToSVG(1, {});
+            container.innerHTML = svg;
+            // Verovio gibt jeder Note eine ID wie 'note-12345'. Wir mappen das
+            // auf nh.id via Reading-Order-Sequence — die Pipeline gibt uns die
+            // Reihenfolge der NHs in nhMapping (sortiert wie Verovio).
+            this.renderedNoteIds = {};
+            const svgNotes = container.querySelectorAll('g.note, g.rest');
+            svgNotes.forEach((el, idx) => {
+                if (idx < (nhMapping || []).length) {
+                    const nhId = nhMapping[idx];
+                    el.setAttribute('data-nh-id', nhId);
+                    el.style.cursor = 'pointer';
+                    this.renderedNoteIds['v-' + (el.id || idx)] = nhId;
+                    el.addEventListener('click', (e) => {
+                        if (this.dotnetRef) {
+                            e.preventDefault();
+                            this.dotnetRef.invokeMethodAsync('OnRenderedNoteClick', nhId);
+                        }
+                    });
+                }
+            });
+        } catch (e) {
+            console.warn('Verovio render failed', e);
+            container.innerHTML = '<p class="text-muted small">Render-Fehler: ' + (e.message || e) + '</p>';
+        }
+    },
+    /// Highlight die gerenderte Note mit der gegebenen nh-id (von Original-Canvas).
+    highlightRenderedNote: function(nhId) {
+        const container = document.getElementById('annotate-rendered');
+        if (!container) return;
+        container.querySelectorAll('[data-nh-highlighted]').forEach(el => {
+            el.removeAttribute('data-nh-highlighted');
+            el.style.fill = '';
+            el.style.stroke = '';
+        });
+        if (nhId === null || nhId === undefined) return;
+        const target = container.querySelector('[data-nh-id="' + nhId + '"]');
+        if (target) {
+            target.setAttribute('data-nh-highlighted', '1');
+            target.style.fill = '#ff8800';
+            target.style.stroke = '#ff8800';
+            // Scroll into view
+            target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    },
+    /// Spielt einen MIDI-Pitch als Sinuston für ms Millisekunden.
+    /// Erlaubt Pitch-Validation per Ohr im Step-Mode.
+    playMidi: function(midi, durationMs) {
+        try {
+            this.audioCtx = this.audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+            const ctx = this.audioCtx;
+            if (ctx.state === 'suspended') ctx.resume();
+            const freq = 440.0 * Math.pow(2.0, (midi - 69) / 12.0);
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.value = freq;
+            // ADSR: 5ms attack, sustain, 30ms release
+            const now = ctx.currentTime;
+            const dur = (durationMs || 200) / 1000.0;
+            gain.gain.setValueAtTime(0.0, now);
+            gain.gain.linearRampToValueAtTime(0.25, now + 0.005);
+            gain.gain.setValueAtTime(0.25, now + dur - 0.03);
+            gain.gain.linearRampToValueAtTime(0.0, now + dur);
+            osc.connect(gain).connect(ctx.destination);
+            osc.start(now);
+            osc.stop(now + dur);
+        } catch (e) { console.warn('playMidi failed', e); }
+    },
+    /// Hotkey-Handler für Y/N/Pfeiltasten. Wird vom Razor beim setMode registriert.
+    bindHotkeys: function(dotnetRef) {
+        if (this._hotkeysBound) return;
+        this._hotkeysBound = true;
+        document.addEventListener('keydown', (e) => {
+            // Skip wenn in Input/Textarea
+            const tag = (document.activeElement && document.activeElement.tagName) || '';
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+            if (!this.dotnetRef) return;
+            if (e.key === 'y' || e.key === 'Y') {
+                e.preventDefault();
+                this.dotnetRef.invokeMethodAsync('OnHotkey', 'confirm');
+            } else if (e.key === 'n' || e.key === 'N') {
+                e.preventDefault();
+                this.dotnetRef.invokeMethodAsync('OnHotkey', 'reject');
+            } else if (e.key === 'ArrowRight') {
+                e.preventDefault();
+                this.dotnetRef.invokeMethodAsync('OnHotkey', 'next');
+            } else if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                this.dotnetRef.invokeMethodAsync('OnHotkey', 'prev');
+            }
+        });
+    },
+    setMode: function(mode, dotnetRef) {
+        this.mode = mode;
+        if (dotnetRef) this.dotnetRef = dotnetRef;
+        if (dotnetRef) this.bindHotkeys(dotnetRef);
+        const canvas = document.getElementById('annotate-canvas');
+        if (!canvas) return;
+        if (canvas._ssBound) return;
+        canvas._ssBound = true;
+        canvas.addEventListener('mousedown', (e) => {
+            if (this.mode !== 'region') return;
+            const c = this._coord(canvas, e.clientX, e.clientY);
+            this.dragStart = c;
+            this.dragEnd = c;
+            this.dragging = true;
+            this._renderOverlay();
+            e.preventDefault();
+        });
+        canvas.addEventListener('mousemove', (e) => {
+            if (!this.dragging) return;
+            this.dragEnd = this._coord(canvas, e.clientX, e.clientY);
+            this._renderOverlay();
+        });
+        canvas.addEventListener('mouseup', (e) => {
+            if (!this.dragging) return;
+            this.dragging = false;
+            const s = this.dragStart, ed = this.dragEnd;
+            this.dragStart = null;
+            this.dragEnd = null;
+            this._renderOverlay();
+            if (s && ed && this.dotnetRef) {
+                const x = Math.min(s.x, ed.x);
+                const y = Math.min(s.y, ed.y);
+                const w = Math.abs(ed.x - s.x);
+                const h = Math.abs(ed.y - s.y);
+                if (w >= 8 && h >= 8) {
+                    this.dotnetRef.invokeMethodAsync('OnRegionConfirmed', x, y, w, h)
+                        .catch(err => console.warn('Region-Confirm fehlgeschlagen', err));
+                }
+            }
+            e.preventDefault();
+        });
+        canvas.addEventListener('mouseleave', () => {
+            if (this.dragging) {
+                this.dragging = false;
+                this.dragStart = null;
+                this.dragEnd = null;
+                this._renderOverlay();
+            }
+        });
+    },
+    _coord: function(canvas, clientX, clientY) {
+        const r = canvas.getBoundingClientRect();
+        const localX = clientX - r.left;
+        const localY = clientY - r.top;
+        const p = this.lastPayload;
+        if (!p) return { x: 0, y: 0 };
+        const sx = canvas.width / p.detW;
+        const sy = canvas.height / p.detH;
+        return { x: Math.round(localX / sx), y: Math.round(localY / sy) };
+    },
+    _renderOverlay: function() {
+        // Re-render basierend auf letztem Payload (zeichnet auch dragRect)
+        if (this.lastPayload) this.render('annotate-canvas', { ...this.lastPayload, _liveDrag: true });
+    },
+    bind: function(canvasId, imageUrl, width, height) {
+        const canvas = document.getElementById(canvasId);
+        if (!canvas) return;
+        const img = new Image();
+        img.onload = () => {
+            window.sheetstormAnnotate.pageImage = img;
+            // Sofort re-rendern wenn ein Payload schon da ist (LoadDetections lief vor Bild-Load).
+            if (window.sheetstormAnnotate.lastPayload) {
+                window.sheetstormAnnotate.render(canvasId, window.sheetstormAnnotate.lastPayload);
+            }
+        };
+        img.onerror = (e) => {
+            console.warn('Page-Image konnte nicht geladen werden:', imageUrl, e);
+        };
+        img.src = imageUrl;
+    },
+    render: function(canvasId, payload) {
+        const canvas = document.getElementById(canvasId);
+        if (!canvas) return;
+        // Live-Drag merge: dragRect aus JS-State kommt aus Drag-Handler
+        if (this.dragging && this.dragStart && this.dragEnd) {
+            const s = this.dragStart, ed = this.dragEnd;
+            payload = { ...payload, dragRect: {
+                x: Math.min(s.x, ed.x), y: Math.min(s.y, ed.y),
+                w: Math.abs(ed.x - s.x), h: Math.abs(ed.y - s.y)
+            }};
+        }
+        if (!payload._liveDrag) this.lastPayload = payload;
+        const ctx = canvas.getContext('2d');
+        const img = window.sheetstormAnnotate.pageImage;
+        if (!img) return;
+        const zoom = payload.zoom || 1.0;
+        const W = Math.round(img.naturalWidth * zoom);
+        const H = Math.round(img.naturalHeight * zoom);
+        canvas.width = W;
+        canvas.height = H;
+        ctx.imageSmoothingEnabled = true;
+        ctx.drawImage(img, 0, 0, W, H);
+
+        const sx = (W / payload.detW);
+        const sy = (H / payload.detH);
+
+        // Step-Modus: Highlight für aktuelle Detection — keine Bildmodifikation,
+        // nur fetter Rahmen + Pfeil + Label. Bild bleibt komplett sichtbar.
+        const stepMode = payload.stepMode === true && payload.selectedId !== undefined && payload.selectedId !== null;
+        let selectedNh = null;
+        if (stepMode && payload.noteheads) {
+            for (const nh of payload.noteheads) {
+                if (nh.id === payload.selectedId) { selectedNh = nh; break; }
+            }
+        }
+
+        if (payload.showStems) {
+            ctx.strokeStyle = 'rgba(0,200,0,0.6)';
+            ctx.lineWidth = 1;
+            for (const s of payload.stems) {
+                ctx.beginPath();
+                ctx.moveTo(s.x*sx, s.yTop*sy);
+                ctx.lineTo(s.x*sx, s.yBot*sy);
+                ctx.stroke();
+            }
+        }
+        if (payload.showBars) {
+            ctx.strokeStyle = 'rgba(160,0,200,0.6)';
+            ctx.lineWidth = 2;
+            for (const b of payload.bars) {
+                ctx.beginPath();
+                ctx.moveTo(b.x*sx, b.yTop*sy);
+                ctx.lineTo(b.x*sx, b.yBot*sy);
+                ctx.stroke();
+            }
+        }
+        if (payload.showNoteheads) {
+            for (const nh of payload.noteheads) {
+                const annKind = payload.annotatedIds[nh.id];
+                if (nh.id === payload.selectedId) {
+                    // PRIO 1: aktuelle Selection — sehr fetter pulsierender Rahmen + Pfeil
+                    continue; // erst nach dem Loop zeichnen damit es oben liegt
+                }
+                if (annKind === 0) {
+                    ctx.strokeStyle = 'rgba(180,180,180,0.9)';
+                    ctx.lineWidth = 1;
+                    ctx.setLineDash([3,3]);
+                } else if (annKind === 6) {
+                    ctx.strokeStyle = 'rgba(40,180,80,1.0)';
+                    ctx.lineWidth = 2;
+                    ctx.setLineDash([]);
+                } else if (annKind !== undefined) {
+                    ctx.strokeStyle = 'rgba(255,165,0,0.9)';
+                    ctx.lineWidth = 2;
+                    ctx.setLineDash([]);
+                } else if (nh.kind === 'Filled') {
+                    ctx.strokeStyle = 'rgba(220,40,40,0.85)';
+                    ctx.lineWidth = 1;
+                    ctx.setLineDash([]);
+                } else if (nh.kind === 'Open') {
+                    ctx.strokeStyle = 'rgba(255,200,0,0.85)';
+                    ctx.lineWidth = 1;
+                    ctx.setLineDash([]);
+                } else {
+                    ctx.strokeStyle = 'rgba(0,150,200,0.85)';
+                    ctx.lineWidth = 1;
+                    ctx.setLineDash([]);
+                }
+                ctx.strokeRect(nh.bbox[0]*sx, nh.bbox[1]*sy, nh.bbox[2]*sx, nh.bbox[3]*sy);
+            }
+            ctx.setLineDash([]);
+        }
+
+        // ====== Rests, Clefs, KeySig, TimeSig — UNTERSCHIEDLICHE FARBEN/LABEL ======
+        // damit User auf einen Blick sieht: 'das ist ne Pause / Schluessel / Vorzeichen'.
+        const drawLabeledBox = (bbox, color, fillColor, label) => {
+            const [bx, by, bw, bh] = bbox;
+            ctx.strokeStyle = color;
+            ctx.fillStyle = fillColor;
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([]);
+            ctx.fillRect(bx*sx, by*sy, bw*sx, bh*sy);
+            ctx.strokeRect(bx*sx, by*sy, bw*sx, bh*sy);
+            if (label) {
+                ctx.fillStyle = color;
+                ctx.font = 'bold 10px sans-serif';
+                ctx.fillText(label, bx*sx, by*sy - 2);
+            }
+        };
+        if (payload.showNoteheads && payload.rests) {
+            for (const r of payload.rests) {
+                drawLabeledBox(r.bbox, 'rgba(150,80,200,0.9)', 'rgba(150,80,200,0.10)', '⏸ ' + r.kind);
+            }
+        }
+        if (payload.showNoteheads && payload.clefs) {
+            for (const c of payload.clefs) {
+                drawLabeledBox(c.bbox, 'rgba(40,40,200,0.9)', 'rgba(40,40,200,0.10)', '𝄞 ' + c.kind);
+            }
+        }
+        if (payload.showNoteheads && payload.keySignatures) {
+            for (const k of payload.keySignatures) {
+                let s = '';
+                if (k.fifths > 0) s = '+' + k.fifths + '♯';
+                else if (k.fifths < 0) s = k.fifths + '♭';
+                else s = '0';
+                drawLabeledBox(k.bbox, 'rgba(0,140,140,0.9)', 'rgba(0,140,140,0.10)', '♯/♭ ' + s);
+            }
+        }
+        if (payload.showNoteheads && payload.timeSignatures) {
+            for (const t of payload.timeSignatures) {
+                drawLabeledBox(t.bbox, 'rgba(140,80,40,0.9)', 'rgba(140,80,40,0.10)', t.beats + '/' + t.beat_type);
+            }
+        }
+        if (payload.showNoteheads && payload.jumpMarks) {
+            for (const j of payload.jumpMarks) {
+                drawLabeledBox(j.bbox, 'rgba(180,40,180,0.9)', 'rgba(180,40,180,0.10)', '↻ ' + j.kind);
+            }
+        }
+        // ============================================================
+        if (payload.showAnnotations && payload.confirmedRegions) {
+            for (const r of payload.confirmedRegions) {
+                ctx.strokeStyle = 'rgba(40,180,80,0.9)';
+                ctx.fillStyle = 'rgba(40,180,80,0.10)';
+                ctx.lineWidth = 2;
+                ctx.fillRect(r.x*sx, r.y*sy, r.w*sx, r.h*sy);
+                ctx.strokeRect(r.x*sx, r.y*sy, r.w*sx, r.h*sy);
+            }
+        }
+        if (payload.showAnnotations) {
+            for (const ma of payload.missedAnnotations) {
+                ctx.strokeStyle = 'rgba(0,140,255,0.95)';
+                ctx.fillStyle = 'rgba(0,140,255,0.18)';
+                ctx.lineWidth = 2;
+                ctx.fillRect(ma.x*sx, ma.y*sy, ma.w*sx, ma.h*sy);
+                ctx.strokeRect(ma.x*sx, ma.y*sy, ma.w*sx, ma.h*sy);
+            }
+        }
+        // Aktuelle Selection als halbtransparenter gelber Kreis, 30% größer als die Bbox
+        if (selectedNh) {
+            const x = selectedNh.bbox[0] * sx;
+            const y = selectedNh.bbox[1] * sy;
+            const w = selectedNh.bbox[2] * sx;
+            const h = selectedNh.bbox[3] * sy;
+            const cx = x + w / 2;
+            const cy = y + h / 2;
+            const r = Math.max(w, h) / 2 * 1.3; // 30% größer als die Bbox
+            ctx.beginPath();
+            ctx.arc(cx, cy, r, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255,200,0,0.35)';
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(220,150,0,0.9)';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            if (payload._scrollToSelection) {
+                const wrap = document.getElementById('annotate-wrap');
+                if (wrap) {
+                    wrap.scrollTo({
+                        left: Math.max(0, cx - wrap.clientWidth / 2),
+                        top: Math.max(0, cy - wrap.clientHeight / 2),
+                        behavior: 'smooth'
+                    });
+                }
+            }
+        }
+
+        if (payload.dragRect) {
+            const r = payload.dragRect;
+            ctx.strokeStyle = 'rgba(40,180,80,1.0)';
+            ctx.fillStyle = 'rgba(40,180,80,0.20)';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([6,4]);
+            ctx.fillRect(r.x*sx, r.y*sy, r.w*sx, r.h*sy);
+            ctx.strokeRect(r.x*sx, r.y*sy, r.w*sx, r.h*sy);
+            ctx.setLineDash([]);
+        }
+    },
+    getClickInDetectionCoords: function(canvasId, evtX, evtY, detW, detH) {
+        const canvas = document.getElementById(canvasId);
+        if (!canvas) return null;
+        const r = canvas.getBoundingClientRect();
+        const localX = evtX - r.left;
+        const localY = evtY - r.top;
+        const sx = canvas.width / detW;
+        const sy = canvas.height / detH;
+        return { x: Math.round(localX / sx), y: Math.round(localY / sy) };
+    }
+};
+</script>
+
+@code {
+    [Parameter] public string slug { get; set; } = default!;
+    [Parameter] public Guid pieceId { get; set; }
+    [Parameter] public Guid partId { get; set; }
+
+    private Part? part;
+    private bool loading = true;
+    private bool notAuthorized;
+    private Guid currentUserId;
+    private bool runningDetections;
+
+    // Detection-Daten (vom Server geladen)
+    private DetectionsDto? detections;
+    private int currentPage;
+    private int pageCount;
+
+    // Annotations
+    private List<AnnotationDto> allAnnotations = new();
+    private List<AnnotationDto> annotationsThisPage => allAnnotations.Where(a => a.pageIndex == currentPage).ToList();
+
+    // UI-State
+    private int zoomPercent = 100;
+    private double zoom => zoomPercent / 100.0;
+    private bool showNoteheads = true;
+    private bool showStems = true;
+    private bool showBars = true;
+    private bool showAnnotations = true;
+
+    // ViewMode = Step (schnell durchklicken) | Free (freie Selection)
+    private ViewMode viewMode = ViewMode.Step;
+    private enum ViewMode { Step, Free }
+
+    // Step-Modus: Index in der Detection-Liste der aktuellen Seite
+    private int stepIndex;
+
+    /// Wenn true, navigiert Step-Mode nur durch NHs die in einer Reading-Anomaly liegen
+    /// (oder der gleichen Position/Y-Range). Filter reduziert Klick-Aufwand drastisch.
+    private bool onlyAnomalies = false;
+
+    /// Audio-Playback (Web Audio API): wenn true, beim Step automatischer 200ms-Pulse
+    /// mit MIDI-Pitch der detection. Erlaubt Pitch-Validation per Ohr.
+    private bool playAudio = false;
+
+    /// Wenn true, wird die MusicXML der aktuellen Seite via Verovio
+    /// als SVG unter dem Original-Bild gerendert. Erlaubt Cross-View
+    /// + visuellen Vergleich Pipeline-Output vs Original-Scan.
+    private bool showRenderedView = true;
+
+    /// Confidence-Threshold für Auto-Confirm. Wenn nh.confidence >= confThreshold,
+    /// wird das NH automatisch übersprungen UND als bestätigt gezählt.
+    /// Default 1.0 = deaktiviert.
+    private double confThreshold = 1.0;
+
+    /// Anzahl der Step-Kandidaten auf der aktuellen Seite (gefiltert nach Modus).
+    private int StepCandidateCount
+    {
+        get
+        {
+            if (!onlyAnomalies)
+                return detections?.pages?.ElementAtOrDefault(currentPage)?.noteheads?.Count ?? 0;
+            return GetAnomalyNhIndices().Count;
+        }
+    }
+
+    /// Liefert die NH-Indices die zu einer Anomaly gehören (X-Position-Match auf
+    /// das gleiche System).
+    private List<int> GetAnomalyNhIndices()
+    {
+        var page = detections?.pages?.ElementAtOrDefault(currentPage);
+        var systems = page?.reading_stream?.systems;
+        if (page?.noteheads is null || systems is null) return new List<int>();
+
+        var anomalyXs = new HashSet<int>();
+        foreach (var s in systems)
+        {
+            if (s.anomalies is null) continue;
+            foreach (var a in s.anomalies)
+            {
+                // Wenn die Anomaly direkt einen notehead_idx referenziert
+                if (a.notehead_idx.HasValue)
+                {
+                    anomalyXs.Add((int)a.notehead_idx.Value);
+                }
+                // Sonst per X-Position approximieren
+                else if (a.x.HasValue)
+                {
+                    var x = a.x.Value;
+                    for (int i = 0; i < page.noteheads.Count; i++)
+                    {
+                        var nh = page.noteheads[i];
+                        var nhCx = nh.bbox[0] + nh.bbox[2] / 2;
+                        if (Math.Abs(nhCx - x) < 30) anomalyXs.Add(i);
+                    }
+                }
+                // Wenn nur measure-number gegeben → alle NHs in measure
+                else if (a.measure.HasValue)
+                {
+                    for (int i = 0; i < page.noteheads.Count; i++)
+                    {
+                        if (page.noteheads[i].measure_number == a.measure.Value)
+                            anomalyXs.Add(i);
+                    }
+                }
+            }
+        }
+        return anomalyXs.OrderBy(i => i).ToList();
+    }
+
+    private NoteheadDto? stepDetection
+    {
+        get
+        {
+            var page = detections?.pages?.ElementAtOrDefault(currentPage);
+            return page?.noteheads?.ElementAtOrDefault(stepIndex);
+        }
+    }
+    private AnnotationDto? stepCurrentAnnotation
+    {
+        get
+        {
+            var nh = stepDetection;
+            if (nh is null) return null;
+            // Match per Bbox-Center
+            return annotationsThisPage.FirstOrDefault(a =>
+            {
+                var ax = a.x + a.w / 2.0; var ay = a.y + a.h / 2.0;
+                var nx = nh.bbox[0] + nh.bbox[2] / 2.0; var ny = nh.bbox[1] + nh.bbox[3] / 2.0;
+                return Math.Abs(ax - nx) < 12 && Math.Abs(ay - ny) < 12;
+            });
+        }
+    }
+
+    private long? selectedDetectionId;
+    private NoteheadDto? selectedDetection => detections?.pages?[currentPage]?.noteheads?.FirstOrDefault(n => n.id == selectedDetectionId);
+
+    private (int x, int y)? pendingMissedClick;
+    private EditorMode editorMode = EditorMode.None;
+
+    // Region-Tool State
+    private ToolMode toolMode = ToolMode.Click;
+    private (int x, int y)? regionDragStart;
+    private (int x, int y)? regionDragEnd;
+    private bool regionDragging;
+
+    private enum ToolMode { Click, ConfirmRegion }
+    private string editorTitle = "";
+    private int editorMidi = 60;
+    private int editorDuration = 4;
+    private string editorKind = "Filled";
+    private string? editorComment;
+    private string? editorText;
+    private bool editorAllowsText;
+
+    private enum EditorMode { None, Pitch, Duration, Kind, Comment, Note, Rest, SymbolPick }
+    private enum SymbolCategory { Clef, TimeSignature, KeySignature, Barline, Jump, Dynamics, Tempo, Articulation, SlurTie, Other }
+
+    private SymbolCategory? currentCategory;
+    private string symbolCategoryLabel = "";
+    private List<(SymbolType type, string label)> symbolOptions = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        var u = auth.User?.Identity?.IsAuthenticated == true ? await UserManager.GetUserAsync(auth.User) : null;
+        if (u is null) { Navigation.NavigateTo("/login"); return; }
+        currentUserId = u.Id;
+
+        // Auth + Part-Lookup in eigenem Scope (Page-DbContext könnte parallel von OnAfterRender genutzt werden)
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        var freshDb = scope.ServiceProvider.GetRequiredService<SheetstormDbContext>();
+        part = await freshDb.Parts.AsNoTracking().FirstOrDefaultAsync(p => p.Id == partId);
+        if (part is null) { loading = false; return; }
+        var piece = await freshDb.Pieces.AsNoTracking().FirstOrDefaultAsync(p => p.Id == part.PieceId);
+        if (piece is null) { loading = false; return; }
+        var membership = await freshDb.Memberships.AsNoTracking()
+            .FirstOrDefaultAsync(m => m.BandId == piece.BandId && m.UserId == u.Id);
+        if (membership is null
+            || (membership.Roles & (BandRole.Admin | BandRole.Owner | BandRole.Dirigent)) == 0)
+        {
+            notAuthorized = true;
+            loading = false;
+            return;
+        }
+
+        await LoadDetectionsAsync();
+        try { await PageImagesService.EnsurePageImagesAsync(partId); } catch { }
+
+        if (detections is null && !PartDetectionService.IsDetectionsRunning(partId))
+        {
+            try
+            {
+                await PartDetectionService.StartDetectionsOnPartAsync(partId, ScopeFactory, Logger);
+                _ = AutoReloadDetectionsAsync();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Auto-Trigger fuer Detections fehlgeschlagen");
+            }
+        }
+        else if (detections is null && PartDetectionService.IsDetectionsRunning(partId))
+        {
+            _ = AutoReloadDetectionsAsync();
+        }
+
+        loading = false;
+    }
+
+    private async Task AutoReloadDetectionsAsync()
+    {
+        // Polle bis Detections fertig sind oder Timeout
+        var deadline = DateTime.UtcNow.AddMinutes(3);
+        while (detections is null && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(3000);
+            await LoadDetectionsAsync();
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task ReloadAfterDetectionAsync()
+    {
+        if (!PartDetectionService.IsDetectionsRunning(partId))
+        {
+            await PartDetectionService.StartDetectionsOnPartAsync(partId, ScopeFactory, Logger);
+        }
+        await LoadDetectionsAsync();
+        StateHasChanged();
+    }
+
+    private async Task StepConfirmAsync()
+    {
+        var nh = stepDetection;
+        if (nh is null) return;
+        // Falls schon vorhandene Annotation für diese Detection: erst löschen
+        if (stepCurrentAnnotation is not null)
+        {
+            await PartDetectionService.DeleteAnnotationAsync(stepCurrentAnnotation.id);
+        }
+        await PartDetectionService.AddAnnotationAsync(
+            partId, currentUserId, currentPage,
+            nh.bbox[0], nh.bbox[1], nh.bbox[2], nh.bbox[3],
+            PartAnnotationKind.Confirmed, null, null);
+        await ReloadAnnotationsAsync();
+        StepNext();
+    }
+
+    private async Task StepNotANoteAsync()
+    {
+        var nh = stepDetection;
+        if (nh is null) return;
+        if (stepCurrentAnnotation is not null)
+        {
+            await PartDetectionService.DeleteAnnotationAsync(stepCurrentAnnotation.id);
+        }
+        await PartDetectionService.AddAnnotationAsync(
+            partId, currentUserId, currentPage,
+            nh.bbox[0], nh.bbox[1], nh.bbox[2], nh.bbox[3],
+            PartAnnotationKind.NotANote, null, null);
+        await ReloadAnnotationsAsync();
+        StepNext();
+    }
+
+    private void StepNext()
+    {
+        var pageNhs = detections?.pages?.ElementAtOrDefault(currentPage)?.noteheads;
+        if (pageNhs is null) return;
+
+        // Bei Anomaly-Filter: zum nächsten Anomaly-NH springen
+        if (onlyAnomalies)
+        {
+            var anomalyIdxs = GetAnomalyNhIndices();
+            if (anomalyIdxs.Count == 0) return;
+            var nextIdx = anomalyIdxs.FirstOrDefault(i => i > stepIndex);
+            if (nextIdx == 0 && !anomalyIdxs.Contains(0))
+            {
+                if (currentPage + 1 < pageCount)
+                {
+                    currentPage++;
+                    var newAnoms = GetAnomalyNhIndices();
+                    stepIndex = newAnoms.FirstOrDefault();
+                    lastBoundImageUrl = null;
+                }
+            }
+            else if (nextIdx > stepIndex)
+            {
+                stepIndex = nextIdx;
+            }
+        }
+        else
+        {
+            // Auto-Confirm: skippe NHs >= threshold solange wir nicht den letzten erreicht haben
+            var newIdx = stepIndex;
+            while (newIdx + 1 < pageNhs.Count)
+            {
+                newIdx++;
+                if (confThreshold >= 1.0) break;
+                var nh = pageNhs[newIdx];
+                if (nh.confidence is null || nh.confidence.Value < confThreshold) break;
+                // Auto-confirmed (nicht persistent), nur skip
+            }
+            if (newIdx == stepIndex && currentPage + 1 < pageCount)
+            {
+                currentPage++;
+                stepIndex = 0;
+                lastBoundImageUrl = null;
+            }
+            else
+            {
+                stepIndex = newIdx;
+            }
+        }
+
+        selectedDetectionId = stepDetection?.id;
+        editorMode = EditorMode.None;
+        scrollToSelectionPending = true;
+        _ = RenderCanvasAsync();
+        _ = MaybePlayAudioAsync();
+    }
+
+    private void StepPrev()
+    {
+        if (onlyAnomalies)
+        {
+            var anomalyIdxs = GetAnomalyNhIndices();
+            var prev = anomalyIdxs.LastOrDefault(i => i < stepIndex);
+            if (prev == 0 && !anomalyIdxs.Contains(0) && stepIndex == 0 && currentPage > 0)
+            {
+                currentPage--;
+                var newAnoms = GetAnomalyNhIndices();
+                stepIndex = newAnoms.LastOrDefault();
+                lastBoundImageUrl = null;
+            }
+            else if (prev < stepIndex)
+            {
+                stepIndex = prev;
+            }
+        }
+        else
+        {
+            if (stepIndex > 0)
+            {
+                stepIndex--;
+            }
+            else if (currentPage > 0)
+            {
+                currentPage--;
+                var prevNhs = detections?.pages?.ElementAtOrDefault(currentPage)?.noteheads;
+                stepIndex = Math.Max(0, (prevNhs?.Count ?? 1) - 1);
+                lastBoundImageUrl = null;
+            }
+        }
+        selectedDetectionId = stepDetection?.id;
+        editorMode = EditorMode.None;
+        scrollToSelectionPending = true;
+        _ = RenderCanvasAsync();
+        _ = MaybePlayAudioAsync();
+    }
+
+    private void StepSkip() => StepNext();
+
+    /// Toggle "nur Anomalien"-Filter. Bei Aktivierung springt direkt zur ersten Anomaly.
+    private void ToggleOnlyAnomalies(bool value)
+    {
+        onlyAnomalies = value;
+        if (value)
+        {
+            var anomalyIdxs = GetAnomalyNhIndices();
+            if (anomalyIdxs.Count > 0)
+            {
+                stepIndex = anomalyIdxs.First();
+                selectedDetectionId = stepDetection?.id;
+                _ = RenderCanvasAsync();
+            }
+        }
+    }
+
+    private void ToggleAudioPlay(bool value)
+    {
+        playAudio = value;
+        if (value) _ = MaybePlayAudioAsync();
+    }
+
+    /// Toggle für Notenansicht: aktiviert/deaktiviert die Verovio-Render-View.
+    private void ToggleRenderedView(bool value)
+    {
+        showRenderedView = value;
+        if (value) _ = RenderMusicXmlAsync();
+    }
+
+    /// Lädt die MusicXML vom Backend und rendert sie via Verovio.
+    /// Wird automatisch nach jedem LoadDetections aufgerufen (wenn
+    /// showRenderedView aktiv).
+    private async Task RenderMusicXmlAsync()
+    {
+        if (!showRenderedView) return;
+        if (detections is null) return;
+        try
+        {
+            // Backend liefert MusicXML via Service-Layer (Detections → Score → MusicXML)
+            var musicXml = await PartDetectionService.GetMusicXmlAsync(partId, currentPage);
+            if (string.IsNullOrEmpty(musicXml)) return;
+
+            // NH-Mapping: Reihenfolge der NHs auf der aktuellen Seite (Reading-Order)
+            // — Verovio rendert in dieser Reihenfolge, also können wir 1:1 mappen.
+            var page = detections.pages?.ElementAtOrDefault(currentPage);
+            var nhIds = page?.noteheads?
+                .OrderBy(n => n.measure_number ?? 0)
+                .ThenBy(n => n.bbox[0])
+                .Select(n => n.id)
+                .ToList() ?? new List<long>();
+
+            await JS.InvokeVoidAsync("sheetstormAnnotate.renderMusicXml", musicXml, nhIds);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "RenderMusicXmlAsync failed");
+        }
+    }
+
+    /// Wird vom JS aufgerufen wenn der User auf eine gerenderte Note klickt.
+    /// Wir setzen die selectedDetectionId → Original-Canvas highlightet die
+    /// entsprechende Bbox.
+    [JSInvokable]
+    public async Task OnRenderedNoteClick(long nhId)
+    {
+        try
+        {
+            selectedDetectionId = nhId;
+            // Im Step-Modus zur Note springen
+            if (viewMode == ViewMode.Step)
+            {
+                var page = detections?.pages?.ElementAtOrDefault(currentPage);
+                if (page?.noteheads is not null)
+                {
+                    var idx = page.noteheads.FindIndex(n => n.id == nhId);
+                    if (idx >= 0) stepIndex = idx;
+                }
+            }
+            scrollToSelectionPending = true;
+            StateHasChanged();
+            await RenderCanvasAsync();
+        }
+        catch (Exception ex) { Logger.LogWarning(ex, "OnRenderedNoteClick failed"); }
+    }
+
+    private void UpdateConfThreshold(ChangeEventArgs e)
+    {
+        if (e.Value is null) return;
+        if (double.TryParse(e.Value.ToString(),
+            System.Globalization.NumberStyles.Float,
+            System.Globalization.CultureInfo.InvariantCulture,
+            out var v))
+        {
+            confThreshold = Math.Clamp(v, 0.5, 1.0);
+        }
+    }
+
+    /// Bei aktiviertem Audio: spielt einen Sinuston mit der MIDI-Note der current detection.
+    private async Task MaybePlayAudioAsync()
+    {
+        if (!playAudio) return;
+        var nh = stepDetection;
+        if (nh?.midi is null) return;
+        try
+        {
+            await JS.InvokeVoidAsync("sheetstormAnnotate.playMidi", nh.midi.Value, 200);
+        }
+        catch { }
+    }
+
+    /// Bestätigt alle Detections eines Taktes als korrekt — ein Klick statt N.
+    private async Task ConfirmEntireMeasureAsync(int measureNumber)
+    {
+        var page = detections?.pages?.ElementAtOrDefault(currentPage);
+        if (page?.noteheads is null) return;
+        var nhsInMeasure = page.noteheads.Where(n => n.measure_number == measureNumber).ToList();
+        if (nhsInMeasure.Count == 0) return;
+        await BulkConfirmNhsAsync(nhsInMeasure);
+    }
+
+    /// Bestätigt alle Detections der aktuellen Seite mit Confidence ≥ 0.85 in einem Klick.
+    private async Task ConfirmHighConfidencePageAsync()
+    {
+        var page = detections?.pages?.ElementAtOrDefault(currentPage);
+        if (page?.noteheads is null) return;
+        var highConf = page.noteheads.Where(n => n.confidence is not null && n.confidence.Value >= 0.85).ToList();
+        if (highConf.Count == 0) return;
+        await BulkConfirmNhsAsync(highConf);
+    }
+
+    private async Task BulkConfirmNhsAsync(List<NoteheadDto> nhs)
+    {
+        try
+        {
+            int added = 0;
+            foreach (var nh in nhs)
+            {
+                var existing = annotationsThisPage.FirstOrDefault(a =>
+                {
+                    var ax = a.x + a.w / 2.0;
+                    var ay = a.y + a.h / 2.0;
+                    var nx = nh.bbox[0] + nh.bbox[2] / 2.0;
+                    var ny = nh.bbox[1] + nh.bbox[3] / 2.0;
+                    return Math.Abs(ax - nx) < 12 && Math.Abs(ay - ny) < 12;
+                });
+                if (existing is not null) continue;
+
+                await PartDetectionService.AddAnnotationAsync(
+                    partId, currentUserId, currentPage,
+                    nh.bbox[0], nh.bbox[1], nh.bbox[2], nh.bbox[3],
+                    Sheetstorm.Domain.Music.PartAnnotationKind.Confirmed,
+                    null, null);
+                added++;
+            }
+            await LoadDetectionsAsync();
+            StateHasChanged();
+            Logger.LogInformation("Bulk-Confirm: {Added} new annotations", added);
+        }
+        catch (Exception ex) { Logger.LogWarning(ex, "BulkConfirmNhsAsync failed"); }
+    }
+
+    private void SetViewMode(ViewMode m)
+    {
+        viewMode = m;
+        if (m == ViewMode.Step)
+        {
+            stepIndex = Math.Clamp(stepIndex, 0, Math.Max(0, (detections?.pages?.ElementAtOrDefault(currentPage)?.noteheads?.Count ?? 1) - 1));
+            selectedDetectionId = stepDetection?.id;
+            scrollToSelectionPending = true;
+        }
+        _ = RenderCanvasAsync();
+    }
+
+    // Coverage-Stats für Progress-Bar
+    private (int total, int confirmed, int corrected, int uncertain) coverage = (0, 0, 0, 0);
+
+    private async Task LoadDetectionsAsync()
+    {
+        try
+        {
+            var json = await PartDetectionService.GetDetectionsJsonAsync(partId);
+            if (string.IsNullOrEmpty(json))
+            {
+                detections = null;
+                pageCount = 0;
+                return;
+            }
+            detections = System.Text.Json.JsonSerializer.Deserialize<DetectionsDto>(json,
+                new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            pageCount = detections?.pages?.Count ?? 0;
+
+            var anns = await PartDetectionService.GetAnnotationsAsync(partId);
+            allAnnotations = anns.Select(a => new AnnotationDto(
+                a.Id, a.PageIndex, a.BboxX, a.BboxY, a.BboxW, a.BboxH,
+                (int)a.Kind, a.CorrectionJson, a.Comment)).ToList();
+            try { coverage = await PartDetectionService.GetCoverageAsync(partId); } catch { }
+
+            // Trigger Verovio-Render für Notenansicht (asynchron, blockt nicht)
+            _ = RenderMusicXmlAsync();
+        }
+        catch (Exception)
+        {
+            detections = null;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (loading || part is null || detections is null) return;
+
+        // setMode + canvas-event-handler beim ersten Render mit Detections registrieren
+        if (firstRender || !canvasInitialized)
+        {
+            try
+            {
+                dotnetRef ??= DotNetObjectReference.Create(this);
+                await JS.InvokeVoidAsync("sheetstormAnnotate.setMode",
+                    toolMode == ToolMode.ConfirmRegion ? "region" : "click", dotnetRef);
+                canvasInitialized = true;
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "setMode init fehlgeschlagen");
+            }
+        }
+
+        // Page-Image binden — eigener DB-Scope um Concurrency zu vermeiden
+        // (der Page-DbContext könnte parallel von einem anderen Render-Cycle benutzt werden)
+        Guid? pageFileId = null;
+        try
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            var freshDb = scope.ServiceProvider.GetRequiredService<SheetstormDbContext>();
+            var pageFile = await freshDb.PartFiles
+                .Where(f => f.PartId == partId && f.Kind == PartFileKind.PageImage && f.PageNumber == currentPage + 1)
+                .FirstOrDefaultAsync();
+            pageFileId = pageFile?.Id;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "PageFile-Lookup fehlgeschlagen");
+        }
+        if (pageFileId is null) return;
+        var imageUrl = $"/files/parts/{partId}/{pageFileId}";
+        if (imageUrl != lastBoundImageUrl)
+        {
+            lastBoundImageUrl = imageUrl;
+            try
+            {
+                await JS.InvokeVoidAsync("sheetstormAnnotate.bind", "annotate-canvas", imageUrl, 0, 0);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Image-bind fehlgeschlagen");
+            }
+        }
+        await RenderCanvasAsync();
+    }
+
+    private DotNetObjectReference<PartAnnotation>? dotnetRef;
+    private bool canvasInitialized;
+    private string? lastBoundImageUrl;
+
+    public void Dispose()
+    {
+        dotnetRef?.Dispose();
+    }
+
+    private async Task RenderCanvasAsync()
+    {
+        if (detections is null || currentPage >= (detections.pages?.Count ?? 0)) return;
+        var page = detections.pages![currentPage];
+
+        var annKindByNhId = new Dictionary<long, int>();
+        var missedAnnotations = new List<object>();
+        var confirmedRegions = new List<object>();
+        foreach (var a in annotationsThisPage)
+        {
+            if (a.kind == 7) // RegionConfirmed
+            {
+                confirmedRegions.Add(new { x = a.x, y = a.y, w = a.w, h = a.h, id = a.id });
+                continue;
+            }
+            // Versuche Match zu einem existierenden NH (overlap > 50%)
+            NoteheadDto? matched = null;
+            foreach (var nh in page.noteheads ?? new List<NoteheadDto>())
+            {
+                var ix0 = Math.Max(a.x, nh.bbox[0]);
+                var iy0 = Math.Max(a.y, nh.bbox[1]);
+                var ix1 = Math.Min(a.x + a.w, nh.bbox[0] + nh.bbox[2]);
+                var iy1 = Math.Min(a.y + a.h, nh.bbox[1] + nh.bbox[3]);
+                var overlap = Math.Max(0, ix1 - ix0) * Math.Max(0, iy1 - iy0);
+                var minArea = Math.Min(a.w * a.h, nh.bbox[2] * nh.bbox[3]);
+                if (minArea > 0 && overlap * 2 > minArea) { matched = nh; break; }
+            }
+            if (matched is not null)
+            {
+                annKindByNhId[matched.id] = a.kind;
+            }
+            else if (a.kind == 4) // MissedNote
+            {
+                missedAnnotations.Add(new { x = a.x, y = a.y, w = a.w, h = a.h });
+            }
+        }
+
+        object? dragRect = null;
+        if (regionDragging && regionDragStart is { } s && regionDragEnd is { } end)
+        {
+            var rx = Math.Min(s.x, end.x);
+            var ry = Math.Min(s.y, end.y);
+            var rw = Math.Abs(end.x - s.x);
+            var rh = Math.Abs(end.y - s.y);
+            dragRect = new { x = rx, y = ry, w = rw, h = rh };
+        }
+
+        var payload = new
+        {
+            zoom = zoom,
+            detW = page.width,
+            detH = page.height,
+            showNoteheads, showStems, showBars, showAnnotations,
+            selectedId = selectedDetectionId,
+            stepMode = viewMode == ViewMode.Step,
+            _scrollToSelection = scrollToSelectionPending,
+            noteheads = page.noteheads,
+            stems = page.stems?.Select(s => new { x = s.x, yTop = s.y_top, yBot = s.y_bot }),
+            bars = page.bars?.Select(b => new { x = b.x, yTop = b.y_top, yBot = b.y_bot }),
+            // Erweiterte Detections: Rests, Clefs, KeySig, TimeSig, JumpMarks
+            // damit User Note vs Pause vs Schluessel/Vorzeichen unterscheiden kann.
+            rests = page.rests,
+            clefs = page.clefs,
+            keySignatures = page.key_signatures,
+            timeSignatures = page.time_signatures,
+            jumpMarks = page.jump_marks,
+            annotatedIds = annKindByNhId,
+            missedAnnotations,
+            confirmedRegions,
+            dragRect,
+        };
+        scrollToSelectionPending = false;
+        await JS.InvokeVoidAsync("sheetstormAnnotate.render", "annotate-canvas", payload);
+        // Cross-Highlight: gerenderte Note in Verovio-SVG
+        if (showRenderedView)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("sheetstormAnnotate.highlightRenderedNote",
+                    selectedDetectionId.HasValue ? (object)selectedDetectionId.Value : null);
+            }
+            catch { }
+        }
+    }
+
+    private bool scrollToSelectionPending;
+
+    private async Task OnZoomInput(Microsoft.AspNetCore.Components.ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), System.Globalization.NumberStyles.Integer,
+                System.Globalization.CultureInfo.InvariantCulture, out var v))
+        {
+            zoomPercent = Math.Clamp(v, 25, 400);
+            await RenderCanvasAsync();
+        }
+    }
+
+    private async Task<ClickCoord?> GetClickCoordAsync(double clientX, double clientY)
+    {
+        if (detections is null || detections.pages is null || currentPage >= detections.pages.Count)
+            return null;
+        var page = detections.pages[currentPage];
+        try
+        {
+            return await JS.InvokeAsync<ClickCoord?>(
+                "sheetstormAnnotate.getClickInDetectionCoords",
+                "annotate-canvas", clientX, clientY, page.width, page.height);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "JS-Interop Klick fehlgeschlagen");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Wird vom JS-Drag-Handler aufgerufen wenn der User ein Region-Rechteck
+    /// gezogen hat (Tool-Mode = ConfirmRegion).
+    /// </summary>
+    [JSInvokable]
+    public async Task OnRegionConfirmed(int x, int y, int w, int h)
+    {
+        try
+        {
+            if (w < 8 || h < 8) return;
+            await PartDetectionService.AddAnnotationAsync(
+                partId, currentUserId, currentPage,
+                x, y, w, h,
+                PartAnnotationKind.RegionConfirmed, null, null);
+            await ReloadAnnotationsAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "OnRegionConfirmed fehlgeschlagen");
+        }
+    }
+
+    /// Hotkey-Handler vom JS: Y/N → Confirm/Reject, ←/→ → Prev/Next.
+    [JSInvokable]
+    public async Task OnHotkey(string action)
+    {
+        if (viewMode != ViewMode.Step) return;
+        try
+        {
+            switch (action)
+            {
+                case "confirm":
+                    await StepConfirmAsync();
+                    break;
+                case "reject":
+                    await StepNotANoteAsync();
+                    break;
+                case "next":
+                    StepNext();
+                    StateHasChanged();
+                    break;
+                case "prev":
+                    StepPrev();
+                    StateHasChanged();
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Hotkey {Action} fehlgeschlagen", action);
+        }
+    }
+
+    private async Task OnCanvasClickEvent(Microsoft.AspNetCore.Components.Web.MouseEventArgs e)
+    {
+        // Tool-Mode entscheidet: ConfirmRegion ignoriert Click (das macht JS-Drag),
+        // Click-Mode behandelt NH-Selektion + Missed-Note-Klicks.
+        if (toolMode == ToolMode.ConfirmRegion) return;
+        await OnCanvasClick(e);
+    }
+
+    private async Task OnCanvasClick(Microsoft.AspNetCore.Components.Web.MouseEventArgs e)
+    {
+        try
+        {
+            if (detections is null || detections.pages is null || currentPage >= detections.pages.Count)
+                return;
+            var page = detections.pages[currentPage];
+            var coord = await GetClickCoordAsync(e.ClientX, e.ClientY);
+            if (coord is null) return;
+
+            NoteheadDto? hit = null;
+            foreach (var nh in page.noteheads ?? new List<NoteheadDto>())
+            {
+                if (nh.bbox is null || nh.bbox.Length < 4) continue;
+                if (coord.x >= nh.bbox[0] && coord.x <= nh.bbox[0] + nh.bbox[2]
+                    && coord.y >= nh.bbox[1] && coord.y <= nh.bbox[1] + nh.bbox[3])
+                { hit = nh; break; }
+            }
+            if (hit is not null)
+            {
+                selectedDetectionId = hit.id;
+                pendingMissedClick = null;
+                editorMode = EditorMode.None;
+                await RenderCanvasAsync();
+            }
+            else
+            {
+                selectedDetectionId = null;
+                var sp = (int)Math.Max(page.line_spacing, 8.0f);
+                pendingMissedClick = (coord.x - sp / 2, coord.y - sp / 2);
+                editorMidi = 60;
+                editorDuration = 4;
+                editorKind = "Filled";
+                await RenderCanvasAsync();
+            }
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "OnCanvasClick fehlgeschlagen");
+        }
+    }
+
+    private async Task SetToolModeAsync(ToolMode m)
+    {
+        toolMode = m;
+        try
+        {
+            // JS über aktuellen Tool-Mode informieren
+            var dotnetRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("sheetstormAnnotate.setMode", m == ToolMode.ConfirmRegion ? "region" : "click", dotnetRef);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "JS setMode fehlgeschlagen");
+        }
+    }
+
+    private async Task PrevPage()
+    {
+        if (currentPage > 0) { currentPage--; selectedDetectionId = null; pendingMissedClick = null; await RenderCanvasAsync(); }
+    }
+    private async Task NextPage()
+    {
+        if (currentPage + 1 < pageCount) { currentPage++; selectedDetectionId = null; pendingMissedClick = null; await RenderCanvasAsync(); }
+    }
+
+    private async Task RerunDetectionsAsync()
+    {
+        runningDetections = true;
+        try
+        {
+            await PartDetectionService.StartDetectionsOnPartAsync(partId, ScopeFactory, Logger);
+        }
+        catch { }
+        runningDetections = false;
+    }
+
+    private void OpenPitchEditor()
+    {
+        editorMode = EditorMode.Pitch;
+        editorTitle = "Korrekter Pitch (MIDI 0-127, z.B. 60=C4)";
+        editorMidi = selectedDetection?.midi ?? 60;
+    }
+    private void OpenDurationEditor()
+    {
+        editorMode = EditorMode.Duration;
+        editorTitle = "Korrekte Dauer";
+        editorDuration = selectedDetection?.duration ?? 4;
+    }
+    private void OpenKindEditor()
+    {
+        editorMode = EditorMode.Kind;
+        editorTitle = "Korrekte Klassifikation";
+        editorKind = selectedDetection?.kind ?? "Filled";
+    }
+    private void OpenCommentEditor()
+    {
+        editorMode = EditorMode.Comment;
+        editorTitle = "Kommentar";
+        editorComment = "";
+    }
+
+    private void OpenNoteEditor()
+    {
+        editorMode = EditorMode.Note;
+        editorMidi = selectedDetection?.midi ?? 60;
+        editorDuration = selectedDetection?.duration ?? 4;
+    }
+
+    private void OpenRestEditor()
+    {
+        editorMode = EditorMode.Rest;
+        editorDuration = 4;
+    }
+
+    private void OpenSymbolEditor(SymbolCategory cat)
+    {
+        editorMode = EditorMode.SymbolPick;
+        currentCategory = cat;
+        editorAllowsText = false;
+        editorText = null;
+        var (label, options) = SymbolPickerOptions(cat);
+        symbolCategoryLabel = label;
+        symbolOptions = options;
+        if (cat == SymbolCategory.Tempo || cat == SymbolCategory.Other) editorAllowsText = true;
+    }
+
+    private static (string, List<(SymbolType type, string label)>) SymbolPickerOptions(SymbolCategory cat)
+    {
+        switch (cat)
+        {
+            case SymbolCategory.Clef:
+                return ("Notenschlüssel-Typ", new()
+                {
+                    (SymbolType.ClefTreble, "Violinschlüssel (𝄞 G-clef)"),
+                    (SymbolType.ClefBass,   "Bassschlüssel (𝄢 F-clef)"),
+                    (SymbolType.ClefAlto,   "Alt-Schlüssel (C-clef Mitte)"),
+                    (SymbolType.ClefTenor,  "Tenor-Schlüssel (C-clef oben)"),
+                    (SymbolType.ClefPercussion, "Schlagzeug-Schlüssel"),
+                    (SymbolType.ClefOther, "Anderer Schlüssel"),
+                });
+            case SymbolCategory.TimeSignature:
+                return ("Taktangabe", new()
+                {
+                    (SymbolType.TimeSignature, "Numerisch (z.B. 4/4, 3/4, 6/8)"),
+                    (SymbolType.TimeSignatureCommon, "C — Common Time (4/4)"),
+                    (SymbolType.TimeSignatureCut, "𝄵 Cut Time (alla breve, 2/2)"),
+                });
+            case SymbolCategory.KeySignature:
+                return ("Vorzeichen / Tonart", new()
+                {
+                    (SymbolType.KeySignature, "Vorzeichen-Block (♯/♭ am Zeilenanfang)"),
+                });
+            case SymbolCategory.Barline:
+                return ("Taktstrich / Wiederholung", new()
+                {
+                    (SymbolType.Barline, "Einfacher Taktstrich"),
+                    (SymbolType.BarlineDouble, "Doppelter Taktstrich"),
+                    (SymbolType.BarlineFinal, "Schlussstrich"),
+                    (SymbolType.RepeatStart, "𝄆 Wiederholung Anfang"),
+                    (SymbolType.RepeatEnd, "𝄇 Wiederholung Ende"),
+                    (SymbolType.Volta1, "1. Volta-Klammer"),
+                    (SymbolType.Volta2, "2. Volta-Klammer"),
+                    (SymbolType.VoltaOther, "Andere Volta"),
+                });
+            case SymbolCategory.Jump:
+                return ("Sprungmarke", new()
+                {
+                    (SymbolType.Coda, "𝄌 Coda"),
+                    (SymbolType.Segno, "𝄋 Segno"),
+                    (SymbolType.DalCapo, "D.C. (Da Capo)"),
+                    (SymbolType.DalSegno, "D.S. (Dal Segno)"),
+                    (SymbolType.Fine, "Fine"),
+                    (SymbolType.DalCapoAlFine, "D.C. al Fine"),
+                    (SymbolType.DalSegnoAlFine, "D.S. al Fine"),
+                    (SymbolType.DalSegnoAlCoda, "D.S. al Coda"),
+                });
+            case SymbolCategory.Dynamics:
+                return ("Dynamik", new()
+                {
+                    (SymbolType.DynamicPianissimo, "pp — pianissimo"),
+                    (SymbolType.DynamicPiano, "p — piano"),
+                    (SymbolType.DynamicMezzopiano, "mp — mezzopiano"),
+                    (SymbolType.DynamicMezzoforte, "mf — mezzoforte"),
+                    (SymbolType.DynamicForte, "f — forte"),
+                    (SymbolType.DynamicFortissimo, "ff — fortissimo"),
+                    (SymbolType.DynamicSfz, "sfz — sforzato"),
+                    (SymbolType.DynamicFp, "fp — forte-piano"),
+                    (SymbolType.HairpinCrescendo, "< Crescendo (Hairpin)"),
+                    (SymbolType.HairpinDecrescendo, "> Decrescendo (Hairpin)"),
+                    (SymbolType.DynamicTextCrescendo, "cresc. (Text)"),
+                    (SymbolType.DynamicTextDecrescendo, "decresc. / dim. (Text)"),
+                });
+            case SymbolCategory.Tempo:
+                return ("Tempo", new()
+                {
+                    (SymbolType.TempoBpm, "BPM-Angabe (♩ = …)"),
+                    (SymbolType.TempoText, "Tempo-Text (Allegro, Andante, …)"),
+                    (SymbolType.Ritardando, "rit. — ritardando"),
+                    (SymbolType.Accelerando, "accel. — accelerando"),
+                    (SymbolType.AtempoMarking, "a tempo"),
+                    (SymbolType.Fermata, "𝄐 Fermata"),
+                });
+            case SymbolCategory.Articulation:
+                return ("Artikulation", new()
+                {
+                    (SymbolType.AccentMark, "> Akzent"),
+                    (SymbolType.Staccato, ". Staccato"),
+                    (SymbolType.StaccatissimoMark, "' Staccatissimo"),
+                    (SymbolType.Tenuto, "− Tenuto"),
+                    (SymbolType.Marcato, "^ Marcato"),
+                    (SymbolType.BowUp, "V Aufstrich"),
+                    (SymbolType.BowDown, "⊓ Abstrich"),
+                });
+            case SymbolCategory.SlurTie:
+                return ("Bögen", new()
+                {
+                    (SymbolType.Slur, "Bindebogen (Phrasierung)"),
+                    (SymbolType.Tie, "Haltebogen (Tie)"),
+                    (SymbolType.Trill, "tr Triller"),
+                    (SymbolType.Mordent, "Mordent"),
+                    (SymbolType.Turn, "Doppelschlag (Turn)"),
+                });
+            default:
+                return ("Sonstiges", new()
+                {
+                    (SymbolType.Triplet, "Triole (3 über drei Noten)"),
+                    (SymbolType.Quintuplet, "Quintole (5)"),
+                    (SymbolType.Sextuplet, "Sextole (6)"),
+                    (SymbolType.Text, "Freitext"),
+                    (SymbolType.Other, "Anderes/Unbekannt"),
+                });
+        }
+    }
+
+    private async Task SaveNoteAsync()
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            symbol = "Note",
+            midi = editorMidi,
+            duration = editorDuration,
+        });
+        await MarkAsync(PartAnnotationKind.WrongSymbol, json);
+    }
+
+    private async Task SaveRestAsync()
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            symbol = "Rest",
+            duration = editorDuration,
+        });
+        await MarkAsync(PartAnnotationKind.WrongSymbol, json);
+    }
+
+    private async Task SaveSymbolAsync(SymbolType symbol)
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            symbol = symbol.ToString(),
+            text = editorText,
+        });
+        await MarkAsync(PartAnnotationKind.WrongSymbol, json);
+        editorText = null;
+    }
+
+    private async Task SavePitchAsync()
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize(new { symbol = "Note", midi = editorMidi, duration = selectedDetection?.duration ?? 4 });
+        await MarkAsync(PartAnnotationKind.WrongPitch, json);
+    }
+    private async Task SaveDurationAsync()
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize(new { duration = editorDuration });
+        await MarkAsync(PartAnnotationKind.WrongDuration, json);
+    }
+    private async Task SaveKindAsync()
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize(new { kind = editorKind });
+        await MarkAsync(PartAnnotationKind.WrongKind, json);
+    }
+    private async Task SaveCommentAsync()
+    {
+        if (!string.IsNullOrEmpty(editorComment))
+        {
+            await MarkAsync(PartAnnotationKind.Comment, null);
+            // overwrite Comment via Update
+            var newest = allAnnotations.LastOrDefault();
+            if (newest is not null)
+            {
+                await PartDetectionService.UpdateAnnotationAsync(newest.id, currentUserId,
+                    PartAnnotationKind.Comment, null, editorComment);
+                await ReloadAnnotationsAsync();
+            }
+        }
+    }
+
+    private async Task MarkAsync(PartAnnotationKind kind, string? correctionJson)
+    {
+        if (selectedDetection is null) return;
+        var nh = selectedDetection;
+        // Step-Modus: alte Annotation an gleicher Position erst entfernen damit
+        // Re-Annotate clean ist (z.B. erst "Confirmed" geklickt, dann doch "Falscher Pitch")
+        if (viewMode == ViewMode.Step && stepCurrentAnnotation is not null)
+        {
+            await PartDetectionService.DeleteAnnotationAsync(stepCurrentAnnotation.id);
+        }
+        await PartDetectionService.AddAnnotationAsync(
+            partId, currentUserId, currentPage,
+            nh.bbox[0], nh.bbox[1], nh.bbox[2], nh.bbox[3],
+            kind, correctionJson, null);
+        await ReloadAnnotationsAsync();
+        editorMode = EditorMode.None;
+        if (viewMode == ViewMode.Step)
+        {
+            StepNext();
+        }
+    }
+
+    private async Task SaveMissedAsync()
+    {
+        if (pendingMissedClick is null) return;
+        var (x, y) = pendingMissedClick.Value;
+        var sp = (int)Math.Max(detections!.pages![currentPage].line_spacing, 8.0f);
+        var json = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            midi = editorMidi,
+            duration = editorDuration,
+            kind = editorKind,
+        });
+        await PartDetectionService.AddAnnotationAsync(
+            partId, currentUserId, currentPage,
+            x, y, sp, sp,
+            PartAnnotationKind.MissedNote, json, null);
+        pendingMissedClick = null;
+        await ReloadAnnotationsAsync();
+    }
+
+    private async Task DeleteAnnotationAsync(Guid id)
+    {
+        await PartDetectionService.DeleteAnnotationAsync(id);
+        await ReloadAnnotationsAsync();
+    }
+
+    private async Task ReloadAnnotationsAsync()
+    {
+        var anns = await PartDetectionService.GetAnnotationsAsync(partId);
+        allAnnotations = anns.Select(a => new AnnotationDto(
+            a.Id, a.PageIndex, a.BboxX, a.BboxY, a.BboxW, a.BboxH,
+            (int)a.Kind, a.CorrectionJson, a.Comment)).ToList();
+        try { coverage = await PartDetectionService.GetCoverageAsync(partId); } catch { }
+        await RenderCanvasAsync();
+        StateHasChanged();
+    }
+
+    private static string DurationLabel(int d) => d switch
+    {
+        1 => "Sechzehntel", 2 => "Achtel", 4 => "Viertel", 6 => "Punkt.Viertel",
+        8 => "Halbe", 12 => "Punkt.Halbe", 16 => "Ganze", _ => $"d={d}"
+    };
+
+    private List<ReadingAnomalyDto> CurrentPageAnomalies()
+    {
+        var page = detections?.pages?.ElementAtOrDefault(currentPage);
+        var systems = page?.reading_stream?.systems;
+        if (systems is null) return new List<ReadingAnomalyDto>();
+        return systems.SelectMany(s => s.anomalies ?? new List<ReadingAnomalyDto>()).ToList();
+    }
+
+    private static string KindLabel(int kind) => kind switch
+    {
+        0 => "Keine Note", 1 => "Falscher Pitch", 2 => "Falsche Dauer",
+        3 => "Falsche Klassifikation", 4 => "Fehlende Note", 5 => "Kommentar",
+        6 => "Bestätigt", 7 => "Bereich bestätigt",
+        _ => $"#{kind}"
+    };
+    private static string KindBadgeColor(int kind) => kind switch
+    {
+        0 => "danger", 1 or 2 or 3 => "warning",
+        4 => "primary", 6 or 7 => "success", _ => "secondary"
+    };
+
+    private sealed record DetectionsDto(int schema_version, List<DetectionPageDto> pages);
+    private sealed record DetectionPageDto(
+        int page_index, int width, int height, float line_spacing,
+        List<NoteheadDto>? noteheads, List<StemDto>? stems, List<BarDto>? bars,
+        ReadingStreamDto? reading_stream,
+        List<RestDto>? rests = null,
+        List<ClefDto>? clefs = null,
+        List<KeySignatureDto>? key_signatures = null,
+        List<TimeSignatureDto>? time_signatures = null,
+        List<JumpMarkDto>? jump_marks = null);
+    private sealed record NoteheadDto(
+        long id, int[] bbox, string kind,
+        int? midi, string? step, int? alter, int? octave,
+        int? duration, int? measure_number,
+        double? confidence = null);
+    private sealed record StemDto(int x, int y_top, int y_bot);
+    private sealed record BarDto(int x, int y_top, int y_bot);
+    private sealed record RestDto(string kind, int[] bbox, int? system_idx);
+    private sealed record ClefDto(int system_idx, string kind, int[] bbox);
+    private sealed record KeySignatureDto(int system_idx, int fifths, int[] bbox);
+    private sealed record TimeSignatureDto(int system_idx, int beats, int beat_type, int[] bbox);
+    private sealed record JumpMarkDto(string kind, int[] bbox, int? system_idx);
+    private sealed record AnnotationDto(Guid id, int pageIndex, int x, int y, int w, int h, int kind, string? correctionJson, string? comment);
+    private sealed record ReadingStreamDto(List<ReadingSystemDto>? systems);
+    private sealed record ReadingSystemDto(int system_idx, List<ReadingAnomalyDto>? anomalies, int header_end_x);
+    private sealed record ReadingAnomalyDto(string type, int? x, int? measure, float? expected_beats, float? actual_beats, int? notehead_idx);
+    public sealed class ClickCoord { public int x { get; set; } public int y { get; set; } }
+}

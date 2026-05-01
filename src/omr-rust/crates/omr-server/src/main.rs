@@ -62,6 +62,7 @@ async fn main() -> anyhow::Result<()> {
     let app = Router::new()
         .route("/health", get(health))
         .route("/recognize", post(recognize))
+        .route("/detections", post(detections))
         .layer(DefaultBodyLimit::max(50 * 1024 * 1024)) // 50 MB
         .layer(TraceLayer::new_for_http())
         .with_state(state);
@@ -179,6 +180,111 @@ fn error_resp(status: StatusCode, kind: &'static str, message: String) -> Respon
         Json(ErrorResponse { ok: false, kind, message }),
     )
         .into_response()
+}
+
+/// Endpoint für das Annotation-/Trainings-Tool.
+///
+/// Multipart-Upload: gleiches Schema wie /recognize, aber Response ist
+/// JSON mit `DetectionsResult` (alle NHs, Stems, Beams, Bars, Measures
+/// mit Bbox, Pitch, Duration, Plausibility-Status).
+async fn detections(mut multipart: Multipart) -> Response {
+    let mut filename = String::new();
+    let mut bytes: Option<Bytes> = None;
+
+    loop {
+        match multipart.next_field().await {
+            Ok(Some(field)) => {
+                let name = field.name().unwrap_or("").to_string();
+                if name == "file" {
+                    filename = field.file_name().unwrap_or("upload").to_string();
+                    match field.bytes().await {
+                        Ok(b) => bytes = Some(b),
+                        Err(e) => {
+                            warn!("multipart read error: {}", e);
+                            return error_resp(StatusCode::BAD_REQUEST, "multipart-error", e.to_string());
+                        }
+                    }
+                }
+            }
+            Ok(None) => break,
+            Err(e) => {
+                warn!("multipart next field: {}", e);
+                return error_resp(StatusCode::BAD_REQUEST, "multipart-error", e.to_string());
+            }
+        }
+    }
+
+    let bytes = match bytes {
+        Some(b) => b,
+        None => return error_resp(StatusCode::BAD_REQUEST, "missing-file", "feld 'file' fehlt".into()),
+    };
+
+    info!(filename = %filename, size = bytes.len(), "detections start");
+    let started = std::time::Instant::now();
+
+    let suffix = std::path::Path::new(&filename)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("bin")
+        .to_string();
+    let tmp = std::env::temp_dir().join(format!("ssomr-det-{}.{}", uuid_like(), suffix));
+    if let Err(e) = std::fs::write(&tmp, &bytes) {
+        return error_resp(StatusCode::INTERNAL_SERVER_ERROR, "io", e.to_string());
+    }
+
+    let opts = PipelineOptions {
+        collect_detections: true,
+        ..Default::default()
+    };
+    let path = tmp.clone();
+    let result = tokio::task::spawn_blocking(move || {
+        let lower = filename.to_lowercase();
+        if lower.ends_with(".pdf") {
+            omr_pipeline::process_pdf(&path, &opts)
+        } else {
+            omr_pipeline::process_image(&path, &opts)
+        }
+    })
+    .await;
+
+    let _ = std::fs::remove_file(&tmp);
+
+    match result {
+        Ok(Ok(res)) => {
+            let dump = match res.detections {
+                Some(d) => d,
+                None => {
+                    return error_resp(
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "missing-detections",
+                        "Pipeline lieferte keine Detections (collect_detections=true sollte das aktivieren)".into(),
+                    );
+                }
+            };
+            info!(
+                elapsed_ms = started.elapsed().as_millis() as u64,
+                n_pages = dump.pages.len(),
+                "detections ok"
+            );
+            (
+                StatusCode::OK,
+                [
+                    (header::CONTENT_TYPE, "application/json; charset=utf-8"),
+                    (header::HeaderName::from_static("x-omr-engine"), "sheetstorm"),
+                ],
+                Json(dump),
+            )
+                .into_response()
+        }
+        Ok(Err(e)) => {
+            error!("pipeline error: {}", e);
+            error_resp(StatusCode::INTERNAL_SERVER_ERROR, "pipeline", e.to_string())
+        }
+        Err(e) => {
+            error!("join error: {}", e);
+            error_resp(StatusCode::INTERNAL_SERVER_ERROR, "join", e.to_string())
+        }
+    }
 }
 
 fn uuid_like() -> String {

@@ -6,9 +6,69 @@ use omr_core::{
     Clef, KeySignature, Measure, OmrError, Part, PipelineOptions, Result, Score, TimeSignature,
 };
 use std::path::Path;
+use std::sync::OnceLock;
 use tracing::{info, info_span, warn};
 
+pub mod accuracy;
+pub mod debug_viz;
+pub mod detections;
+pub mod muscima;
 pub mod pdf_render;
+pub mod synthetic;
+
+/// Eingebettetes vortrainiertes Klassifikator-Modell.
+///
+/// Wird beim ersten Aufruf von [`hog_svm_classifier`] aus dem Asset-Pfad des
+/// `omr-symbols`-Crates geladen. Ist die Datei nicht vorhanden oder
+/// inkompatibel, fällt die Pipeline auf den Template-NCC-Filter zurück.
+static HOG_SVM_CLASSIFIER: OnceLock<Option<omr_symbols::svm_model::HogSvmClassifier>> =
+    OnceLock::new();
+
+/// Versucht den Symbol-Klassifikator zu laden (genau einmal pro Prozess).
+/// Liefert `None`, wenn die Modell-Datei fehlt oder fehlerhaft ist.
+fn hog_svm_classifier() -> Option<&'static omr_symbols::svm_model::HogSvmClassifier> {
+    HOG_SVM_CLASSIFIER
+        .get_or_init(|| {
+            // Pfade in Reihenfolge der Priorität:
+            //  1) ENV-Override `OMR_SYMBOL_CLASSIFIER`
+            //  2) Asset im Crate
+            let candidates: Vec<std::path::PathBuf> = {
+                let mut v = Vec::new();
+                if let Ok(p) = std::env::var("OMR_SYMBOL_CLASSIFIER") {
+                    v.push(std::path::PathBuf::from(p));
+                }
+                // Workspace-relativ vom Pipeline-Crate aus.
+                let pipe_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+                if let Some(workspace) = pipe_dir.parent().and_then(|p| p.parent()) {
+                    v.push(
+                        workspace
+                            .join("crates")
+                            .join("omr-symbols")
+                            .join("assets")
+                            .join("symbol-classifier.bin"),
+                    );
+                }
+                v
+            };
+            for path in candidates {
+                if !path.exists() {
+                    continue;
+                }
+                match omr_symbols::svm_model::HogSvmClassifier::load(&path) {
+                    Ok(m) => {
+                        info!(model_path = %path.display(), "loaded HoG+SVM classifier");
+                        return Some(m);
+                    }
+                    Err(e) => {
+                        warn!(model_path = %path.display(), error = %e,
+                              "failed to load HoG+SVM classifier, will fall back");
+                    }
+                }
+            }
+            None
+        })
+        .as_ref()
+}
 
 /// Ergebnis eines vollständigen Durchlaufs für ein Bild oder PDF.
 #[derive(Debug, Clone)]
@@ -20,6 +80,9 @@ pub struct PipelineResult {
     pub timings: Timings,
     /// Diagnose-Statistiken.
     pub stats: Stats,
+    /// Optional: Detection-Bboxes für UI/Annotation. Nur gefüllt wenn
+    /// `PipelineOptions.collect_detections == true`.
+    pub detections: Option<detections::DetectionsResult>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -39,21 +102,270 @@ pub struct Stats {
     pub line_spacing: f32,
     pub n_noteheads: usize,
     pub n_stems: usize,
+    pub n_beams: usize,
+    pub n_bars: usize,
+    pub n_rests: usize,
+    pub n_measures: usize,
+    pub n_measures_exact: usize,
+    pub n_measures_repaired: usize,
+    pub n_measures_broken: usize,
+    pub n_jump_marks: usize,
+    pub timeline_len: usize,
     pub deskew_angle_deg: f32,
+    /// Document-Typ-Diagnose
+    pub doc_type: Option<&'static str>,
+    pub doc_confidence: f32,
+    pub doc_line_straightness: f32,
+    pub doc_line_thickness_stddev: f32,
+    pub doc_gray_variance: f32,
+    /// NH-Größen-Variabilität (Stddev/Mean Ratio) — printed: niedrig, handwritten: hoch.
+    pub doc_nh_size_cv: f32,
 }
 
 /// Verarbeite ein bereits geladenes Grayscale-Bild.
 pub fn process_gray(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineResult> {
+    // Doppelseiten-Scan-Detection: Wenn das Bild deutlich breiter als hoch ist
+    // (aspect > 1.25), versuche das Bild über einen Falz-Bereich zu splitten.
+    // Bei Portrait-PDFs (h > w) muss vorher deskew/rotate angewandt werden,
+    // damit eine quergelegte Doppelseite als landscape erkannt wird.
+    let (w, h) = (gray.width(), gray.height());
+    let aspect = w as f32 / h.max(1) as f32;
+    if aspect > 1.25 {
+        if let Some(merged) = try_doublespread_split(&gray, opts)? {
+            return Ok(merged);
+        }
+    } else if aspect < 0.80 {
+        // Portrait-Bild: möglicherweise eine 90°-rotierte Doppelseite.
+        // Erst deskew/rotation versuchen — wenn n_systems=0, retry mit Split.
+        let single = process_gray_single(gray.clone(), opts)?;
+        if single.stats.n_systems == 0 {
+            let rotated = image::imageops::rotate90(&gray);
+            if let Some(merged) = try_doublespread_split(&rotated, opts)? {
+                return Ok(merged);
+            }
+        } else {
+            return Ok(single);
+        }
+    }
+
+    // Single-Pass; bei n_systems=0 als Letztes versuchen wir 180°-Rotation
+    // (kopfüber gescannte PDFs).
+    let primary = process_gray_single(gray.clone(), opts)?;
+    if primary.stats.n_systems == 0 {
+        info!("primary pass found 0 systems — retrying with 180° rotation");
+        let rotated = image::imageops::rotate180(&gray);
+        // Auch hier ggf. doublespread-Split versuchen
+        let (rw, rh) = (rotated.width(), rotated.height());
+        let r_aspect = rw as f32 / rh.max(1) as f32;
+        if r_aspect > 1.25 {
+            if let Some(merged) = try_doublespread_split(&rotated, opts)? {
+                return Ok(merged);
+            }
+        }
+        let secondary = process_gray_single(rotated, opts)?;
+        if secondary.stats.n_systems > 0 {
+            info!("180° rotation recovered systems — using rotated result");
+            return Ok(secondary);
+        }
+    }
+    Ok(primary)
+}
+
+/// Versucht das Bild über einen Falz-Band oder w/2-Mid-Split aufzuteilen.
+/// Liefert Ok(Some(merged)) wenn der Split eine sinnvolle Anzahl Systeme findet,
+/// Ok(None) wenn der Split scheitert (Caller sollte single-pass nutzen).
+fn try_doublespread_split(gray: &GrayImage, opts: &PipelineOptions) -> Result<Option<PipelineResult>> {
+    let (w, h) = (gray.width(), gray.height());
+    if let Some((left_end, right_start)) = detect_doublespread_band(gray) {
+        let left = image::imageops::crop_imm(gray, 0, 0, left_end, h).to_image();
+        let right = image::imageops::crop_imm(gray, right_start, 0, w - right_start, h).to_image();
+        let lr = process_gray_single(left, opts)?;
+        let rr = process_gray_single(right, opts)?;
+        let total = lr.stats.n_systems + rr.stats.n_systems;
+        if total >= 2 {
+            info!(left_end, right_start, total_systems = total, "doublespread band-split active");
+            return Ok(Some(merge_two_results(lr, rr)));
+        }
+    }
+    let split_x = w / 2;
+    let left = image::imageops::crop_imm(gray, 0, 0, split_x, h).to_image();
+    let right = image::imageops::crop_imm(gray, split_x, 0, w - split_x, h).to_image();
+    let lr = process_gray_single(left, opts)?;
+    let rr = process_gray_single(right, opts)?;
+    let total = lr.stats.n_systems + rr.stats.n_systems;
+    if total >= 2 {
+        info!(split_x, total_systems = total, "doublespread mid-split active");
+        return Ok(Some(merge_two_results(lr, rr)));
+    }
+    Ok(None)
+}
+
+/// Findet den breitesten low-density-Bereich (Falz) in der Bildmitte.
+/// Returns (left_end, right_start) — der Bereich left_end..right_start ist der Falz
+/// und wird verworfen. Returns None wenn kein klarer Falz erkennbar ist.
+fn detect_doublespread_band(gray: &GrayImage) -> Option<(u32, u32)> {
+    let (w, h) = (gray.width(), gray.height());
+    if w < 200 || h < 100 {
+        return None;
+    }
+    // Berechne col_density für die mittleren 50% des Bildes
+    let search_x_start = (w as f32 * 0.25) as u32;
+    let search_x_end = (w as f32 * 0.75) as u32;
+    let mut col_density = vec![0u32; w as usize];
+    for y in 0..h {
+        for x in search_x_start..search_x_end {
+            if gray.get_pixel(x, y)[0] < 128 {
+                col_density[x as usize] += 1;
+            }
+        }
+    }
+    // Smoothing: Mittelwert über 11px-Fenster
+    let radius = 5i32;
+    let mut smooth = vec![0u32; w as usize];
+    for x in search_x_start..search_x_end {
+        let mut s = 0u32;
+        let mut n = 0u32;
+        for dx in -radius..=radius {
+            let xi = x as i32 + dx;
+            if xi >= 0 && (xi as u32) < w {
+                s += col_density[xi as usize];
+                n += 1;
+            }
+        }
+        smooth[x as usize] = if n > 0 { s / n } else { 0 };
+    }
+    let mean = smooth[search_x_start as usize..search_x_end as usize]
+        .iter()
+        .sum::<u32>()
+        / (search_x_end - search_x_start) as u32;
+    if mean == 0 {
+        return None;
+    }
+    // Schwellwert: 50% des Mittelwerts → "low-density"
+    let threshold = (mean as f32 * 0.5) as u32;
+
+    // Finde alle x-Bereiche wo smooth[x] < threshold; nimm den breitesten in der Mittelregion
+    let mut best_start = 0u32;
+    let mut best_end = 0u32;
+    let mut best_width = 0u32;
+    let mut cur_start: Option<u32> = None;
+    for x in search_x_start..search_x_end {
+        if smooth[x as usize] < threshold {
+            if cur_start.is_none() {
+                cur_start = Some(x);
+            }
+        } else if let Some(s) = cur_start.take() {
+            let width = x - s;
+            if width > best_width {
+                best_width = width;
+                best_start = s;
+                best_end = x;
+            }
+        }
+    }
+    if let Some(s) = cur_start {
+        let width = search_x_end - s;
+        if width > best_width {
+            best_width = width;
+            best_start = s;
+            best_end = search_x_end;
+        }
+    }
+    // Mindestbreite des Falz: 2% der Bildbreite. Maximalbreite: 25% der Bildbreite.
+    let min_width = (w as f32 * 0.02) as u32;
+    let max_width = (w as f32 * 0.25) as u32;
+    if best_width >= min_width && best_width <= max_width && best_start > 0 && best_end > 0 {
+        Some((best_start, best_end))
+    } else {
+        None
+    }
+}
+
+/// Merged zwei PipelineResults zu einem (für Doppelseiten + Multi-Page).
+fn merge_two_results(left: PipelineResult, right: PipelineResult) -> PipelineResult {
+    let mut score = Score::default();
+    let mut part = Part {
+        id: "P1".into(),
+        name: "Stimme".into(),
+        measures: Vec::new(),
+    };
+    let mut measure_num = 1u32;
+    for src in [&left.score, &right.score] {
+        if let Some(p) = src.parts.first() {
+            for m in &p.measures {
+                let mut m = m.clone();
+                m.number = measure_num;
+                measure_num += 1;
+                part.measures.push(m);
+            }
+        }
+    }
+    score.parts.push(part);
+    let mut stats = left.stats;
+    stats.n_systems += right.stats.n_systems;
+    stats.n_noteheads += right.stats.n_noteheads;
+    stats.n_stems += right.stats.n_stems;
+    stats.n_beams += right.stats.n_beams;
+    stats.n_bars += right.stats.n_bars;
+    stats.n_rests += right.stats.n_rests;
+    stats.n_measures += right.stats.n_measures;
+    stats.n_measures_exact += right.stats.n_measures_exact;
+    stats.n_measures_repaired += right.stats.n_measures_repaired;
+    stats.n_measures_broken += right.stats.n_measures_broken;
+    stats.n_jump_marks += right.stats.n_jump_marks;
+    stats.timeline_len += right.stats.timeline_len;
+    let mut timings = left.timings;
+    timings.preprocessing_ms += right.timings.preprocessing_ms;
+    timings.staff_detection_ms += right.timings.staff_detection_ms;
+    timings.staff_removal_ms += right.timings.staff_removal_ms;
+    timings.symbol_detection_ms += right.timings.symbol_detection_ms;
+    timings.musicxml_ms += right.timings.musicxml_ms;
+    timings.total_ms += right.timings.total_ms;
+    let musicxml = omr_musicxml::export(&score).unwrap_or_default();
+    // Detection-Merge: linke + rechte Seite konkatenieren (gleicher page_index 0
+    // wie der Original-Doppelseiten-Scan).
+    let detections = match (left.detections, right.detections) {
+        (Some(l), Some(r)) => {
+            let mut pages: Vec<detections::DetectionPage> = Vec::new();
+            pages.extend(l.pages.into_iter());
+            pages.extend(r.pages.into_iter());
+            Some(detections::DetectionsResult {
+                schema_version: 1,
+                pages,
+            })
+        }
+        (Some(l), None) => Some(l),
+        (None, Some(r)) => Some(r),
+        (None, None) => None,
+    };
+    PipelineResult {
+        score,
+        musicxml,
+        timings,
+        stats,
+        detections,
+    }
+}
+
+/// Innere Verarbeitung eines einzelnen Bildes (ohne Doppelseiten-Logik).
+fn process_gray_single(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineResult> {
     let total_t = std::time::Instant::now();
 
-    // 1) Preprocessing: deskew + binarize.
+    // 1) Preprocessing: deskew + adaptive despeckle + binarize.
     let _span = info_span!("preprocessing").entered();
     let pre_t = std::time::Instant::now();
     let (gray, deskew_angle) = omr_preprocessing::deskew(&gray);
+    // Adaptiv: Bei wenig Rauschen reicht 1× Median, bei viel Rauschen 2×.
+    let noise = omr_preprocessing::estimate_noise_level(&gray);
+    let gray = if noise > 0.04 {
+        omr_preprocessing::despeckle_strong(&gray)
+    } else {
+        omr_preprocessing::median3x3(&gray)
+    };
     let bin = omr_preprocessing::sauvola(&gray, 25, 0.34);
     let preprocessing_ms = pre_t.elapsed().as_millis();
     drop(_span);
-    info!(deskew_angle, count = bin.count(), "preprocessing done");
+    info!(deskew_angle, noise, count = bin.count(), "preprocessing done");
 
     if let Some(ref dir) = opts.debug_dir {
         let _ = bin.to_gray().save(dir.join("01_binary.png"));
@@ -74,15 +386,38 @@ pub fn process_gray(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineR
             musicxml: omr_musicxml::export(&Score::default())?,
             timings: Timings { preprocessing_ms, staff_detection_ms, total_ms: total_t.elapsed().as_millis(), ..Default::default() },
             stats: Stats { deskew_angle_deg: deskew_angle, ..Default::default() },
+            detections: None,
         });
     }
 
     let line_spacing = systems[0].line_spacing;
     let line_thickness = systems[0].line_thickness;
 
-    // 3) Staff-Removal.
+    // 2b) Document-Type-Detection: gedruckt vs handschrift.
+    // Beeinflusst Pipeline-Tuning für Bars/Stems/Plausibility.
+    let doc_class = omr_preprocessing::classify_document(&gray, &bin, &systems);
+    info!(
+        doc_type = ?doc_class.doc_type,
+        confidence = doc_class.confidence,
+        line_straightness = doc_class.line_straightness,
+        line_thickness_stddev = doc_class.line_thickness_stddev,
+        gray_variance = doc_class.gray_variance,
+        "document classified"
+    );
+
+    // 3) Staff-Removal. U-Net (wenn Modell gegeben + Feature aktiv +
+    //    Datei ladbar), sonst klassisches RLE-Removal.
     let sr_t = std::time::Instant::now();
-    let removed = omr_staff::remove_staff(&bin, &systems);
+    let removed = match opts.unet_model_path.as_deref() {
+        Some(model_path) => match omr_staff::try_remove_staff_unet(&bin, model_path) {
+            Some(unet_bin) => {
+                info!(model = %model_path.display(), "staff removal via U-Net");
+                unet_bin
+            }
+            None => omr_staff::remove_staff(&bin, &systems),
+        },
+        None => omr_staff::remove_staff(&bin, &systems),
+    };
     let staff_removal_ms = sr_t.elapsed().as_millis();
     if let Some(ref dir) = opts.debug_dir {
         let _ = removed.to_gray().save(dir.join("02_staff_removed.png"));
@@ -91,24 +426,174 @@ pub fn process_gray(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineR
     // 4) Symbol-Detection: Noteheads + Stems + Beams + Bars.
     let _span = info_span!("symbol_detection").entered();
     let sym_t = std::time::Instant::now();
-    let raw_noteheads = omr_symbols::detect_noteheads(&removed, &systems);
-    // Re-Rank via lokales NCC-Template-Matching → bessere Filled/Open-
-    // Klassifikation + Sub-Pixel-Center.
+
+    // Skip-Region pro System: zuerst Clef/Key/Time detektieren, dann den
+    // tatsächlich benötigten X-Bereich berechnen statt einer festen 6*spacing-Heuristik.
+    // Wichtig: Notenschlüssel + Vorzeichen + Taktart werden sonst als Noten erkannt.
+    //
+    //   - Clef:                 ~3.0 * spacing  (G-Clef ist breiter als Bass)
+    //   - KeySignature:         |fifths| * 0.7 * spacing (max 7 = 4.9*spacing)
+    //   - TimeSignature:        ~2.0 * spacing
+    //   - Sicherheits-Padding:  +1.0 * spacing
+    //
+    // Plus eine Untergrenze von 6*spacing für robust gegen Detection-Fehler.
+    let skip_regions: Vec<std::ops::Range<u32>> = systems.iter().map(|s| {
+        let spacing = s.line_spacing;
+        let first_line = s.lines.first();
+        let line_start_x = first_line
+            .and_then(|l| l.y_per_x.iter().position(|&y| y > 0))
+            .unwrap_or(0) as u32;
+
+        // Pre-detect Clef + KeySig + TimeSig auf dem ORIGINAL-Binary um Skip-Range
+        // dynamisch zu schaerfen mittels MEASURED-X (nicht heuristic-only):
+        //
+        //   header_end = max(clef_rightmost, keysig_rightmost) + timesig_w + padding
+        //
+        // Heuristik bleibt als Fallback.
+        let (_clef, clef_rightmost) = omr_symbols::meta::detect_clef_with_extent(&bin, s);
+        let (key, keysig_rightmost) = omr_symbols::meta::detect_key_signature_with_extent(&bin, s);
+        let n_accidentals = key.fifths.unsigned_abs() as f32;
+
+        let clef_w = 3.0;
+        let keysig_w = 0.7 * n_accidentals.max(0.0);
+        let timesig_w = 2.0;
+        let padding = 1.5;
+        let heuristic_factor = (clef_w + keysig_w + timesig_w + padding).max(6.0);
+        let heuristic_end = line_start_x + (spacing * heuristic_factor) as u32;
+
+        // Use measured rightmost-X (from clef + keysig) + TimeSig estimate + padding.
+        let measured_metasym_end = clef_rightmost.max(keysig_rightmost);
+        let measured_end = if measured_metasym_end > line_start_x {
+            measured_metasym_end + (spacing * (timesig_w + padding)) as u32
+        } else {
+            heuristic_end
+        };
+        let header_end = heuristic_end.max(measured_end);
+        line_start_x..header_end
+    }).collect();
+
+    let raw_noteheads = omr_symbols::detect_noteheads_with_skip(&removed, &systems, &skip_regions);
     let noteheads = omr_symbols::rerank_with_template(&removed, &raw_noteheads, line_spacing);
-    let stems = omr_symbols::stems::detect_stems(&removed, &noteheads, line_spacing);
+    let count_kinds = |nhs: &[omr_core::Notehead]| -> (usize, usize, usize) {
+        let f = nhs.iter().filter(|n| n.kind == omr_core::NoteheadKind::Filled).count();
+        let o = nhs.iter().filter(|n| n.kind == omr_core::NoteheadKind::Open).count();
+        let w = nhs.iter().filter(|n| n.kind == omr_core::NoteheadKind::Whole).count();
+        (f, o, w)
+    };
+    let (raw_f, raw_o, raw_w) = count_kinds(&raw_noteheads);
+    let (rerank_f, rerank_o, rerank_w) = count_kinds(&noteheads);
+    info!(
+        raw_F = raw_f, raw_O = raw_o, raw_W = raw_w,
+        rerank_F = rerank_f, rerank_O = rerank_o, rerank_W = rerank_w,
+        "kind distribution: raw → rerank"
+    );
+    // Komplementär: Whole-Notes via Template-Matching auf staff_removed.
+    // Recover Wholes die durch CC-Fragmentation (Top-Arc + Bottom-Arc nach
+    // Staff-Removal) verloren gingen — merge_close_ccs filtert wide-thin
+    // Fragmente (aspect>3) und kann sie nicht fusionieren. Threshold 0.40
+    // ist konservativ um False-Positives gering zu halten, aber niedrig
+    // genug um stark-fragmentierte Wholes zu finden.
+    let extra_wholes = omr_symbols::detect_wholes_template(&removed, &systems, 0.40, &noteheads);
+    let mut noteheads = noteheads;
+    noteheads.extend(extra_wholes);
+    let (extra_f, extra_o, extra_w) = count_kinds(&noteheads);
+    info!(extra_F = extra_f, extra_O = extra_o, extra_W = extra_w, "kind after extra_wholes");
+    // Symbol-Klassifikator: filtert Coda/Segno/D.S./Dynamik/Noise.
+    // Bevorzugt HoG+SVM (gelernt auf Bravura-Synth-Korpus). Fallback auf
+    // Template-NCC, wenn das Modell nicht ladebar ist.
+    let n_before_classifier = noteheads.len();
+    let noteheads = if let Some(clf) = hog_svm_classifier() {
+        // Klassifikator auf ORIGINAL-Binary (nicht staff-removed) — Coda/Segno-Glyphen
+        // bleiben dort intakter und matchen besser zu den Bravura-Templates.
+        omr_symbols::classifier::filter_via_hog_svm(&bin, noteheads, line_spacing, clf)
+    } else {
+        omr_symbols::classifier::filter_via_templates(&removed, noteheads, line_spacing)
+    };
+    let n_after_classifier = noteheads.len();
+    let (clf_f, clf_o, clf_w) = count_kinds(&noteheads);
+    info!(
+        clf_F = clf_f, clf_O = clf_o, clf_W = clf_w,
+        before = n_before_classifier, after = n_after_classifier,
+        "kind after classifier"
+    );
+    // Bow-marks (▽) und Articulations: rerank_with_template re-klassifiziert
+    // gefüllte Bbox mit "Loch" (= Triangle-Form) als Open. Diese müssen NACH
+    // rerank gefiltert werden, weil sie als Filled durch den raw-Filter rutschen.
+    let noteheads = omr_symbols::filter_bow_marks_and_articulations(&removed, noteheads, &systems);
+    let (bow_f, bow_o, bow_w) = count_kinds(&noteheads);
+    info!(bow_F = bow_f, bow_O = bow_o, bow_W = bow_w, "kind after bow-mark filter");
+    // Beam-FP-Filter: Bei dichten Sechzehntel-/Achtel-Gruppen werden Beam-Pixelblöcke
+    // gelegentlich als zusätzliche Noteheads detektiert (CC-Splits). Echte NHs liegen
+    // nie MITTIG auf einem Beam — Stems berühren Beams nur am Stem-Ende gegenüber dem NH.
     let beams = omr_symbols::detect_beams(&removed, line_spacing);
-    let beam_counts = omr_symbols::beams_per_stem(&stems, &beams);
-    let bars = omr_symbols::detect_measure_bars(&bin, &systems);
+    let n_before_beam_filter = noteheads.len();
+    let beam_tol = (line_spacing * 0.15) as u32;
+    let noteheads = omr_symbols::filter_noteheads_on_beams(noteheads, &beams, beam_tol);
+    let (beam_f, beam_o, beam_w) = count_kinds(&noteheads);
+    info!(
+        beam_F = beam_f, beam_O = beam_o, beam_W = beam_w,
+        before = n_before_beam_filter, after = noteheads.len(),
+        "kind after beam-overlap filter"
+    );
+    // Dedup: Cluster-Detections (CC-Splits über Beam-Gruppen) verschmelzen.
+    let n_before_dedup = noteheads.len();
+    let noteheads = omr_symbols::dedupe_close_noteheads(noteheads, line_spacing);
+    let (dedup_f, dedup_o, dedup_w) = count_kinds(&noteheads);
+    info!(
+        dedup_F = dedup_f, dedup_O = dedup_o, dedup_W = dedup_w,
+        before = n_before_dedup, after = noteheads.len(),
+        "kind after dedupe-close filter"
+    );
+    let stems = omr_symbols::stems::detect_stems(&removed, &noteheads, line_spacing);
+    let _beam_counts = omr_symbols::beams_per_stem(&stems, &beams);
+    let bars = omr_symbols::detect_measure_bars(&bin, &systems, &noteheads);
+    // Pausen-Detection (Whole-Rest, Half-Rest) — füllt leere Measures mit
+    // expliziten Pause-Notes statt Tacet zu lassen.
+    let rests = omr_symbols::detect_rests(&bin, &systems);
+    // Sprungmarken erkennen (Repeat-Bars + Volta) — Phase A für Layered-OMR (Spec 22)
+    let mut jump_detections = Vec::new();
+    jump_detections.extend(omr_symbols::jump_marks::detect_repeat_marks(&bin, &bars, &systems));
+    jump_detections.extend(omr_symbols::jump_marks::detect_voltas(&bin, &bars, &noteheads, &systems));
+
+    // Slur-Detection: Bögen über/unter NH-Gruppen erkennen.
+    // Wir nutzen das ORIGINAL-Binary (vor Staff-Removal) — Slurs überqueren
+    // Stafflinien und werden vom Removal teilweise zerschnitten.
+    let mut slurs = omr_symbols::detect_slurs(&bin, &noteheads, &systems);
+
     let symbol_detection_ms = sym_t.elapsed().as_millis();
     drop(_span);
     info!(
         n_raw = raw_noteheads.len(),
-        n_reranked = noteheads.len(),
+        n_reranked = n_before_classifier,
+        n_classifier_filtered = n_after_classifier,
         n_stems = stems.len(),
         n_beams = beams.len(),
         n_bars = bars.len(),
+        n_rests = rests.len(),
+        n_jump_marks = jump_detections.len(),
+        n_slurs = slurs.len(),
         "symbols detected"
     );
+
+    // Debug-Visualisierung (wenn aktiviert) — zeichne alle Detections
+    // farbig auf das Original-Grayscale. Wird hier OHNE Measures aufgerufen
+    // weil die Score-Konstruktion noch kommt — ein zweiter Debug-Render mit
+    // Measures (für Bbox+Sprungmarken-Highlighting) erfolgt am Ende.
+    if let Some(ref dir) = opts.debug_dir {
+        let staff_systems_lines: Vec<Vec<Vec<u32>>> = systems.iter()
+            .map(|s| s.lines.iter().map(|l| l.y_per_x.clone()).collect())
+            .collect();
+        let overlays = debug_viz::Overlays {
+            noteheads: &noteheads,
+            stems: &stems,
+            beams: &beams,
+            bars: &bars,
+            staff_systems_lines,
+            measures: None,
+        };
+        let dbg = debug_viz::render_debug_image(&gray, &overlays);
+        let _ = dbg.save(dir.join("03_detections.png"));
+    }
 
     // 5) Score-Konstruktion: ein Measure pro StaffSystem, Noten in Reading-Order (X).
     // Clef + Key Signature pro System auf Original-Binary detektieren.
@@ -117,12 +602,25 @@ pub fn process_gray(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineR
     let detected_time = systems.first().and_then(|s| omr_symbols::meta::detect_time_signature(&bin, s))
         .unwrap_or(TimeSignature { beats: 4, beat_type: 4 });
 
+    // Augmentation-Dot-Detection (Punktierungen) auf staff-removed Bild
+    let dots_per_nh = omr_symbols::detect_augmentation_dots(&removed, &noteheads, line_spacing);
+
+    // Lokale Accidentals (♯/♭/♮ direkt links vom NH) — überschreiben Key-Sig
+    let local_alters = omr_symbols::detect_local_accidentals(&bin, &noteheads, &systems);
+
     let all_measures_per_system: Vec<Vec<Measure>> = (0..systems.len())
         .map(|sys_i| {
-            let mut filtered: Vec<&omr_core::Notehead> =
-                noteheads.iter().filter(|nh| nh.staff_idx == sys_i).collect();
-            filtered.sort_by(|a, b| a.center.x.partial_cmp(&b.center.x).unwrap_or(std::cmp::Ordering::Equal));
-            let nh_local: Vec<omr_core::Notehead> = filtered.into_iter().cloned().collect();
+            // Globale Indices der NH dieses Systems sammeln
+            let global_indices: Vec<usize> = noteheads.iter().enumerate()
+                .filter(|(_, nh)| nh.staff_idx == sys_i)
+                .map(|(i, _)| i)
+                .collect();
+            let mut sorted_global: Vec<usize> = global_indices.clone();
+            sorted_global.sort_by(|&a, &b| {
+                noteheads[a].center.x.partial_cmp(&noteheads[b].center.x).unwrap_or(std::cmp::Ordering::Equal)
+            });
+            let nh_local: Vec<omr_core::Notehead> = sorted_global.iter().map(|&i| noteheads[i].clone()).collect();
+            let dots_local: Vec<u8> = sorted_global.iter().map(|&i| dots_per_nh.get(i).copied().unwrap_or(0)).collect();
             let stems_local: Vec<omr_core::Stem> = stems
                 .iter()
                 .filter(|s| {
@@ -133,21 +631,124 @@ pub fn process_gray(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineR
                 .cloned()
                 .collect();
             let beam_counts_local: Vec<u32> = omr_symbols::beams_per_stem(&stems_local, &beams);
+            // Flag-Detection: bei Stems ohne Beams suchen wir Flags (einzelne 8th/16th).
+            // Die Flags werden zu beam_counts_local addiert, damit noteheads_to_notes
+            // die richtige Duration ableitet (1 Flag = 8th, 2 Flags = 16th).
+            let flag_counts_local = omr_symbols::detect_flags(
+                &bin, &stems_local, &nh_local, &beam_counts_local, line_spacing
+            );
+            let combined_counts: Vec<u32> = beam_counts_local.iter().zip(flag_counts_local.iter())
+                .map(|(b, f)| b + f).collect();
             let clef_for_sys = clefs.get(sys_i).copied().unwrap_or(Clef::Treble);
             let key_for_sys = keys.get(sys_i).copied().unwrap_or(KeySignature::default());
-            let mut all_notes = omr_symbols::noteheads_to_notes(
-                &nh_local, &systems, &stems_local, &beam_counts_local, clef_for_sys, key_for_sys,
+            let mut all_notes = omr_symbols::noteheads_to_notes_with_dots(
+                &nh_local, &systems, &stems_local, &combined_counts, clef_for_sys, key_for_sys,
+                &dots_local,
             );
+
+            // Lokale Accidentals anwenden: für jede NH die einen alter-Override
+            // hat, MIDI neu berechnen.
+            for (local_i, &global_i) in sorted_global.iter().enumerate() {
+                if let Some(Some(alter)) = local_alters.get(global_i) {
+                    if let Some(note) = all_notes.get_mut(local_i) {
+                        let old_alter = note.alter;
+                        if old_alter != *alter {
+                            // MIDI = base_midi - old_alter + new_alter
+                            note.alter = *alter;
+                            note.midi = ((note.midi as i32) - old_alter as i32 + *alter as i32).clamp(0, 127) as u8;
+                        }
+                    }
+                }
+            }
+
+            // Stem-Direction-Validation: korrigiere offensichtliche Octave-Errors.
+            // Wenn ein NH "hoch" gelabelt ist (z.B. C6) aber stem-up zeigt,
+            // ist die Wahrscheinlichkeit hoch dass es eine Oktave tiefer (C5) ist.
+            let validations = omr_symbols::stem_validation::validate_stem_directions(
+                &nh_local, &stems_local, &systems
+            );
+            // Mapping local_nh_idx → score_note_idx (1:1 nach Sort, aber wir
+            // sortieren nochmal nach center.x später; daher hier vor sort).
+            let nh_to_score: Vec<Option<usize>> = (0..nh_local.len()).map(Some).collect();
+            omr_symbols::stem_validation::apply_octave_corrections(
+                &mut all_notes, &nh_to_score, &validations
+            );
+
             all_notes.sort_by(|a, b| a.center.x.partial_cmp(&b.center.x).unwrap_or(std::cmp::Ordering::Equal));
 
-            // Taktstriche dieses Systems.
             let mut bar_xs: Vec<f32> = bars.iter()
                 .filter(|b| b.system_idx == sys_i)
                 .map(|b| b.x as f32)
                 .collect();
             bar_xs.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
-            split_into_measures(all_notes, &bar_xs)
+            let staff_for_virtual = &systems[sys_i];
+            let line_spacing_for_virtual = staff_for_virtual.line_spacing;
+
+            // Virtuelles End-of-System-Bar: wenn nach dem letzten echten Bar
+            // noch viele NHs kommen, fehlt wahrscheinlich der finale Taktstrich
+            // am Zeilenende. Wir fügen einen virtuellen Bar an der Position
+            // der rechtmäßigsten NH hinzu (etwas nach rechts versetzt) damit
+            // das letzte Measure korrekt geschlossen wird.
+            //
+            // Heuristik: Wenn >= 4 NHs hinter dem letzten Bar (oder hinter
+            // staff_x_start falls keine Bars), füge virtuellen Bar hinzu.
+            // Threshold 4 ist konservativ (typische letzte-Measure haben 1-3 NHs).
+            let last_real_bar_x = bar_xs.last().copied().unwrap_or(0.0);
+            let n_after = all_notes.iter().filter(|n| n.center.x > last_real_bar_x + line_spacing_for_virtual * 0.5).count();
+            if n_after >= 4 {
+                let max_nh_x = all_notes.iter()
+                    .filter(|n| n.center.x > last_real_bar_x)
+                    .map(|n| n.center.x)
+                    .fold(0.0_f32, f32::max);
+                if max_nh_x > 0.0 {
+                    let virtual_bar_x = max_nh_x + line_spacing_for_virtual * 1.5;
+                    bar_xs.push(virtual_bar_x);
+                    tracing::info!(
+                        sys = sys_i, n_orphan_nh = n_after, virtual_bar_x,
+                        "added virtual end-of-system bar"
+                    );
+                }
+            }
+
+            // Bboxes pro Takt aus den Bar-Positionen + Staff-System-Y-Range berechnen.
+            // Wird in den Measures als bbox_orig gespeichert für Phase-A
+            // (Live-Position-Highlighting + Cross-Instrument-Sync, Spec 22).
+            let staff = &systems[sys_i];
+            let line_spacing_local = staff.line_spacing;
+            let staff_top_y = staff.lines.first().and_then(|l| l.y_per_x.iter().min().copied()).unwrap_or(0);
+            let staff_bot_y = staff.lines.last().and_then(|l| l.y_per_x.iter().max().copied()).unwrap_or(staff_top_y);
+            let pad = (line_spacing_local * 1.5) as u32;
+            let bbox_top = staff_top_y.saturating_sub(pad);
+            let bbox_bot = staff_bot_y.saturating_add(pad);
+            // x-Bereich: vom Anfang des Systems (oder Bar-Start) bis zum nächsten Bar
+            let staff_x_start = staff.lines.first()
+                .and_then(|l| l.y_per_x.iter().position(|&y| y > 0))
+                .map(|p| p as u32)
+                .unwrap_or(0);
+
+            let mut split = split_into_measures(all_notes, &bar_xs);
+            // Berechne Bbox pro Takt aus bar_xs
+            let mut bar_xs_full = vec![staff_x_start as f32];
+            bar_xs_full.extend(bar_xs.iter().copied());
+            // Letzter Bar: Bild-Ende
+            bar_xs_full.push(removed.w as f32);
+            for (mi, m) in split.iter_mut().enumerate() {
+                if mi + 1 < bar_xs_full.len() {
+                    let x0 = bar_xs_full[mi].max(0.0) as u32;
+                    let x1 = bar_xs_full[mi + 1].min(removed.w as f32) as u32;
+                    if x1 > x0 {
+                        m.bbox_orig = Some(omr_core::Rect {
+                            x: x0,
+                            y: bbox_top,
+                            w: x1 - x0,
+                            h: bbox_bot.saturating_sub(bbox_top),
+                        });
+                    }
+                }
+                m.system_idx = Some(sys_i as u32);
+            }
+            split
         })
         .collect();
 
@@ -157,7 +758,6 @@ pub fn process_gray(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineR
         for (mi, m) in sys_measures.iter_mut().enumerate() {
             m.number = measure_num;
             measure_num += 1;
-            // Erste Measure pro System trägt clef + key. Time nur in System 0.
             if mi == 0 {
                 m.clef = clefs.get(sys_i).copied();
                 m.key_signature = keys.get(sys_i).copied();
@@ -169,11 +769,80 @@ pub fn process_gray(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineR
         measures.extend(sys_measures);
     }
 
+    // 5a) Akkord-Detection + Onset-Berechnung. Mehrere NHs auf gleicher
+    //     X-Position werden zu einem Akkord gruppiert: erste Note ist Lead,
+    //     alle weiteren bekommen in_chord=true und werden in der Plausibility-Σ
+    //     ignoriert (sie tragen nicht zur Taktdauer bei).
+    mark_chords_and_onsets(&mut measures, line_spacing);
+
+    // 5a-bis) Pausen-Insertion: für jedes leere Measure prüfen ob ein Rest
+    // im x-Bereich des Measures detektiert wurde. Wenn ja: einfügen.
+    // Wenn das Measure leer ist UND keine Rest gefunden wurde: implicit
+    // Whole-Rest hinzufügen (Tacet-Annahme). Dadurch wird der MusicXML-Output
+    // gültig und vollständig. Rest-Detection ist konservativ → nur leere
+    // Measures werden modifiziert, korrekte Takte bleiben unverändert.
+    insert_rests_into_empty_measures(&mut measures, &rests, detected_time);
+
+    // 5b) Plausibilisierung der Takte gegen die erkannte Taktart.
+    //     Repariert Takte deren Σ duration nicht passt.
+    let measure_checks = omr_symbols::validate_and_repair_part(&mut measures, detected_time);
+    let n_measures_exact = measure_checks.iter()
+        .filter(|c| matches!(c.plausibility, omr_symbols::MeasurePlausibility::Exact | omr_symbols::MeasurePlausibility::Anacrusis))
+        .count();
+    let n_measures_broken = measure_checks.iter()
+        .filter(|c| matches!(c.plausibility, omr_symbols::MeasurePlausibility::Broken))
+        .count();
+    let n_measures_repaired = measure_checks.len().saturating_sub(n_measures_exact + n_measures_broken);
+    info!(
+        n_measures = measure_checks.len(),
+        exact = n_measures_exact,
+        repaired = n_measures_repaired,
+        broken = n_measures_broken,
+        "measure plausibility"
+    );
+
+    // bar_to_measure-Mapping: jeder Bar wird dem Measure RECHTS davon zugeordnet
+    // (oder dem dem Bar selbst - bei RepeatEnd). Wir suchen für jeden Bar das
+    // erste Measure dessen Bbox-Center.x > bar.x ist.
+    let bar_to_measure: Vec<Option<usize>> = bars.iter().map(|b| {
+        let bar_x = b.x as f32;
+        measures.iter().position(|m| {
+            m.bbox_orig
+                .map(|bb| bb.x as f32 + bb.w as f32 * 0.5 >= bar_x)
+                .unwrap_or(false)
+        })
+    }).collect();
+    omr_symbols::jump_marks::apply_jump_marks(&mut measures, &bar_to_measure, &jump_detections);
+
     let part = Part {
         id: "P1".into(),
         name: "Stimme".into(),
         measures,
     };
+
+    let timeline = omr_core::PerformanceTimeline::from_part(&part);
+    info!(
+        n_jump_detections = jump_detections.len(),
+        timeline_len = timeline.len(),
+        "performance timeline"
+    );
+
+    // Zweiter Debug-Render mit Bbox-/Sprungmarken-Highlighting (Phase A)
+    if let Some(ref dir) = opts.debug_dir {
+        let staff_systems_lines: Vec<Vec<Vec<u32>>> = systems.iter()
+            .map(|s| s.lines.iter().map(|l| l.y_per_x.clone()).collect())
+            .collect();
+        let overlays = debug_viz::Overlays {
+            noteheads: &noteheads,
+            stems: &stems,
+            beams: &beams,
+            bars: &bars,
+            staff_systems_lines,
+            measures: Some(&part.measures),
+        };
+        let dbg = debug_viz::render_debug_image(&gray, &overlays);
+        let _ = dbg.save(dir.join("04_measures_and_jumps.png"));
+    }
 
     let score = Score {
         work_title: String::new(),
@@ -181,10 +850,72 @@ pub fn process_gray(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineR
         parts: vec![part],
     };
 
+    // Tie-Detection: Slurs deren Endpoint-NHs gleichen MIDI haben sind Ties.
+    // Wir bauen ein NH-Index → MIDI Map aus den ScoreNotes via center.x/y-Match.
+    {
+        let part_first = score.parts.first();
+        let nh_to_midi: Vec<Option<u8>> = if let Some(p) = part_first {
+            noteheads.iter().map(|nh| {
+                let cx = nh.center.x;
+                let cy = nh.center.y;
+                let mut best_d = f32::INFINITY;
+                let mut best_midi: Option<u8> = None;
+                for m in &p.measures {
+                    for n in &m.notes {
+                        if n.is_rest { continue; }
+                        let d = (n.center.x - cx).abs() + (n.center.y - cy).abs();
+                        if d < best_d && d < 5.0 {
+                            best_d = d;
+                            best_midi = Some(n.midi);
+                        }
+                    }
+                }
+                best_midi
+            }).collect()
+        } else {
+            vec![None; noteheads.len()]
+        };
+        omr_symbols::slurs::classify_ties(&mut slurs, |idx| nh_to_midi.get(idx).copied().flatten());
+    }
+
     // 6) MusicXML Export.
     let mx_t = std::time::Instant::now();
     let musicxml = omr_musicxml::export(&score)?;
     let musicxml_ms = mx_t.elapsed().as_millis();
+
+    // 7) Optional: Detection-Dump für Annotation-Tool sammeln.
+    let detections_dump = if opts.collect_detections {
+        let part_measures = score
+            .parts
+            .first()
+            .map(|p| p.measures.as_slice())
+            .unwrap_or(&[]);
+        let page = detections::build_detection_page(
+            0, // page_index — wird im Multi-Page-Wrapper gesetzt
+            gray.width(),
+            gray.height(),
+            deskew_angle,
+            &systems,
+            &noteheads,
+            &stems,
+            &beams,
+            &bars,
+            part_measures,
+            &measure_checks,
+            &clefs,
+            &keys,
+            Some(detected_time),
+            &jump_detections,
+            &rests,
+            &slurs,
+        );
+        Some(detections::DetectionsResult {
+            schema_version: 1,
+            pages: vec![page],
+        })
+    } else {
+        None
+    };
 
     let total_ms = total_t.elapsed().as_millis();
     Ok(PipelineResult {
@@ -204,8 +935,28 @@ pub fn process_gray(gray: GrayImage, opts: &PipelineOptions) -> Result<PipelineR
             line_spacing,
             n_noteheads: noteheads.len(),
             n_stems: stems.len(),
+            n_beams: beams.len(),
+            n_bars: bars.len(),
+            n_rests: rests.len(),
+            n_measures: measure_checks.len(),
+            n_measures_exact,
+            n_measures_repaired,
+            n_measures_broken,
+            n_jump_marks: jump_detections.len(),
+            timeline_len: timeline.len(),
             deskew_angle_deg: deskew_angle,
+            doc_type: Some(match doc_class.doc_type {
+                omr_preprocessing::DocumentType::Printed => "printed",
+                omr_preprocessing::DocumentType::Handwritten => "handwritten",
+                omr_preprocessing::DocumentType::Unknown => "unknown",
+            }),
+            doc_confidence: doc_class.confidence,
+            doc_line_straightness: doc_class.line_straightness,
+            doc_line_thickness_stddev: doc_class.line_thickness_stddev,
+            doc_gray_variance: doc_class.gray_variance,
+            doc_nh_size_cv: nh_size_cv(&noteheads),
         },
+        detections: detections_dump,
     })
 }
 
@@ -222,11 +973,7 @@ fn split_into_measures(notes: Vec<omr_core::ScoreNote>, bar_xs: &[f32]) -> Vec<M
     if bar_xs.is_empty() {
         // Kein Bar → ein Measure
         let mut all = notes;
-        let mut onset = 0u32;
-        for n in all.iter_mut() {
-            n.onset = onset;
-            onset += n.duration;
-        }
+        all.sort_by(|a, b| a.center.x.partial_cmp(&b.center.x).unwrap_or(std::cmp::Ordering::Equal));
         return vec![Measure {
             number: 1,
             divisions: 4,
@@ -234,6 +981,7 @@ fn split_into_measures(notes: Vec<omr_core::ScoreNote>, bar_xs: &[f32]) -> Vec<M
             time_signature: None,
             key_signature: None,
             clef: None,
+            ..Default::default()
         }];
     }
     let mut measures = Vec::new();
@@ -245,11 +993,9 @@ fn split_into_measures(notes: Vec<omr_core::ScoreNote>, bar_xs: &[f32]) -> Vec<M
             .filter(|n| n.center.x >= prev_x && n.center.x < bar_x)
             .cloned()
             .collect();
-        let mut onset = 0u32;
-        for n in measure_notes.iter_mut() {
-            n.onset = onset;
-            onset += n.duration;
-        }
+        measure_notes.sort_by(|a, b| {
+            a.center.x.partial_cmp(&b.center.x).unwrap_or(std::cmp::Ordering::Equal)
+        });
         // Skippe leere Measures bevor der erste Notenkopf kommt (Schlüssel/Vorzeichen-Bereich).
         if !measure_notes.is_empty() || !measures.is_empty() {
             measures.push(Measure {
@@ -259,6 +1005,7 @@ fn split_into_measures(notes: Vec<omr_core::ScoreNote>, bar_xs: &[f32]) -> Vec<M
                 time_signature: None,
                 key_signature: None,
                 clef: None,
+                ..Default::default()
             });
         }
         prev_x = bar_x;
@@ -272,9 +1019,129 @@ fn split_into_measures(notes: Vec<omr_core::ScoreNote>, bar_xs: &[f32]) -> Vec<M
             time_signature: None,
             key_signature: None,
             clef: None,
+            ..Default::default()
         }];
     }
     measures
+}
+
+/// Markiert Akkorde: aufeinanderfolgende Notes deren X-Center innerhalb von
+/// `chord_x_tolerance` liegen, gehören zu einem Akkord. Die erste Note bleibt
+/// Lead (in_chord=false), alle weiteren werden auf in_chord=true gesetzt.
+/// Setzt außerdem onset so, dass in_chord-Notes denselben onset wie der Lead
+/// haben und die nächste Lead-Note onset = lead.onset + lead.duration bekommt.
+fn mark_chords_and_onsets(measures: &mut [Measure], line_spacing: f32) {
+    // Zwei NHs gehören zum gleichen Onset wenn sie horizontal näher sind als
+    // ein NH-Halbradius. Wir nutzen line_spacing als Proxy für NH-Höhe (NH-Höhe
+    // ≈ line_spacing). Tolerance = 0.4 × line_spacing ist robust gegenüber
+    // NH-Y-Shift bei breiten Akkorden, ohne benachbarte Achtel zu verschmelzen.
+    let tol = (line_spacing * 0.40).max(3.0);
+    for m in measures.iter_mut() {
+        if m.notes.is_empty() {
+            continue;
+        }
+        let mut lead_onset: u32 = 0;
+        let mut lead_x = m.notes[0].center.x;
+        let mut lead_duration = m.notes[0].duration;
+        for (i, n) in m.notes.iter_mut().enumerate() {
+            if i == 0 {
+                n.in_chord = false;
+                n.onset = 0;
+                lead_onset = 0;
+                lead_x = n.center.x;
+                lead_duration = n.duration;
+                continue;
+            }
+            if (n.center.x - lead_x).abs() <= tol {
+                // Akkord-Member
+                n.in_chord = true;
+                n.onset = lead_onset;
+                // Behalte die Lead-Duration als die "longest" — falls verschiedene
+                // Werte erkannt wurden, nehmen wir die Mehrheits-Lead aber lassen
+                // hier die Member intakt (MusicXML braucht ihre Duration).
+            } else {
+                // Neue Lead-Note: onset = vorherige Lead + ihre Duration
+                lead_onset = lead_onset.saturating_add(lead_duration);
+                n.in_chord = false;
+                n.onset = lead_onset;
+                lead_x = n.center.x;
+                lead_duration = n.duration;
+            }
+        }
+    }
+}
+
+/// Fügt Pausen-Notes in leere Measures ein. Konservativ: nur Measures ohne
+/// Notes werden modifiziert, korrekte Takte bleiben unverändert.
+///
+/// Strategie:
+/// 1. Wenn ein Rest-Glyph in der x-Bbox des Measures liegt (gleiches System),
+///    füge ihn als Pause ein.
+/// 2. Sonst: füge einen impliziten Whole-Rest hinzu (Tacet-Annahme).
+fn insert_rests_into_empty_measures(
+    measures: &mut [Measure],
+    rests: &[omr_symbols::Rest],
+    time: omr_core::TimeSignature,
+) {
+    let expected = (time.beats as u32 * 4 * 4) / time.beat_type as u32;
+    for m in measures.iter_mut() {
+        if !m.notes.is_empty() {
+            continue;
+        }
+        // Suche Rests in der x-Range dieses Measures (gleiches System)
+        let mut measure_rests: Vec<&omr_symbols::Rest> = if let Some(bbox) = m.bbox_orig {
+            rests.iter()
+                .filter(|r| {
+                    Some(r.staff_idx as u32) == m.system_idx
+                        && r.center.x as u32 >= bbox.x
+                        && (r.center.x as u32) < bbox.x + bbox.w
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
+        measure_rests.sort_by(|a, b| a.center.x.partial_cmp(&b.center.x).unwrap_or(std::cmp::Ordering::Equal));
+
+        if measure_rests.is_empty() {
+            // Implicit Whole-Rest für leere Measures (Tacet)
+            m.notes.push(omr_core::ScoreNote {
+                midi: 0,
+                step: omr_core::PitchStep::C,
+                alter: 0,
+                octave: 4,
+                duration: expected,
+                onset: 0,
+                voice: 1,
+                kind: omr_core::NoteheadKind::Whole,
+                center: omr_core::Point {
+                    x: m.bbox_orig.map(|b| b.x as f32 + b.w as f32 / 2.0).unwrap_or(0.0),
+                    y: m.bbox_orig.map(|b| b.y as f32 + b.h as f32 / 2.0).unwrap_or(0.0),
+                },
+                augmentation_dots: 0,
+                in_chord: false,
+                is_rest: true,
+            });
+        } else {
+            let mut onset = 0u32;
+            for r in measure_rests {
+                m.notes.push(omr_core::ScoreNote {
+                    midi: 0,
+                    step: omr_core::PitchStep::C,
+                    alter: 0,
+                    octave: 4,
+                    duration: r.kind.duration(),
+                    onset,
+                    voice: 1,
+                    kind: omr_core::NoteheadKind::Filled,
+                    center: r.center,
+                    augmentation_dots: 0,
+                    in_chord: false,
+                    is_rest: true,
+                });
+                onset = onset.saturating_add(r.kind.duration());
+            }
+        }
+    }
 }
 
 /// Verarbeite eine PDF-Datei (rendert ALLE Seiten und merged sie zu einem Score).
@@ -297,6 +1164,7 @@ pub fn process_pdf(path: &Path, opts: &PipelineOptions) -> Result<PipelineResult
     let mut merged_timings = Timings::default();
     let mut merged_stats = Stats::default();
     let mut next_measure = 1u32;
+    let mut merged_pages: Vec<detections::DetectionPage> = Vec::new();
 
     for (idx, img) in images.into_iter().enumerate() {
         info!(page = idx + 1, "processing page");
@@ -309,9 +1177,34 @@ pub fn process_pdf(path: &Path, opts: &PipelineOptions) -> Result<PipelineResult
         merged_stats.n_systems += r.stats.n_systems;
         merged_stats.n_noteheads += r.stats.n_noteheads;
         merged_stats.n_stems += r.stats.n_stems;
+        merged_stats.n_beams += r.stats.n_beams;
+        merged_stats.n_bars += r.stats.n_bars;
+        merged_stats.n_rests += r.stats.n_rests;
+        merged_stats.n_measures += r.stats.n_measures;
+        merged_stats.n_measures_exact += r.stats.n_measures_exact;
+        merged_stats.n_measures_repaired += r.stats.n_measures_repaired;
+        merged_stats.n_measures_broken += r.stats.n_measures_broken;
+        merged_stats.n_jump_marks += r.stats.n_jump_marks;
+        merged_stats.timeline_len += r.stats.timeline_len;
         merged_stats.line_thickness = r.stats.line_thickness;
         merged_stats.line_spacing = r.stats.line_spacing;
         merged_stats.deskew_angle_deg = r.stats.deskew_angle_deg;
+
+        // Detection-Seite mit page_index/measure_number anpassen
+        if let Some(mut det) = r.detections {
+            for page in det.pages.iter_mut() {
+                page.page_index = idx as u32;
+                for nh in page.noteheads.iter_mut() {
+                    if let Some(mn) = nh.measure_number {
+                        nh.measure_number = Some(mn + next_measure - 1);
+                    }
+                }
+                for m in page.measures.iter_mut() {
+                    m.number = m.number + next_measure - 1;
+                }
+            }
+            merged_pages.extend(det.pages.into_iter());
+        }
 
         if let Some(p) = r.score.parts.into_iter().next() {
             for mut m in p.measures.into_iter() {
@@ -324,11 +1217,20 @@ pub fn process_pdf(path: &Path, opts: &PipelineOptions) -> Result<PipelineResult
     merged_score.parts.push(merged_part);
     merged_timings.total_ms = total_t.elapsed().as_millis();
     let musicxml = omr_musicxml::export(&merged_score)?;
+    let detections_dump = if opts.collect_detections {
+        Some(detections::DetectionsResult {
+            schema_version: 1,
+            pages: merged_pages,
+        })
+    } else {
+        None
+    };
     Ok(PipelineResult {
         score: merged_score,
         musicxml,
         timings: merged_timings,
         stats: merged_stats,
+        detections: detections_dump,
     })
 }
 
@@ -336,4 +1238,26 @@ pub fn process_pdf(path: &Path, opts: &PipelineOptions) -> Result<PipelineResult
 pub fn process_pdf_pages_separately(path: &Path, opts: &PipelineOptions) -> Result<Vec<PipelineResult>> {
     let images = pdf_render::render_pages(path, 200)?;
     images.into_iter().map(|img| process_gray(img, opts)).collect()
+}
+
+/// Coefficient of Variation (Stddev/Mean) der NH-Bbox-Diagonalen.
+/// Bei printed: typisch <0.18, bei handwritten: oft >0.30.
+fn nh_size_cv(noteheads: &[omr_core::Notehead]) -> f32 {
+    if noteheads.len() < 4 {
+        return 0.0;
+    }
+    let sizes: Vec<f32> = noteheads
+        .iter()
+        .map(|nh| {
+            let dx = nh.bbox.w as f32;
+            let dy = nh.bbox.h as f32;
+            (dx * dx + dy * dy).sqrt()
+        })
+        .collect();
+    let mean = sizes.iter().sum::<f32>() / sizes.len() as f32;
+    if mean < 1.0 {
+        return 0.0;
+    }
+    let var = sizes.iter().map(|s| (s - mean).powi(2)).sum::<f32>() / sizes.len() as f32;
+    var.sqrt() / mean
 }

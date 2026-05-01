@@ -1,0 +1,49 @@
+//! Integration-Test: trainiert auf einem kleinen Subset und prüft
+//! Train-Set-Recall pro Klasse.
+
+use omr_symbols::svm_model::{confusion_matrix, per_class_f1, HogSvmClassifier, TrainConfig};
+use omr_symbols::templates::{generate_training_corpus, SymbolClass};
+
+#[test]
+fn classifier_achieves_acceptable_train_recall() {
+    // Klein gehaltener Lauf: 20 Varianten/Klasse, ~10k Iterations.
+    // Reicht um zu zeigen dass der Algorithmus konvergiert.
+    let corpus = generate_training_corpus(32, 20, 123);
+    let cfg = TrainConfig {
+        lambda: 1e-4,
+        n_iters: 10_000,
+        seed: 123,
+    };
+    let model = HogSvmClassifier::train(&corpus, &cfg);
+
+    let mut preds = Vec::with_capacity(corpus.len());
+    let mut truth = Vec::with_capacity(corpus.len());
+    for (img, label) in &corpus {
+        let (p, _) = model.predict(img);
+        preds.push(p);
+        truth.push(*label);
+    }
+    let cm = confusion_matrix(&preds, &truth);
+    let f1s = per_class_f1(&cm);
+
+    // Wir prüfen nur die für unseren Use-Case wichtigen Klassen:
+    // Coda und Segno müssen ≥ 70% Recall haben — sie sind die Hauptziele
+    // für das Reject-Pfad. NH-Klassen werden vom HoG+SVM unzuverlässig
+    // erkannt (auf Bravura-Synth-Set zu unspezifisch); klassische
+    // Hole-Detection bleibt für Filled/Open/Whole zuständig.
+    let critical_reject_classes = [
+        SymbolClass::Coda,
+        SymbolClass::Segno,
+    ];
+    let mut failed = Vec::new();
+    for (c, _p, r, _f) in &f1s {
+        if critical_reject_classes.contains(c) && *r < 0.70 {
+            failed.push((*c, *r));
+        }
+    }
+    assert!(
+        failed.is_empty(),
+        "critical reject classes with recall < 70% on training set: {failed:?}"
+    );
+    let _ = SymbolClass::ALL;
+}

@@ -5,9 +5,11 @@
 @inject UserManager<ApplicationUser> UserManager
 @inject SheetstormDbContext Db
 @inject OmrService OmrService
+@inject PartDetectionService PartDetectionService
 @inject AuthenticationStateProvider AuthState
 @inject NavigationManager Navigation
 @inject IServiceScopeFactory ScopeFactory
+@inject ILogger<OmrJobDetail> Logger
 @implements IDisposable
 
 @using System.Text.Json
@@ -197,6 +199,18 @@ else
             string.IsNullOrWhiteSpace(ConfirmInput?.Title) ? job.OriginalFileName : ConfirmInput!.Title,
             string.IsNullOrWhiteSpace(ConfirmInput?.Composer) ? null : ConfirmInput!.Composer,
             partsToCreate);
+
+        // Auto-Trigger: Pipeline-Detections für alle neu erzeugten Stimmen.
+        // Liefert die Bbox-Daten für das Annotation-/Korrektur-Tool.
+        var newPartIds = await Db.Parts
+            .Where(p => p.PieceId == pieceId)
+            .Select(p => p.Id)
+            .ToListAsync();
+        foreach (var pid in newPartIds)
+        {
+            await PartDetectionService.StartDetectionsOnPartAsync(pid, ScopeFactory, Logger);
+        }
+
         Navigation.NavigateTo($"/Bands/{slug}/pieces/{pieceId}");
     }
 

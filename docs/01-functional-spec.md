@@ -137,6 +137,19 @@ Ein Werk = ein Musikstück mit Metadaten:
 * **Bulk-Import**: Ein PDF mit allen Stimmen → Auto-Split nach
   Stimm-Erkennung, User bestätigt Zuordnung.
 * **AI-Tagging**: Genre-Vorschlag, Schwierigkeit, ähnliche Werke.
+* **Symbol-Library & Layout-Hints**: Die OMR-Engine nutzt eine Library
+  standardisierter Musiksymbole (siehe
+  `docs/18-symbol-library-and-layout.md`) und Layout-Erwartungen (Titel
+  oben, Dynamik zwischen Linien, Tempo über erstem Takt) zur robusten
+  Erkennung. Text-Bereiche (espressivo, Tempo-Marken, Liedtext) werden
+  vor der Notehead-Detection gefiltert.
+* **Layered OMR & Live-Position-Tracking**: Sheetstorm verfolgt einen
+  „Layered OMR"-Ansatz (siehe `docs/22-measure-tracking-and-reflow.md`):
+  Schon mit teilweise erkannten Noten lassen sich
+  Live-Position-Highlighting, Cross-Instrument-Sync und Reflowable
+  Layout realisieren. Die Notenerkennung selbst wird kontinuierlich
+  verbessert (Phase 1+2), aber User-Mehrwert beginnt schon bei
+  Layer 2 (Takte + Sprungmarken).
 
 ## 3. Termine
 
@@ -293,3 +306,155 @@ HID-Pedale) als Eingabe für:
 * Pro Verein konfigurierbar, ob Mitglieder PDFs herunterladen dürfen
   (Default: nein).
 * Spec: [12-visualization-and-file-strategy.md](12-visualization-and-file-strategy.md).
+
+## 13. Position-Tracking (Time-Sync)
+
+Während ein Stück gespielt wird, sollen alle Mitglieder­geräte synchron
+anzeigen, **wo genau** im Stück gerade gespielt wird.
+
+### 13.1 Anwendungsfall
+* Dirigent startet ein Stück (BLE-Sync läuft bereits, siehe Abschnitt 4).
+* Auf jedem verbundenen Gerät wandert ein **Beat-Cursor** über die
+  Stimme: Score-Modus zeigt einen schmalen blauen Strich über dem
+  aktuellen Note-Head, Bild-Modus markiert mindestens den aktuellen
+  Takt (Bounding-Box aus OMR).
+* Wechselt der Dirigent das Stück, springt der Cursor stillschweigend
+  mit; der bisherige Stück-Sync (Spec 4 / 05) bleibt unverändert.
+
+### 13.2 Sprungmarken
+Volta 1./2., `D.C.`, `D.S.`, `To Coda`, `Segno`, sowie freie
+„Probe ab Takt N"-Sprünge werden als Sprung-Anker gebroadcastet
+(Details siehe Spec 05 → *Time-Sync & Position-Tracking*). Vor
+Stück-Start wählt der Dirigent in der UI eine **Performance-Liste**
+(„mit allen Wiederholungen", „ohne Coda", …); die ist Grundlage für
+alle Sprünge.
+
+### 13.3 Bild-Modus-Realität
+Pixelgenaues Beat-Tracking über PDF-PNGs ist nicht garantiert. Wir
+zeigen das jeweils beste verfügbare Niveau:
+1. Beat-Marker, wenn OMR Beat-X-Positionen geliefert hat.
+2. Takt-Highlight, wenn Takt-Bounding-Boxen vorliegen (Default für die
+   meisten Stücke).
+3. System-Highlight, wenn nur die Akkolade bekannt ist (Fallback).
+
+### 13.4 Genauigkeits-Versprechen
+* Score-Modus: Cursor-Drift zwischen zwei Geräten ≤ 100 ms nach
+  ~3 s Einschwingen.
+* Bild-Modus, Stufe Takt-Highlight: visuell synchron auf Taktebene
+  (1 Beat Toleranz).
+* iOS via SignalR-Fallback: 300–800 ms Drift; Cursor wirkt minimal
+  „nachlaufend", aber konsistent.
+
+## 14. Score-Playback & Übungs-Modus
+
+Optionaler Audio-Output, der die geöffnete Stimme (und beliebig viele
+weitere Stimmen) abspielen kann. Nur im **Score-Modus** verfügbar
+(setzt MusicXML voraus).
+
+### 14.1 User-Stories
+
+* **U1 – Probe daheim mit Begleitung.**  Als Klarinettist will ich
+  meine Stimme auf stumm schalten und nur die anderen Stimmen hören,
+  damit ich dazu spielen kann.
+* **U2 – Stelle einüben.**  Als Posaunist will ich Takt 17–24 in einer
+  Endlosschleife abspielen, halbes Tempo, damit ich eine schwierige
+  Passage langsam üben kann.
+* **U3 – Wie klingt's?**  Als Dirigent will ich einer Sektion vorab
+  vorspielen, wie eine bestimmte Stelle klingen soll.
+* **U4 – Solo-Referenz.**  Als Tubist will ich nur meine Stimme als
+  Referenz hören, weil ich unsicher bei einem Intervall bin.
+* **U5 – Synchron-Playback in der Probe (Phase 2).**  Dirigent
+  startet Playback, alle Geräte spielen synchron mit gleichem Tempo
+  über das BLE-Sync-Signal — als Backup für „die Hälfte hat heute
+  vergessen, ihre Noten mitzunehmen".
+
+### 14.2 UI-Elemente
+
+In der `PartViewer.razor` erscheint im Score-Modus eine zusätzliche
+**Playback-Leiste** (einklappbar, Default zugeklappt um Bühnen-UI
+nicht zu überfrachten):
+
+| Element | Verhalten |
+|---|---|
+| ▶ / ⏸ Play/Pause | Startet/pausiert lokales Playback ab aktueller Cursor-Position. |
+| ⏹ Stop | Stoppt + setzt Cursor auf Stückanfang (oder Loop-Start, wenn aktiv). |
+| Position-Slider | Takt-Nummer + Beat. Klick auf Score positioniert ebenfalls. |
+| Stimmen-Panel | Liste **aller** Stimmen des Stücks, die eigene ist hervorgehoben und initial aktiv. Checkbox je Stimme: an/aus. Lautstärke-Slider je Stimme (0–100 %, Default 80 %). |
+| Übungs-Switch | Drei Modi: *Voll* (alle aktiv), *Mute meine* (eigene aus, Rest an), *Solo meine*. |
+| Loop-Markierung | Zwei Marker A/B auf Position-Slider; Loop ein/aus. Klick-Drag im Score setzt sie auch. |
+| Tempo-Slider | 50–150 % vom Original-BPM. Zwei Sub-Modi: *Lokal* (nur dieses Gerät, übersteuert BLE-Sync) und *Synced* (BLE-Anchor-BPM gilt, Slider ist gesperrt). |
+| Master-Volume | Eigener Mix-Bus, klar getrennt vom Metronom-Volume. |
+
+### 14.3 Sample-Bibliotheks-Strategie
+
+Wir mischen frei verfügbare Soundfonts (für die meisten User
+ausreichend) mit optional zukaufbaren Premium-Samples (Phase 2).
+
+#### Frei verfügbare Quellen (Phase 1)
+
+| Quelle | Lizenz | Stärken | Schwächen |
+|---|---|---|---|
+| **MuseScore General (MS Basic)** | MIT | Sehr breit, Brass + Wood gut belegt, klein (~37 MB SF3) | Brass etwas dünn, kein Vibrato |
+| **FluidR3 GM** | MIT | Klassiker, ~150 MB, alle GM-Programme | Älter, Brass „MIDI-typisch" |
+| **Sonatina Symphonic Orchestra** | CC-BY 3.0 | Orchester-Solo-Instrumente einzeln, sehr gut für Trompete/Posaune | Groß (~500 MB), nur SFZ |
+| **VSCO 2 CE (Community Edition)** | CC0 | Gute Holzbläser-Solos | Brass spärlich |
+| **Versilian Community Sample Library (VCSL)** | CC0 | Nische Instrumente (Flügelhorn, Tenorhorn, Bariton) | Loose, inkonsistente Loudness |
+
+**Empfohlene Default-Kombination** für Sheetstorm-Vereins­besetzungen
+(Blasmusik, nicht Sinfonik):
+
+* **MuseScore General** als Basis-SF3 für *jede* Stimme (kleiner
+  Download, alle Patches da).
+* Bei Bedarf **VCSL-Patches** drüber für Vereins-typische
+  Instrumente (Flügelhorn, Tenorhorn, Bariton, Es-Tuba), die in GM
+  schwach belegt sind.
+* **VSCO 2 CE** für Klarinette/Flöte/Oboe-Solo, wenn der User
+  „bessere Holzbläser" optional aktiviert.
+
+Realistische Einschätzung: Trompete, Posaune, Klarinette, Tuba, Flöte
+sind mit MuseScore General + VCSL **brauchbar für Übung** —
+**nicht** für „klingt wie eine echte Kapelle". Es ist hörbar Sample,
+aber Tonhöhe und Rhythmus stimmen, und das ist der Zweck.
+
+#### Gekaufte Samples (Phase 2)
+
+* Pro Verein kaufbares **Premium-Pack** (z.B. „Bavarian Brass HQ"),
+  als Sheetstorm-eigenes Bundle-Format (verschlüsselte SFZ + Manifest).
+* **License-Modell:** per-Verein-Lizenz (nicht per-User), Aktivierung
+  über License-Token im Backend, Samples werden pro Mitglied lokal
+  entschlüsselt und verfallen mit Mitgliedschafts­ende
+  (analog Conductor-Key-Lifecycle, Spec 05).
+* DRM bewusst leichtgewichtig — Samples sind eh anderswo erhältlich;
+  Schutz dient nur „kein 1-Klick-Export".
+
+### 14.4 Übungs-Modus-Workflow
+
+1. User öffnet seine Stimme im Score-Modus.
+2. Klappt die Playback-Leiste auf, drückt **Mute meine**.
+3. Setzt Loop-Marker A/B per Klick auf Takt 17 und Takt 24, aktiviert
+   Loop.
+4. Setzt Tempo-Slider auf *Lokal: 70 %*.
+5. Drückt ▶. Alle anderen Stimmen spielen Takt 17–24 in 70 %, looped,
+   die eigene Stimme bleibt stumm.
+6. Übt mit. Beim Klick auf einen anderen Takt im Score springt der
+   Cursor und Loop bleibt aktiv (oder wird gelöscht, je nach
+   Einstellung „Klick deaktiviert Loop": ja/nein).
+
+### 14.5 Zusammenspiel mit BLE-Sync
+
+* In **lokaler Übungs-Sitzung** ohne aktives Event: Tempo + Position
+  sind komplett lokal.
+* In **aktivem Event** mit BLE-Sync: Default ist *Synced* — Tempo +
+  Position kommen vom Conductor (Position-Anchor, Spec 05). Der User
+  kann auf *Lokal* umschalten, dann ist sein Playback frei und
+  reagiert nicht mehr auf Anker; Cursor zeigt aber weiterhin (in
+  Grau) die Conductor-Position als Sekundär-Indikator.
+* **Mute meine** funktioniert in beiden Modi.
+
+### 14.6 Beschränkungen
+
+* Phase 1: Mono-Mix pro Stimme, keine Raum-Hall-Simulation.
+* Phase 1: kein Schlagzeug-Sample-Mapping (zu spezifisch); Schlagzeug-
+  Stimmen werden stumm gerendert mit Hinweis.
+* Phase 1: max. 8 gleichzeitig aktive Stimmen (CPU/Latenz-Budget).
+* Detaillierte technische Architektur siehe [17-playback-and-sync.md](17-playback-and-sync.md).

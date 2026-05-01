@@ -77,6 +77,7 @@ builder.Services.AddScoped<SetListService>();
 builder.Services.AddScoped<ConductorSyncService>();
 builder.Services.AddScoped<OfflineService>();
 builder.Services.AddScoped<OmrService>();
+builder.Services.AddScoped<PartDetectionService>();
 builder.Services.AddScoped<AnnotationService>();
 builder.Services.AddScoped<ShiftService>();
 builder.Services.AddScoped<EventOrgaService>();
@@ -133,7 +134,11 @@ builder.Services.AddScoped<ActiveBandState>();
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
+    .AddInteractiveServerComponents(opt =>
+    {
+        // In Development: detailed errors damit Server-Side-Crashes als Stack im Browser sichtbar sind
+        opt.DetailedErrors = builder.Environment.IsDevelopment();
+    });
 
 builder.Services.AddOutputCache();
 
@@ -388,6 +393,164 @@ app.MapPost("/api/offline/{pieceId:guid}/toggle", async (
     if (u is null) return Results.Unauthorized();
     await svc.SetAsync(u.Id, pieceId, offline, ct);
     return Results.NoContent();
+}).RequireAuthorization();
+
+// OMR-Detections + Korrektur-Annotations (Annotation-Tool)
+//
+// Berechtigungs-Modell: lesen + schreiben darf Admin | Owner | Dirigent
+// (= "Notenverwalter") der Band, der das Piece gehört.
+static async Task<(bool ok, Microsoft.AspNetCore.Http.IResult? err, Sheetstorm.Domain.Music.Part part, Guid userId)>
+    AuthorizePartManagerAsync(
+        Guid partId,
+        System.Security.Claims.ClaimsPrincipal user,
+        Microsoft.AspNetCore.Identity.UserManager<Sheetstorm.Infrastructure.Persistence.ApplicationUser> userManager,
+        Sheetstorm.Infrastructure.Persistence.SheetstormDbContext db,
+        CancellationToken ct)
+{
+    var u = await userManager.GetUserAsync(user);
+    if (u is null) return (false, Results.Unauthorized(), null!, Guid.Empty);
+    var part = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+        .FirstOrDefaultAsync(db.Parts.Where(p => p.Id == partId), ct);
+    if (part is null) return (false, Results.NotFound(), null!, u.Id);
+    var piece = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+        .FirstOrDefaultAsync(db.Pieces.Where(p => p.Id == part.PieceId), ct);
+    if (piece is null) return (false, Results.NotFound(), null!, u.Id);
+    var membership = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+        .FirstOrDefaultAsync(db.Memberships.Where(m => m.BandId == piece.BandId && m.UserId == u.Id), ct);
+    if (membership is null) return (false, Results.Forbid(), null!, u.Id);
+    var allowed = (membership.Roles & (Sheetstorm.Domain.Identity.BandRole.Dirigent | Sheetstorm.Domain.Identity.BandRole.Admin | Sheetstorm.Domain.Identity.BandRole.Owner)) != 0;
+    if (!allowed) return (false, Results.Forbid(), null!, u.Id);
+    return (true, null, part, u.Id);
+}
+
+app.MapGet("/api/parts/{partId:guid}/detections", async (
+    Guid partId,
+    System.Security.Claims.ClaimsPrincipal user,
+    Microsoft.AspNetCore.Identity.UserManager<Sheetstorm.Infrastructure.Persistence.ApplicationUser> userManager,
+    Sheetstorm.Infrastructure.Persistence.SheetstormDbContext db,
+    Sheetstorm.Web.Application.PartDetectionService svc,
+    CancellationToken ct) =>
+{
+    var auth = await AuthorizePartManagerAsync(partId, user, userManager, db, ct);
+    if (!auth.ok) return auth.err!;
+    var json = await svc.GetDetectionsJsonAsync(partId, ct);
+    if (json is null) return Results.NotFound();
+    return Results.Content(json, "application/json; charset=utf-8");
+}).RequireAuthorization();
+
+app.MapPost("/api/parts/{partId:guid}/detections/run", async (
+    Guid partId,
+    System.Security.Claims.ClaimsPrincipal user,
+    Microsoft.AspNetCore.Identity.UserManager<Sheetstorm.Infrastructure.Persistence.ApplicationUser> userManager,
+    Sheetstorm.Infrastructure.Persistence.SheetstormDbContext db,
+    Sheetstorm.Web.Application.PartDetectionService svc,
+    IServiceScopeFactory scopeFactory,
+    ILoggerFactory loggerFactory,
+    CancellationToken ct) =>
+{
+    var auth = await AuthorizePartManagerAsync(partId, user, userManager, db, ct);
+    if (!auth.ok) return auth.err!;
+    if (svc.IsDetectionsRunning(partId))
+        return Results.Json(new { running = true });
+    await svc.StartDetectionsOnPartAsync(partId, scopeFactory, loggerFactory.CreateLogger("DetectionsRun"));
+    return Results.Json(new { started = true });
+}).RequireAuthorization();
+
+app.MapGet("/api/parts/{partId:guid}/detections/status", async (
+    Guid partId,
+    System.Security.Claims.ClaimsPrincipal user,
+    Microsoft.AspNetCore.Identity.UserManager<Sheetstorm.Infrastructure.Persistence.ApplicationUser> userManager,
+    Sheetstorm.Infrastructure.Persistence.SheetstormDbContext db,
+    Sheetstorm.Web.Application.PartDetectionService svc,
+    CancellationToken ct) =>
+{
+    var auth = await AuthorizePartManagerAsync(partId, user, userManager, db, ct);
+    if (!auth.ok) return auth.err!;
+    var has = await svc.HasDetectionsAsync(partId, ct);
+    return Results.Json(new
+    {
+        hasDetections = has,
+        running = svc.IsDetectionsRunning(partId),
+        failed = svc.LastDetectionsFailed(partId),
+    });
+}).RequireAuthorization();
+
+app.MapGet("/api/parts/{partId:guid}/page-annotations", async (
+    Guid partId,
+    int? pageIndex,
+    System.Security.Claims.ClaimsPrincipal user,
+    Microsoft.AspNetCore.Identity.UserManager<Sheetstorm.Infrastructure.Persistence.ApplicationUser> userManager,
+    Sheetstorm.Infrastructure.Persistence.SheetstormDbContext db,
+    Sheetstorm.Web.Application.PartDetectionService svc,
+    CancellationToken ct) =>
+{
+    var auth = await AuthorizePartManagerAsync(partId, user, userManager, db, ct);
+    if (!auth.ok) return auth.err!;
+    var anns = await svc.GetAnnotationsAsync(partId, pageIndex, ct);
+    return Results.Json(anns.Select(a => new
+    {
+        id = a.Id,
+        pageIndex = a.PageIndex,
+        bbox = new { x = a.BboxX, y = a.BboxY, w = a.BboxW, h = a.BboxH },
+        kind = (int)a.Kind,
+        kindName = a.Kind.ToString(),
+        correctionJson = a.CorrectionJson,
+        comment = a.Comment,
+        createdAt = a.CreatedAt,
+        updatedAt = a.UpdatedAt,
+        createdByUserId = a.CreatedByUserId,
+    }));
+}).RequireAuthorization();
+
+app.MapPost("/api/parts/{partId:guid}/page-annotations", async (
+    Guid partId,
+    Sheetstorm.Web.PartAnnotationDto dto,
+    System.Security.Claims.ClaimsPrincipal user,
+    Microsoft.AspNetCore.Identity.UserManager<Sheetstorm.Infrastructure.Persistence.ApplicationUser> userManager,
+    Sheetstorm.Infrastructure.Persistence.SheetstormDbContext db,
+    Sheetstorm.Web.Application.PartDetectionService svc,
+    CancellationToken ct) =>
+{
+    var auth = await AuthorizePartManagerAsync(partId, user, userManager, db, ct);
+    if (!auth.ok) return auth.err!;
+    if (!Enum.IsDefined(typeof(Sheetstorm.Domain.Music.PartAnnotationKind), dto.Kind))
+        return Results.BadRequest(new { error = "invalid kind" });
+    var ann = await svc.AddAnnotationAsync(
+        partId, auth.userId,
+        dto.PageIndex, dto.X, dto.Y, dto.W, dto.H,
+        (Sheetstorm.Domain.Music.PartAnnotationKind)dto.Kind,
+        dto.CorrectionJson, dto.Comment, ct);
+    return Results.Json(new { id = ann.Id });
+}).RequireAuthorization();
+
+app.MapPut("/api/parts/{partId:guid}/page-annotations/{annotationId:guid}", async (
+    Guid partId, Guid annotationId,
+    Sheetstorm.Web.PartAnnotationDto dto,
+    System.Security.Claims.ClaimsPrincipal user,
+    Microsoft.AspNetCore.Identity.UserManager<Sheetstorm.Infrastructure.Persistence.ApplicationUser> userManager,
+    Sheetstorm.Infrastructure.Persistence.SheetstormDbContext db,
+    Sheetstorm.Web.Application.PartDetectionService svc,
+    CancellationToken ct) =>
+{
+    var auth = await AuthorizePartManagerAsync(partId, user, userManager, db, ct);
+    if (!auth.ok) return auth.err!;
+    var ok = await svc.UpdateAnnotationAsync(annotationId, auth.userId,
+        (Sheetstorm.Domain.Music.PartAnnotationKind)dto.Kind, dto.CorrectionJson, dto.Comment, ct);
+    return ok ? Results.NoContent() : Results.NotFound();
+}).RequireAuthorization();
+
+app.MapDelete("/api/parts/{partId:guid}/page-annotations/{annotationId:guid}", async (
+    Guid partId, Guid annotationId,
+    System.Security.Claims.ClaimsPrincipal user,
+    Microsoft.AspNetCore.Identity.UserManager<Sheetstorm.Infrastructure.Persistence.ApplicationUser> userManager,
+    Sheetstorm.Infrastructure.Persistence.SheetstormDbContext db,
+    Sheetstorm.Web.Application.PartDetectionService svc,
+    CancellationToken ct) =>
+{
+    var auth = await AuthorizePartManagerAsync(partId, user, userManager, db, ct);
+    if (!auth.ok) return auth.err!;
+    var ok = await svc.DeleteAnnotationAsync(annotationId, ct);
+    return ok ? Results.NoContent() : Results.NotFound();
 }).RequireAuthorization();
 
 app.MapDefaultEndpoints();

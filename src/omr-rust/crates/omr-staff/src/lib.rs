@@ -19,7 +19,9 @@ use rayon::prelude::*;
 use tracing::{debug, info};
 
 pub mod removal;
+pub mod unet;
 pub use removal::remove_staff;
+pub use unet::{try_remove_staff_unet, UnetStaffRemover};
 
 /// Detect staff systems in a binary image.
 pub fn detect_systems(bin: &Binary) -> Vec<StaffSystem> {
@@ -34,14 +36,34 @@ pub fn detect_systems(bin: &Binary) -> Vec<StaffSystem> {
         return vec![];
     }
 
-    let candidates = find_line_candidates(bin, &stats);
-    debug!(n = candidates.len(), "candidate line rows");
+    // Erster Versuch mit konservativer Threshold (40% der Bildbreite).
+    let mut systems = detect_systems_with_threshold(bin, &stats, 0.4);
 
+    // Retry mit niedrigerer Threshold falls nichts gefunden — typisch bei
+    // dünnen/unterbrochenen Stafflinien (Doppelseiten-Scans, schlechter
+    // Druck, fragmentierte Linien). 0.25 erlaubt Linien die nur 25% der
+    // Bildbreite sind, was bei breiten Bildern (wide aspect, mehrere
+    // Stimmen) realistisch ist.
+    if systems.is_empty() {
+        systems = detect_systems_with_threshold(bin, &stats, 0.25);
+    }
+
+    // Letzte-Resort-Threshold (15%): sehr sparse content (einzelne kurze
+    // Zeilen, Soprano-only Bach-Choräle, Verovio-rendered einzelne Stimmen
+    // mit dünnen Lines). Akzeptiert kürzere Linien, hat aber höheres FP-Risiko.
+    if systems.is_empty() {
+        systems = detect_systems_with_threshold(bin, &stats, 0.15);
+    }
+    systems
+}
+
+fn detect_systems_with_threshold(bin: &Binary, stats: &RunStats, pct: f32) -> Vec<StaffSystem> {
+    let candidates = find_line_candidates(bin, stats, pct);
+    debug!(n = candidates.len(), pct, "candidate line rows");
     let lines: Vec<StaffLine> = candidates
         .par_iter()
         .map(|&y0| trace_stable_path(bin, y0, stats.line_thickness))
         .collect();
-
     group_into_systems(lines, stats.line_spacing as f32, stats.line_thickness as f32)
 }
 
@@ -85,6 +107,11 @@ fn analyze_runs(bin: &Binary) -> RunStats {
 
     let lo = (line_thickness * 2).max(4) as usize;
     let hi = 60.min(white_hist.len() - 1);
+    if lo > hi {
+        // Bild zu mager (leer/nahe leer) — keine sinnvollen Run-Stats. Gib
+        // safe Defaults zurück damit detect_systems sauber 0 Systeme liefert.
+        return RunStats { line_thickness: 0, line_spacing: 0 };
+    }
     let line_spacing = white_hist[lo..=hi]
         .iter()
         .enumerate()
@@ -96,9 +123,9 @@ fn analyze_runs(bin: &Binary) -> RunStats {
     RunStats { line_thickness, line_spacing }
 }
 
-fn find_line_candidates(bin: &Binary, stats: &RunStats) -> Vec<u32> {
+fn find_line_candidates(bin: &Binary, stats: &RunStats, pct: f32) -> Vec<u32> {
     let dens = bin.row_density();
-    let threshold = (bin.w as f32 * 0.4) as u32;
+    let threshold = (bin.w as f32 * pct) as u32;
     let mut peaks = Vec::new();
     let mut last = 0u32;
     for (y, &d) in dens.iter().enumerate() {

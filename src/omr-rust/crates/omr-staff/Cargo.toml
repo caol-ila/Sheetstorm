@@ -11,3 +11,12 @@ imageproc.workspace = true
 ndarray.workspace = true
 rayon.workspace = true
 tracing.workspace = true
+anyhow.workspace = true
+tract-onnx = { version = "0.21", optional = true }
+
+[features]
+default = []
+# U-Net-basiertes Staff-Removal via ONNX-Inference (tract-onnx, pure Rust).
+# Aktiviere mit `--features unet`. Ohne dieses Feature greift die Pipeline
+# automatisch auf das klassische RLE-Removal zurück.
+unet = ["dep:tract-onnx"]

@@ -2,6 +2,7 @@
 @inject Sheetstorm.Web.Application.PdfPageImageService PageImagesService
 @inject Sheetstorm.Web.Application.PieceService PieceService
 @inject Sheetstorm.Web.Application.OmrService OmrService
+@inject Sheetstorm.Web.Application.PartDetectionService PartDetectionService
 @inject Sheetstorm.Web.Application.IOmrEngine OmrEngine
 @inject IServiceScopeFactory ScopeFactory
 @inject ILoggerFactory LoggerFactory
@@ -240,6 +241,10 @@ else
         try
         {
             await OmrService.StartAudiverisOnPartAsync(Part.Id, ScopeFactory, LoggerFactory.CreateLogger("Audiveris"));
+            // Parallel: Detection-Run für das Annotation-Tool starten.
+            // OMR-Pipeline und Detection-Run laufen unabhängig — der Detection-Run
+            // erzeugt den JSON-Bbox-Dump für die "Erkennung prüfen / korrigieren"-Page.
+            await PartDetectionService.StartDetectionsOnPartAsync(Part.Id, ScopeFactory, LoggerFactory.CreateLogger("Detections"));
             // Polling im Hintergrund
             pollCts?.Cancel();
             pollCts = new System.Threading.CancellationTokenSource();

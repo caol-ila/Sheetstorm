@@ -121,3 +121,16 @@ seeded Test-User.
    Lock-In; Polling-Fallback ist immer da.
 6. **Hangfire statt selbst­gebautes Scheduler** — ausgereift,
    Dashboard, Recurring Jobs, retry-policy.
+
+## Audio / Playback (siehe Spec 17)
+
+| Bereich | Wahl | Begründung |
+|---|---|---|
+| Audio-Engine | Web Audio API direkt (nativer `AudioContext` + `AudioWorklet`) | Niedrigste Latenz, keine Framework-Schicht. Bestehender `metronome.js` nutzt bereits Lookahead-Pattern. |
+| Sample-Player | **`smplr`** (BSP, MIT-Lizenz) als Primär-Wahl | Aktiv gepflegter SF2/SFZ-Loader für Browser, lazy chunk-loading, polyphon, kleines Bundle (~30 KB). |
+| Fallback-Player | `soundfont-player` | Wenn `smplr` zu kantig wird; älter, aber stabil; nur SF2. |
+| **Bewusst nicht:** Tone.js | — | Großer Footprint, primär Sequencer-zentriert; wir brauchen einen reinen Sample-Renderer mit eigener Position-Logik (kommt aus BLE-Sync). |
+| SF2-Parser | `sf2-parser` (npm, MIT) | Falls wir Patches selektiv extrahieren wollen. |
+| SFZ-Parser | `@sfz-tools/core` | Für VCSL/Sonatina-Patches. |
+| MusicXML → Note-Events | OSMD (`opensheetmusicdisplay`) liefert bereits `IGraphicalNote` mit Timing; wir konvertieren in eigene Event-Liste pro Stimme. | Vermeidet zweiten XML-Parser. |
+| Soundfont-Hosting | Eigener S3-Bucket (MinIO in Dev), CDN in Prod. SF3 statt SF2 wegen ~3× kleinerer Größe. | Lizenz-Footer im UI „Sounds: MuseScore General (MIT)". |

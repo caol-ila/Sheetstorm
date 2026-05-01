@@ -21,6 +21,13 @@ public interface IOmrEngine
     /// Liefert null wenn die Engine das nicht unterstuetzt (z.B. Stub).
     /// </summary>
     Task<string?> RecognizeRawMusicXmlAsync(string blobKey, string originalFileName, CancellationToken ct = default) => Task.FromResult<string?>(null);
+
+    /// <summary>
+    /// Detection-Bboxes für Annotation-/Trainings-Tool. Schema:
+    /// <c>omr_pipeline::detections::DetectionsResult</c> (siehe Rust-Code).
+    /// Liefert <c>null</c> wenn die Engine das nicht unterstützt (Stub, Audiveris).
+    /// </summary>
+    Task<string?> RecognizeDetectionsJsonAsync(string blobKey, string originalFileName, CancellationToken ct = default) => Task.FromResult<string?>(null);
 }
 
 /// <summary>

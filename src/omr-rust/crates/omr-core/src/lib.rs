@@ -116,6 +116,19 @@ pub struct ScoreNote {
     pub voice: u8,
     pub kind: NoteheadKind,
     pub center: Point<f32>,
+    /// Anzahl Punktierungen (0 = keine, 1 = einfach punktiert ×1.5,
+    /// 2 = doppelt punktiert ×1.75). Default 0.
+    #[serde(default)]
+    pub augmentation_dots: u8,
+    /// True wenn diese Note Teil eines Akkords ist und NICHT die "lead"-Note —
+    /// d.h. mehrere NHs liegen am gleichen Onset und sollen in der MusicXML als
+    /// `<chord/>` markiert werden. Plausibility-Σ ignoriert solche Notes.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub in_chord: bool,
+    /// True wenn dieses Element eine Pause statt einer Note ist. MusicXML
+    /// schreibt dann `<rest/>` statt `<pitch>`. Pitch-Felder werden ignoriert.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub is_rest: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -135,7 +148,7 @@ impl PitchStep {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Measure {
     pub number: u32,
     pub divisions: u32,
@@ -143,6 +156,45 @@ pub struct Measure {
     pub time_signature: Option<TimeSignature>,
     pub key_signature: Option<KeySignature>,
     pub clef: Option<Clef>,
+    /// Bbox des Takts im Original-Bild (ungerotated, post-deskew).
+    /// Optional weil ältere Pipeline-Pfade (z.B. Audiveris-Sidecar) das
+    /// nicht liefern.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bbox_orig: Option<Rect>,
+    /// Index des StaffSystems (Zeile), in dem der Takt liegt.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub system_idx: Option<u32>,
+    /// Sprungmarken innerhalb dieses Taktes.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub jump_marks: Vec<JumpMark>,
+}
+
+/// Sprungmarken, die das Performance-Verhalten eines Taktes beeinflussen.
+/// Spec 22 (Layered OMR + Cross-Instrument-Sync) basiert auf zuverlässiger
+/// Detection dieser Marken — selbst wenn die einzelnen Noten unvollständig
+/// erkannt sind.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum JumpMark {
+    /// Volta-Klammer ("1.", "2.", "3.") — wiederholungs-spezifischer Pfad.
+    Volta { number: u8 },
+    /// Da Capo (von vorne wiederholen).
+    DaCapo,
+    /// D.C. al Fine (von vorne bis Fine).
+    DcAlFine,
+    /// D.S. al Coda (zum Segno und weiter zur Coda).
+    DsAlCoda,
+    /// D.S. al Fine (zum Segno und weiter bis Fine).
+    DsAlFine,
+    /// Coda-Marker — Sprungziel.
+    Coda,
+    /// Segno-Marker — Sprungquelle.
+    Segno,
+    /// Fine — Endpunkt nach D.C./D.S. al Fine.
+    Fine,
+    /// Wiederholungs-Anfang ||:
+    RepeatStart,
+    /// Wiederholungs-Ende :||
+    RepeatEnd,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -184,8 +236,218 @@ pub struct Score {
     pub parts: Vec<Part>,
 }
 
+/// Performance-Timeline: linearisiert die Spielreihenfolge eines Stücks
+/// unter Beachtung aller Sprungmarken (Volta, D.C., D.S., Coda, Repeat).
+///
+/// Der `linear_index` ist instrumenten-unabhängig — d.h. Klar1 und Trompete
+/// liefern dieselbe Timeline, auch wenn ihre measures unterschiedlich
+/// umgebrochen sind. Damit kann man zwischen Stimmen sync-en (Spec 22).
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct PerformanceTimeline {
+    /// Linearisierte Reihenfolge der `measure.number`-Werte in Spielreihenfolge.
+    /// Bei Wiederholungen erscheint dieselbe Nummer mehrfach.
+    pub linear_order: Vec<u32>,
+}
+
+impl PerformanceTimeline {
+    /// Berechnet die Timeline aus einem Part — folgt allen Sprungmarken.
+    ///
+    /// Implementierung: linearer Walk durch die Measures mit Tracking des
+    /// "Jump-State" (Repeat-Start, taken-Repeats, taken-Backjumps).
+    /// Pro Repeat/Volta-/D.C.-/D.S.-Marke wird der Sprung MAX. EINMAL ausgeführt
+    /// (sonst Endlos-Schleife).
+    pub fn from_part(part: &Part) -> Self {
+        let mut order = Vec::with_capacity(part.measures.len() * 2);
+        let mut i = 0usize;
+        let mut repeat_start: Option<usize> = None;
+        let mut in_repeat_pass = false; // Sind wir gerade in der zweiten (oder n-ten) Repeat-Iteration?
+        let mut taken_repeat_at = std::collections::HashSet::new();
+        let mut jumped_back = std::collections::HashSet::new();
+        // Schutz vor Endlos-Schleife: maximal 4× #measures Schritte
+        let max_steps = part.measures.len() * 4 + 10;
+        let mut steps = 0usize;
+
+        while i < part.measures.len() {
+            steps += 1;
+            if steps > max_steps {
+                break;
+            }
+            let m = &part.measures[i];
+
+            let is_volta1 = m.jump_marks.iter().any(|j| matches!(j, JumpMark::Volta { number: 1 }));
+            let is_volta2 = m.jump_marks.iter().any(|j| matches!(j, JumpMark::Volta { number: 2 }));
+
+            // Volta-1 wird beim WIEDERHOLUNGS-Durchlauf übersprungen
+            if is_volta1 && in_repeat_pass {
+                // Springe vorwärts bis zum nächsten Volta-2-Marker (oder Ende)
+                let mut j = i;
+                while j < part.measures.len() {
+                    let mm = &part.measures[j];
+                    if mm.jump_marks.iter().any(|jm| matches!(jm, JumpMark::Volta { number: 2 })) {
+                        break;
+                    }
+                    j += 1;
+                }
+                if j == i { j += 1; } // Sicherheit: mindestens 1 Schritt
+                i = j;
+                continue;
+            }
+
+            order.push(m.number);
+
+            // Repeat-Start merken (vor Repeat-End-Behandlung damit selbe Marke beides kann)
+            if m.jump_marks.contains(&JumpMark::RepeatStart) {
+                repeat_start = Some(i);
+            }
+            // Repeat-Ende: zurück zum Start (nur einmal pro Repeat-Pair)
+            if m.jump_marks.contains(&JumpMark::RepeatEnd) {
+                let start = repeat_start.unwrap_or(0);
+                if !taken_repeat_at.contains(&i) {
+                    taken_repeat_at.insert(i);
+                    in_repeat_pass = true;
+                    i = start;
+                    continue;
+                } else {
+                    // Repeat schon genommen → weiter, NICHT zurück
+                    in_repeat_pass = false;
+                    repeat_start = None;
+                }
+            }
+            // D.C. / D.S.: Sprung zurück (max. einmal pro Quell-Index)
+            if !jumped_back.contains(&i) {
+                if m.jump_marks.contains(&JumpMark::DaCapo)
+                    || m.jump_marks.contains(&JumpMark::DcAlFine)
+                {
+                    jumped_back.insert(i);
+                    i = 0;
+                    in_repeat_pass = true; // nach DC: wir sind im "Wiederhol"-Modus
+                    continue;
+                }
+                if let Some(segno_idx) = part.measures.iter().position(|mm|
+                    mm.jump_marks.contains(&JumpMark::Segno))
+                {
+                    if m.jump_marks.contains(&JumpMark::DsAlCoda)
+                        || m.jump_marks.contains(&JumpMark::DsAlFine)
+                    {
+                        jumped_back.insert(i);
+                        i = segno_idx;
+                        in_repeat_pass = true;
+                        continue;
+                    }
+                }
+            }
+            // Fine nach D.C./D.S. al Fine: Stop
+            if m.jump_marks.contains(&JumpMark::Fine)
+                && jumped_back.iter().any(|&idx| {
+                    let mm = &part.measures[idx];
+                    mm.jump_marks.contains(&JumpMark::DcAlFine)
+                        || mm.jump_marks.contains(&JumpMark::DsAlFine)
+                })
+            {
+                break;
+            }
+            i += 1;
+        }
+        Self { linear_order: order }
+    }
+
+    /// Anzahl Takte in der linearisierten Performance.
+    pub fn len(&self) -> usize {
+        self.linear_order.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.linear_order.is_empty()
+    }
+}
+
+#[cfg(test)]
+mod timeline_tests {
+    use super::*;
+
+    fn measure(number: u32, marks: &[JumpMark]) -> Measure {
+        Measure {
+            number,
+            divisions: 4,
+            jump_marks: marks.to_vec(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn timeline_no_marks_is_linear() {
+        let part = Part {
+            id: "P1".into(),
+            name: "T".into(),
+            measures: vec![measure(1, &[]), measure(2, &[]), measure(3, &[])],
+        };
+        let t = PerformanceTimeline::from_part(&part);
+        assert_eq!(t.linear_order, vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn timeline_simple_repeat() {
+        // |: 1 2 3 :|  → 1,2,3,1,2,3
+        let part = Part {
+            id: "P1".into(),
+            name: "T".into(),
+            measures: vec![
+                measure(1, &[JumpMark::RepeatStart]),
+                measure(2, &[]),
+                measure(3, &[JumpMark::RepeatEnd]),
+            ],
+        };
+        let t = PerformanceTimeline::from_part(&part);
+        assert_eq!(t.linear_order, vec![1, 2, 3, 1, 2, 3]);
+    }
+
+    #[test]
+    fn timeline_volta_skips_volta1_on_repeat() {
+        // |: 1 2 [Volta1: 3] [Volta2: 4] :|  → 1,2,3,1,2,4
+        // Hier: Volta-1 = m3 (mit RepeatEnd), Volta-2 = m4
+        let part = Part {
+            id: "P1".into(),
+            name: "T".into(),
+            measures: vec![
+                measure(1, &[JumpMark::RepeatStart]),
+                measure(2, &[]),
+                measure(3, &[JumpMark::Volta { number: 1 }, JumpMark::RepeatEnd]),
+                measure(4, &[JumpMark::Volta { number: 2 }]),
+            ],
+        };
+        let t = PerformanceTimeline::from_part(&part);
+        // Erste Iteration: 1,2,3 (mit Volta-1 + RepeatEnd → zurück zu 1)
+        // Zweite Iteration: 1,2 (Volta-1 überspringen) → 4
+        assert_eq!(t.linear_order, vec![1, 2, 3, 1, 2, 4]);
+    }
+
+    #[test]
+    fn timeline_da_capo_returns_to_start() {
+        // 1 2 3 [D.C.] → 1,2,3,1,2,3
+        let part = Part {
+            id: "P1".into(),
+            name: "T".into(),
+            measures: vec![
+                measure(1, &[]),
+                measure(2, &[]),
+                measure(3, &[JumpMark::DaCapo]),
+            ],
+        };
+        let t = PerformanceTimeline::from_part(&part);
+        assert_eq!(t.linear_order, vec![1, 2, 3, 1, 2, 3]);
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct PipelineOptions {
     pub debug_dir: Option<PathBuf>,
     pub trace_only: bool,
+    /// Optionaler Pfad zu einem ONNX-U-Net-Modell für Staff-Removal.
+    /// Wird nur verwendet, wenn `omr-staff` mit `--features unet` gebaut
+    /// wurde UND die Datei ladbar ist; ansonsten greift der RLE-Fallback.
+    pub unet_model_path: Option<PathBuf>,
+    /// Wenn true, sammelt die Pipeline alle Detection-Bboxes (NHs, Stems,
+    /// Beams, Bars) und gibt sie im `PipelineResult.detections` zurück.
+    /// Nötig für das Annotation-/Training-Tool. Default: false.
+    pub collect_detections: bool,
 }

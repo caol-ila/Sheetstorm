@@ -93,20 +93,102 @@ fn measure_xml(m: &Measure, first: bool) -> String {
     }
     for n in &m.notes {
         let _ = writeln!(s, "      <note>");
-        let _ = writeln!(s, "        <pitch>");
-        let _ = writeln!(s, "          <step>{}</step>", n.step.as_str());
-        if n.alter != 0 {
-            let _ = writeln!(s, "          <alter>{}</alter>", n.alter);
+        if n.in_chord {
+            let _ = writeln!(s, "        <chord/>");
         }
-        let _ = writeln!(s, "          <octave>{}</octave>", n.octave);
-        let _ = writeln!(s, "        </pitch>");
+        if n.is_rest {
+            let _ = writeln!(s, "        <rest/>");
+        } else {
+            let _ = writeln!(s, "        <pitch>");
+            let _ = writeln!(s, "          <step>{}</step>", n.step.as_str());
+            if n.alter != 0 {
+                let _ = writeln!(s, "          <alter>{}</alter>", n.alter);
+            }
+            let _ = writeln!(s, "          <octave>{}</octave>", n.octave);
+            let _ = writeln!(s, "        </pitch>");
+        }
         let _ = writeln!(s, "        <duration>{}</duration>", n.duration);
         let _ = writeln!(s, "        <voice>{}</voice>", n.voice);
-        let _ = writeln!(s, "        <type>{}</type>", duration_to_type(n.duration, m.divisions));
+        let base_dur = match n.augmentation_dots {
+            1 => (n.duration as f32 / 1.5) as u32,
+            2 => (n.duration as f32 / 1.75) as u32,
+            _ => n.duration,
+        };
+        let _ = writeln!(s, "        <type>{}</type>", duration_to_type(base_dur, m.divisions));
+        for _ in 0..n.augmentation_dots {
+            let _ = writeln!(s, "        <dot/>");
+        }
         let _ = writeln!(s, "      </note>");
     }
+    // Sprungmarken als <barline> mit <repeat>/<ending> ausgeben
+    write_jump_marks(&mut s, &m.jump_marks);
     let _ = writeln!(s, "    </measure>");
     s
+}
+
+fn write_jump_marks(s: &mut String, marks: &[omr_core::JumpMark]) {
+    use omr_core::JumpMark;
+    for mark in marks {
+        match mark {
+            JumpMark::RepeatStart => {
+                let _ = writeln!(s, "      <barline location=\"left\">");
+                let _ = writeln!(s, "        <bar-style>heavy-light</bar-style>");
+                let _ = writeln!(s, "        <repeat direction=\"forward\"/>");
+                let _ = writeln!(s, "      </barline>");
+            }
+            JumpMark::RepeatEnd => {
+                let _ = writeln!(s, "      <barline location=\"right\">");
+                let _ = writeln!(s, "        <bar-style>light-heavy</bar-style>");
+                let _ = writeln!(s, "        <repeat direction=\"backward\"/>");
+                let _ = writeln!(s, "      </barline>");
+            }
+            JumpMark::Volta { number } => {
+                let _ = writeln!(s, "      <barline location=\"left\">");
+                let _ = writeln!(s, "        <ending number=\"{}\" type=\"start\"/>", number);
+                let _ = writeln!(s, "      </barline>");
+            }
+            JumpMark::Coda => {
+                let _ = writeln!(s, "      <direction placement=\"above\">");
+                let _ = writeln!(s, "        <direction-type><coda/></direction-type>");
+                let _ = writeln!(s, "      </direction>");
+            }
+            JumpMark::Segno => {
+                let _ = writeln!(s, "      <direction placement=\"above\">");
+                let _ = writeln!(s, "        <direction-type><segno/></direction-type>");
+                let _ = writeln!(s, "      </direction>");
+            }
+            JumpMark::Fine => {
+                let _ = writeln!(s, "      <direction placement=\"above\">");
+                let _ = writeln!(s, "        <direction-type><words>Fine</words></direction-type>");
+                let _ = writeln!(s, "        <sound fine=\"yes\"/>");
+                let _ = writeln!(s, "      </direction>");
+            }
+            JumpMark::DaCapo => {
+                let _ = writeln!(s, "      <direction placement=\"above\">");
+                let _ = writeln!(s, "        <direction-type><words>D.C.</words></direction-type>");
+                let _ = writeln!(s, "        <sound dacapo=\"yes\"/>");
+                let _ = writeln!(s, "      </direction>");
+            }
+            JumpMark::DcAlFine => {
+                let _ = writeln!(s, "      <direction placement=\"above\">");
+                let _ = writeln!(s, "        <direction-type><words>D.C. al Fine</words></direction-type>");
+                let _ = writeln!(s, "        <sound dacapo=\"yes\"/>");
+                let _ = writeln!(s, "      </direction>");
+            }
+            JumpMark::DsAlCoda => {
+                let _ = writeln!(s, "      <direction placement=\"above\">");
+                let _ = writeln!(s, "        <direction-type><words>D.S. al Coda</words></direction-type>");
+                let _ = writeln!(s, "        <sound dalsegno=\"segno\"/>");
+                let _ = writeln!(s, "      </direction>");
+            }
+            JumpMark::DsAlFine => {
+                let _ = writeln!(s, "      <direction placement=\"above\">");
+                let _ = writeln!(s, "        <direction-type><words>D.S. al Fine</words></direction-type>");
+                let _ = writeln!(s, "        <sound dalsegno=\"segno\"/>");
+                let _ = writeln!(s, "      </direction>");
+            }
+        }
+    }
 }
 
 fn clef_to_sign_line(c: Clef) -> (&'static str, u32) {
@@ -192,10 +274,14 @@ mod tests {
                         voice: 1,
                         kind: NoteheadKind::Filled,
                         center: Point { x: 0.0, y: 0.0 },
+                        augmentation_dots: 0,
+                        in_chord: false,
+            is_rest: false,
                     }],
                     time_signature: Some(TimeSignature { beats: 4, beat_type: 4 }),
                     key_signature: Some(omr_core::KeySignature { fifths: 0 }),
                     clef: Some(Clef::Treble),
+                    ..Default::default()
                 }],
             }],
         };

@@ -1,6 +1,16 @@
-/target
-**/*.rs.bk
-*.pdb
-
-# Debug-Output-Dirs
+debug-out/
+target/
 debug-output/
+
+m*_crop*.png
+m*_after*.png
+m*_tight*.png
+m*_v2.png
+
+vogel*.png
+m28*.png
+m41*.png
+
+mars_*.png
+bavaria_*.png
+debug_out.txt

@@ -10,7 +10,9 @@ use rayon::prelude::*;
 use tracing::debug;
 
 pub mod deskew;
+pub mod doctype;
 pub use deskew::deskew;
+pub use doctype::{classify_document, DocumentType, DocumentClassification, PipelineTuning};
 
 /// Sauvola-Binarisierung mit Integral-Image für O(N) statt O(N·w²).
 ///
@@ -105,6 +107,47 @@ pub fn otsu(gray: &Gray) -> Binary {
 /// Median-Filter (3×3) — entfernt Salt-and-Pepper-Rauschen.
 pub fn median3x3(gray: &Gray) -> Gray {
     imageproc::filter::median_filter(gray, 1, 1)
+}
+
+/// Stärkere Despeckle-Variante für sehr verrauschte Scans.
+/// Wendet Median 3×3 zwei Mal hintereinander an — entfernt auch
+/// größere Salt-Pepper-Cluster.
+pub fn despeckle_strong(gray: &Gray) -> Gray {
+    let once = imageproc::filter::median_filter(gray, 1, 1);
+    imageproc::filter::median_filter(&once, 1, 1)
+}
+
+/// Heuristik: schätzt das Rauschniveau eines Graustufenbilds.
+/// Returns Wert in [0, 1] wo 0 = sauber, 1 = Sehr verrauscht.
+/// Misst den Anteil isolierter Schwarz/Weiß-Pixel (Pixel deren Mittelwert
+/// der 8-Nachbarn deutlich anders ist als der Pixel selbst).
+pub fn estimate_noise_level(gray: &Gray) -> f32 {
+    let (w, h) = (gray.width(), gray.height());
+    if w < 5 || h < 5 { return 0.0; }
+    let mut isolated = 0u32;
+    let mut total = 0u32;
+    // Subsampling für Speed: jeden 4. Pixel
+    for y in (2..h - 2).step_by(4) {
+        for x in (2..w - 2).step_by(4) {
+            let p = gray.get_pixel(x, y)[0] as i32;
+            // 8-Nachbarn-Mittelwert
+            let mut sum = 0i32;
+            for dy in -1..=1i32 {
+                for dx in -1..=1i32 {
+                    if dx == 0 && dy == 0 { continue; }
+                    let nx = (x as i32 + dx) as u32;
+                    let ny = (y as i32 + dy) as u32;
+                    sum += gray.get_pixel(nx, ny)[0] as i32;
+                }
+            }
+            let mean = sum / 8;
+            if (p - mean).abs() > 80 {
+                isolated += 1;
+            }
+            total += 1;
+        }
+    }
+    if total == 0 { 0.0 } else { isolated as f32 / total as f32 }
 }
 
 /// Hilfsfunktion: Lade ein Bild von Pfad und konvertiere zu Grayscale.
