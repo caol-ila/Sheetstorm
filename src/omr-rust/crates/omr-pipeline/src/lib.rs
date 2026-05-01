@@ -420,6 +420,19 @@ fn process_gray_single(gray: GrayImage, opts: &PipelineOptions) -> Result<Pipeli
 
     let raw_noteheads = omr_symbols::detect_noteheads_with_skip(&removed, &systems, &skip_regions);
     let noteheads = omr_symbols::rerank_with_template(&removed, &raw_noteheads, line_spacing);
+    let count_kinds = |nhs: &[omr_core::Notehead]| -> (usize, usize, usize) {
+        let f = nhs.iter().filter(|n| n.kind == omr_core::NoteheadKind::Filled).count();
+        let o = nhs.iter().filter(|n| n.kind == omr_core::NoteheadKind::Open).count();
+        let w = nhs.iter().filter(|n| n.kind == omr_core::NoteheadKind::Whole).count();
+        (f, o, w)
+    };
+    let (raw_f, raw_o, raw_w) = count_kinds(&raw_noteheads);
+    let (rerank_f, rerank_o, rerank_w) = count_kinds(&noteheads);
+    info!(
+        raw_F = raw_f, raw_O = raw_o, raw_W = raw_w,
+        rerank_F = rerank_f, rerank_O = rerank_o, rerank_W = rerank_w,
+        "kind distribution: raw → rerank"
+    );
     // Komplementär: Whole-Notes via Template-Matching auf staff_removed.
     // Recover Wholes die durch CC-Fragmentation (Top-Arc + Bottom-Arc nach
     // Staff-Removal) verloren gingen — merge_close_ccs filtert wide-thin
@@ -429,6 +442,8 @@ fn process_gray_single(gray: GrayImage, opts: &PipelineOptions) -> Result<Pipeli
     let extra_wholes = omr_symbols::detect_wholes_template(&removed, &systems, 0.40, &noteheads);
     let mut noteheads = noteheads;
     noteheads.extend(extra_wholes);
+    let (extra_f, extra_o, extra_w) = count_kinds(&noteheads);
+    info!(extra_F = extra_f, extra_O = extra_o, extra_W = extra_w, "kind after extra_wholes");
     // Symbol-Klassifikator: filtert Coda/Segno/D.S./Dynamik/Noise.
     // Bevorzugt HoG+SVM (gelernt auf Bravura-Synth-Korpus). Fallback auf
     // Template-NCC, wenn das Modell nicht ladebar ist.
@@ -441,10 +456,18 @@ fn process_gray_single(gray: GrayImage, opts: &PipelineOptions) -> Result<Pipeli
         omr_symbols::classifier::filter_via_templates(&removed, noteheads, line_spacing)
     };
     let n_after_classifier = noteheads.len();
+    let (clf_f, clf_o, clf_w) = count_kinds(&noteheads);
+    info!(
+        clf_F = clf_f, clf_O = clf_o, clf_W = clf_w,
+        before = n_before_classifier, after = n_after_classifier,
+        "kind after classifier"
+    );
     // Bow-marks (▽) und Articulations: rerank_with_template re-klassifiziert
     // gefüllte Bbox mit "Loch" (= Triangle-Form) als Open. Diese müssen NACH
     // rerank gefiltert werden, weil sie als Filled durch den raw-Filter rutschen.
-    let noteheads = omr_symbols::filter_bow_marks_and_articulations(noteheads, &systems);
+    let noteheads = omr_symbols::filter_bow_marks_and_articulations(&removed, noteheads, &systems);
+    let (bow_f, bow_o, bow_w) = count_kinds(&noteheads);
+    info!(bow_F = bow_f, bow_O = bow_o, bow_W = bow_w, "kind after bow-mark filter");
     let stems = omr_symbols::stems::detect_stems(&removed, &noteheads, line_spacing);
     let beams = omr_symbols::detect_beams(&removed, line_spacing);
     let beam_counts = omr_symbols::beams_per_stem(&stems, &beams);

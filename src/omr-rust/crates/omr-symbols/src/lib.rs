@@ -122,7 +122,7 @@ pub fn detect_noteheads_with_skip(
     //  - direkter Nachbar (echter NH) innerhalb ±0.7*spacing in X UND
     //    1.5..3.5*spacing in Y unterhalb
     // Filter ausschließlich Open NHs (Filled = real darkened note, kein Bow-mark).
-    let noteheads = filter_bow_marks_and_articulations(noteheads, systems);
+    let noteheads = filter_bow_marks_and_articulations(staff_removed, noteheads, systems);
 
     debug!(kept = noteheads.len(), "noteheads after filter");
     noteheads
@@ -130,7 +130,21 @@ pub fn detect_noteheads_with_skip(
 
 /// Filter bow-marks (▽), staccato dots, and articulation marks that the
 /// classifier picked up as Open NHs.
-pub fn filter_bow_marks_and_articulations(noteheads: Vec<Notehead>, systems: &[StaffSystem]) -> Vec<Notehead> {
+///
+/// Diskriminator: STEM-PRESENCE. Echte Noteheads (Filled/Open) haben einen
+/// Stem (vertikale Linie). Bow-Marks haben keinen Stem. Daher: für jeden
+/// nicht-Filled NH außerhalb des Staff prüfen wir, ob ein Stem in Richtung
+/// Staff vorhanden ist. Wenn nicht → reject.
+///
+/// Ausnahme: Whole-Notes haben keinen Stem, sind aber NUR im Staff oder
+/// auf benachbarten Ledger-Lines. Ein Whole außerhalb-Staff (cy weiter
+/// als 1.5*spacing entfernt) muss durch Stem-Heuristik geprüft werden,
+/// aber ein Whole IM Staff hat keinen Stem-Check nötig.
+pub fn filter_bow_marks_and_articulations(
+    bin: &Binary,
+    noteheads: Vec<Notehead>,
+    systems: &[StaffSystem],
+) -> Vec<Notehead> {
     if noteheads.len() < 2 {
         return noteheads;
     }
@@ -162,21 +176,99 @@ pub fn filter_bow_marks_and_articulations(noteheads: Vec<Notehead>, systems: &[S
                 continue;
             }
 
-            // Suche einen ECHTEN NH (Filled or Open) in der Nähe:
-            //  - dx <= 0.7 * spacing
-            //  - dy in [1.0..4.0] * spacing
-            //  - der Anker ist VERTIKAL ZWISCHEN Bow-mark und Staff
+            // Sehr-weit-Außerhalb-Filter: Wenn weiter als 5*spacing über/unter Staff,
+            // NICHT als Bow-Mark filtern (kann eine valide Ledger-Note sein).
+            // Bow-Marks sitzen typisch 1-2*spacing über Top-Line.
+            let dist_to_staff = if is_above_staff { top_y - cy } else { cy - bot_y };
+            if dist_to_staff > spacing * 5.0 {
+                continue;
+            }
+
+            // STEM-CHECK: Echte Noteheads haben einen Stem in Richtung Staff.
+            // Wir scannen die Spalte links UND rechts der Notehead-Mitte (nicht durch
+            // den Notehead selbst, sondern an seinem Rand) und suchen einen
+            // vertikalen Pixel-Strang mit Länge ≥ 1.5*spacing.
+            //
+            // Stem-Position: bei stem-up ~rechts vom NH, bei stem-down ~links.
+            // Daher beide Seiten checken.
+            let stem_search_dy = (spacing * 3.0) as i32;
+            let stem_min_len = (spacing * 1.5).round() as i32;
+            let stem_max_break = 2_i32; // erlaubt 2px Lücke
+            let stem_x_offsets: [i32; 4] = [
+                -(nh.bbox.w as i32 / 2) + 1,        // linker Rand
+                -(nh.bbox.w as i32 / 2) + 2,
+                (nh.bbox.w as i32 / 2) - 1,         // rechter Rand
+                (nh.bbox.w as i32 / 2) - 2,
+            ];
+
+            let has_stem_towards_staff = stem_x_offsets.iter().any(|&off| {
+                let stem_x = nh.center.x as i32 + off;
+                if stem_x < 0 || stem_x >= bin.w as i32 { return false; }
+
+                // Scan-Richtung: bei is_above → DOWN (in Richtung Staff)
+                //                bei is_below → UP (in Richtung Staff)
+                let (start_dy, dir): (i32, i32) = if is_above_staff {
+                    ((nh.bbox.h as i32 / 2) + 1, 1)
+                } else {
+                    (-(nh.bbox.h as i32 / 2) - 1, -1)
+                };
+
+                let mut consecutive: i32 = 0;
+                let mut breaks: i32 = 0;
+                let mut max_run: i32 = 0;
+                for k in 0..stem_search_dy {
+                    let y = nh.center.y as i32 + start_dy + dir * k;
+                    if y < 0 || y >= bin.h as i32 { break; }
+                    if bin.get(stem_x as u32, y as u32) != 0 {
+                        consecutive += 1;
+                        max_run = max_run.max(consecutive);
+                    } else {
+                        if consecutive > 0 {
+                            breaks += 1;
+                            if breaks > stem_max_break { break; }
+                        }
+                        consecutive = 0;
+                    }
+                }
+                max_run >= stem_min_len
+            });
+
+            if has_stem_towards_staff {
+                continue; // echter NH mit Stem
+            }
+
+            // Whole-Notes haben keinen Stem. Aber sie sitzen auf oder direkt
+            // neben einer Staff-Linie (max 0.6*spacing entfernt vom nächsten
+            // Staff-Rand auf einer Ledger-Line). Bow-Marks sitzen mind.
+            // 1.0*spacing entfernt. Daher: Whole-Pass nur bei sehr geringer
+            // Distanz zur Staff.
+            if nh.kind == NoteheadKind::Whole && dist_to_staff <= spacing * 0.6 {
+                continue; // Whole auf/neben Staff → ok
+            }
+
+            // Suche einen ECHTEN NH (Filled or Open) in der Nähe als Anker:
+            //  - dx <= 0.5 * spacing (Bow-Mark sitzt fast direkt über/unter der Note)
+            //  - dy in [0.8..3.0] * spacing
+            //  - der Anker ist im oder nahe am Staff
             let has_anchor = noteheads.iter().enumerate().any(|(j, other)| {
                 if i == j || to_remove[j] { return false; }
                 if other.staff_idx != nh.staff_idx { return false; }
                 let dx = (other.center.x - nh.center.x).abs();
-                if dx > spacing * 0.7 { return false; }
+                if dx > spacing * 0.5 { return false; }
                 let dy = if is_above_staff {
                     other.center.y - cy
                 } else {
                     cy - other.center.y
                 };
-                dy >= spacing * 1.0 && dy <= spacing * 4.0
+                if !(dy >= spacing * 0.8 && dy <= spacing * 3.0) {
+                    return false;
+                }
+                // Anker muss im oder nah am Staff sein
+                let other_top = top_line.y_per_x.get(other.center.x as usize).copied()
+                    .unwrap_or_else(|| top_line.y_per_x[0]) as f32;
+                let other_bot = bot_line.y_per_x.get(other.center.x as usize).copied()
+                    .unwrap_or_else(|| bot_line.y_per_x[0]) as f32;
+                other.center.y >= other_top - spacing * 1.0 && other.center.y <= other_bot + spacing * 1.0
             });
 
             if has_anchor {
