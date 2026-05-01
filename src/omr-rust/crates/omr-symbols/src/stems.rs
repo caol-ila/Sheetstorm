@@ -1,13 +1,20 @@
 // Stem-Detection. Verbessertes Verfahren:
-//  - scanne x in [bbox.x - 3, bbox.x + bbox.w + 3]
-//  - vertikaler Run muss min `1.5 * spacing` lang sein
-//  - akzeptiere bis zu 3px Stem-Breite (Hough-ähnlich)
+//  - scanne x in [bbox.x - 8, bbox.x + bbox.w + 8] (war: -3 bis +3)
+//  - vertikaler Run muss min `1.0 * spacing` lang sein (war: 1.5 spacing)
+//  - akzeptiere bis zu 4px Stem-Breite + bis zu 4px Lücken
+//
+// Recall-Verbesserungen (vorher 25% Stem-Coverage → jetzt erwartet 60%+):
+//  - Längere Stems werden auch mit kleineren min_len gefunden
+//  - Größere x-Range fängt schiefe/wackelige Stems ab
+//  - Mehr Gap-Toleranz für unterbrochene Stems (alte/scan-Drucke)
 
 use omr_core::{Binary, Notehead, Stem};
 
 pub fn detect_stems(bin: &Binary, noteheads: &[Notehead], spacing: f32) -> Vec<Stem> {
     let mut stems = Vec::new();
-    let min_stem_len = (spacing * 1.5).max(8.0) as u32;
+    // Reduziert von 1.5 auf 1.0 spacing — Stems in Beam-Gruppen sind oft kürzer.
+    // Min 6px absolut für sehr-kleinen-Notenkopf-Fall.
+    let min_stem_len = (spacing * 1.0).max(6.0) as u32;
     for (i, nh) in noteheads.iter().enumerate() {
         // 1) Erst implied stem aus tall-narrow CC suchen (wahrscheinlichster Fall).
         if let Some(s) = crate::implied_stem_for_tall_notehead(bin, nh, spacing) {
@@ -27,18 +34,23 @@ pub fn detect_stems(bin: &Binary, noteheads: &[Notehead], spacing: f32) -> Vec<S
 
 fn find_stem_for(bin: &Binary, nh: &Notehead, min_len: u32) -> Option<Stem> {
     let bb = nh.bbox;
-    // Erweiterter Scan: bis 5px rechts/links (real-scans haben Stems oft 2-3 px
-    // versetzt zum NH-Bbox-Rand).
-    let right_x_range = (bb.x + bb.w).saturating_sub(2)..(bb.x + bb.w + 6).min(bin.w);
-    let left_x_range = bb.x.saturating_sub(5)..bb.x.saturating_add(3).min(bin.w);
+    // Erweiterter Scan: bis 8px rechts/links (war: 5/3) — bei schiefen Scans
+    // sind Stems oft mehrere px versetzt zum NH-Bbox-Rand.
+    let right_x_range = (bb.x + bb.w).saturating_sub(3)..(bb.x + bb.w + 9).min(bin.w);
+    let left_x_range = bb.x.saturating_sub(8)..bb.x.saturating_add(4).min(bin.w);
 
+    let mut best_stem: Option<Stem> = None;
+    let mut best_len: u32 = 0;
     for x in right_x_range.chain(left_x_range) {
-        if let Some(mut s) = scan_vertical(bin, x, bb.y, bb.h, min_len) {
-            s.notehead_idx = None;
-            return Some(s);
+        if let Some(s) = scan_vertical(bin, x, bb.y, bb.h, min_len) {
+            let len = s.y_bot.saturating_sub(s.y_top);
+            if len > best_len {
+                best_len = len;
+                best_stem = Some(s);
+            }
         }
     }
-    None
+    best_stem.map(|mut s| { s.notehead_idx = None; s })
 }
 
 /// Sucht einen vertikalen schwarzen Run mit Gap-Tolerance,
@@ -46,7 +58,8 @@ fn find_stem_for(bin: &Binary, nh: &Notehead, min_len: u32) -> Option<Stem> {
 fn scan_vertical(bin: &Binary, x: u32, bb_y: u32, bb_h: u32, min_len: u32) -> Option<Stem> {
     if x >= bin.w { return None; }
     let mut best: Option<Stem> = None;
-    let max_gap = 2u32;
+    // Erhöht von 2 auf 4px — bei alten/gefadeten Scans sind Stems oft unterbrochen.
+    let max_gap = 4u32;
     let mut y = 0u32;
     while y < bin.h {
         if bin.get(x, y) != 1 { y += 1; continue; }
