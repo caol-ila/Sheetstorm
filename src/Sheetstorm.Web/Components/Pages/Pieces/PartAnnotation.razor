@@ -23,7 +23,9 @@
 
 <PageTitle>Erkennung prüfen — @part?.DisplayName</PageTitle>
 
-<link rel="stylesheet" href="~/css/annotation.css" />
+<HeadContent>
+    <link rel="stylesheet" href="css/annotation.css" />
+</HeadContent>
 
 @if (loading)
 {
@@ -57,13 +59,12 @@ else
 {
     <p><a href="/Bands/@slug/pieces/@pieceId" data-testid="annotate-back">← Zurück zum Werk</a></p>
     <h1 data-testid="annotate-title">@part.DisplayName — Erkennung prüfen</h1>
-    <p class="text-muted">
+    <p class="text-muted small">
         Klicke auf einen erkannten Notenkopf für Korrekturen, oder auf eine leere Stelle um eine
-        fehlende Note zu ergänzen. Alle Korrekturen werden für das automatische Training der
-        Erkennungs-Pipeline und zur Verbesserung der Anzeige in der App verwendet.
+        fehlende Note zu ergänzen. Im Schnell-Modus steppst du durch alle Erkennungen.
     </p>
 
-    <div class="annotate-layout">
+    <div class="annotate-layout @(viewMode == ViewMode.Step ? "annotate-step" : "")">
         <div class="annotate-left">
             <div class="annotate-toolbar">
                 <button type="button" class="btn btn-sm btn-outline-secondary"
@@ -72,34 +73,41 @@ else
                 <button type="button" class="btn btn-sm btn-outline-secondary"
                         @onclick="NextPage" disabled="@(currentPage + 1 >= pageCount)" data-testid="annotate-next">→</button>
 
-                <span class="ms-3">Zoom:</span>
+                <span class="ms-2">Modus:</span>
+                <button type="button" class="btn btn-sm @(viewMode == ViewMode.Step ? "btn-primary" : "btn-outline-primary")"
+                        @onclick="@(() => SetViewMode(ViewMode.Step))" data-testid="annotate-mode-step"
+                        title="Schnell-Modus: durch alle Detections steppen">
+                    ⚡ Schnell
+                </button>
+                <button type="button" class="btn btn-sm @(viewMode == ViewMode.Free ? "btn-primary" : "btn-outline-primary")"
+                        @onclick="@(() => SetViewMode(ViewMode.Free))" data-testid="annotate-mode-free"
+                        title="Freier Modus: Klick + Drag">
+                    🖱 Frei
+                </button>
+
+                <span class="ms-2">Zoom:</span>
                 <input type="range" min="50" max="300" step="10"
                        value="@zoomPercent" @oninput="OnZoomInput"
                        data-testid="annotate-zoom" />
                 <span>@zoomPercent%</span>
 
-                <span class="ms-3">Anzeige:</span>
-                <label class="ms-2"><input type="checkbox" @bind="showNoteheads" /> Noten</label>
-                <label class="ms-2"><input type="checkbox" @bind="showStems" /> Stems</label>
-                <label class="ms-2"><input type="checkbox" @bind="showBars" /> Takte</label>
-                <label class="ms-2"><input type="checkbox" @bind="showAnnotations" /> Korrekturen</label>
+                <span class="ms-2">|</span>
+                <label><input type="checkbox" @bind="showNoteheads" /> Noten</label>
+                <label class="ms-1"><input type="checkbox" @bind="showStems" /> Stems</label>
+                <label class="ms-1"><input type="checkbox" @bind="showBars" /> Takte</label>
 
-                <button type="button" class="btn btn-sm btn-outline-warning ms-3"
-                        @onclick="RerunDetectionsAsync" disabled="@runningDetections" data-testid="annotate-rerun">
-                    @(runningDetections ? "Erkennung läuft…" : "🔄 Erkennung neu starten")
-                </button>
-
-                <span class="ms-3">|</span>
-                <button type="button" class="btn btn-sm @(toolMode == ToolMode.Click ? "btn-primary" : "btn-outline-primary")"
-                        @onclick="@(() => SetToolModeAsync(ToolMode.Click))" data-testid="annotate-tool-click"
-                        title="Klick: Einzelne Notes auswählen + korrigieren">
-                    🖱 Klick
-                </button>
-                <button type="button" class="btn btn-sm @(toolMode == ToolMode.ConfirmRegion ? "btn-success" : "btn-outline-success")"
-                        @onclick="@(() => SetToolModeAsync(ToolMode.ConfirmRegion))" data-testid="annotate-tool-region"
-                        title="Drag: Bereich auswählen und als komplett richtig bestätigen">
-                    ✓ Bereich bestätigen
-                </button>
+                @if (viewMode == ViewMode.Free)
+                {
+                    <span class="ms-2">|</span>
+                    <button type="button" class="btn btn-sm @(toolMode == ToolMode.Click ? "btn-primary" : "btn-outline-primary")"
+                            @onclick="@(() => SetToolModeAsync(ToolMode.Click))" data-testid="annotate-tool-click">
+                        🖱 Klick
+                    </button>
+                    <button type="button" class="btn btn-sm @(toolMode == ToolMode.ConfirmRegion ? "btn-success" : "btn-outline-success")"
+                            @onclick="@(() => SetToolModeAsync(ToolMode.ConfirmRegion))" data-testid="annotate-tool-region">
+                        ✓ Bereich
+                    </button>
+                }
             </div>
 
             <div class="annotate-canvas-wrap" id="annotate-wrap">
@@ -111,31 +119,183 @@ else
         </div>
 
         <div class="annotate-right">
-            <h4>Korrekturen Seite @(currentPage + 1)</h4>
-            <p class="text-muted small mb-2">
-                @annotationsThisPage.Count Eintrag/Einträge auf dieser Seite,
-                @allAnnotations.Count gesamt.
-            </p>
-            @if (coverage.total > 0)
+            @if (viewMode == ViewMode.Step)
             {
-                var pct = (int)(100.0 * (coverage.confirmed + coverage.corrected) / Math.Max(1, coverage.total));
-                <div class="progress mb-2" style="height:14px;" data-testid="annotate-coverage">
-                    <div class="progress-bar bg-success" role="progressbar"
-                         style="width: @(100.0 * coverage.confirmed / Math.Max(1, coverage.total))%"
-                         title="Bestätigt: @coverage.confirmed">
+                @if (stepDetection is not null)
+                {
+                    <div class="annotate-step-card" data-testid="annotate-step-card">
+                        <div class="step-progress">
+                            Element @(stepIndex + 1) von @(detections!.pages![currentPage].noteheads?.Count ?? 0)
+                            @if (stepCurrentAnnotation is not null)
+                            {
+                                <span class="badge bg-@KindBadgeColor(stepCurrentAnnotation.kind) ms-1">@KindLabel(stepCurrentAnnotation.kind)</span>
+                            }
+                        </div>
+                        <div class="step-summary">
+                            Pipeline meint:
+                            @if (stepDetection.midi.HasValue)
+                            {
+                                <span><b>Note @stepDetection.step@stepDetection.octave</b> (@DurationLabel(stepDetection.duration ?? 0))</span>
+                            }
+                            else
+                            {
+                                <span><b>@stepDetection.kind</b></span>
+                            }
+                        </div>
+
+                        <div class="annotate-step-actions">
+                            <button type="button" class="btn btn-success"
+                                    @onclick="StepConfirmAsync" data-testid="step-correct"
+                                    title="Pipeline-Erkennung ist genau richtig">
+                                ✓ Korrekt
+                            </button>
+                            <button type="button" class="btn btn-outline-danger"
+                                    @onclick="StepNotANoteAsync" data-testid="step-wrong"
+                                    title="Hier ist gar kein Symbol (False-Positive)">
+                                ✗ Hier ist nichts
+                            </button>
+                        </div>
+
+                        <div class="annotate-step-nav">
+                            <button type="button" class="btn btn-sm btn-outline-secondary"
+                                    @onclick="StepPrev" disabled="@(stepIndex == 0)" data-testid="step-prev">
+                                ← Zurück
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary"
+                                    @onclick="StepSkip" data-testid="step-skip">
+                                Überspringen
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary"
+                                    @onclick="StepNext" data-testid="step-next">
+                                Weiter →
+                            </button>
+                        </div>
+
+                        <details class="mt-2" open="@(editorMode != EditorMode.None)">
+                            <summary class="small text-muted">Was anderes…</summary>
+                            <div class="mt-2">
+                                <p class="small mb-1"><b>Korrekter Symboltyp:</b></p>
+                                <div class="d-grid gap-1">
+                                    <button type="button" class="btn btn-sm btn-outline-warning"
+                                            @onclick="OpenNoteEditor" data-testid="step-symbol-note">🎵 Note (anderer Pitch/Dauer)</button>
+                                    <button type="button" class="btn btn-sm btn-outline-warning"
+                                            @onclick="OpenRestEditor" data-testid="step-symbol-rest">😶 Pause</button>
+                                    <button type="button" class="btn btn-sm btn-outline-info"
+                                            @onclick="@(() => OpenSymbolEditor(SymbolCategory.Clef))">🎼 Notenschlüssel</button>
+                                    <button type="button" class="btn btn-sm btn-outline-info"
+                                            @onclick="@(() => OpenSymbolEditor(SymbolCategory.TimeSignature))">⏱ Taktangabe</button>
+                                    <button type="button" class="btn btn-sm btn-outline-info"
+                                            @onclick="@(() => OpenSymbolEditor(SymbolCategory.KeySignature))">♯♭ Vorzeichen</button>
+                                    <button type="button" class="btn btn-sm btn-outline-info"
+                                            @onclick="@(() => OpenSymbolEditor(SymbolCategory.Barline))">| Taktstrich/Repeat</button>
+                                    <button type="button" class="btn btn-sm btn-outline-info"
+                                            @onclick="@(() => OpenSymbolEditor(SymbolCategory.Jump))">𝄋 Sprungmarke (DC/DS/Coda/Segno/Fine/Volta)</button>
+                                    <button type="button" class="btn btn-sm btn-outline-info"
+                                            @onclick="@(() => OpenSymbolEditor(SymbolCategory.Dynamics))">𝆑 Dynamik (p/f/cresc./...)</button>
+                                    <button type="button" class="btn btn-sm btn-outline-info"
+                                            @onclick="@(() => OpenSymbolEditor(SymbolCategory.Tempo))">⏩ Tempo (rit/accel/BPM)</button>
+                                    <button type="button" class="btn btn-sm btn-outline-info"
+                                            @onclick="@(() => OpenSymbolEditor(SymbolCategory.Articulation))">⌃ Artikulation (Akzent/Staccato/Bogen)</button>
+                                    <button type="button" class="btn btn-sm btn-outline-info"
+                                            @onclick="@(() => OpenSymbolEditor(SymbolCategory.SlurTie))">⌒ Bindebogen/Haltebogen</button>
+                                    <button type="button" class="btn btn-sm btn-outline-info"
+                                            @onclick="@(() => OpenSymbolEditor(SymbolCategory.Other))">🔣 Sonstiges/Text</button>
+                                </div>
+                            </div>
+
+                            @if (editorMode == EditorMode.Note)
+                            {
+                                <hr/>
+                                <p class="small mb-1"><b>Note-Korrektur</b></p>
+                                <label class="small">MIDI-Pitch (60 = C4, 72 = C5)</label>
+                                <input type="number" min="0" max="127" @bind="editorMidi" class="form-control form-control-sm mb-1" />
+                                <label class="small">Dauer</label>
+                                <select @bind="editorDuration" class="form-select form-select-sm mb-1">
+                                    <option value="1">Sechzehntel</option>
+                                    <option value="2">Achtel</option>
+                                    <option value="3">Punkt. Achtel</option>
+                                    <option value="4">Viertel</option>
+                                    <option value="6">Punkt. Viertel</option>
+                                    <option value="8">Halbe</option>
+                                    <option value="12">Punkt. Halbe</option>
+                                    <option value="16">Ganze</option>
+                                </select>
+                                <button class="btn btn-sm btn-primary" @onclick="SaveNoteAsync" data-testid="step-save-note">Speichern + Weiter</button>
+                            }
+                            else if (editorMode == EditorMode.Rest)
+                            {
+                                <hr/>
+                                <p class="small mb-1"><b>Pause</b></p>
+                                <label class="small">Dauer</label>
+                                <select @bind="editorDuration" class="form-select form-select-sm mb-1">
+                                    <option value="1">Sechzehntel</option>
+                                    <option value="2">Achtel</option>
+                                    <option value="4">Viertel</option>
+                                    <option value="8">Halbe</option>
+                                    <option value="16">Ganze</option>
+                                </select>
+                                <button class="btn btn-sm btn-primary" @onclick="SaveRestAsync" data-testid="step-save-rest">Speichern + Weiter</button>
+                            }
+                            else if (editorMode == EditorMode.SymbolPick && symbolOptions.Count > 0)
+                            {
+                                <hr/>
+                                <p class="small mb-1"><b>@symbolCategoryLabel</b></p>
+                                <div class="d-grid gap-1">
+                                    @foreach (var opt in symbolOptions)
+                                    {
+                                        <button type="button" class="btn btn-sm btn-outline-primary text-start"
+                                                @onclick="@(() => SaveSymbolAsync(opt.type))">@opt.label</button>
+                                    }
+                                </div>
+                                @if (editorAllowsText)
+                                {
+                                    <label class="small mt-2">Optionaler Text</label>
+                                    <input type="text" @bind="editorText" class="form-control form-control-sm" placeholder="z.B. 'molto rit.'" />
+                                }
+                            }
+                        </details>
                     </div>
-                    <div class="progress-bar bg-warning" role="progressbar"
-                         style="width: @(100.0 * coverage.corrected / Math.Max(1, coverage.total))%"
-                         title="Korrigiert: @coverage.corrected">
+                }
+                else
+                {
+                    <p class="text-muted">Keine Detections auf dieser Seite.</p>
+                }
+
+                <hr/>
+                <h5 class="mt-2">Statistik</h5>
+                @if (coverage.total > 0)
+                {
+                    var pct = (int)(100.0 * (coverage.confirmed + coverage.corrected) / Math.Max(1, coverage.total));
+                    <div class="progress mb-2" style="height:14px;" data-testid="annotate-coverage">
+                        <div class="progress-bar bg-success" style="width:@(100.0*coverage.confirmed/Math.Max(1,coverage.total))%"></div>
+                        <div class="progress-bar bg-warning" style="width:@(100.0*coverage.corrected/Math.Max(1,coverage.total))%"></div>
                     </div>
-                </div>
-                <p class="small text-muted mb-2" data-testid="annotate-coverage-text">
-                    ✓ @coverage.confirmed bestätigt &middot;
-                    ✏ @coverage.corrected korrigiert &middot;
-                    ⏳ @coverage.uncertain unbestätigt
-                    (@pct% gelabelt)
-                </p>
+                    <p class="small text-muted" data-testid="annotate-coverage-text">
+                        ✓ @coverage.confirmed bestätigt, ✏ @coverage.corrected korrigiert, ⏳ @coverage.uncertain unbestätigt (@pct% gelabelt)
+                    </p>
+                }
             }
+            else
+            {
+                <h4>Korrekturen Seite @(currentPage + 1)</h4>
+                <p class="text-muted small mb-2">
+                    @annotationsThisPage.Count Eintrag/Einträge auf dieser Seite,
+                    @allAnnotations.Count gesamt.
+                </p>
+                @if (coverage.total > 0)
+                {
+                    var pct = (int)(100.0 * (coverage.confirmed + coverage.corrected) / Math.Max(1, coverage.total));
+                    <div class="progress mb-2" style="height:14px;" data-testid="annotate-coverage">
+                        <div class="progress-bar bg-success" style="width:@(100.0*coverage.confirmed/Math.Max(1,coverage.total))%"></div>
+                        <div class="progress-bar bg-warning" style="width:@(100.0*coverage.corrected/Math.Max(1,coverage.total))%"></div>
+                    </div>
+                    <p class="small text-muted mb-2" data-testid="annotate-coverage-text">
+                        ✓ @coverage.confirmed bestätigt &middot;
+                        ✏ @coverage.corrected korrigiert &middot;
+                        ⏳ @coverage.uncertain unbestätigt
+                        (@pct% gelabelt)
+                    </p>
+                }
 
             @if (selectedDetectionId.HasValue && selectedDetection is not null)
             {
@@ -289,6 +449,7 @@ else
                     }
                 </ul>
             }
+            }
         </div>
     </div>
 }
@@ -407,6 +568,16 @@ window.sheetstormAnnotate = window.sheetstormAnnotate || {
         const sx = (W / payload.detW);
         const sy = (H / payload.detH);
 
+        // Step-Modus: Highlight für aktuelle Detection — keine Bildmodifikation,
+        // nur fetter Rahmen + Pfeil + Label. Bild bleibt komplett sichtbar.
+        const stepMode = payload.stepMode === true && payload.selectedId !== undefined && payload.selectedId !== null;
+        let selectedNh = null;
+        if (stepMode && payload.noteheads) {
+            for (const nh of payload.noteheads) {
+                if (nh.id === payload.selectedId) { selectedNh = nh; break; }
+            }
+        }
+
         if (payload.showStems) {
             ctx.strokeStyle = 'rgba(0,200,0,0.6)';
             ctx.lineWidth = 1;
@@ -430,6 +601,10 @@ window.sheetstormAnnotate = window.sheetstormAnnotate || {
         if (payload.showNoteheads) {
             for (const nh of payload.noteheads) {
                 const annKind = payload.annotatedIds[nh.id];
+                if (nh.id === payload.selectedId) {
+                    // PRIO 1: aktuelle Selection — sehr fetter pulsierender Rahmen + Pfeil
+                    continue; // erst nach dem Loop zeichnen damit es oben liegt
+                }
                 if (annKind === 0) {
                     ctx.strokeStyle = 'rgba(180,180,180,0.9)';
                     ctx.lineWidth = 1;
@@ -441,10 +616,6 @@ window.sheetstormAnnotate = window.sheetstormAnnotate || {
                 } else if (annKind !== undefined) {
                     ctx.strokeStyle = 'rgba(255,165,0,0.9)';
                     ctx.lineWidth = 2;
-                    ctx.setLineDash([]);
-                } else if (nh.id === payload.selectedId) {
-                    ctx.strokeStyle = 'rgba(0,128,255,1.0)';
-                    ctx.lineWidth = 3;
                     ctx.setLineDash([]);
                 } else if (nh.kind === 'Filled') {
                     ctx.strokeStyle = 'rgba(220,40,40,0.85)';
@@ -481,6 +652,35 @@ window.sheetstormAnnotate = window.sheetstormAnnotate || {
                 ctx.strokeRect(ma.x*sx, ma.y*sy, ma.w*sx, ma.h*sy);
             }
         }
+        // Aktuelle Selection als halbtransparenter gelber Kreis, 30% größer als die Bbox
+        if (selectedNh) {
+            const x = selectedNh.bbox[0] * sx;
+            const y = selectedNh.bbox[1] * sy;
+            const w = selectedNh.bbox[2] * sx;
+            const h = selectedNh.bbox[3] * sy;
+            const cx = x + w / 2;
+            const cy = y + h / 2;
+            const r = Math.max(w, h) / 2 * 1.3; // 30% größer als die Bbox
+            ctx.beginPath();
+            ctx.arc(cx, cy, r, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255,200,0,0.35)';
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(220,150,0,0.9)';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            if (payload._scrollToSelection) {
+                const wrap = document.getElementById('annotate-wrap');
+                if (wrap) {
+                    wrap.scrollTo({
+                        left: Math.max(0, cx - wrap.clientWidth / 2),
+                        top: Math.max(0, cy - wrap.clientHeight / 2),
+                        behavior: 'smooth'
+                    });
+                }
+            }
+        }
+
         if (payload.dragRect) {
             const r = payload.dragRect;
             ctx.strokeStyle = 'rgba(40,180,80,1.0)';
@@ -533,6 +733,36 @@ window.sheetstormAnnotate = window.sheetstormAnnotate || {
     private bool showBars = true;
     private bool showAnnotations = true;
 
+    // ViewMode = Step (schnell durchklicken) | Free (freie Selection)
+    private ViewMode viewMode = ViewMode.Step;
+    private enum ViewMode { Step, Free }
+
+    // Step-Modus: Index in der Detection-Liste der aktuellen Seite
+    private int stepIndex;
+    private NoteheadDto? stepDetection
+    {
+        get
+        {
+            var page = detections?.pages?.ElementAtOrDefault(currentPage);
+            return page?.noteheads?.ElementAtOrDefault(stepIndex);
+        }
+    }
+    private AnnotationDto? stepCurrentAnnotation
+    {
+        get
+        {
+            var nh = stepDetection;
+            if (nh is null) return null;
+            // Match per Bbox-Center
+            return annotationsThisPage.FirstOrDefault(a =>
+            {
+                var ax = a.x + a.w / 2.0; var ay = a.y + a.h / 2.0;
+                var nx = nh.bbox[0] + nh.bbox[2] / 2.0; var ny = nh.bbox[1] + nh.bbox[3] / 2.0;
+                return Math.Abs(ax - nx) < 12 && Math.Abs(ay - ny) < 12;
+            });
+        }
+    }
+
     private long? selectedDetectionId;
     private NoteheadDto? selectedDetection => detections?.pages?[currentPage]?.noteheads?.FirstOrDefault(n => n.id == selectedDetectionId);
 
@@ -551,8 +781,15 @@ window.sheetstormAnnotate = window.sheetstormAnnotate || {
     private int editorDuration = 4;
     private string editorKind = "Filled";
     private string? editorComment;
+    private string? editorText;
+    private bool editorAllowsText;
 
-    private enum EditorMode { None, Pitch, Duration, Kind, Comment }
+    private enum EditorMode { None, Pitch, Duration, Kind, Comment, Note, Rest, SymbolPick }
+    private enum SymbolCategory { Clef, TimeSignature, KeySignature, Barline, Jump, Dynamics, Tempo, Articulation, SlurTie, Other }
+
+    private SymbolCategory? currentCategory;
+    private string symbolCategoryLabel = "";
+    private List<(SymbolType type, string label)> symbolOptions = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -561,11 +798,15 @@ window.sheetstormAnnotate = window.sheetstormAnnotate || {
         if (u is null) { Navigation.NavigateTo("/login"); return; }
         currentUserId = u.Id;
 
-        part = await Db.Parts.FirstOrDefaultAsync(p => p.Id == partId);
+        // Auth + Part-Lookup in eigenem Scope (Page-DbContext könnte parallel von OnAfterRender genutzt werden)
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        var freshDb = scope.ServiceProvider.GetRequiredService<SheetstormDbContext>();
+        part = await freshDb.Parts.AsNoTracking().FirstOrDefaultAsync(p => p.Id == partId);
         if (part is null) { loading = false; return; }
-        var piece = await Db.Pieces.FirstOrDefaultAsync(p => p.Id == part.PieceId);
+        var piece = await freshDb.Pieces.AsNoTracking().FirstOrDefaultAsync(p => p.Id == part.PieceId);
         if (piece is null) { loading = false; return; }
-        var membership = await Db.Memberships.FirstOrDefaultAsync(m => m.BandId == piece.BandId && m.UserId == u.Id);
+        var membership = await freshDb.Memberships.AsNoTracking()
+            .FirstOrDefaultAsync(m => m.BandId == piece.BandId && m.UserId == u.Id);
         if (membership is null
             || (membership.Roles & (BandRole.Admin | BandRole.Owner | BandRole.Dirigent)) == 0)
         {
@@ -575,10 +816,8 @@ window.sheetstormAnnotate = window.sheetstormAnnotate || {
         }
 
         await LoadDetectionsAsync();
-        // Stelle sicher, dass Page-Images existieren (bei direktem Aufruf via URL)
         try { await PageImagesService.EnsurePageImagesAsync(partId); } catch { }
 
-        // Auto-Trigger: wenn keine Detections vorhanden, Pipeline starten + alle 3s neu prüfen
         if (detections is null && !PartDetectionService.IsDetectionsRunning(partId))
         {
             try
@@ -619,6 +858,92 @@ window.sheetstormAnnotate = window.sheetstormAnnotate || {
         }
         await LoadDetectionsAsync();
         StateHasChanged();
+    }
+
+    private async Task StepConfirmAsync()
+    {
+        var nh = stepDetection;
+        if (nh is null) return;
+        // Falls schon vorhandene Annotation für diese Detection: erst löschen
+        if (stepCurrentAnnotation is not null)
+        {
+            await PartDetectionService.DeleteAnnotationAsync(stepCurrentAnnotation.id);
+        }
+        await PartDetectionService.AddAnnotationAsync(
+            partId, currentUserId, currentPage,
+            nh.bbox[0], nh.bbox[1], nh.bbox[2], nh.bbox[3],
+            PartAnnotationKind.Confirmed, null, null);
+        await ReloadAnnotationsAsync();
+        StepNext();
+    }
+
+    private async Task StepNotANoteAsync()
+    {
+        var nh = stepDetection;
+        if (nh is null) return;
+        if (stepCurrentAnnotation is not null)
+        {
+            await PartDetectionService.DeleteAnnotationAsync(stepCurrentAnnotation.id);
+        }
+        await PartDetectionService.AddAnnotationAsync(
+            partId, currentUserId, currentPage,
+            nh.bbox[0], nh.bbox[1], nh.bbox[2], nh.bbox[3],
+            PartAnnotationKind.NotANote, null, null);
+        await ReloadAnnotationsAsync();
+        StepNext();
+    }
+
+    private void StepNext()
+    {
+        var pageNhs = detections?.pages?.ElementAtOrDefault(currentPage)?.noteheads;
+        if (pageNhs is null) return;
+        if (stepIndex + 1 < pageNhs.Count)
+        {
+            stepIndex++;
+        }
+        else if (currentPage + 1 < pageCount)
+        {
+            currentPage++;
+            stepIndex = 0;
+            lastBoundImageUrl = null; // re-bind anderes Page-Image
+        }
+        selectedDetectionId = stepDetection?.id;
+        editorMode = EditorMode.None;
+        scrollToSelectionPending = true;
+        _ = RenderCanvasAsync();
+    }
+
+    private void StepPrev()
+    {
+        if (stepIndex > 0)
+        {
+            stepIndex--;
+        }
+        else if (currentPage > 0)
+        {
+            currentPage--;
+            var prevNhs = detections?.pages?.ElementAtOrDefault(currentPage)?.noteheads;
+            stepIndex = Math.Max(0, (prevNhs?.Count ?? 1) - 1);
+            lastBoundImageUrl = null;
+        }
+        selectedDetectionId = stepDetection?.id;
+        editorMode = EditorMode.None;
+        scrollToSelectionPending = true;
+        _ = RenderCanvasAsync();
+    }
+
+    private void StepSkip() => StepNext();
+
+    private void SetViewMode(ViewMode m)
+    {
+        viewMode = m;
+        if (m == ViewMode.Step)
+        {
+            stepIndex = Math.Clamp(stepIndex, 0, Math.Max(0, (detections?.pages?.ElementAtOrDefault(currentPage)?.noteheads?.Count ?? 1) - 1));
+            selectedDetectionId = stepDetection?.id;
+            scrollToSelectionPending = true;
+        }
+        _ = RenderCanvasAsync();
     }
 
     // Coverage-Stats für Progress-Bar
@@ -671,12 +996,24 @@ window.sheetstormAnnotate = window.sheetstormAnnotate || {
             }
         }
 
-        // Page-Image binden + rendern
-        var pageFile = await Db.PartFiles
-            .Where(f => f.PartId == partId && f.Kind == PartFileKind.PageImage && f.PageNumber == currentPage + 1)
-            .FirstOrDefaultAsync();
-        if (pageFile is null) return;
-        var imageUrl = $"/files/parts/{partId}/{pageFile.Id}";
+        // Page-Image binden — eigener DB-Scope um Concurrency zu vermeiden
+        // (der Page-DbContext könnte parallel von einem anderen Render-Cycle benutzt werden)
+        Guid? pageFileId = null;
+        try
+        {
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            var freshDb = scope.ServiceProvider.GetRequiredService<SheetstormDbContext>();
+            var pageFile = await freshDb.PartFiles
+                .Where(f => f.PartId == partId && f.Kind == PartFileKind.PageImage && f.PageNumber == currentPage + 1)
+                .FirstOrDefaultAsync();
+            pageFileId = pageFile?.Id;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "PageFile-Lookup fehlgeschlagen");
+        }
+        if (pageFileId is null) return;
+        var imageUrl = $"/files/parts/{partId}/{pageFileId}";
         if (imageUrl != lastBoundImageUrl)
         {
             lastBoundImageUrl = imageUrl;
@@ -755,6 +1092,8 @@ window.sheetstormAnnotate = window.sheetstormAnnotate || {
             detH = page.height,
             showNoteheads, showStems, showBars, showAnnotations,
             selectedId = selectedDetectionId,
+            stepMode = viewMode == ViewMode.Step,
+            _scrollToSelection = scrollToSelectionPending,
             noteheads = page.noteheads,
             stems = page.stems?.Select(s => new { x = s.x, yTop = s.y_top, yBot = s.y_bot }),
             bars = page.bars?.Select(b => new { x = b.x, yTop = b.y_top, yBot = b.y_bot }),
@@ -763,8 +1102,11 @@ window.sheetstormAnnotate = window.sheetstormAnnotate || {
             confirmedRegions,
             dragRect,
         };
+        scrollToSelectionPending = false;
         await JS.InvokeVoidAsync("sheetstormAnnotate.render", "annotate-canvas", payload);
     }
+
+    private bool scrollToSelectionPending;
 
     private async Task OnZoomInput(Microsoft.AspNetCore.Components.ChangeEventArgs e)
     {
@@ -927,16 +1269,207 @@ window.sheetstormAnnotate = window.sheetstormAnnotate || {
         editorComment = "";
     }
 
+    private void OpenNoteEditor()
+    {
+        editorMode = EditorMode.Note;
+        editorMidi = selectedDetection?.midi ?? 60;
+        editorDuration = selectedDetection?.duration ?? 4;
+    }
+
+    private void OpenRestEditor()
+    {
+        editorMode = EditorMode.Rest;
+        editorDuration = 4;
+    }
+
+    private void OpenSymbolEditor(SymbolCategory cat)
+    {
+        editorMode = EditorMode.SymbolPick;
+        currentCategory = cat;
+        editorAllowsText = false;
+        editorText = null;
+        (symbolCategoryLabel, symbolOptions) = cat switch
+        {
+            SymbolCategory.Clef => ("Notenschlüssel-Typ", new()
+            {
+                (SymbolType.ClefTreble, "Violinschlüssel (𝄞 G-clef)"),
+                (SymbolType.ClefBass,   "Bassschlüssel (𝄢 F-clef)"),
+                (SymbolType.ClefAlto,   "Alt-Schlüssel (C-clef Mitte)"),
+                (SymbolType.ClefTenor,  "Tenor-Schlüssel (C-clef oben)"),
+                (SymbolType.ClefPercussion, "Schlagzeug-Schlüssel"),
+                (SymbolType.ClefOther, "Anderer Schlüssel"),
+            }),
+            SymbolCategory.TimeSignature => ("Taktangabe", new()
+            {
+                (SymbolType.TimeSignature, "Numerisch (z.B. 4/4, 3/4, 6/8)"),
+                (SymbolType.TimeSignatureCommon, "C — Common Time (4/4)"),
+                (SymbolType.TimeSignatureCut, "𝄵 Cut Time (alla breve, 2/2)"),
+            }),
+            SymbolCategory.KeySignature => ("Vorzeichen / Tonart", new()
+            {
+                (SymbolType.KeySignature, "Vorzeichen-Block (♯/♭ am Zeilenanfang)"),
+            }),
+            SymbolCategory.Barline => ("Taktstrich / Wiederholung", new()
+            {
+                (SymbolType.Barline, "Einfacher Taktstrich"),
+                (SymbolType.BarlineDouble, "Doppelter Taktstrich"),
+                (SymbolType.BarlineFinal, "Schlussstrich"),
+                (SymbolType.RepeatStart, "𝄆 Wiederholung Anfang"),
+                (SymbolType.RepeatEnd, "𝄇 Wiederholung Ende"),
+                (SymbolType.Volta1, "1. Volta-Klammer"),
+                (SymbolType.Volta2, "2. Volta-Klammer"),
+                (SymbolType.VoltaOther, "Andere Volta"),
+            }),
+            SymbolCategory.Jump => ("Sprungmarke", new()
+            {
+                (SymbolType.Coda, "𝄌 Coda"),
+                (SymbolType.Segno, "𝄋 Segno"),
+                (SymbolType.DalCapo, "D.C. (Da Capo)"),
+                (SymbolType.DalSegno, "D.S. (Dal Segno)"),
+                (SymbolType.Fine, "Fine"),
+                (SymbolType.DalCapoAlFine, "D.C. al Fine"),
+                (SymbolType.DalSegnoAlFine, "D.S. al Fine"),
+                (SymbolType.DalSegnoAlCoda, "D.S. al Coda"),
+            }),
+            SymbolCategory.Dynamics => ("Dynamik", new()
+            {
+                (SymbolType.DynamicPianissimo, "pp — pianissimo"),
+                (SymbolType.DynamicPiano, "p — piano"),
+                (SymbolType.DynamicMezzopiano, "mp — mezzopiano"),
+                (SymbolType.DynamicMezzoforte, "mf — mezzoforte"),
+                (SymbolType.DynamicForte, "f — forte"),
+                (SymbolType.DynamicFortissimo, "ff — fortissimo"),
+                (SymbolType.DynamicSfz, "sfz — sforzato"),
+                (SymbolType.DynamicFp, "fp — forte-piano"),
+                (SymbolType.HairpinCrescendo, "< Crescendo (Hairpin)"),
+                (SymbolType.HairpinDecrescendo, "> Decrescendo (Hairpin)"),
+                (SymbolType.DynamicTextCrescendo, "cresc. (Text)"),
+                (SymbolType.DynamicTextDecrescendo, "decresc. / dim. (Text)"),
+            }),
+            SymbolCategory.Tempo => ("Tempo", new()
+            {
+                (SymbolType.TempoBpm, "BPM-Angabe (♩ = …)"),
+                (SymbolType.TempoText, "Tempo-Text (Allegro, Andante, …)"),
+                (SymbolType.Ritardando, "rit. — ritardando"),
+                (SymbolType.Accelerando, "accel. — accelerando"),
+                (SymbolType.AtempoMarking, "a tempo"),
+                (SymbolType.Fermata, "𝄐 Fermata"),
+            }),
+            SymbolCategory.Articulation => ("Artikulation", new()
+            {
+                (SymbolType.AccentMark, "> Akzent"),
+                (SymbolType.Staccato, ". Staccato"),
+                (SymbolType.StaccatissimoMark, "' Staccatissimo"),
+                (SymbolType.Tenuto, "− Tenuto"),
+                (SymbolType.Marcato, "^ Marcato"),
+                (SymbolType.BowUp, "V Aufstrich"),
+                (SymbolType.BowDown, "⊓ Abstrich"),
+            }),
+            SymbolCategory.SlurTie => ("Bögen", new()
+            {
+                (SymbolType.Slur, "Bindebogen (Phrasierung)"),
+                (SymbolType.Tie, "Haltebogen (Tie)"),
+                (SymbolType.Trill, "tr Triller"),
+                (SymbolType.Mordent, "Mordent"),
+                (SymbolType.Turn, "Doppelschlag (Turn)"),
+            }),
+            SymbolCategory.Other => ("Sonstiges", new()
+            {
+                (SymbolType.Triplet, "Triole (3 über drei Noten)"),
+                (SymbolType.Quintuplet, "Quintole (5)"),
+                (SymbolType.Sextuplet, "Sextole (6)"),
+                (SymbolType.Text, "Freitext"),
+                (SymbolType.Other, "Anderes/Unbekannt"),
+            }),
+            _ => ("", new())
+        };
+        // Bei Tempo-Text + Sonstiges Text-Feld erlauben
+        if (cat == SymbolCategory.Tempo || cat == SymbolCategory.Other) editorAllowsText = true;
+    }
+
+    private async Task SaveNoteAsync()
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            symbol = "Note",
+            midi = editorMidi,
+            duration = editorDuration,
+        });
+        await MarkAsync(PartAnnotationKind.WrongSymbol, json);
+    }
+
+    private async Task SaveRestAsync()
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            symbol = "Rest",
+            duration = editorDuration,
+        });
+        await MarkAsync(PartAnnotationKind.WrongSymbol, json);
+    }
+
+    private async Task SaveSymbolAsync(SymbolType symbol)
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            symbol = symbol.ToString(),
+            text = editorText,
+        });
+        await MarkAsync(PartAnnotationKind.WrongSymbol, json);
+        editorText = null;
+    }
+
+    private async Task SavePitchAsync()
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize(new { symbol = "Note", midi = editorMidi, duration = selectedDetection?.duration ?? 4 });
+        await MarkAsync(PartAnnotationKind.WrongPitch, json);
+    }
+    private async Task SaveDurationAsync()
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize(new { duration = editorDuration });
+        await MarkAsync(PartAnnotationKind.WrongDuration, json);
+    }
+    private async Task SaveKindAsync()
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize(new { kind = editorKind });
+        await MarkAsync(PartAnnotationKind.WrongKind, json);
+    }
+    private async Task SaveCommentAsync()
+    {
+        if (!string.IsNullOrEmpty(editorComment))
+        {
+            await MarkAsync(PartAnnotationKind.Comment, null);
+            // overwrite Comment via Update
+            var newest = allAnnotations.LastOrDefault();
+            if (newest is not null)
+            {
+                await PartDetectionService.UpdateAnnotationAsync(newest.id, currentUserId,
+                    PartAnnotationKind.Comment, null, editorComment);
+                await ReloadAnnotationsAsync();
+            }
+        }
+    }
+
     private async Task MarkAsync(PartAnnotationKind kind, string? correctionJson)
     {
         if (selectedDetection is null) return;
         var nh = selectedDetection;
+        // Step-Modus: alte Annotation an gleicher Position erst entfernen damit
+        // Re-Annotate clean ist (z.B. erst "Confirmed" geklickt, dann doch "Falscher Pitch")
+        if (viewMode == ViewMode.Step && stepCurrentAnnotation is not null)
+        {
+            await PartDetectionService.DeleteAnnotationAsync(stepCurrentAnnotation.id);
+        }
         await PartDetectionService.AddAnnotationAsync(
             partId, currentUserId, currentPage,
             nh.bbox[0], nh.bbox[1], nh.bbox[2], nh.bbox[3],
             kind, correctionJson, null);
         await ReloadAnnotationsAsync();
         editorMode = EditorMode.None;
+        if (viewMode == ViewMode.Step)
+        {
+            StepNext();
+        }
     }
 
     private async Task SavePitchAsync()

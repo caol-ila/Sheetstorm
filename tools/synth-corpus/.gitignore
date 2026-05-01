@@ -1,0 +1,7 @@
+data/midi/
+data/musicxml/
+data/pages/
+data/augmented/
+data/*.json
+.venv/
+__pycache__/

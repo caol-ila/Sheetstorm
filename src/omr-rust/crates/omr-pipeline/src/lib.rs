@@ -427,17 +427,35 @@ fn process_gray_single(gray: GrayImage, opts: &PipelineOptions) -> Result<Pipeli
     let _span = info_span!("symbol_detection").entered();
     let sym_t = std::time::Instant::now();
 
-    // Skip-Region pro System: ersten ~14*spacing (Schlüssel + Key + Time)
-    // wo keine Noteheads erlaubt sind.
+    // Skip-Region pro System: zuerst Clef/Key/Time detektieren, dann den
+    // tatsächlich benötigten X-Bereich berechnen statt einer festen 6*spacing-Heuristik.
+    // Wichtig: Notenschlüssel + Vorzeichen + Taktart werden sonst als Noten erkannt.
+    //
+    //   - Clef:                 ~3.0 * spacing  (G-Clef ist breiter als Bass)
+    //   - KeySignature:         |fifths| * 0.7 * spacing (max 7 = 4.9*spacing)
+    //   - TimeSignature:        ~2.0 * spacing
+    //   - Sicherheits-Padding:  +1.0 * spacing
+    //
+    // Plus eine Untergrenze von 6*spacing für robust gegen Detection-Fehler.
     let skip_regions: Vec<std::ops::Range<u32>> = systems.iter().map(|s| {
         let spacing = s.line_spacing;
-        // Finde X wo Stafflinie beginnt
         let first_line = s.lines.first();
         let line_start_x = first_line
             .and_then(|l| l.y_per_x.iter().position(|&y| y > 0))
             .unwrap_or(0) as u32;
-        // 6 spacings reichen für Schlüssel + Vorzeichen + Taktart
-        line_start_x..(line_start_x + (spacing * 6.0) as u32)
+
+        // Pre-detect Clef/KeySig auf dem ORIGINAL-Binary um Skip-Range dynamisch zu schärfen.
+        let key = omr_symbols::detect_key_signature(&bin, s);
+        let n_accidentals = key.fifths.unsigned_abs() as f32;
+
+        let clef_w = 3.0;
+        let keysig_w = 0.7 * n_accidentals.max(0.0);
+        let timesig_w = 2.0;
+        let padding = 1.0;
+        let header_factor = (clef_w + keysig_w + timesig_w + padding).max(6.0);
+        let header_extent = (spacing * header_factor) as u32;
+
+        line_start_x..(line_start_x + header_extent)
     }).collect();
 
     let raw_noteheads = omr_symbols::detect_noteheads_with_skip(&removed, &systems, &skip_regions);

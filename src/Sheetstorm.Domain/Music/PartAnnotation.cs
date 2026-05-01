@@ -115,5 +115,121 @@ public enum PartAnnotationKind
     /// ganze Zeile / einen Takt mit einem Drag bestätigen.
     /// CorrectionJson optional leer; Bbox = der bestätigte Bereich.
     RegionConfirmed = 7,
+    /// Erkanntes Element ist eigentlich etwas anderes (z.B. "ist Notenschlüssel,
+    /// kein Notenkopf"). CorrectionJson hat das Feld "symbol" mit dem korrekten
+    /// SymbolType (siehe <see cref="SymbolType"/>) plus optionale Detail-Felder.
+    WrongSymbol = 8,
+    /// Bereich enthält ein Symbol das die Pipeline nicht erkannt hat
+    /// (z.B. fehlende Volta-Klammer, fehlender Crescendo-Hairpin).
+    /// CorrectionJson hat das Feld "symbol" mit dem SymbolType.
+    MissedSymbol = 9,
+}
+
+/// <summary>
+/// Taxonomie aller Symboltypen die in einer Notenseite vorkommen können.
+/// Wird in <see cref="PartAnnotation.CorrectionJson"/> als <c>{"symbol": "..."}</c>
+/// gespeichert. Die Pipeline-Detections nutzen aktuell nur Note/Rest, alle anderen
+/// werden über User-Annotations ergänzt (oder später auch automatisch erkannt).
+/// </summary>
+public enum SymbolType
+{
+    // Hauptkategorien
+    /// <summary>Ton mit Pitch + Duration. CorrectionJson zusätzliche Felder:
+    /// midi (0-127), step (C/D/E/F/G/A/B), alter (-2..2), octave (0-9), duration (1=16th, 2=8th, 4=quarter, 8=half, 16=whole).</summary>
+    Note = 0,
+    /// <summary>Pause mit Duration. CorrectionJson Feld: duration.</summary>
+    Rest = 1,
+
+    // Notenschlüssel
+    ClefTreble = 100,
+    ClefBass = 101,
+    ClefAlto = 102,
+    ClefTenor = 103,
+    ClefPercussion = 104,
+    ClefOther = 109,
+
+    // Taktangabe
+    /// <summary>z.B. 4/4. CorrectionJson Felder: beats, beatType.</summary>
+    TimeSignature = 200,
+    /// <summary>Common Time C-Symbol (= 4/4).</summary>
+    TimeSignatureCommon = 201,
+    /// <summary>Cut Time (alla breve, = 2/2).</summary>
+    TimeSignatureCut = 202,
+
+    // Tonart-Vorzeichen
+    /// <summary>Vorzeichen-Block am Zeilenanfang. CorrectionJson Feld: fifths (-7..+7, negativ = Bs, positiv = Kreuze).</summary>
+    KeySignature = 300,
+
+    // Taktstriche & Wiederholungen
+    Barline = 400,
+    BarlineDouble = 401,
+    BarlineFinal = 402,
+    RepeatStart = 410,
+    RepeatEnd = 411,
+    Volta1 = 420,
+    Volta2 = 421,
+    VoltaOther = 422,
+
+    // Sprungmarken
+    Coda = 500,
+    Segno = 501,
+    DalCapo = 502,
+    DalSegno = 503,
+    Fine = 504,
+    DalCapoAlFine = 505,
+    DalSegnoAlFine = 506,
+    DalSegnoAlCoda = 507,
+
+    // Dynamik (statisch)
+    DynamicPianissimo = 600,    // pp
+    DynamicPiano = 601,          // p
+    DynamicMezzopiano = 602,     // mp
+    DynamicMezzoforte = 603,     // mf
+    DynamicForte = 604,          // f
+    DynamicFortissimo = 605,     // ff
+    DynamicSfz = 606,            // sfz
+    DynamicFp = 607,             // fp
+
+    // Dynamik (Verlauf - Hairpins)
+    HairpinCrescendo = 620,      // <
+    HairpinDecrescendo = 621,    // >
+    DynamicTextCrescendo = 630,  // "cresc."
+    DynamicTextDecrescendo = 631, // "decresc.", "dim."
+
+    // Tempo
+    /// <summary>Tempo-Markierung in BPM (z.B. ♩ = 120). CorrectionJson Feld: bpm.</summary>
+    TempoBpm = 700,
+    TempoText = 701,             // z.B. "Allegro", "Andante"
+    Ritardando = 710,            // rit.
+    Accelerando = 711,           // accel.
+    AtempoMarking = 712,         // a tempo
+    Fermata = 720,
+
+    // Artikulation (Akzent etc.)
+    AccentMark = 800,            // >
+    Staccato = 801,              // .
+    StaccatissimoMark = 802,     // '
+    Tenuto = 803,                // -
+    Marcato = 804,               // ^
+    BowUp = 810,                 // V
+    BowDown = 811,               // ⊓
+
+    // Bögen
+    Slur = 900,                  // Bindebogen
+    Tie = 901,                   // Haltebogen
+    Trill = 902,                 // tr
+    Mordent = 903,
+    Turn = 904,                  // ~
+
+    // Tuplet
+    Triplet = 1000,              // 3 über drei Noten
+    Quintuplet = 1001,           // 5
+    Sextuplet = 1002,            // 6
+
+    // Sonstiges
+    /// <summary>Freitext-Annotation, CorrectionJson Feld: text.</summary>
+    Text = 9000,
+    /// <summary>Symbol das User nicht zuordnen kann.</summary>
+    Other = 9999,
 }
 

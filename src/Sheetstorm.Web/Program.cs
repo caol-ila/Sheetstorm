@@ -134,7 +134,11 @@ builder.Services.AddScoped<ActiveBandState>();
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
+    .AddInteractiveServerComponents(opt =>
+    {
+        // In Development: detailed errors damit Server-Side-Crashes als Stack im Browser sichtbar sind
+        opt.DetailedErrors = builder.Environment.IsDevelopment();
+    });
 
 builder.Services.AddOutputCache();
 
