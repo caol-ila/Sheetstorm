@@ -56,46 +56,50 @@ CLASS_NAMES = [
     "Barline", "Noise",
 ]
 
-# PrIMuS-Semantic-Token → CNN-Klasse
-# Format: "category.subcat.duration" z.B. "note.G4.quarter" oder "rest.eighth"
+# PrIMuS-Format-Regex: Tokens kommen ohne Whitespace im String, mit
+# spezifischen Praefixen und _underscore_ zwischen pitch und duration.
+# Format examples:
+#   clef-G2  clef-F4  clef-C3  clef-C4
+#   keySignature-CM  keySignature-EbM  keySignature-FM
+#   timeSignature-3/4  timeSignature-4/4
+#   note-G4_quarter  note-Bb5_eighth  note-C6_sixteenth_dotted
+#   rest-quarter  rest-eighth  rest-whole
+#   barline  tie  slur
+#
+# Token-Splitter findet Token-Boundaries via Praefix-Regex.
+TOKEN_BOUNDARY_RE = re.compile(
+    r"(?=clef-|keySignature-|timeSignature-|note-|rest-|barline|tie|slur|multirest-)"
+)
+
 SEMANTIC_PATTERNS = [
-    # Notenkoepfe: nach Duration mappen
-    (re.compile(r"^note\.[^.]+\.(quarter|eighth|sixteenth|thirtysecond)"), 0),  # Filled
-    (re.compile(r"^note\.[^.]+\.(half|quarter_dotted)"), 1),  # Open (incl dotted-quarter as approx)
-    (re.compile(r"^note\.[^.]+\.whole"), 2),  # Whole
-    (re.compile(r"^note\.[^.]+"), 0),  # default Filled
+    # Notes: note-<pitch>_<duration>
+    (re.compile(r"^note-[^_]+_quarter(?!_)"), 0),     # Filled (quarter)
+    (re.compile(r"^note-[^_]+_eighth"), 0),            # Filled (eighth/sixteenth)
+    (re.compile(r"^note-[^_]+_sixteenth"), 0),
+    (re.compile(r"^note-[^_]+_thirty_second"), 0),
+    (re.compile(r"^note-[^_]+_half"), 1),              # Open (half)
+    (re.compile(r"^note-[^_]+_whole"), 2),             # Whole
+    (re.compile(r"^note-[^_]+_double_whole"), 2),
+    (re.compile(r"^note-[^_]+_quarter_dotted"), 0),    # Filled (dotted-quarter)
+    (re.compile(r"^note-"), 0),                        # Default: Filled
     # Rests
-    (re.compile(r"^rest\.quarter"), 3),
-    (re.compile(r"^rest\.half"), 4),
-    (re.compile(r"^rest\.whole"), 5),
-    (re.compile(r"^rest\.eighth"), 6),
-    (re.compile(r"^rest\.sixteenth"), 7),
+    (re.compile(r"^rest-quarter"), 3),
+    (re.compile(r"^rest-half"), 4),
+    (re.compile(r"^rest-whole"), 5),
+    (re.compile(r"^rest-eighth"), 6),
+    (re.compile(r"^rest-sixteenth"), 7),
+    (re.compile(r"^rest-thirty_second"), 7),
     # Clefs
-    (re.compile(r"^clef\.G"), 8),  # Treble
-    (re.compile(r"^clef\.F"), 9),  # Bass
-    (re.compile(r"^clef\.C[12]"), 10),  # Alto/C-clef on lines 1,2
-    (re.compile(r"^clef\.C[34]"), 11),  # Tenor/C-clef on lines 3,4
-    # Akzidenzien
-    (re.compile(r"^accidental\.sharp"), 12),
-    (re.compile(r"^accidental\.flat"), 13),
-    (re.compile(r"^accidental\.natural"), 14),
-    (re.compile(r"^accidental\.doubleSharp"), 15),
-    (re.compile(r"^accidental\.doubleFlat"), 16),
-    # Time-Sigs als Zahlen
-    (re.compile(r"^timeSignature\.2"), 17),
-    (re.compile(r"^timeSignature\.3"), 18),
-    (re.compile(r"^timeSignature\.4"), 19),
-    (re.compile(r"^timeSignature\.6"), 20),
-    (re.compile(r"^timeSignature\.8"), 21),
+    (re.compile(r"^clef-G[12]"), 8),     # Treble (G-clef)
+    (re.compile(r"^clef-F[345]"), 9),    # Bass (F-clef)
+    (re.compile(r"^clef-C[12]"), 10),    # Alto (C-clef on lines 1-2)
+    (re.compile(r"^clef-C[345]"), 11),   # Tenor (C-clef on lines 3-5)
     # Bar / Repeat
-    (re.compile(r"^repeatStart"), 22),
-    (re.compile(r"^repeatEnd"), 23),
     (re.compile(r"^barline"), 46),
+    (re.compile(r"^multirest-"), 46),
     # Slur/Tie
     (re.compile(r"^slur"), 35),
     (re.compile(r"^tie"), 36),
-    # Augmentation Dot
-    (re.compile(r"^augmentationDot|^dot$"), 41),
 ]
 
 
@@ -107,12 +111,20 @@ def map_semantic_to_class(token: str) -> Optional[int]:
 
 
 def parse_semantic_file(path: Path) -> List[str]:
-    """Parsed eine .semantic-Datei in eine Liste von Tokens."""
+    """Parsed eine PrIMuS .semantic-Datei in eine Liste von Tokens.
+
+    PrIMuS-Format hat KEINE Whitespace zwischen Tokens — Token-Boundaries
+    werden via Praefix-Regex (TOKEN_BOUNDARY_RE) gefunden.
+    """
     if not path.exists(): return []
     with path.open("r", encoding="utf-8", errors="ignore") as f:
         text = f.read().strip()
-    # Tokens sind durch ' + ' (PrIMuS-Format) oder '\t' getrennt
-    tokens = re.split(r"\s*\+\s*|\s+", text)
+    # Wenn separator (' + ' oder whitespace) existiert: nutzen.
+    if "+" in text or "\t" in text or "\n" in text:
+        tokens = re.split(r"\s*\+\s*|\s+", text)
+        return [t.strip() for t in tokens if t.strip()]
+    # Sonst: split via prefix-boundary-regex
+    tokens = TOKEN_BOUNDARY_RE.split(text)
     return [t.strip() for t in tokens if t.strip()]
 
 
