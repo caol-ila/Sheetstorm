@@ -77,6 +77,7 @@ builder.Services.AddScoped<SetListService>();
 builder.Services.AddScoped<ConductorSyncService>();
 builder.Services.AddScoped<OfflineService>();
 builder.Services.AddScoped<OmrService>();
+builder.Services.AddScoped<PartDetectionService>();
 builder.Services.AddScoped<AnnotationService>();
 builder.Services.AddScoped<ShiftService>();
 builder.Services.AddScoped<EventOrgaService>();
