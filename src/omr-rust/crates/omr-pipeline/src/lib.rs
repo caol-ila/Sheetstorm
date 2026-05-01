@@ -606,6 +606,9 @@ fn process_gray_single(gray: GrayImage, opts: &PipelineOptions) -> Result<Pipeli
     // Augmentation-Dot-Detection (Punktierungen) auf staff-removed Bild
     let dots_per_nh = omr_symbols::detect_augmentation_dots(&removed, &noteheads, line_spacing);
 
+    // Lokale Accidentals (♯/♭/♮ direkt links vom NH) — überschreiben Key-Sig
+    let local_alters = omr_symbols::detect_local_accidentals(&bin, &noteheads, &systems);
+
     let all_measures_per_system: Vec<Vec<Measure>> = (0..systems.len())
         .map(|sys_i| {
             // Globale Indices der NH dieses Systems sammeln
@@ -643,6 +646,21 @@ fn process_gray_single(gray: GrayImage, opts: &PipelineOptions) -> Result<Pipeli
                 &nh_local, &systems, &stems_local, &combined_counts, clef_for_sys, key_for_sys,
                 &dots_local,
             );
+
+            // Lokale Accidentals anwenden: für jede NH die einen alter-Override
+            // hat, MIDI neu berechnen.
+            for (local_i, &global_i) in sorted_global.iter().enumerate() {
+                if let Some(Some(alter)) = local_alters.get(global_i) {
+                    if let Some(note) = all_notes.get_mut(local_i) {
+                        let old_alter = note.alter;
+                        if old_alter != *alter {
+                            // MIDI = base_midi - old_alter + new_alter
+                            note.alter = *alter;
+                            note.midi = ((note.midi as i32) - old_alter as i32 + *alter as i32).clamp(0, 127) as u8;
+                        }
+                    }
+                }
+            }
             all_notes.sort_by(|a, b| a.center.x.partial_cmp(&b.center.x).unwrap_or(std::cmp::Ordering::Equal));
 
             let mut bar_xs: Vec<f32> = bars.iter()

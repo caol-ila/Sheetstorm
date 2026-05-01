@@ -10,6 +10,7 @@
 use omr_core::{Binary, Notehead, NoteheadKind, Point, Rect, ScoreNote, StaffSystem, Stem};
 use tracing::debug;
 
+pub mod accidentals;
 pub mod bars;
 pub mod beams;
 pub mod cc;
@@ -27,6 +28,7 @@ pub mod classifier;
 pub mod hog;
 pub mod jump_marks;
 pub mod svm_model;
+pub use accidentals::detect_local_accidentals;
 pub use bars::{detect_measure_bars, MeasureBar};
 pub use beams::{detect_beams, beams_per_stem, filter_noteheads_on_beams, Beam};
 pub use cc::{connected_components, ConnectedComponent};
