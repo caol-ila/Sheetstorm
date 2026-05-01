@@ -12,6 +12,7 @@ use tracing::debug;
 
 pub mod accidentals;
 pub mod bars;
+pub mod beam_pitch_validation;
 pub mod beams;
 pub mod cc;
 #[cfg(feature = "cnn")]
