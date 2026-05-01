@@ -12,8 +12,11 @@ use tracing::debug;
 
 pub mod accidentals;
 pub mod bars;
+pub mod beam_pitch_validation;
 pub mod beams;
 pub mod cc;
+#[cfg(feature = "cnn")]
+pub mod cnn_classifier;
 pub mod flags;
 pub mod ledger_lines;
 pub mod meta;
@@ -125,15 +128,18 @@ pub fn detect_noteheads_with_skip(
 
     let expected_w = (spacing * 1.2).round() as u32;
     let expected_h = spacing.round() as u32;
-    let min_w = (expected_w as f32 * 0.4).round() as u32;
+    // Min-w gelockert von 0.4 → 0.35: bei kleinen NHs (z.B. Achtelnoten in dichten
+    // Beam-Gruppen) ist die NH-Breite oft 30-40% kleiner als typisch.
+    let min_w = (expected_w as f32 * 0.35).round() as u32;
     // KEIN harter max_w mehr: Beam-Gruppen können beliebig breit sein (5-10x
     // einzelner Notehead). Wir lassen extract_noteheads_from_complex pro X-Spalte
     // entscheiden ob ein NH da ist. Begrenze nur auf "absurd breit" (>20*spacing).
     let max_w_simple = (expected_w as f32 * 2.5).round() as u32;
     let max_w_complex = (spacing * 20.0).round() as u32;
-    // Real NHs sind ~0.7-0.9*spacing hoch. Untergrenze 0.55*spacing eliminiert
-    // dünne horizontale Bar-Fragmente (MMR-Slices, Beam-Pieces).
-    let min_h_simple = (expected_h as f32 * 0.55).round() as u32;
+    // Real NHs sind ~0.7-0.9*spacing hoch. Untergrenze 0.45*spacing eliminiert
+    // dünne horizontale Bar-Fragmente (MMR-Slices, Beam-Pieces) — vorher 0.55,
+    // gelockert um auch kleine NHs in komprimierten Layouts zu fangen.
+    let min_h_simple = (expected_h as f32 * 0.45).round() as u32;
     let max_h_simple = (expected_h as f32 * 2.0).round() as u32;
     let max_h_tall = (spacing * 5.0).round() as u32;
 
@@ -1152,14 +1158,21 @@ pub fn detect_augmentation_dots(
     noteheads: &[Notehead],
     spacing: f32,
 ) -> Vec<u8> {
-    let dot_radius_min = (spacing * 0.15).max(1.0) as u32;
-    let dot_radius_max = (spacing * 0.40) as u32;
-    let dx_min = (spacing * 0.30) as i32;
-    let dx_max = (spacing * 1.40) as i32;
-    let dy_max = (spacing * 0.50) as i32;
+    // Erweiterte Heuristik fuer Punktierungs-Recall:
+    // - Untergrenze 0.10*spacing (war: 0.15) — Dots sind oft sehr klein (< 3px)
+    // - Obergrenze 0.45*spacing (war: 0.40) — leicht groessere Dots zulassen
+    // - dx-Range erweitert: 0.20 - 1.6 spacing (war: 0.30 - 1.40) — manche
+    //   Dots sind direkt am NH (kleine spacing) oder weit weg (1.5+ spacing)
+    // - dy-Toleranz: 0.6 spacing (war: 0.5) — Dots sind manchmal etwas oberhalb
+    let dot_radius_min = (spacing * 0.10).max(1.0) as u32;
+    let dot_radius_max = (spacing * 0.45).max(2.0) as u32;
+    let dx_min = (spacing * 0.20) as i32;
+    let dx_max = (spacing * 1.60) as i32;
+    let dy_max = (spacing * 0.60) as i32;
 
     let ccs = connected_components(bin);
-    // Filtere CCs auf "Dot-Größe"
+    // Erweiterte Aspect-Range: 0.5 - 2.0 (war: 0.6 - 1.7) — Dots können
+    // leicht oval sein wegen Anti-Aliasing oder Druck-Spread.
     let dot_ccs: Vec<&ConnectedComponent> = ccs
         .iter()
         .filter(|c| {
@@ -1169,24 +1182,32 @@ pub fn detect_augmentation_dots(
                 && c.bbox.h <= dot_radius_max
                 && {
                     let aspect = c.bbox.aspect();
-                    (0.6..=1.7).contains(&aspect)
+                    (0.5..=2.0).contains(&aspect)
+                }
+                // Dot muss "compact" sein — Pixel-Density > 50%
+                && {
+                    let area = (c.bbox.w * c.bbox.h) as f32;
+                    let pixels = c.pixels.len() as f32;
+                    pixels / area.max(1.0) > 0.5
                 }
         })
         .collect();
 
     let mut dots_per_nh = vec![0u8; noteheads.len()];
     for (i, nh) in noteheads.iter().enumerate() {
-        // Suche Dots rechts der NH
-        let mut count = 0u8;
+        // Sammele alle in-range Dot-Kandidaten und sortiere nach dx (links zuerst)
+        let mut candidates: Vec<(f32, u32)> = Vec::new(); // (dx, cc_x)
         for cc in &dot_ccs {
             let cdx = cc.bbox.cx() - nh.center.x;
             let cdy = cc.bbox.cy() - nh.center.y;
             if (cdx as i32) >= dx_min && (cdx as i32) <= dx_max && (cdy.abs() as i32) <= dy_max {
-                count += 1;
-                if count >= 2 { break; }
+                candidates.push((cdx, cc.bbox.x));
             }
         }
-        dots_per_nh[i] = count;
+        candidates.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+        // Eine Punktierung: 1 Dot. Doppelpunktierung: 2 Dots in Reihe.
+        // Limit count to 2 — mehr als 2 Punktierungen sind extrem selten.
+        dots_per_nh[i] = (candidates.len() as u8).min(2);
     }
     dots_per_nh
 }
