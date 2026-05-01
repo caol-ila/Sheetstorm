@@ -21,6 +21,16 @@ rand_chacha = "0.3"
 # Persistenz des trainierten Klassifikators (Apache-2.0 / MIT).
 serde = { workspace = true }
 bincode = "1.3"
+# Pure-Rust ONNX-Inference fuer CNN-Symbol-Klassifikator (MobileNetV3-Small).
+# tract ist 100%% Rust (Apache-2.0/MIT), keine native Toolchain notwendig.
+# Wesentlich kleinere Binary + kein Cross-Compile-Drama als ort.
+tract-onnx = { version = "0.21", optional = true }
+
+[features]
+default = []
+# Aktiviert die CNN-basierte Symbol-Klassifikation. Wenn deaktiviert,
+# fallback auf HoG+SVM. Build mit `--features cnn` um zu aktivieren.
+cnn = ["dep:tract-onnx"]
 
 [[bin]]
 name = "train-classifier"

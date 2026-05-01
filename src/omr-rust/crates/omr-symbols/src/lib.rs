@@ -14,6 +14,8 @@ pub mod accidentals;
 pub mod bars;
 pub mod beams;
 pub mod cc;
+#[cfg(feature = "cnn")]
+pub mod cnn_classifier;
 pub mod flags;
 pub mod ledger_lines;
 pub mod meta;
