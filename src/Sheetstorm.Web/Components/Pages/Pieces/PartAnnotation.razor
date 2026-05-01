@@ -1288,103 +1288,118 @@ window.sheetstormAnnotate = window.sheetstormAnnotate || {
         currentCategory = cat;
         editorAllowsText = false;
         editorText = null;
-        (symbolCategoryLabel, symbolOptions) = cat switch
-        {
-            SymbolCategory.Clef => ("Notenschlüssel-Typ", new()
-            {
-                (SymbolType.ClefTreble, "Violinschlüssel (𝄞 G-clef)"),
-                (SymbolType.ClefBass,   "Bassschlüssel (𝄢 F-clef)"),
-                (SymbolType.ClefAlto,   "Alt-Schlüssel (C-clef Mitte)"),
-                (SymbolType.ClefTenor,  "Tenor-Schlüssel (C-clef oben)"),
-                (SymbolType.ClefPercussion, "Schlagzeug-Schlüssel"),
-                (SymbolType.ClefOther, "Anderer Schlüssel"),
-            }),
-            SymbolCategory.TimeSignature => ("Taktangabe", new()
-            {
-                (SymbolType.TimeSignature, "Numerisch (z.B. 4/4, 3/4, 6/8)"),
-                (SymbolType.TimeSignatureCommon, "C — Common Time (4/4)"),
-                (SymbolType.TimeSignatureCut, "𝄵 Cut Time (alla breve, 2/2)"),
-            }),
-            SymbolCategory.KeySignature => ("Vorzeichen / Tonart", new()
-            {
-                (SymbolType.KeySignature, "Vorzeichen-Block (♯/♭ am Zeilenanfang)"),
-            }),
-            SymbolCategory.Barline => ("Taktstrich / Wiederholung", new()
-            {
-                (SymbolType.Barline, "Einfacher Taktstrich"),
-                (SymbolType.BarlineDouble, "Doppelter Taktstrich"),
-                (SymbolType.BarlineFinal, "Schlussstrich"),
-                (SymbolType.RepeatStart, "𝄆 Wiederholung Anfang"),
-                (SymbolType.RepeatEnd, "𝄇 Wiederholung Ende"),
-                (SymbolType.Volta1, "1. Volta-Klammer"),
-                (SymbolType.Volta2, "2. Volta-Klammer"),
-                (SymbolType.VoltaOther, "Andere Volta"),
-            }),
-            SymbolCategory.Jump => ("Sprungmarke", new()
-            {
-                (SymbolType.Coda, "𝄌 Coda"),
-                (SymbolType.Segno, "𝄋 Segno"),
-                (SymbolType.DalCapo, "D.C. (Da Capo)"),
-                (SymbolType.DalSegno, "D.S. (Dal Segno)"),
-                (SymbolType.Fine, "Fine"),
-                (SymbolType.DalCapoAlFine, "D.C. al Fine"),
-                (SymbolType.DalSegnoAlFine, "D.S. al Fine"),
-                (SymbolType.DalSegnoAlCoda, "D.S. al Coda"),
-            }),
-            SymbolCategory.Dynamics => ("Dynamik", new()
-            {
-                (SymbolType.DynamicPianissimo, "pp — pianissimo"),
-                (SymbolType.DynamicPiano, "p — piano"),
-                (SymbolType.DynamicMezzopiano, "mp — mezzopiano"),
-                (SymbolType.DynamicMezzoforte, "mf — mezzoforte"),
-                (SymbolType.DynamicForte, "f — forte"),
-                (SymbolType.DynamicFortissimo, "ff — fortissimo"),
-                (SymbolType.DynamicSfz, "sfz — sforzato"),
-                (SymbolType.DynamicFp, "fp — forte-piano"),
-                (SymbolType.HairpinCrescendo, "< Crescendo (Hairpin)"),
-                (SymbolType.HairpinDecrescendo, "> Decrescendo (Hairpin)"),
-                (SymbolType.DynamicTextCrescendo, "cresc. (Text)"),
-                (SymbolType.DynamicTextDecrescendo, "decresc. / dim. (Text)"),
-            }),
-            SymbolCategory.Tempo => ("Tempo", new()
-            {
-                (SymbolType.TempoBpm, "BPM-Angabe (♩ = …)"),
-                (SymbolType.TempoText, "Tempo-Text (Allegro, Andante, …)"),
-                (SymbolType.Ritardando, "rit. — ritardando"),
-                (SymbolType.Accelerando, "accel. — accelerando"),
-                (SymbolType.AtempoMarking, "a tempo"),
-                (SymbolType.Fermata, "𝄐 Fermata"),
-            }),
-            SymbolCategory.Articulation => ("Artikulation", new()
-            {
-                (SymbolType.AccentMark, "> Akzent"),
-                (SymbolType.Staccato, ". Staccato"),
-                (SymbolType.StaccatissimoMark, "' Staccatissimo"),
-                (SymbolType.Tenuto, "− Tenuto"),
-                (SymbolType.Marcato, "^ Marcato"),
-                (SymbolType.BowUp, "V Aufstrich"),
-                (SymbolType.BowDown, "⊓ Abstrich"),
-            }),
-            SymbolCategory.SlurTie => ("Bögen", new()
-            {
-                (SymbolType.Slur, "Bindebogen (Phrasierung)"),
-                (SymbolType.Tie, "Haltebogen (Tie)"),
-                (SymbolType.Trill, "tr Triller"),
-                (SymbolType.Mordent, "Mordent"),
-                (SymbolType.Turn, "Doppelschlag (Turn)"),
-            }),
-            SymbolCategory.Other => ("Sonstiges", new()
-            {
-                (SymbolType.Triplet, "Triole (3 über drei Noten)"),
-                (SymbolType.Quintuplet, "Quintole (5)"),
-                (SymbolType.Sextuplet, "Sextole (6)"),
-                (SymbolType.Text, "Freitext"),
-                (SymbolType.Other, "Anderes/Unbekannt"),
-            }),
-            _ => ("", new())
-        };
-        // Bei Tempo-Text + Sonstiges Text-Feld erlauben
+        var (label, options) = SymbolPickerOptions(cat);
+        symbolCategoryLabel = label;
+        symbolOptions = options;
         if (cat == SymbolCategory.Tempo || cat == SymbolCategory.Other) editorAllowsText = true;
+    }
+
+    private static (string, List<(SymbolType type, string label)>) SymbolPickerOptions(SymbolCategory cat)
+    {
+        switch (cat)
+        {
+            case SymbolCategory.Clef:
+                return ("Notenschlüssel-Typ", new()
+                {
+                    (SymbolType.ClefTreble, "Violinschlüssel (𝄞 G-clef)"),
+                    (SymbolType.ClefBass,   "Bassschlüssel (𝄢 F-clef)"),
+                    (SymbolType.ClefAlto,   "Alt-Schlüssel (C-clef Mitte)"),
+                    (SymbolType.ClefTenor,  "Tenor-Schlüssel (C-clef oben)"),
+                    (SymbolType.ClefPercussion, "Schlagzeug-Schlüssel"),
+                    (SymbolType.ClefOther, "Anderer Schlüssel"),
+                });
+            case SymbolCategory.TimeSignature:
+                return ("Taktangabe", new()
+                {
+                    (SymbolType.TimeSignature, "Numerisch (z.B. 4/4, 3/4, 6/8)"),
+                    (SymbolType.TimeSignatureCommon, "C — Common Time (4/4)"),
+                    (SymbolType.TimeSignatureCut, "𝄵 Cut Time (alla breve, 2/2)"),
+                });
+            case SymbolCategory.KeySignature:
+                return ("Vorzeichen / Tonart", new()
+                {
+                    (SymbolType.KeySignature, "Vorzeichen-Block (♯/♭ am Zeilenanfang)"),
+                });
+            case SymbolCategory.Barline:
+                return ("Taktstrich / Wiederholung", new()
+                {
+                    (SymbolType.Barline, "Einfacher Taktstrich"),
+                    (SymbolType.BarlineDouble, "Doppelter Taktstrich"),
+                    (SymbolType.BarlineFinal, "Schlussstrich"),
+                    (SymbolType.RepeatStart, "𝄆 Wiederholung Anfang"),
+                    (SymbolType.RepeatEnd, "𝄇 Wiederholung Ende"),
+                    (SymbolType.Volta1, "1. Volta-Klammer"),
+                    (SymbolType.Volta2, "2. Volta-Klammer"),
+                    (SymbolType.VoltaOther, "Andere Volta"),
+                });
+            case SymbolCategory.Jump:
+                return ("Sprungmarke", new()
+                {
+                    (SymbolType.Coda, "𝄌 Coda"),
+                    (SymbolType.Segno, "𝄋 Segno"),
+                    (SymbolType.DalCapo, "D.C. (Da Capo)"),
+                    (SymbolType.DalSegno, "D.S. (Dal Segno)"),
+                    (SymbolType.Fine, "Fine"),
+                    (SymbolType.DalCapoAlFine, "D.C. al Fine"),
+                    (SymbolType.DalSegnoAlFine, "D.S. al Fine"),
+                    (SymbolType.DalSegnoAlCoda, "D.S. al Coda"),
+                });
+            case SymbolCategory.Dynamics:
+                return ("Dynamik", new()
+                {
+                    (SymbolType.DynamicPianissimo, "pp — pianissimo"),
+                    (SymbolType.DynamicPiano, "p — piano"),
+                    (SymbolType.DynamicMezzopiano, "mp — mezzopiano"),
+                    (SymbolType.DynamicMezzoforte, "mf — mezzoforte"),
+                    (SymbolType.DynamicForte, "f — forte"),
+                    (SymbolType.DynamicFortissimo, "ff — fortissimo"),
+                    (SymbolType.DynamicSfz, "sfz — sforzato"),
+                    (SymbolType.DynamicFp, "fp — forte-piano"),
+                    (SymbolType.HairpinCrescendo, "< Crescendo (Hairpin)"),
+                    (SymbolType.HairpinDecrescendo, "> Decrescendo (Hairpin)"),
+                    (SymbolType.DynamicTextCrescendo, "cresc. (Text)"),
+                    (SymbolType.DynamicTextDecrescendo, "decresc. / dim. (Text)"),
+                });
+            case SymbolCategory.Tempo:
+                return ("Tempo", new()
+                {
+                    (SymbolType.TempoBpm, "BPM-Angabe (♩ = …)"),
+                    (SymbolType.TempoText, "Tempo-Text (Allegro, Andante, …)"),
+                    (SymbolType.Ritardando, "rit. — ritardando"),
+                    (SymbolType.Accelerando, "accel. — accelerando"),
+                    (SymbolType.AtempoMarking, "a tempo"),
+                    (SymbolType.Fermata, "𝄐 Fermata"),
+                });
+            case SymbolCategory.Articulation:
+                return ("Artikulation", new()
+                {
+                    (SymbolType.AccentMark, "> Akzent"),
+                    (SymbolType.Staccato, ". Staccato"),
+                    (SymbolType.StaccatissimoMark, "' Staccatissimo"),
+                    (SymbolType.Tenuto, "− Tenuto"),
+                    (SymbolType.Marcato, "^ Marcato"),
+                    (SymbolType.BowUp, "V Aufstrich"),
+                    (SymbolType.BowDown, "⊓ Abstrich"),
+                });
+            case SymbolCategory.SlurTie:
+                return ("Bögen", new()
+                {
+                    (SymbolType.Slur, "Bindebogen (Phrasierung)"),
+                    (SymbolType.Tie, "Haltebogen (Tie)"),
+                    (SymbolType.Trill, "tr Triller"),
+                    (SymbolType.Mordent, "Mordent"),
+                    (SymbolType.Turn, "Doppelschlag (Turn)"),
+                });
+            default:
+                return ("Sonstiges", new()
+                {
+                    (SymbolType.Triplet, "Triole (3 über drei Noten)"),
+                    (SymbolType.Quintuplet, "Quintole (5)"),
+                    (SymbolType.Sextuplet, "Sextole (6)"),
+                    (SymbolType.Text, "Freitext"),
+                    (SymbolType.Other, "Anderes/Unbekannt"),
+                });
+        }
     }
 
     private async Task SaveNoteAsync()
@@ -1469,34 +1484,6 @@ window.sheetstormAnnotate = window.sheetstormAnnotate || {
         if (viewMode == ViewMode.Step)
         {
             StepNext();
-        }
-    }
-
-    private async Task SavePitchAsync()
-    {
-        var json = System.Text.Json.JsonSerializer.Serialize(new { midi = editorMidi });
-        await MarkAsync(PartAnnotationKind.WrongPitch, json);
-    }
-    private async Task SaveDurationAsync()
-    {
-        var json = System.Text.Json.JsonSerializer.Serialize(new { duration = editorDuration });
-        await MarkAsync(PartAnnotationKind.WrongDuration, json);
-    }
-    private async Task SaveKindAsync()
-    {
-        var json = System.Text.Json.JsonSerializer.Serialize(new { kind = editorKind });
-        await MarkAsync(PartAnnotationKind.WrongKind, json);
-    }
-    private async Task SaveCommentAsync()
-    {
-        await MarkAsync(PartAnnotationKind.Comment, null);
-        // overwrite Comment via Update — Add does not set comment in MarkAsync above
-        var newest = allAnnotations.LastOrDefault();
-        if (newest is not null && !string.IsNullOrEmpty(editorComment))
-        {
-            await PartDetectionService.UpdateAnnotationAsync(newest.id, currentUserId,
-                PartAnnotationKind.Comment, null, editorComment);
-            await ReloadAnnotationsAsync();
         }
     }
 
