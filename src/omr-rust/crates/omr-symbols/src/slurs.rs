@@ -117,6 +117,30 @@ pub fn detect_slurs(bin: &Binary, noteheads: &[Notehead], systems: &[StaffSystem
     slurs
 }
 
+/// Klassifiziert detektierte Slurs neu: Wenn beide Endpunkte denselben MIDI
+/// haben (gleiche Tonhöhe) → ist es ein Tie. Sonst Slur.
+///
+/// Erfordert dass die NHs bereits MIDI-Werte haben (nach Score-Konstruktion).
+/// Inputs:
+///   - `slurs`: detected slurs (mut, kann is_tie ändern)
+///   - `midi_per_nh_idx`: closure: notehead-index → optional MIDI (None falls
+///     NH keine MIDI hat oder der Score-Build die NH nicht gemappt hat)
+pub fn classify_ties<F>(slurs: &mut [Slur], midi_per_nh_idx: F)
+where
+    F: Fn(usize) -> Option<u8>,
+{
+    for s in slurs.iter_mut() {
+        if let (Some(start), Some(end)) = (s.start_nh_idx, s.end_nh_idx) {
+            let m_start = midi_per_nh_idx(start);
+            let m_end = midi_per_nh_idx(end);
+            s.is_tie = match (m_start, m_end) {
+                (Some(a), Some(b)) => a == b,
+                _ => false,
+            };
+        }
+    }
+}
+
 fn is_arc_shaped(bin: &Binary, bb: &Rect) -> bool {
     // Sample ~10 X-Positionen über die Breite und finde y_top für jede.
     let w = bb.w;

@@ -559,7 +559,7 @@ fn process_gray_single(gray: GrayImage, opts: &PipelineOptions) -> Result<Pipeli
     // Slur-Detection: Bögen über/unter NH-Gruppen erkennen.
     // Wir nutzen das ORIGINAL-Binary (vor Staff-Removal) — Slurs überqueren
     // Stafflinien und werden vom Removal teilweise zerschnitten.
-    let slurs = omr_symbols::detect_slurs(&bin, &noteheads, &systems);
+    let mut slurs = omr_symbols::detect_slurs(&bin, &noteheads, &systems);
 
     let symbol_detection_ms = sym_t.elapsed().as_millis();
     drop(_span);
@@ -781,6 +781,34 @@ fn process_gray_single(gray: GrayImage, opts: &PipelineOptions) -> Result<Pipeli
         composer: String::new(),
         parts: vec![part],
     };
+
+    // Tie-Detection: Slurs deren Endpoint-NHs gleichen MIDI haben sind Ties.
+    // Wir bauen ein NH-Index → MIDI Map aus den ScoreNotes via center.x/y-Match.
+    {
+        let part_first = score.parts.first();
+        let nh_to_midi: Vec<Option<u8>> = if let Some(p) = part_first {
+            noteheads.iter().map(|nh| {
+                let cx = nh.center.x;
+                let cy = nh.center.y;
+                let mut best_d = f32::INFINITY;
+                let mut best_midi: Option<u8> = None;
+                for m in &p.measures {
+                    for n in &m.notes {
+                        if n.is_rest { continue; }
+                        let d = (n.center.x - cx).abs() + (n.center.y - cy).abs();
+                        if d < best_d && d < 5.0 {
+                            best_d = d;
+                            best_midi = Some(n.midi);
+                        }
+                    }
+                }
+                best_midi
+            }).collect()
+        } else {
+            vec![None; noteheads.len()]
+        };
+        omr_symbols::slurs::classify_ties(&mut slurs, |idx| nh_to_midi.get(idx).copied().flatten());
+    }
 
     // 6) MusicXML Export.
     let mx_t = std::time::Instant::now();
