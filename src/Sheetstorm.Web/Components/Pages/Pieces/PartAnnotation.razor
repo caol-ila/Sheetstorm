@@ -125,7 +125,7 @@ else
                 {
                     <div class="annotate-step-card" data-testid="annotate-step-card">
                         <div class="step-progress">
-                            Element @(stepIndex + 1) von @(detections!.pages![currentPage].noteheads?.Count ?? 0)
+                            Element @(stepIndex + 1) von @(StepCandidateCount)
                             @if (stepCurrentAnnotation is not null)
                             {
                                 <span class="badge bg-@KindBadgeColor(stepCurrentAnnotation.kind) ms-1">@KindLabel(stepCurrentAnnotation.kind)</span>
@@ -146,13 +146,13 @@ else
                         <div class="annotate-step-actions">
                             <button type="button" class="btn btn-success"
                                     @onclick="StepConfirmAsync" data-testid="step-correct"
-                                    title="Pipeline-Erkennung ist genau richtig">
-                                ✓ Korrekt
+                                    title="Pipeline-Erkennung ist genau richtig (Hotkey: Y)">
+                                ✓ Korrekt <kbd class="ms-1">Y</kbd>
                             </button>
                             <button type="button" class="btn btn-outline-danger"
                                     @onclick="StepNotANoteAsync" data-testid="step-wrong"
-                                    title="Hier ist gar kein Symbol (False-Positive)">
-                                ✗ Hier ist nichts
+                                    title="Hier ist gar kein Symbol (Hotkey: N)">
+                                ✗ Hier ist nichts <kbd class="ms-1">N</kbd>
                             </button>
                         </div>
 
@@ -170,6 +170,47 @@ else
                                 Weiter →
                             </button>
                         </div>
+
+                        <div class="annotate-quickconfirm mt-2 small">
+                            @if (stepDetection.measure_number.HasValue)
+                            {
+                                <button type="button" class="btn btn-sm btn-outline-success w-100"
+                                        @onclick="() => ConfirmEntireMeasureAsync(stepDetection.measure_number!.Value)"
+                                        data-testid="confirm-measure"
+                                        title="Alle erkannten Symbole in diesem Takt als korrekt bestätigen">
+                                    ✓✓ Ganzen Takt @stepDetection.measure_number bestätigen
+                                </button>
+                            }
+                        </div>
+
+                        <details class="mt-2 step-options-details">
+                            <summary class="small text-muted">⚙ Workflow-Optionen</summary>
+                            <div class="form-check form-switch mt-1">
+                                <input class="form-check-input" type="checkbox" id="anomalyOnly"
+                                       checked="@onlyAnomalies"
+                                       @onchange="@(EventCallback.Factory.Create<ChangeEventArgs>(this, e => ToggleOnlyAnomalies((bool)(e.Value ?? false))))"
+                                       data-testid="toggle-anomaly-only">
+                                <label class="form-check-label small" for="anomalyOnly">
+                                    🚨 Nur Auffälligkeiten (@(CurrentPageAnomalies().Count) auf dieser Seite)
+                                </label>
+                            </div>
+                            <div class="form-check form-switch mt-1">
+                                <input class="form-check-input" type="checkbox" id="audioPlay"
+                                       checked="@playAudio"
+                                       @onchange="@(EventCallback.Factory.Create<ChangeEventArgs>(this, e => ToggleAudioPlay((bool)(e.Value ?? false))))"
+                                       data-testid="toggle-audio">
+                                <label class="form-check-label small" for="audioPlay">
+                                    🔊 Audio-Playback beim Step (~200ms Pulse)
+                                </label>
+                            </div>
+                            <div class="mt-1 small">
+                                <label for="confThresh">Auto-confirm Confidence ≥</label>
+                                <input type="number" min="0.5" max="1.0" step="0.05" class="form-control form-control-sm w-25 d-inline-block"
+                                       id="confThresh" value="@confThreshold.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)"
+                                       @oninput="@(EventCallback.Factory.Create<ChangeEventArgs>(this, e => UpdateConfThreshold(e)))">
+                                <small class="text-muted ms-2">(deaktiviert wenn 1.0)</small>
+                            </div>
+                        </details>
 
                         <details class="mt-2" open="@(editorMode != EditorMode.None)">
                             <summary class="small text-muted">Was anderes…</summary>
@@ -506,9 +547,59 @@ window.sheetstormAnnotate = window.sheetstormAnnotate || {
     dragEnd: null,
     dragging: false,
     lastPayload: null,
+    audioCtx: null,
+    /// Spielt einen MIDI-Pitch als Sinuston für ms Millisekunden.
+    /// Erlaubt Pitch-Validation per Ohr im Step-Mode.
+    playMidi: function(midi, durationMs) {
+        try {
+            this.audioCtx = this.audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+            const ctx = this.audioCtx;
+            if (ctx.state === 'suspended') ctx.resume();
+            const freq = 440.0 * Math.pow(2.0, (midi - 69) / 12.0);
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.value = freq;
+            // ADSR: 5ms attack, sustain, 30ms release
+            const now = ctx.currentTime;
+            const dur = (durationMs || 200) / 1000.0;
+            gain.gain.setValueAtTime(0.0, now);
+            gain.gain.linearRampToValueAtTime(0.25, now + 0.005);
+            gain.gain.setValueAtTime(0.25, now + dur - 0.03);
+            gain.gain.linearRampToValueAtTime(0.0, now + dur);
+            osc.connect(gain).connect(ctx.destination);
+            osc.start(now);
+            osc.stop(now + dur);
+        } catch (e) { console.warn('playMidi failed', e); }
+    },
+    /// Hotkey-Handler für Y/N/Pfeiltasten. Wird vom Razor beim setMode registriert.
+    bindHotkeys: function(dotnetRef) {
+        if (this._hotkeysBound) return;
+        this._hotkeysBound = true;
+        document.addEventListener('keydown', (e) => {
+            // Skip wenn in Input/Textarea
+            const tag = (document.activeElement && document.activeElement.tagName) || '';
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+            if (!this.dotnetRef) return;
+            if (e.key === 'y' || e.key === 'Y') {
+                e.preventDefault();
+                this.dotnetRef.invokeMethodAsync('OnHotkey', 'confirm');
+            } else if (e.key === 'n' || e.key === 'N') {
+                e.preventDefault();
+                this.dotnetRef.invokeMethodAsync('OnHotkey', 'reject');
+            } else if (e.key === 'ArrowRight') {
+                e.preventDefault();
+                this.dotnetRef.invokeMethodAsync('OnHotkey', 'next');
+            } else if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                this.dotnetRef.invokeMethodAsync('OnHotkey', 'prev');
+            }
+        });
+    },
     setMode: function(mode, dotnetRef) {
         this.mode = mode;
         if (dotnetRef) this.dotnetRef = dotnetRef;
+        if (dotnetRef) this.bindHotkeys(dotnetRef);
         const canvas = document.getElementById('annotate-canvas');
         if (!canvas) return;
         if (canvas._ssBound) return;
@@ -782,6 +873,75 @@ window.sheetstormAnnotate = window.sheetstormAnnotate || {
 
     // Step-Modus: Index in der Detection-Liste der aktuellen Seite
     private int stepIndex;
+
+    /// Wenn true, navigiert Step-Mode nur durch NHs die in einer Reading-Anomaly liegen
+    /// (oder der gleichen Position/Y-Range). Filter reduziert Klick-Aufwand drastisch.
+    private bool onlyAnomalies = false;
+
+    /// Audio-Playback (Web Audio API): wenn true, beim Step automatischer 200ms-Pulse
+    /// mit MIDI-Pitch der detection. Erlaubt Pitch-Validation per Ohr.
+    private bool playAudio = false;
+
+    /// Confidence-Threshold für Auto-Confirm. Wenn nh.confidence >= confThreshold,
+    /// wird das NH automatisch übersprungen UND als bestätigt gezählt.
+    /// Default 1.0 = deaktiviert.
+    private double confThreshold = 1.0;
+
+    /// Anzahl der Step-Kandidaten auf der aktuellen Seite (gefiltert nach Modus).
+    private int StepCandidateCount
+    {
+        get
+        {
+            if (!onlyAnomalies)
+                return detections?.pages?.ElementAtOrDefault(currentPage)?.noteheads?.Count ?? 0;
+            return GetAnomalyNhIndices().Count;
+        }
+    }
+
+    /// Liefert die NH-Indices die zu einer Anomaly gehören (X-Position-Match auf
+    /// das gleiche System).
+    private List<int> GetAnomalyNhIndices()
+    {
+        var page = detections?.pages?.ElementAtOrDefault(currentPage);
+        var systems = page?.reading_stream?.systems;
+        if (page?.noteheads is null || systems is null) return new List<int>();
+
+        var anomalyXs = new HashSet<int>();
+        foreach (var s in systems)
+        {
+            if (s.anomalies is null) continue;
+            foreach (var a in s.anomalies)
+            {
+                // Wenn die Anomaly direkt einen notehead_idx referenziert
+                if (a.notehead_idx.HasValue)
+                {
+                    anomalyXs.Add((int)a.notehead_idx.Value);
+                }
+                // Sonst per X-Position approximieren
+                else if (a.x.HasValue)
+                {
+                    var x = a.x.Value;
+                    for (int i = 0; i < page.noteheads.Count; i++)
+                    {
+                        var nh = page.noteheads[i];
+                        var nhCx = nh.bbox[0] + nh.bbox[2] / 2;
+                        if (Math.Abs(nhCx - x) < 30) anomalyXs.Add(i);
+                    }
+                }
+                // Wenn nur measure-number gegeben → alle NHs in measure
+                else if (a.measure.HasValue)
+                {
+                    for (int i = 0; i < page.noteheads.Count; i++)
+                    {
+                        if (page.noteheads[i].measure_number == a.measure.Value)
+                            anomalyXs.Add(i);
+                    }
+                }
+            }
+        }
+        return anomalyXs.OrderBy(i => i).ToList();
+    }
+
     private NoteheadDto? stepDetection
     {
         get
@@ -940,42 +1100,180 @@ window.sheetstormAnnotate = window.sheetstormAnnotate || {
     {
         var pageNhs = detections?.pages?.ElementAtOrDefault(currentPage)?.noteheads;
         if (pageNhs is null) return;
-        if (stepIndex + 1 < pageNhs.Count)
+
+        // Bei Anomaly-Filter: zum nächsten Anomaly-NH springen
+        if (onlyAnomalies)
         {
-            stepIndex++;
+            var anomalyIdxs = GetAnomalyNhIndices();
+            if (anomalyIdxs.Count == 0) return;
+            var nextIdx = anomalyIdxs.FirstOrDefault(i => i > stepIndex);
+            if (nextIdx == 0 && !anomalyIdxs.Contains(0))
+            {
+                if (currentPage + 1 < pageCount)
+                {
+                    currentPage++;
+                    var newAnoms = GetAnomalyNhIndices();
+                    stepIndex = newAnoms.FirstOrDefault();
+                    lastBoundImageUrl = null;
+                }
+            }
+            else if (nextIdx > stepIndex)
+            {
+                stepIndex = nextIdx;
+            }
         }
-        else if (currentPage + 1 < pageCount)
+        else
         {
-            currentPage++;
-            stepIndex = 0;
-            lastBoundImageUrl = null; // re-bind anderes Page-Image
+            // Auto-Confirm: skippe NHs >= threshold solange wir nicht den letzten erreicht haben
+            var newIdx = stepIndex;
+            while (newIdx + 1 < pageNhs.Count)
+            {
+                newIdx++;
+                if (confThreshold >= 1.0) break;
+                var nh = pageNhs[newIdx];
+                if (nh.confidence is null || nh.confidence.Value < confThreshold) break;
+                // Auto-confirmed (nicht persistent), nur skip
+            }
+            if (newIdx == stepIndex && currentPage + 1 < pageCount)
+            {
+                currentPage++;
+                stepIndex = 0;
+                lastBoundImageUrl = null;
+            }
+            else
+            {
+                stepIndex = newIdx;
+            }
         }
+
         selectedDetectionId = stepDetection?.id;
         editorMode = EditorMode.None;
         scrollToSelectionPending = true;
         _ = RenderCanvasAsync();
+        _ = MaybePlayAudioAsync();
     }
 
     private void StepPrev()
     {
-        if (stepIndex > 0)
+        if (onlyAnomalies)
         {
-            stepIndex--;
+            var anomalyIdxs = GetAnomalyNhIndices();
+            var prev = anomalyIdxs.LastOrDefault(i => i < stepIndex);
+            if (prev == 0 && !anomalyIdxs.Contains(0) && stepIndex == 0 && currentPage > 0)
+            {
+                currentPage--;
+                var newAnoms = GetAnomalyNhIndices();
+                stepIndex = newAnoms.LastOrDefault();
+                lastBoundImageUrl = null;
+            }
+            else if (prev < stepIndex)
+            {
+                stepIndex = prev;
+            }
         }
-        else if (currentPage > 0)
+        else
         {
-            currentPage--;
-            var prevNhs = detections?.pages?.ElementAtOrDefault(currentPage)?.noteheads;
-            stepIndex = Math.Max(0, (prevNhs?.Count ?? 1) - 1);
-            lastBoundImageUrl = null;
+            if (stepIndex > 0)
+            {
+                stepIndex--;
+            }
+            else if (currentPage > 0)
+            {
+                currentPage--;
+                var prevNhs = detections?.pages?.ElementAtOrDefault(currentPage)?.noteheads;
+                stepIndex = Math.Max(0, (prevNhs?.Count ?? 1) - 1);
+                lastBoundImageUrl = null;
+            }
         }
         selectedDetectionId = stepDetection?.id;
         editorMode = EditorMode.None;
         scrollToSelectionPending = true;
         _ = RenderCanvasAsync();
+        _ = MaybePlayAudioAsync();
     }
 
     private void StepSkip() => StepNext();
+
+    /// Toggle "nur Anomalien"-Filter. Bei Aktivierung springt direkt zur ersten Anomaly.
+    private void ToggleOnlyAnomalies(bool value)
+    {
+        onlyAnomalies = value;
+        if (value)
+        {
+            var anomalyIdxs = GetAnomalyNhIndices();
+            if (anomalyIdxs.Count > 0)
+            {
+                stepIndex = anomalyIdxs.First();
+                selectedDetectionId = stepDetection?.id;
+                _ = RenderCanvasAsync();
+            }
+        }
+    }
+
+    private void ToggleAudioPlay(bool value)
+    {
+        playAudio = value;
+        if (value) _ = MaybePlayAudioAsync();
+    }
+
+    private void UpdateConfThreshold(ChangeEventArgs e)
+    {
+        if (e.Value is null) return;
+        if (double.TryParse(e.Value.ToString(),
+            System.Globalization.NumberStyles.Float,
+            System.Globalization.CultureInfo.InvariantCulture,
+            out var v))
+        {
+            confThreshold = Math.Clamp(v, 0.5, 1.0);
+        }
+    }
+
+    /// Bei aktiviertem Audio: spielt einen Sinuston mit der MIDI-Note der current detection.
+    private async Task MaybePlayAudioAsync()
+    {
+        if (!playAudio) return;
+        var nh = stepDetection;
+        if (nh?.midi is null) return;
+        try
+        {
+            await JS.InvokeVoidAsync("sheetstormAnnotate.playMidi", nh.midi.Value, 200);
+        }
+        catch { }
+    }
+
+    /// Bestätigt alle Detections eines Taktes als korrekt — ein Klick statt N.
+    private async Task ConfirmEntireMeasureAsync(int measureNumber)
+    {
+        var page = detections?.pages?.ElementAtOrDefault(currentPage);
+        if (page?.noteheads is null) return;
+        var nhsInMeasure = page.noteheads.Where(n => n.measure_number == measureNumber).ToList();
+        if (nhsInMeasure.Count == 0) return;
+        try
+        {
+            foreach (var nh in nhsInMeasure)
+            {
+                // Skip if already annotated
+                var existing = annotationsThisPage.FirstOrDefault(a =>
+                {
+                    var ax = a.x + a.w / 2.0;
+                    var ay = a.y + a.h / 2.0;
+                    var nx = nh.bbox[0] + nh.bbox[2] / 2.0;
+                    var ny = nh.bbox[1] + nh.bbox[3] / 2.0;
+                    return Math.Abs(ax - nx) < 12 && Math.Abs(ay - ny) < 12;
+                });
+                if (existing is not null) continue;
+
+                await PartDetectionService.AddAnnotationAsync(
+                    partId, currentUserId, currentPage,
+                    nh.bbox[0], nh.bbox[1], nh.bbox[2], nh.bbox[3],
+                    Sheetstorm.Domain.Music.PartAnnotationKind.Confirmed,
+                    null, null);
+            }
+            await LoadDetectionsAsync();
+            StateHasChanged();
+        }
+        catch (Exception ex) { Logger.LogWarning(ex, "ConfirmEntireMeasureAsync failed"); }
+    }
 
     private void SetViewMode(ViewMode m)
     {
@@ -1198,6 +1496,37 @@ window.sheetstormAnnotate = window.sheetstormAnnotate || {
         catch (Exception ex)
         {
             Logger.LogError(ex, "OnRegionConfirmed fehlgeschlagen");
+        }
+    }
+
+    /// Hotkey-Handler vom JS: Y/N → Confirm/Reject, ←/→ → Prev/Next.
+    [JSInvokable]
+    public async Task OnHotkey(string action)
+    {
+        if (viewMode != ViewMode.Step) return;
+        try
+        {
+            switch (action)
+            {
+                case "confirm":
+                    await StepConfirmAsync();
+                    break;
+                case "reject":
+                    await StepNotANoteAsync();
+                    break;
+                case "next":
+                    StepNext();
+                    StateHasChanged();
+                    break;
+                case "prev":
+                    StepPrev();
+                    StateHasChanged();
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Hotkey {Action} fehlgeschlagen", action);
         }
     }
 
@@ -1601,7 +1930,8 @@ window.sheetstormAnnotate = window.sheetstormAnnotate || {
     private sealed record NoteheadDto(
         long id, int[] bbox, string kind,
         int? midi, string? step, int? alter, int? octave,
-        int? duration, int? measure_number);
+        int? duration, int? measure_number,
+        double? confidence = null);
     private sealed record StemDto(int x, int y_top, int y_bot);
     private sealed record BarDto(int x, int y_top, int y_bot);
     private sealed record AnnotationDto(Guid id, int pageIndex, int x, int y, int w, int h, int kind, string? correctionJson, string? comment);
