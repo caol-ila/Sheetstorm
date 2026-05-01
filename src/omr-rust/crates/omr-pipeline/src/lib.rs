@@ -617,6 +617,20 @@ fn process_gray_single(gray: GrayImage, opts: &PipelineOptions) -> Result<Pipeli
     // Lokale Accidentals (♯/♭/♮ direkt links vom NH) — überschreiben Key-Sig
     let local_alters = omr_symbols::detect_local_accidentals(&bin, &noteheads, &systems);
 
+    // Ledger-Line-Detection für hohe/tiefe Noten ausserhalb der Staff.
+    // Wird genutzt um die Y-Position dieser NHs gegen die echte Hilfslinie
+    // zu kalibrieren (statt nur extrapoliert).
+    let ledger_infos = omr_symbols::ledger_lines::detect_ledger_lines(&bin, &noteheads, &systems);
+    let mut ledger_by_nh: std::collections::HashMap<usize, omr_symbols::ledger_lines::LedgerInfo>
+        = std::collections::HashMap::new();
+    for info in &ledger_infos {
+        ledger_by_nh.insert(info.note_idx, *info);
+    }
+    info!(
+        n_nh_with_ledger = ledger_infos.len(),
+        "ledger lines detected"
+    );
+
     let all_measures_per_system: Vec<Vec<Measure>> = (0..systems.len())
         .map(|sys_i| {
             // Globale Indices der NH dieses Systems sammeln
