@@ -42,6 +42,10 @@ pub struct DetectionPage {
     pub jump_marks: Vec<JumpMarkEntry>,
     /// Erkannte Pausen.
     pub rests: Vec<RestEntry>,
+    /// Layered Reader Phase A: sequenzielle Lese-Streams + Anomalien pro System.
+    /// Wird über `read_page_sequentially` produziert.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reading_stream: Option<omr_symbols::PageReadingStream>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -459,6 +463,20 @@ pub fn build_detection_page(
         })
         .collect();
 
+    // Layered Reader Phase A: sequenzielles Lesen pro System
+    let measures_for_reader: Vec<omr_core::Measure> = measures.to_vec();
+    let reading_stream = Some(omr_symbols::read_page_sequentially(
+        systems,
+        clefs,
+        keys,
+        time_signature,
+        &measures_for_reader,
+        noteheads,
+        rests,
+        bars,
+        jump_detections,
+    ));
+
     DetectionPage {
         page_index,
         width,
@@ -477,5 +495,6 @@ pub fn build_detection_page(
         time_signatures: time_entries,
         jump_marks: jump_entries,
         rests: rest_entries,
+        reading_stream,
     }
 }

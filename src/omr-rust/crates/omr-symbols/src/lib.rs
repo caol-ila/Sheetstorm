@@ -16,6 +16,7 @@ pub mod cc;
 pub mod meta;
 pub mod pitch;
 pub mod plausibility;
+pub mod reader;
 pub mod stems;
 pub mod template;
 pub mod templates;
@@ -29,6 +30,7 @@ pub use beams::{detect_beams, beams_per_stem, filter_noteheads_on_beams, Beam};
 pub use cc::{connected_components, ConnectedComponent};
 pub use meta::{detect_clef, detect_key_signature};
 pub use plausibility::{check_measure, repair_measure, validate_and_repair_part, MeasureCheck, MeasurePlausibility};
+pub use reader::{read_page_sequentially, read_system_sequentially, PageReadingStream, ReadingAnomaly, ReadingEvent, SystemReadingStream};
 pub use rests::{detect_rests, Rest, RestKind};
 pub use template::{detect_noteheads_template_v2, detect_wholes_template, rerank_with_template};
 
