@@ -297,6 +297,49 @@ else
                     </p>
                 }
 
+                @if (CurrentPageAnomalies().Count > 0)
+                {
+                    var anomalies = CurrentPageAnomalies();
+                    <div class="card mb-2 border-warning" data-testid="annotate-anomalies">
+                        <div class="card-body py-2">
+                            <h6 class="card-title mb-1">⚠ Auffälligkeiten beim Lesen (@anomalies.Count)</h6>
+                            <p class="small text-muted mb-2">Stellen, an denen das System unsicher gelesen hat — diese zuerst prüfen!</p>
+                            <ul class="small mb-0">
+                                @foreach (var a in anomalies.Take(10))
+                                {
+                                    <li>
+                                        @switch (a.type)
+                                        {
+                                            case "note_in_header":
+                                                <span><b>Note im Header</b> (x=@a.x): vermutlich Vorzeichen oder Schlüssel falsch erkannt</span>
+                                                break;
+                                            case "beat_mismatch":
+                                                <span><b>Takt @a.measure</b>: erwartet @a.expected_beats Beats, gefunden @a.actual_beats — fehlende oder zusätzliche Note?</span>
+                                                break;
+                                            case "empty_measure":
+                                                <span><b>Takt @a.measure</b> ist leer — Pause vergessen oder Erkennung fehlgeschlagen</span>
+                                                break;
+                                            case "orphan_note_after_final_bar":
+                                                <span><b>Orphan-Note</b> nach letztem Taktstrich (x=@a.x): vermutlich Volta-Digit oder Anhang-Symbol</span>
+                                                break;
+                                            case "duplicate_clef":
+                                                <span>Mehrere Notenschlüssel direkt hintereinander — einer falsch erkannt</span>
+                                                break;
+                                            default:
+                                                <span>@a.type</span>
+                                                break;
+                                        }
+                                    </li>
+                                }
+                                @if (anomalies.Count > 10)
+                                {
+                                    <li class="text-muted">... und @(anomalies.Count - 10) weitere</li>
+                                }
+                            </ul>
+                        </div>
+                    </div>
+                }
+
             @if (selectedDetectionId.HasValue && selectedDetection is not null)
             {
                 <div class="card mb-2 annotate-selected-card" data-testid="annotate-selected-card">
@@ -1528,6 +1571,15 @@ window.sheetstormAnnotate = window.sheetstormAnnotate || {
         1 => "Sechzehntel", 2 => "Achtel", 4 => "Viertel", 6 => "Punkt.Viertel",
         8 => "Halbe", 12 => "Punkt.Halbe", 16 => "Ganze", _ => $"d={d}"
     };
+
+    private List<ReadingAnomalyDto> CurrentPageAnomalies()
+    {
+        var page = detections?.pages?.ElementAtOrDefault(currentPage);
+        var systems = page?.reading_stream?.systems;
+        if (systems is null) return new List<ReadingAnomalyDto>();
+        return systems.SelectMany(s => s.anomalies ?? new List<ReadingAnomalyDto>()).ToList();
+    }
+
     private static string KindLabel(int kind) => kind switch
     {
         0 => "Keine Note", 1 => "Falscher Pitch", 2 => "Falsche Dauer",
@@ -1544,7 +1596,8 @@ window.sheetstormAnnotate = window.sheetstormAnnotate || {
     private sealed record DetectionsDto(int schema_version, List<DetectionPageDto> pages);
     private sealed record DetectionPageDto(
         int page_index, int width, int height, float line_spacing,
-        List<NoteheadDto>? noteheads, List<StemDto>? stems, List<BarDto>? bars);
+        List<NoteheadDto>? noteheads, List<StemDto>? stems, List<BarDto>? bars,
+        ReadingStreamDto? reading_stream);
     private sealed record NoteheadDto(
         long id, int[] bbox, string kind,
         int? midi, string? step, int? alter, int? octave,
@@ -1552,5 +1605,8 @@ window.sheetstormAnnotate = window.sheetstormAnnotate || {
     private sealed record StemDto(int x, int y_top, int y_bot);
     private sealed record BarDto(int x, int y_top, int y_bot);
     private sealed record AnnotationDto(Guid id, int pageIndex, int x, int y, int w, int h, int kind, string? correctionJson, string? comment);
+    private sealed record ReadingStreamDto(List<ReadingSystemDto>? systems);
+    private sealed record ReadingSystemDto(int system_idx, List<ReadingAnomalyDto>? anomalies, int header_end_x);
+    private sealed record ReadingAnomalyDto(string type, int? x, int? measure, float? expected_beats, float? actual_beats, int? notehead_idx);
     public sealed class ClickCoord { public int x { get; set; } public int y { get; set; } }
 }
