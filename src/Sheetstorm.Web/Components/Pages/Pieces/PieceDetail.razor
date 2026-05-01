@@ -75,6 +75,27 @@ else
         {
             <h3 data-testid="selected-part-name">@selectedPart.DisplayName</h3>
 
+            @if (canEdit)
+            {
+                var hasDetections = selectedPart.Files.Any(f => f.Kind == PartFileKind.Detections);
+                <p class="mb-2">
+                    @if (hasDetections)
+                    {
+                        <a href="/Bands/@slug/pieces/@pieceId/parts/@selectedPart.Id/annotate"
+                           class="ss-btn ss-btn-primary"
+                           data-testid="part-annotate-link">
+                            🎯 Erkennung prüfen / korrigieren
+                        </a>
+                    }
+                    else
+                    {
+                        <span class="text-muted" data-testid="part-detections-pending">
+                            ⚙ Erkennung wird verarbeitet… (Seite neu laden in ein paar Sekunden)
+                        </span>
+                    }
+                </p>
+            }
+
             <PartViewer Part="selectedPart" CanEdit="canEdit" OnPartChanged="ReloadPartAsync" @rendermode="InteractiveServer" />
         }
     }

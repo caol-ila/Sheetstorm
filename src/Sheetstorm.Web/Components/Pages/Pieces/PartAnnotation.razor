@@ -1,0 +1,692 @@
+@page "/Bands/{slug}/pieces/{pieceId:guid}/parts/{partId:guid}/annotate"
+@layout MainLayout
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject UserManager<ApplicationUser> UserManager
+@inject SheetstormDbContext Db
+@inject AuthenticationStateProvider AuthState
+@inject NavigationManager Navigation
+@inject Sheetstorm.Web.Application.PartDetectionService PartDetectionService
+@inject IServiceScopeFactory ScopeFactory
+@inject ILogger<PartAnnotation> Logger
+@inject IJSRuntime JS
+
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using Sheetstorm.Domain.Identity
+@using Sheetstorm.Domain.Music
+@using Sheetstorm.Infrastructure.Persistence
+
+<PageTitle>Erkennung prüfen — @part?.DisplayName</PageTitle>
+
+<link rel="stylesheet" href="~/css/annotation.css" />
+
+@if (loading)
+{
+    <p>Lädt…</p>
+}
+else if (notAuthorized)
+{
+    <p class="alert alert-danger">Du hast keine Berechtigung, diese Stimme zu korrigieren.</p>
+}
+else if (part is null)
+{
+    <p class="alert alert-warning">Stimme nicht gefunden.</p>
+}
+else
+{
+    <p><a href="/Bands/@slug/pieces/@pieceId" data-testid="annotate-back">← Zurück zum Werk</a></p>
+    <h1 data-testid="annotate-title">@part.DisplayName — Erkennung prüfen</h1>
+    <p class="text-muted">
+        Klicke auf einen erkannten Notenkopf für Korrekturen, oder auf eine leere Stelle um eine
+        fehlende Note zu ergänzen. Alle Korrekturen werden für das automatische Training der
+        Erkennungs-Pipeline und zur Verbesserung der Anzeige in der App verwendet.
+    </p>
+
+    <div class="annotate-layout">
+        <div class="annotate-left">
+            <div class="annotate-toolbar">
+                <button type="button" class="btn btn-sm btn-outline-secondary"
+                        @onclick="PrevPage" disabled="@(currentPage == 0)" data-testid="annotate-prev">←</button>
+                <span data-testid="annotate-page-label">Seite @(currentPage + 1) / @pageCount</span>
+                <button type="button" class="btn btn-sm btn-outline-secondary"
+                        @onclick="NextPage" disabled="@(currentPage + 1 >= pageCount)" data-testid="annotate-next">→</button>
+
+                <span class="ms-3">Zoom:</span>
+                <input type="range" min="0.5" max="3" step="0.1" @bind="zoom" data-testid="annotate-zoom" />
+                <span>@(zoom.ToString("F1"))×</span>
+
+                <span class="ms-3">Anzeige:</span>
+                <label class="ms-2"><input type="checkbox" @bind="showNoteheads" /> Noten</label>
+                <label class="ms-2"><input type="checkbox" @bind="showStems" /> Stems</label>
+                <label class="ms-2"><input type="checkbox" @bind="showBars" /> Takte</label>
+                <label class="ms-2"><input type="checkbox" @bind="showAnnotations" /> Korrekturen</label>
+
+                <button type="button" class="btn btn-sm btn-outline-warning ms-3"
+                        @onclick="RerunDetectionsAsync" disabled="@runningDetections" data-testid="annotate-rerun">
+                    @(runningDetections ? "Erkennung läuft…" : "🔄 Erkennung neu starten")
+                </button>
+            </div>
+
+            <div class="annotate-canvas-wrap" id="annotate-wrap">
+                <canvas id="annotate-canvas"
+                        @onclick="OnCanvasClick"
+                        @onclick:preventDefault="true"
+                        data-testid="annotate-canvas"></canvas>
+            </div>
+        </div>
+
+        <div class="annotate-right">
+            <h4>Korrekturen Seite @(currentPage + 1)</h4>
+            <p class="text-muted small">
+                @annotationsThisPage.Count Korrektur(en) auf dieser Seite,
+                @allAnnotations.Count gesamt.
+            </p>
+
+            @if (selectedDetectionId.HasValue && selectedDetection is not null)
+            {
+                <div class="card mb-2 annotate-selected-card" data-testid="annotate-selected-card">
+                    <div class="card-body">
+                        <h5 class="card-title">Erkannte Note (id #@selectedDetection.id)</h5>
+                        <ul class="small">
+                            <li>Typ: <b>@selectedDetection.kind</b></li>
+                            @if (selectedDetection.midi.HasValue)
+                            {
+                                <li>Pitch: <b>@selectedDetection.step@selectedDetection.octave</b> (MIDI @selectedDetection.midi)</li>
+                            }
+                            @if (selectedDetection.duration.HasValue)
+                            {
+                                <li>Dauer: <b>@DurationLabel(selectedDetection.duration.Value)</b> (@selectedDetection.duration ticks)</li>
+                            }
+                            @if (selectedDetection.measure_number.HasValue)
+                            {
+                                <li>Takt: @selectedDetection.measure_number</li>
+                            }
+                        </ul>
+
+                        <p class="small mb-1"><b>Was ist falsch?</b></p>
+                        <div class="d-grid gap-1">
+                            <button type="button" class="btn btn-sm btn-outline-danger"
+                                    @onclick="() => MarkAsync(PartAnnotationKind.NotANote, null)"
+                                    data-testid="annotate-not-a-note">❌ Keine Note (False-Positive)</button>
+                            <button type="button" class="btn btn-sm btn-outline-warning"
+                                    @onclick="() => OpenPitchEditor()"
+                                    data-testid="annotate-wrong-pitch">🎵 Falscher Pitch…</button>
+                            <button type="button" class="btn btn-sm btn-outline-warning"
+                                    @onclick="() => OpenDurationEditor()"
+                                    data-testid="annotate-wrong-duration">⏱ Falsche Dauer…</button>
+                            <button type="button" class="btn btn-sm btn-outline-warning"
+                                    @onclick="() => OpenKindEditor()"
+                                    data-testid="annotate-wrong-kind">⚪ Falsche Klassifikation…</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary"
+                                    @onclick="() => OpenCommentEditor()"
+                                    data-testid="annotate-comment">💬 Kommentar…</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary"
+                                    @onclick="() => selectedDetectionId = null"
+                                    data-testid="annotate-deselect">Auswahl aufheben</button>
+                        </div>
+
+                        @if (editorMode != EditorMode.None)
+                        {
+                            <hr/>
+                            <p class="small mb-1"><b>@editorTitle</b></p>
+                            @if (editorMode == EditorMode.Pitch)
+                            {
+                                <div class="d-flex gap-1">
+                                    <input type="number" min="0" max="127" @bind="editorMidi" class="form-control form-control-sm" placeholder="MIDI 0-127" />
+                                    <button class="btn btn-sm btn-primary" @onclick="SavePitchAsync">OK</button>
+                                </div>
+                            }
+                            else if (editorMode == EditorMode.Duration)
+                            {
+                                <select @bind="editorDuration" class="form-select form-select-sm">
+                                    <option value="1">Sechzehntel (1)</option>
+                                    <option value="2">Achtel (2)</option>
+                                    <option value="4">Viertel (4)</option>
+                                    <option value="8">Halbe (8)</option>
+                                    <option value="16">Ganze (16)</option>
+                                </select>
+                                <button class="btn btn-sm btn-primary mt-1" @onclick="SaveDurationAsync">OK</button>
+                            }
+                            else if (editorMode == EditorMode.Kind)
+                            {
+                                <select @bind="editorKind" class="form-select form-select-sm">
+                                    <option value="Filled">Filled (Viertel/Achtel)</option>
+                                    <option value="Open">Open (Halbe)</option>
+                                    <option value="Whole">Whole (Ganze)</option>
+                                </select>
+                                <button class="btn btn-sm btn-primary mt-1" @onclick="SaveKindAsync">OK</button>
+                            }
+                            else if (editorMode == EditorMode.Comment)
+                            {
+                                <textarea @bind="editorComment" class="form-control form-control-sm" rows="3" placeholder="Anmerkung…"></textarea>
+                                <button class="btn btn-sm btn-primary mt-1" @onclick="SaveCommentAsync">OK</button>
+                            }
+                        }
+                    </div>
+                </div>
+            }
+            else if (pendingMissedClick is not null)
+            {
+                <div class="card mb-2 annotate-missed-card" data-testid="annotate-missed-card">
+                    <div class="card-body">
+                        <h5 class="card-title">Fehlende Note ergänzen</h5>
+                        <p class="small">An dieser Stelle ist keine Note erkannt. Welche Note sollte hier sein?</p>
+                        <label class="small">MIDI</label>
+                        <input type="number" min="0" max="127" @bind="editorMidi" class="form-control form-control-sm mb-1" />
+                        <label class="small">Dauer</label>
+                        <select @bind="editorDuration" class="form-select form-select-sm mb-1">
+                            <option value="1">Sechzehntel</option>
+                            <option value="2">Achtel</option>
+                            <option value="4">Viertel</option>
+                            <option value="8">Halbe</option>
+                            <option value="16">Ganze</option>
+                        </select>
+                        <label class="small">Typ</label>
+                        <select @bind="editorKind" class="form-select form-select-sm mb-1">
+                            <option value="Filled">Filled</option>
+                            <option value="Open">Open</option>
+                            <option value="Whole">Whole</option>
+                        </select>
+                        <div class="d-flex gap-1 mt-2">
+                            <button class="btn btn-sm btn-success" @onclick="SaveMissedAsync" data-testid="annotate-save-missed">Speichern</button>
+                            <button class="btn btn-sm btn-outline-secondary" @onclick="() => pendingMissedClick = null">Abbrechen</button>
+                        </div>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <p class="text-muted small" data-testid="annotate-help">
+                    💡 Klick auf eine erkannte Note (rotes/gelbes Kästchen) für Korrekturen,
+                    oder auf eine leere Stelle für eine fehlende Note.
+                </p>
+            }
+
+            <h5 class="mt-3">Liste der Korrekturen</h5>
+            @if (annotationsThisPage.Count == 0)
+            {
+                <p class="text-muted small">Noch keine Korrekturen auf dieser Seite.</p>
+            }
+            else
+            {
+                <ul class="list-group list-group-flush small">
+                    @foreach (var a in annotationsThisPage)
+                    {
+                        <li class="list-group-item d-flex justify-content-between align-items-start">
+                            <div>
+                                <span class="badge bg-@KindBadgeColor(a.kind)">@KindLabel(a.kind)</span>
+                                @if (!string.IsNullOrEmpty(a.correctionJson))
+                                {
+                                    <code class="ms-1">@a.correctionJson</code>
+                                }
+                                @if (!string.IsNullOrEmpty(a.comment))
+                                {
+                                    <div class="text-muted">"@a.comment"</div>
+                                }
+                            </div>
+                            <button class="btn btn-sm btn-link text-danger p-0"
+                                    @onclick="() => DeleteAnnotationAsync(a.id)"
+                                    data-testid="annotate-delete-@a.id">×</button>
+                        </li>
+                    }
+                </ul>
+            }
+        </div>
+    </div>
+}
+
+<script>
+window.sheetstormAnnotate = window.sheetstormAnnotate || {
+    pageImage: null,
+    bind: function(canvasId, imageUrl, width, height) {
+        const canvas = document.getElementById(canvasId);
+        if (!canvas) return;
+        const img = new Image();
+        img.onload = () => {
+            window.sheetstormAnnotate.pageImage = img;
+            // Initial draw will be triggered by Blazor render
+            const evt = new CustomEvent('ss-image-loaded', { detail: { width: img.naturalWidth, height: img.naturalHeight } });
+            window.dispatchEvent(evt);
+        };
+        img.src = imageUrl;
+    },
+    render: function(canvasId, payload) {
+        const canvas = document.getElementById(canvasId);
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const img = window.sheetstormAnnotate.pageImage;
+        if (!img) return;
+        const zoom = payload.zoom || 1.0;
+        const W = Math.round(img.naturalWidth * zoom);
+        const H = Math.round(img.naturalHeight * zoom);
+        canvas.width = W;
+        canvas.height = H;
+        ctx.imageSmoothingEnabled = true;
+        ctx.drawImage(img, 0, 0, W, H);
+
+        // Skalierungs-Faktoren: Detections sind in Pipeline-Pixel-System;
+        // PageImage kann andere DPI haben. payload.detW/detH = Pipeline-Render-Size.
+        const sx = (W / payload.detW);
+        const sy = (H / payload.detH);
+
+        // Beam/Stems hinter NHs
+        if (payload.showStems) {
+            ctx.strokeStyle = 'rgba(0,200,0,0.6)';
+            ctx.lineWidth = 1;
+            for (const s of payload.stems) {
+                ctx.beginPath();
+                ctx.moveTo(s.x*sx, s.yTop*sy);
+                ctx.lineTo(s.x*sx, s.yBot*sy);
+                ctx.stroke();
+            }
+        }
+        if (payload.showBars) {
+            ctx.strokeStyle = 'rgba(160,0,200,0.6)';
+            ctx.lineWidth = 2;
+            for (const b of payload.bars) {
+                ctx.beginPath();
+                ctx.moveTo(b.x*sx, b.yTop*sy);
+                ctx.lineTo(b.x*sx, b.yBot*sy);
+                ctx.stroke();
+            }
+        }
+        if (payload.showNoteheads) {
+            for (const nh of payload.noteheads) {
+                const annKind = payload.annotatedIds[nh.id];
+                if (annKind === 0) {
+                    // NotANote — gestrichelt durchstreichen
+                    ctx.strokeStyle = 'rgba(180,180,180,0.9)';
+                    ctx.lineWidth = 1;
+                    ctx.setLineDash([3,3]);
+                } else if (annKind !== undefined) {
+                    ctx.strokeStyle = 'rgba(255,165,0,0.9)';
+                    ctx.lineWidth = 2;
+                    ctx.setLineDash([]);
+                } else if (nh.id === payload.selectedId) {
+                    ctx.strokeStyle = 'rgba(0,128,255,1.0)';
+                    ctx.lineWidth = 3;
+                    ctx.setLineDash([]);
+                } else if (nh.kind === 'Filled') {
+                    ctx.strokeStyle = 'rgba(220,40,40,0.85)';
+                    ctx.lineWidth = 1;
+                    ctx.setLineDash([]);
+                } else if (nh.kind === 'Open') {
+                    ctx.strokeStyle = 'rgba(255,200,0,0.85)';
+                    ctx.lineWidth = 1;
+                    ctx.setLineDash([]);
+                } else {
+                    ctx.strokeStyle = 'rgba(0,150,200,0.85)';
+                    ctx.lineWidth = 1;
+                    ctx.setLineDash([]);
+                }
+                ctx.strokeRect(nh.bbox[0]*sx, nh.bbox[1]*sy, nh.bbox[2]*sx, nh.bbox[3]*sy);
+            }
+            ctx.setLineDash([]);
+        }
+        // Missed-Notes (Annotations vom Typ MissedNote)
+        if (payload.showAnnotations) {
+            for (const ma of payload.missedAnnotations) {
+                ctx.strokeStyle = 'rgba(0,200,0,0.9)';
+                ctx.fillStyle = 'rgba(0,200,0,0.15)';
+                ctx.lineWidth = 2;
+                ctx.fillRect(ma.x*sx, ma.y*sy, ma.w*sx, ma.h*sy);
+                ctx.strokeRect(ma.x*sx, ma.y*sy, ma.w*sx, ma.h*sy);
+            }
+        }
+    },
+    getClickInDetectionCoords: function(canvasId, evtX, evtY, detW, detH) {
+        const canvas = document.getElementById(canvasId);
+        if (!canvas) return null;
+        const r = canvas.getBoundingClientRect();
+        const localX = evtX - r.left;
+        const localY = evtY - r.top;
+        const sx = canvas.width / detW;
+        const sy = canvas.height / detH;
+        return { x: Math.round(localX / sx), y: Math.round(localY / sy) };
+    }
+};
+</script>
+
+@code {
+    [Parameter] public string slug { get; set; } = default!;
+    [Parameter] public Guid pieceId { get; set; }
+    [Parameter] public Guid partId { get; set; }
+
+    private Part? part;
+    private bool loading = true;
+    private bool notAuthorized;
+    private Guid currentUserId;
+    private bool runningDetections;
+
+    // Detection-Daten (vom Server geladen)
+    private DetectionsDto? detections;
+    private int currentPage;
+    private int pageCount;
+
+    // Annotations
+    private List<AnnotationDto> allAnnotations = new();
+    private List<AnnotationDto> annotationsThisPage => allAnnotations.Where(a => a.pageIndex == currentPage).ToList();
+
+    // UI-State
+    private double zoom = 1.0;
+    private bool showNoteheads = true;
+    private bool showStems = true;
+    private bool showBars = true;
+    private bool showAnnotations = true;
+
+    private long? selectedDetectionId;
+    private NoteheadDto? selectedDetection => detections?.pages?[currentPage]?.noteheads?.FirstOrDefault(n => n.id == selectedDetectionId);
+
+    private (int x, int y)? pendingMissedClick;
+    private EditorMode editorMode = EditorMode.None;
+    private string editorTitle = "";
+    private int editorMidi = 60;
+    private int editorDuration = 4;
+    private string editorKind = "Filled";
+    private string? editorComment;
+
+    private enum EditorMode { None, Pitch, Duration, Kind, Comment }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        var u = auth.User?.Identity?.IsAuthenticated == true ? await UserManager.GetUserAsync(auth.User) : null;
+        if (u is null) { Navigation.NavigateTo("/login"); return; }
+        currentUserId = u.Id;
+
+        part = await Db.Parts.FirstOrDefaultAsync(p => p.Id == partId);
+        if (part is null) { loading = false; return; }
+        var piece = await Db.Pieces.FirstOrDefaultAsync(p => p.Id == part.PieceId);
+        if (piece is null) { loading = false; return; }
+        var membership = await Db.Memberships.FirstOrDefaultAsync(m => m.BandId == piece.BandId && m.UserId == u.Id);
+        if (membership is null
+            || (membership.Roles & (BandRole.Admin | BandRole.Owner | BandRole.Dirigent)) == 0)
+        {
+            notAuthorized = true;
+            loading = false;
+            return;
+        }
+
+        await LoadDetectionsAsync();
+        loading = false;
+    }
+
+    private async Task LoadDetectionsAsync()
+    {
+        try
+        {
+            var json = await PartDetectionService.GetDetectionsJsonAsync(partId);
+            if (string.IsNullOrEmpty(json))
+            {
+                detections = null;
+                pageCount = 0;
+                return;
+            }
+            detections = System.Text.Json.JsonSerializer.Deserialize<DetectionsDto>(json,
+                new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            pageCount = detections?.pages?.Count ?? 0;
+
+            var anns = await PartDetectionService.GetAnnotationsAsync(partId);
+            allAnnotations = anns.Select(a => new AnnotationDto(
+                a.Id, a.PageIndex, a.BboxX, a.BboxY, a.BboxW, a.BboxH,
+                (int)a.Kind, a.CorrectionJson, a.Comment)).ToList();
+        }
+        catch (Exception)
+        {
+            detections = null;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (loading || part is null || detections is null) return;
+        // Bind Page-Image: PartFile.PageImage mit pageNumber == currentPage+1
+        var pageFile = await Db.PartFiles
+            .Where(f => f.PartId == partId && f.Kind == PartFileKind.PageImage && f.PageNumber == currentPage + 1)
+            .FirstOrDefaultAsync();
+        if (pageFile is null) return;
+        var imageUrl = $"/files/parts/{partId}/{pageFile.Id}";
+        await JS.InvokeVoidAsync("sheetstormAnnotate.bind", "annotate-canvas", imageUrl, 0, 0);
+        await Task.Delay(300); // Image-Load abwarten
+        await RenderCanvasAsync();
+    }
+
+    private async Task RenderCanvasAsync()
+    {
+        if (detections is null || currentPage >= (detections.pages?.Count ?? 0)) return;
+        var page = detections.pages![currentPage];
+
+        // Annotations: pro NH-Id ermitteln (via Bbox-Match: Annotation auf existierender NH)
+        var annKindByNhId = new Dictionary<long, int>();
+        var missedAnnotations = new List<object>();
+        foreach (var a in annotationsThisPage)
+        {
+            // Versuche Match zu einem existierenden NH (overlap > 50%)
+            NoteheadDto? matched = null;
+            foreach (var nh in page.noteheads ?? new List<NoteheadDto>())
+            {
+                var ix0 = Math.Max(a.x, nh.bbox[0]);
+                var iy0 = Math.Max(a.y, nh.bbox[1]);
+                var ix1 = Math.Min(a.x + a.w, nh.bbox[0] + nh.bbox[2]);
+                var iy1 = Math.Min(a.y + a.h, nh.bbox[1] + nh.bbox[3]);
+                var overlap = Math.Max(0, ix1 - ix0) * Math.Max(0, iy1 - iy0);
+                var minArea = Math.Min(a.w * a.h, nh.bbox[2] * nh.bbox[3]);
+                if (minArea > 0 && overlap * 2 > minArea) { matched = nh; break; }
+            }
+            if (matched is not null)
+            {
+                annKindByNhId[matched.id] = a.kind;
+            }
+            else if (a.kind == 4) // MissedNote
+            {
+                missedAnnotations.Add(new { x = a.x, y = a.y, w = a.w, h = a.h });
+            }
+        }
+
+        var payload = new
+        {
+            zoom = zoom,
+            detW = page.width,
+            detH = page.height,
+            showNoteheads, showStems, showBars, showAnnotations,
+            selectedId = selectedDetectionId,
+            noteheads = page.noteheads,
+            stems = page.stems?.Select(s => new { x = s.x, yTop = s.y_top, yBot = s.y_bot }),
+            bars = page.bars?.Select(b => new { x = b.x, yTop = b.y_top, yBot = b.y_bot }),
+            annotatedIds = annKindByNhId,
+            missedAnnotations,
+        };
+        await JS.InvokeVoidAsync("sheetstormAnnotate.render", "annotate-canvas", payload);
+    }
+
+    private async Task OnCanvasClick(Microsoft.AspNetCore.Components.Web.MouseEventArgs e)
+    {
+        if (detections is null) return;
+        var page = detections.pages![currentPage];
+        var coord = await JS.InvokeAsync<ClickCoord?>(
+            "sheetstormAnnotate.getClickInDetectionCoords",
+            "annotate-canvas", e.ClientX, e.ClientY, page.width, page.height);
+        if (coord is null) return;
+
+        // Treffer auf NH?
+        NoteheadDto? hit = null;
+        foreach (var nh in page.noteheads ?? new List<NoteheadDto>())
+        {
+            if (coord.x >= nh.bbox[0] && coord.x <= nh.bbox[0] + nh.bbox[2]
+                && coord.y >= nh.bbox[1] && coord.y <= nh.bbox[1] + nh.bbox[3])
+            { hit = nh; break; }
+        }
+        if (hit is not null)
+        {
+            selectedDetectionId = hit.id;
+            pendingMissedClick = null;
+            editorMode = EditorMode.None;
+            await RenderCanvasAsync();
+        }
+        else
+        {
+            // Leere Stelle → "Missed Note" Workflow
+            selectedDetectionId = null;
+            // Default-Bbox: 1*spacing × 1*spacing zentriert auf Klick
+            var sp = (int)Math.Max(page.line_spacing, 8.0f);
+            pendingMissedClick = (coord.x - sp / 2, coord.y - sp / 2);
+            editorMidi = 60;
+            editorDuration = 4;
+            editorKind = "Filled";
+            await RenderCanvasAsync();
+        }
+        StateHasChanged();
+    }
+
+    private async Task PrevPage()
+    {
+        if (currentPage > 0) { currentPage--; selectedDetectionId = null; pendingMissedClick = null; await RenderCanvasAsync(); }
+    }
+    private async Task NextPage()
+    {
+        if (currentPage + 1 < pageCount) { currentPage++; selectedDetectionId = null; pendingMissedClick = null; await RenderCanvasAsync(); }
+    }
+
+    private async Task RerunDetectionsAsync()
+    {
+        runningDetections = true;
+        try
+        {
+            await PartDetectionService.StartDetectionsOnPartAsync(partId, ScopeFactory, Logger);
+        }
+        catch { }
+        runningDetections = false;
+    }
+
+    private void OpenPitchEditor()
+    {
+        editorMode = EditorMode.Pitch;
+        editorTitle = "Korrekter Pitch (MIDI 0-127, z.B. 60=C4)";
+        editorMidi = selectedDetection?.midi ?? 60;
+    }
+    private void OpenDurationEditor()
+    {
+        editorMode = EditorMode.Duration;
+        editorTitle = "Korrekte Dauer";
+        editorDuration = selectedDetection?.duration ?? 4;
+    }
+    private void OpenKindEditor()
+    {
+        editorMode = EditorMode.Kind;
+        editorTitle = "Korrekte Klassifikation";
+        editorKind = selectedDetection?.kind ?? "Filled";
+    }
+    private void OpenCommentEditor()
+    {
+        editorMode = EditorMode.Comment;
+        editorTitle = "Kommentar";
+        editorComment = "";
+    }
+
+    private async Task MarkAsync(PartAnnotationKind kind, string? correctionJson)
+    {
+        if (selectedDetection is null) return;
+        var nh = selectedDetection;
+        await PartDetectionService.AddAnnotationAsync(
+            partId, currentUserId, currentPage,
+            nh.bbox[0], nh.bbox[1], nh.bbox[2], nh.bbox[3],
+            kind, correctionJson, null);
+        await ReloadAnnotationsAsync();
+        editorMode = EditorMode.None;
+    }
+
+    private async Task SavePitchAsync()
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize(new { midi = editorMidi });
+        await MarkAsync(PartAnnotationKind.WrongPitch, json);
+    }
+    private async Task SaveDurationAsync()
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize(new { duration = editorDuration });
+        await MarkAsync(PartAnnotationKind.WrongDuration, json);
+    }
+    private async Task SaveKindAsync()
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize(new { kind = editorKind });
+        await MarkAsync(PartAnnotationKind.WrongKind, json);
+    }
+    private async Task SaveCommentAsync()
+    {
+        await MarkAsync(PartAnnotationKind.Comment, null);
+        // overwrite Comment via Update — Add does not set comment in MarkAsync above
+        var newest = allAnnotations.LastOrDefault();
+        if (newest is not null && !string.IsNullOrEmpty(editorComment))
+        {
+            await PartDetectionService.UpdateAnnotationAsync(newest.id, currentUserId,
+                PartAnnotationKind.Comment, null, editorComment);
+            await ReloadAnnotationsAsync();
+        }
+    }
+
+    private async Task SaveMissedAsync()
+    {
+        if (pendingMissedClick is null) return;
+        var (x, y) = pendingMissedClick.Value;
+        var sp = (int)Math.Max(detections!.pages![currentPage].line_spacing, 8.0f);
+        var json = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            midi = editorMidi,
+            duration = editorDuration,
+            kind = editorKind,
+        });
+        await PartDetectionService.AddAnnotationAsync(
+            partId, currentUserId, currentPage,
+            x, y, sp, sp,
+            PartAnnotationKind.MissedNote, json, null);
+        pendingMissedClick = null;
+        await ReloadAnnotationsAsync();
+    }
+
+    private async Task DeleteAnnotationAsync(Guid id)
+    {
+        await PartDetectionService.DeleteAnnotationAsync(id);
+        await ReloadAnnotationsAsync();
+    }
+
+    private async Task ReloadAnnotationsAsync()
+    {
+        var anns = await PartDetectionService.GetAnnotationsAsync(partId);
+        allAnnotations = anns.Select(a => new AnnotationDto(
+            a.Id, a.PageIndex, a.BboxX, a.BboxY, a.BboxW, a.BboxH,
+            (int)a.Kind, a.CorrectionJson, a.Comment)).ToList();
+        await RenderCanvasAsync();
+        StateHasChanged();
+    }
+
+    private static string DurationLabel(int d) => d switch
+    {
+        1 => "Sechzehntel", 2 => "Achtel", 4 => "Viertel", 6 => "Punkt.Viertel",
+        8 => "Halbe", 12 => "Punkt.Halbe", 16 => "Ganze", _ => $"d={d}"
+    };
+    private static string KindLabel(int kind) => kind switch
+    {
+        0 => "Keine Note", 1 => "Falscher Pitch", 2 => "Falsche Dauer",
+        3 => "Falsche Klassifikation", 4 => "Fehlende Note", 5 => "Kommentar",
+        _ => $"#{kind}"
+    };
+    private static string KindBadgeColor(int kind) => kind switch
+    {
+        0 => "danger", 1 or 2 or 3 => "warning", 4 => "success", _ => "secondary"
+    };
+
+    private sealed record DetectionsDto(int schema_version, List<DetectionPageDto> pages);
+    private sealed record DetectionPageDto(
+        int page_index, int width, int height, float line_spacing,
+        List<NoteheadDto>? noteheads, List<StemDto>? stems, List<BarDto>? bars);
+    private sealed record NoteheadDto(
+        long id, int[] bbox, string kind,
+        int? midi, string? step, int? alter, int? octave,
+        int? duration, int? measure_number);
+    private sealed record StemDto(int x, int y_top, int y_bot);
+    private sealed record BarDto(int x, int y_top, int y_bot);
+    private sealed record AnnotationDto(Guid id, int pageIndex, int x, int y, int w, int h, int kind, string? correctionJson, string? comment);
+    private sealed record ClickCoord(int x, int y);
+}
