@@ -31,6 +31,11 @@ def render_with_verovio(xml_path: Path, out_dir: Path, dpi: int = 300):
         "header": "auto",
         "footer": "none",
         "spacingNonLinear": 0.55,
+        # Dickere Staff-Lines + dickere Stems → besser für unsere Pipeline
+        # (die für gescannte Optik mit 2-3px Staff-Lines tuned ist).
+        "staffLineWidth": 0.30,    # default ~0.15
+        "stemWidth": 0.40,         # default ~0.20
+        "barLineWidth": 0.40,      # default ~0.30
     })
     if not tk.loadFile(str(xml_path)):
         print(f"  Verovio konnte {xml_path.name} nicht laden", file=sys.stderr)

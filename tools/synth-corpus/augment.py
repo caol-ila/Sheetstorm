@@ -74,13 +74,31 @@ def folding_marks(img: Image.Image, n: int = 1) -> Image.Image:
     return Image.fromarray(arr, "RGB")
 
 
+def ink_thicken(img: Image.Image, strength: int = 1) -> Image.Image:
+    """Verstärkt dunkle Pixel (Staff-Lines, Noteheads) durch min-filter (dilate-equivalent).
+
+    Verovio-Render hat extrem dünne Staff-Lines (~1px) — Pipeline expected
+    Scan-Optik mit ~2-3px dicken Staff-Lines. Diese Funktion dilatiert dunkle
+    Pixel und führt zu pipeline-kompatibleren Renderings.
+
+    `strength`: Anzahl der Wiederholungen (1 = leichtes Verdickern, 2 = wie alter Druck).
+    """
+    out = img.convert("L")
+    for _ in range(max(1, strength)):
+        out = out.filter(ImageFilter.MinFilter(3))  # 3x3 erosion auf grauwerten = dilate auf dunklem
+    return out.convert("RGB")
+
+
 VARIANTS = [
-    # (name, fn)
+    # (name, fn) — v0-scanlike ist baseline für Verovio-renderings (Ink-Thickening only).
+    # Ink-Thickening kann die NH-Detection beeinträchtigen wenn aspect-ratio
+    # zu sehr verändert wird; daher ist es OPTIONAL pro Variante (nur v5/v2).
+    ("v0-scanlike",     lambda im: ink_thicken(im, 1)),
     ("v1-light",        lambda im: jpeg_recompress(add_gaussian_noise(im, 3), 80)),
-    ("v2-photocopy",    lambda im: jpeg_recompress(add_gaussian_noise(adjust_contrast(im, 1.15), 8), 35)),
+    ("v2-photocopy",    lambda im: jpeg_recompress(add_gaussian_noise(adjust_contrast(ink_thicken(im, 1), 1.15), 8), 35)),
     ("v3-skewed",       lambda im: slight_skew(jpeg_recompress(add_gaussian_noise(im, 5), 60), 2.5)),
     ("v4-faded",        lambda im: jpeg_recompress(adjust_brightness(adjust_contrast(im, 0.85), 1.08), 70)),
-    ("v5-darkold",      lambda im: jpeg_recompress(folding_marks(slight_blur(adjust_brightness(im, 0.75), 0.8), 1), 45)),
+    ("v5-darkold",      lambda im: jpeg_recompress(folding_marks(slight_blur(adjust_brightness(ink_thicken(im, 1), 0.75), 0.8), 1), 45)),
     ("v6-saltpepper",   lambda im: add_salt_pepper(jpeg_recompress(im, 55), 0.008)),
     ("v7-printraster",  lambda im: jpeg_recompress(slight_blur(add_gaussian_noise(im, 4), 0.4), 50)),
 ]

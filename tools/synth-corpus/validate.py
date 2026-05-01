@@ -57,13 +57,11 @@ def call_pipeline_http(png_path: Path, server_url: str) -> dict | None:
 def compare_pitches(detected_pages: list[dict], gt_notes: list[dict]) -> dict:
     """Vergleicht Pipeline-NHs mit Ground-Truth-Notes.
 
-    Match-Strategie: pro Ground-Truth-Note suchen wir die Pipeline-NH mit dem
-    nähesten MIDI-Wert. Wenn der MIDI exakt matcht → True-Positive.
-
-    Wir können hier KEINE räumliche Korrelation machen weil wir die
-    GT-Notes als Sequenz haben (onset_q + midi) und die NHs als Bbox-Coords
-    (in Render-Pixel-Koordinaten). Wir sortieren beide nach Reading-Order
-    und matchen positional.
+    Berechnet zwei Match-Strategien:
+      1. **Positional** (streng): NH-Sequenz nach Reading-Order vs GT nach Onset-Order.
+         Bei einer einzelnen Missed-Note alignen alle nachfolgenden falsch.
+      2. **Multiset** (locker): wieviele MIDI-Werte kommen in beiden vor (ohne Order).
+         Robuster gegen Detection-Lücken, aber blind für Reihenfolge-Fehler.
     """
     pipeline_notes = []
     for page in detected_pages:
@@ -75,7 +73,6 @@ def compare_pitches(detected_pages: list[dict], gt_notes: list[dict]) -> dict:
                     "x": nh["bbox"][0],
                     "y": nh["bbox"][1],
                 })
-    # Sortiere nach Reading-Order (oben-zu-unten in Zeile, links-zu-rechts)
     pipeline_notes.sort(key=lambda n: (n["y"] // 100, n["x"]))
     gt_sorted = [n for n in gt_notes if not n.get("in_chord")]
     gt_sorted.sort(key=lambda n: n["onset_q"])
@@ -84,13 +81,12 @@ def compare_pitches(detected_pages: list[dict], gt_notes: list[dict]) -> dict:
     n_pipe = len(pipeline_notes)
     n_match = min(n_gt, n_pipe)
 
+    # 1) Positional Match
     pitch_correct = 0
     duration_correct = 0
     for i in range(n_match):
         if pipeline_notes[i]["midi"] == gt_sorted[i]["midi"]:
             pitch_correct += 1
-        # Duration-Vergleich: Pipeline-duration ist in ticks (1=16th, 2=8th, 4=quarter, ...)
-        # GT-duration ist quarterLength (1.0=quarter, 0.5=8th, ...)
         gt_dur_q = gt_sorted[i]["duration_q"]
         pipe_dur = pipeline_notes[i].get("duration")
         if pipe_dur is not None:
@@ -102,8 +98,17 @@ def compare_pitches(detected_pages: list[dict], gt_notes: list[dict]) -> dict:
     pitch_precision = pitch_correct / n_pipe if n_pipe > 0 else 0.0
     pitch_f1 = (2 * pitch_recall * pitch_precision / (pitch_recall + pitch_precision)
                 if pitch_recall + pitch_precision > 0 else 0.0)
-
     duration_recall = duration_correct / n_gt if n_gt > 0 else 0.0
+
+    # 2) Multiset Match — robust gegen Reihenfolge-Fehler
+    from collections import Counter
+    gt_counts = Counter(n["midi"] for n in gt_sorted)
+    pipe_counts = Counter(n["midi"] for n in pipeline_notes)
+    multiset_matched = sum((gt_counts & pipe_counts).values())
+    multiset_recall = multiset_matched / n_gt if n_gt > 0 else 0.0
+    multiset_precision = multiset_matched / n_pipe if n_pipe > 0 else 0.0
+    multiset_f1 = (2 * multiset_recall * multiset_precision / (multiset_recall + multiset_precision)
+                   if multiset_recall + multiset_precision > 0 else 0.0)
 
     return {
         "n_gt_notes": n_gt,
@@ -114,6 +119,11 @@ def compare_pitches(detected_pages: list[dict], gt_notes: list[dict]) -> dict:
         "pitch_precision": pitch_precision,
         "pitch_f1": pitch_f1,
         "duration_recall": duration_recall,
+        # Multiset-Metriken (additional)
+        "multiset_matched": multiset_matched,
+        "multiset_recall": multiset_recall,
+        "multiset_precision": multiset_precision,
+        "multiset_f1": multiset_f1,
     }
 
 
@@ -158,10 +168,11 @@ def main():
         sums["duration_correct"] += metrics["duration_correct"]
         sums["n_gt"] += metrics["n_gt_notes"]
         sums["n_pipe"] += metrics["n_pipeline_notes"]
+        sums["multiset_matched"] = sums.get("multiset_matched", 0) + metrics.get("multiset_matched", 0)
         elapsed = time.time() - t0
         rate = (i + 1) / elapsed if elapsed > 0 else 0
-        print(f"  [{i+1}/{len(pages)}] {png.name}: pitch_f1={metrics['pitch_f1']:.2f} "
-              f"({rate:.1f} pages/sec)")
+        print(f"  [{i+1}/{len(pages)}] {png.name}: pos_f1={metrics['pitch_f1']:.2f} "
+              f"multiset_f1={metrics.get('multiset_f1', 0.0):.2f} ({rate:.1f} pages/sec)")
 
     summary = {
         "total_pages": len(per_page),
@@ -170,17 +181,24 @@ def main():
         "pitch_recall": sums["pitch_correct"] / sums["n_gt"] if sums["n_gt"] > 0 else 0.0,
         "pitch_precision": sums["pitch_correct"] / sums["n_pipe"] if sums["n_pipe"] > 0 else 0.0,
         "duration_recall": sums["duration_correct"] / sums["n_gt"] if sums["n_gt"] > 0 else 0.0,
+        "multiset_recall": sums.get("multiset_matched", 0) / sums["n_gt"] if sums["n_gt"] > 0 else 0.0,
+        "multiset_precision": sums.get("multiset_matched", 0) / sums["n_pipe"] if sums["n_pipe"] > 0 else 0.0,
     }
     summary["pitch_f1"] = (2 * summary["pitch_recall"] * summary["pitch_precision"]
                           / (summary["pitch_recall"] + summary["pitch_precision"])
                           if summary["pitch_recall"] + summary["pitch_precision"] > 0 else 0.0)
+    summary["multiset_f1"] = (2 * summary["multiset_recall"] * summary["multiset_precision"]
+                              / (summary["multiset_recall"] + summary["multiset_precision"])
+                              if summary["multiset_recall"] + summary["multiset_precision"] > 0 else 0.0)
 
     report = {"summary": summary, "per_page": per_page}
     args.report.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"\nReport: {args.report}")
-    print(f"Gesamt-Pitch-F1: {summary['pitch_f1']:.3f} "
+    print(f"Positional-Pitch-F1: {summary['pitch_f1']:.3f} "
           f"({summary['pitch_recall']:.3f} R / {summary['pitch_precision']:.3f} P)")
-    print(f"Gesamt-Duration-Recall: {summary['duration_recall']:.3f}")
+    print(f"Multiset-Pitch-F1:   {summary['multiset_f1']:.3f} "
+          f"({summary['multiset_recall']:.3f} R / {summary['multiset_precision']:.3f} P)")
+    print(f"Duration-Recall:     {summary['duration_recall']:.3f}")
 
 
 if __name__ == "__main__":
