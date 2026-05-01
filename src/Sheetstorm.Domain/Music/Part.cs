@@ -47,6 +47,10 @@ public enum PartFileKind
     Mp3 = 2,
     Midi = 3,
     PageImage = 4,
+    /// JSON-Blob mit allen erkannten Detection-Bboxes (NHs, Stems, Beams,
+    /// Bars, Measures inkl. Pitch/Duration). Eingabe für das Annotation-Tool.
+    /// Schema: omr_pipeline::detections::DetectionsResult
+    Detections = 5,
 }
 
 public enum ViewModePreference

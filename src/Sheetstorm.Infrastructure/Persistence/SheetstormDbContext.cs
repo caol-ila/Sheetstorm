@@ -23,6 +23,7 @@ public sealed class SheetstormDbContext(DbContextOptions<SheetstormDbContext> op
     public DbSet<OfflineWish> OfflineWishes => Set<OfflineWish>();
     public DbSet<OmrJob> OmrJobs => Set<OmrJob>();
     public DbSet<Annotation> Annotations => Set<Annotation>();
+    public DbSet<PartAnnotation> PartAnnotations => Set<PartAnnotation>();
     public DbSet<PushSubscription> PushSubscriptions => Set<PushSubscription>();
     public DbSet<Event> Events => Set<Event>();
     public DbSet<EventAttendance> EventAttendances => Set<EventAttendance>();
@@ -219,6 +220,18 @@ public sealed class SheetstormDbContext(DbContextOptions<SheetstormDbContext> op
         {
             e.ToTable("Annotations");
             e.HasIndex(x => new { x.PartId, x.UserId, x.Page }).IsUnique();
+        });
+
+        b.Entity<PartAnnotation>(e =>
+        {
+            e.ToTable("PartAnnotations");
+            e.Property(x => x.Kind).HasConversion<int>();
+            e.Property(x => x.CorrectionJson).HasColumnType("text");
+            e.Property(x => x.Comment).HasMaxLength(2000);
+            // Schneller Lookup pro Stimme + Seite (UI lädt Annotations für Page X)
+            e.HasIndex(x => new { x.PartId, x.PageIndex });
+            // Author-Listung
+            e.HasIndex(x => x.CreatedByUserId);
         });
 
         b.Entity<PushSubscription>(e =>
