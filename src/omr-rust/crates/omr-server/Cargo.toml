@@ -20,6 +20,7 @@ path = "src/bin/omr-bench.rs"
 omr-pipeline.workspace = true
 omr-musicxml.workspace = true
 omr-core.workspace = true
+omr-symbols.workspace = true
 axum.workspace = true
 tokio.workspace = true
 tower.workspace = true
@@ -29,3 +30,9 @@ tracing-subscriber.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 anyhow.workspace = true
+
+[features]
+default = []
+# Aktiviert die CNN-basierte Symbol-Klassifikation in omr-symbols.
+# Tract-onnx braucht keinen C-Compiler, läuft pure-Rust.
+cnn = ["omr-symbols/cnn", "omr-pipeline/cnn"]

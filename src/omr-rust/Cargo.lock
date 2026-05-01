@@ -1510,6 +1510,7 @@ dependencies = [
  "omr-core",
  "omr-musicxml",
  "omr-pipeline",
+ "omr-symbols",
  "serde",
  "serde_json",
  "tokio",
@@ -1549,6 +1550,7 @@ dependencies = [
  "rayon",
  "serde",
  "tracing",
+ "tract-onnx",
 ]
 
 [[package]]

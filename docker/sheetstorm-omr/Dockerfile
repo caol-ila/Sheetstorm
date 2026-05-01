@@ -16,7 +16,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY src/omr-rust/Cargo.toml src/omr-rust/Cargo.lock ./
 COPY src/omr-rust/crates ./crates
 
-RUN cargo build --release --bin omr-server
+# Build mit aktiviertem CNN-Feature (tract-onnx fuer ONNX-Inferenz).
+# Auf Linux laeuft der Build sauber (Windows: dlltool fehlt → cnn-Feature aus).
+RUN cargo build --release --bin omr-server -p omr-server --features cnn
 
 FROM debian:bookworm-slim AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends \

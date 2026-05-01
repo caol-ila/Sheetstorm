@@ -501,10 +501,19 @@ fn process_gray_single(gray: GrayImage, opts: &PipelineOptions) -> Result<Pipeli
     // Symbol-Klassifikator: filtert Coda/Segno/D.S./Dynamik/Noise.
     // Bevorzugt HoG+SVM (gelernt auf Bravura-Synth-Korpus). Fallback auf
     // Template-NCC, wenn das Modell nicht ladebar ist.
+    //
+    // Wenn das `cnn` feature aktiv ist, versucht die Pipeline ZUERST den
+    // CNN-Klassifikator (88.5% Val-Acc auf Bravura-Synth). Bei niedriger
+    // Confidence faellt sie auf HoG+SVM zurueck. Ohne `cnn` feature wird
+    // direkt HoG+SVM (oder Template-NCC) verwendet.
     let n_before_classifier = noteheads.len();
+    #[cfg(feature = "cnn")]
+    let noteheads = {
+        let hog_svm = hog_svm_classifier();
+        omr_symbols::cnn_classifier::filter_via_cnn(&bin, noteheads, line_spacing, hog_svm)
+    };
+    #[cfg(not(feature = "cnn"))]
     let noteheads = if let Some(clf) = hog_svm_classifier() {
-        // Klassifikator auf ORIGINAL-Binary (nicht staff-removed) — Coda/Segno-Glyphen
-        // bleiben dort intakter und matchen besser zu den Bravura-Templates.
         omr_symbols::classifier::filter_via_hog_svm(&bin, noteheads, line_spacing, clf)
     } else {
         omr_symbols::classifier::filter_via_templates(&removed, noteheads, line_spacing)
