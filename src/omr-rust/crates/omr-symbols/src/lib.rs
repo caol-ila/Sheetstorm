@@ -43,11 +43,15 @@ pub fn detect_noteheads(staff_removed: &Binary, systems: &[StaffSystem]) -> Vec<
 /// doppelte Detection durch CC-Merge + extract_complex). Behält den NH mit der größeren
 /// Bbox (= mehr Pixel = wahrscheinlich vollständigerer Detection).
 ///
-/// Akkord-Schutz: NHs mit dy >= 0.4*spacing werden NICHT verschmolzen (Akkord-NHs am
-/// gleichen Stem haben dy >= 0.5*spacing für benachbarte Pitch-Positionen).
+/// Akkord-Schutz: Zwei-Schwellen-Heuristik:
+///   - Sehr-gleiche-Y (dy < 0.2*spacing) UND dx < 0.9*spacing → DUPLICATE
+///   - Mittel-Y (dy < 0.4*spacing) UND dx < 0.6*spacing → DUPLICATE
+/// Akkord-NHs am gleichen Stem haben dy >= 0.5*spacing (≥ 1 Pitch-Step).
 pub fn dedupe_close_noteheads(noteheads: Vec<Notehead>, spacing: f32) -> Vec<Notehead> {
-    let dx_max = spacing * 0.6;
-    let dy_max = spacing * 0.4;
+    let dx_loose = spacing * 0.9; // bei dy~0
+    let dx_strict = spacing * 0.6;
+    let dy_strict = spacing * 0.2;
+    let dy_loose = spacing * 0.4;
     let mut sorted = noteheads;
     sorted.sort_by(|a, b| {
         a.staff_idx
@@ -60,8 +64,12 @@ pub fn dedupe_close_noteheads(noteheads: Vec<Notehead>, spacing: f32) -> Vec<Not
         for j in (i + 1)..sorted.len() {
             if !keep[j] { continue; }
             if sorted[j].staff_idx != sorted[i].staff_idx { break; }
-            if sorted[j].center.x - sorted[i].center.x > dx_max { break; }
-            if (sorted[j].center.y - sorted[i].center.y).abs() < dy_max {
+            let dx = sorted[j].center.x - sorted[i].center.x;
+            if dx > dx_loose { break; }
+            let dy = (sorted[j].center.y - sorted[i].center.y).abs();
+            let is_dup = (dy < dy_strict && dx < dx_loose)
+                || (dy < dy_loose && dx < dx_strict);
+            if is_dup {
                 let area_i = sorted[i].bbox.area();
                 let area_j = sorted[j].bbox.area();
                 if area_i >= area_j {
