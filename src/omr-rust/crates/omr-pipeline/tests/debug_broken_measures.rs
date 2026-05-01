@@ -16,7 +16,8 @@ fn diagnose_broken_measures() {
         return;
     }
 
-    let dbg_dir = PathBuf::from("../../debug-out/BAVARIA-overlay");
+    let dbg_dir = PathBuf::from(format!("../../debug-out/{}-overlay",
+        p.file_stem().and_then(|s| s.to_str()).unwrap_or("output")));
     let _ = std::fs::create_dir_all(&dbg_dir);
     let result = omr_pipeline::process_pdf(&p, &omr_core::PipelineOptions {
         debug_dir: Some(dbg_dir.clone()),
@@ -62,19 +63,18 @@ fn diagnose_broken_measures() {
             s.get(s.len()/2).copied()
         });
 
-    // Detail: Measures mit auffällig vielen NHs (potentielle MMR-FPs) oder mit
-    // großem Diff. Zeige Position für jeden NH zur visuellen Verifikation.
+    // Detail: ALLE Measures mit diff != 0, plus zusaetzlich Measures mit > 5 NHs
     let mut shown = 0;
     'outer: for part in &result.score.parts {
         for m in &part.measures {
             let expected: i32 = ((m.divisions as i32) * 4 * 4) / 4;
             let actual: i32 = m.notes.iter().filter(|n| !n.in_chord).map(|n| n.duration as i32).sum();
-            let diff = (actual - expected).abs();
-            let too_many = m.notes.len() > 5;
-            if (diff > expected/2 || too_many) && !m.notes.is_empty() {
+            let diff = actual - expected;
+            let too_many = m.notes.len() > 8;
+            if (diff != 0 || too_many) && !m.notes.is_empty() {
                 shown += 1;
-                println!("\nMeasure {} (sys {:?}): expected={} actual={} ({}NHs, {} chord-members)",
-                    m.number, m.system_idx, expected, actual, m.notes.len(),
+                println!("\nMeasure {} (sys {:?}): expected={} actual={} diff={:+} ({}NHs, {} chord-members)",
+                    m.number, m.system_idx, expected, actual, diff, m.notes.len(),
                     m.notes.iter().filter(|n| n.in_chord).count());
                 for (i, n) in m.notes.iter().enumerate().take(15) {
                     let chord = if n.in_chord { " [CHORD]" } else { "" };
