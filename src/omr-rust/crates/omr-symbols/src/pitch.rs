@@ -23,14 +23,53 @@ pub fn pitch_from_xy(
     clef: Clef,
     key: KeySignature,
 ) -> Pitch {
+    pitch_from_xy_with_ledger(x, y, staff, clef, key, None, 0)
+}
+
+/// Wie [`pitch_from_xy`], aber mit optionaler Ledger-Line-Y-Position als
+/// Pitch-Calibration-Anchor. Wenn `ledger_y` gegeben + `ledger_count` >= 1,
+/// wird der Pitch relativ zur echten Ledger-Line berechnet statt zur top-Line
+/// extrapoliert. Verbessert Pitch-Genauigkeit für hohe/tiefe NHs (octave error).
+pub fn pitch_from_xy_with_ledger(
+    x: f32,
+    y: f32,
+    staff: &StaffSystem,
+    clef: Clef,
+    key: KeySignature,
+    ledger_y: Option<u32>,
+    ledger_count: u8,
+) -> Pitch {
     if staff.lines.is_empty() {
         return Pitch { midi: 60, step: PitchStep::C, alter: 0, octave: 4 };
     }
     let xi = x.round() as u32;
     let line_top = staff.line_y_at(0, xi).unwrap_or_else(|| staff.lines[0].mean_y());
+    let line_bot = staff.line_y_at(4, xi).unwrap_or_else(|| staff.lines[4].mean_y());
     let spacing = staff.line_spacing.max(1.0);
 
-    let half_steps = ((line_top - y) / (spacing * 0.5)).round() as i32;
+    // Wenn Ledger-Line detected: nutze sie als anchor.
+    // Convention: positive half_steps = HIGHER pitch (above top-line).
+    // Top-Line = pos 0, Ledger 1 above top-line = pos +2, Ledger 1 below bottom = pos -10.
+    // Bottom-line ist 4 spacings unter top-line = -8 half_steps.
+    let half_steps = if let Some(ly) = ledger_y {
+        let n = ledger_count.max(1) as i32;
+        if (ly as f32) < line_top {
+            // Ledger oberhalb der Staff: position +2*n
+            let ledger_pos = 2 * n;
+            // dy_from_ledger > 0 wenn NH ÜBER der ledger-line
+            let dy_from_ledger = ((ly as f32) - y) / (spacing * 0.5);
+            ledger_pos + dy_from_ledger.round() as i32
+        } else if (ly as f32) > line_bot {
+            // Ledger unterhalb der Staff (bottom-line ist -8): position -8 - 2*n
+            let ledger_pos = -8 - 2 * n;
+            let dy_from_ledger = ((ly as f32) - y) / (spacing * 0.5);
+            ledger_pos + dy_from_ledger.round() as i32
+        } else {
+            ((line_top - y) / (spacing * 0.5)).round() as i32
+        }
+    } else {
+        ((line_top - y) / (spacing * 0.5)).round() as i32
+    };
 
     let (anchor_step, anchor_octave) = match clef {
         Clef::Treble => (PitchStep::F, 5i8),
