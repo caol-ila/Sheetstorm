@@ -357,6 +357,41 @@ pub fn detect_wholes_template(
             Some(n) => n,
             None => continue,
         };
+        // Staff-Proximity-Filter: Whole-Notes liegen IM Staff oder maximal
+        // 2.5*spacing oberhalb/unterhalb (Ledger-Lines). Multi-Measure-Rest-
+        // Digits (italic 2/3/...) sitzen in der Inter-System-Lücke und
+        // matchen das Whole-Template fälschlicherweise. Reject wenn weiter
+        // als 2.5*spacing vom Staff entfernt.
+        let staff = &systems[nh.staff_idx];
+        let cx_idx = (nh.center.x as usize).min(staff.lines[0].y_per_x.len().saturating_sub(1));
+        let top_y = staff.lines.first()
+            .and_then(|l| l.y_per_x.get(cx_idx))
+            .copied()
+            .unwrap_or(0) as f32;
+        let bot_y = staff.lines.last()
+            .and_then(|l| l.y_per_x.get(cx_idx))
+            .copied()
+            .unwrap_or(0) as f32;
+        let cy = nh.center.y;
+        let dist_to_staff = if cy < top_y {
+            top_y - cy
+        } else if cy > bot_y {
+            cy - bot_y
+        } else {
+            0.0
+        };
+        if dist_to_staff > spacing * 2.5 {
+            continue;
+        }
+
+        // Ring-Shape-Check: Whole-Notes sind dünne ovale Ringe. Wir samplen
+        // Pixel auf einer Ellipse rund um das Center und erwarten dass
+        // mindestens 75% der Sample-Punkte dunkel sind. Digits ("2","3") haben
+        // andere Strichmuster und treffen typisch nur 40-60%.
+        if !looks_like_ring(bin, nh.center.x, nh.center.y, spacing) {
+            continue;
+        }
+
         // Skip wenn bereits in existing in der Nähe
         let near = existing.iter().any(|e| {
             let dx = e.center.x - nh.center.x;
@@ -369,6 +404,28 @@ pub fn detect_wholes_template(
     }
     // Auch unter sich dedupen
     dedup_candidates(new_wholes, merge_radius)
+}
+
+/// Pruefe ob die Pixel rund um (cx, cy) auf einer Ellipse-Kontur dunkel sind.
+/// Whole-Notes haben einen schraegen, ovalen Ring (Halbachsen ~0.55*spacing
+/// horizontal, ~0.40*spacing vertikal). Wir samplen 16 Punkte und erwarten
+/// dass mindestens 11 dunkel sind. Digits/Buchstaben haben andere Pixelmuster.
+fn looks_like_ring(bin: &Binary, cx: f32, cy: f32, spacing: f32) -> bool {
+    let rx = spacing * 0.55;
+    let ry = spacing * 0.40;
+    let n_samples = 16;
+    let mut dark = 0;
+    for i in 0..n_samples {
+        let theta = (i as f32) * std::f32::consts::TAU / n_samples as f32;
+        let sx = (cx + theta.cos() * rx).round() as i32;
+        let sy = (cy + theta.sin() * ry).round() as i32;
+        if sx < 0 || sy < 0 || sx >= bin.w as i32 || sy >= bin.h as i32 { continue; }
+        if bin.get(sx as u32, sy as u32) != 0 {
+            dark += 1;
+        }
+    }
+    // Mind. 11 von 16 = 68.75% — Wholes treffen ~85-90%, Digits ~40-55%.
+    dark >= 11
 }
 
 /// Re-Rank existierende Notehead-Kandidaten via lokales NCC-Matching.
