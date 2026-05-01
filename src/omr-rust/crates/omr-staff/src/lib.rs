@@ -47,6 +47,13 @@ pub fn detect_systems(bin: &Binary) -> Vec<StaffSystem> {
     if systems.is_empty() {
         systems = detect_systems_with_threshold(bin, &stats, 0.25);
     }
+
+    // Letzte-Resort-Threshold (15%): sehr sparse content (einzelne kurze
+    // Zeilen, Soprano-only Bach-Choräle, Verovio-rendered einzelne Stimmen
+    // mit dünnen Lines). Akzeptiert kürzere Linien, hat aber höheres FP-Risiko.
+    if systems.is_empty() {
+        systems = detect_systems_with_threshold(bin, &stats, 0.15);
+    }
     systems
 }
 
