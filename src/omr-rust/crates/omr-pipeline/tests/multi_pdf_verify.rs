@@ -15,14 +15,33 @@ use std::path::PathBuf;
 fn multi_pdf_plausibility() {
     let dir = std::env::var("OMR_PDF_DIR")
         .unwrap_or_else(|_| "C:\\Users\\tmahlberg\\OneDrive\\Noten\\Anja\\Labeled".into());
-    let list = std::env::var("OMR_PDF_LIST")
-        .unwrap_or_else(|_| "BAVARIA.pdf,ANGELS.pdf,Anita.pdf,Auf der Vogelwiese.pdf,Mendocino.pdf,Ein Prost.pdf,Zum Geburtstag.pdf".into());
+    let list = std::env::var("OMR_PDF_LIST").ok();
 
     let dir = PathBuf::from(&dir);
     if !dir.exists() {
         println!("PDF dir not found: {}", dir.display());
         return;
     }
+
+    // Bei OMR_PDF_LIST="*" oder unset: alle PDFs im Verzeichnis nehmen.
+    let names: Vec<String> = match list.as_deref() {
+        None | Some("*") => {
+            let mut v: Vec<String> = std::fs::read_dir(&dir)
+                .into_iter()
+                .flatten()
+                .filter_map(|e| e.ok())
+                .filter_map(|e| {
+                    let p = e.path();
+                    if p.extension().and_then(|s| s.to_str()) == Some("pdf") {
+                        p.file_name().and_then(|n| n.to_str()).map(|s| s.to_string())
+                    } else { None }
+                })
+                .collect();
+            v.sort();
+            v
+        }
+        Some(s) => s.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect(),
+    };
 
     println!("\n{:<35} {:>5} {:>6} {:>9} {:>7} {:>7}", "PDF", "Meas", "Exact", "Repaired", "Broken", "Plaus%");
     println!("{}", "-".repeat(80));
@@ -32,7 +51,7 @@ fn multi_pdf_plausibility() {
     let mut total_repaired = 0usize;
     let mut total_broken = 0usize;
 
-    for name in list.split(',').map(|s| s.trim()).filter(|s| !s.is_empty()) {
+    for name in names.iter() {
         let path = dir.join(name);
         if !path.exists() {
             println!("{:<35} MISSING", name);

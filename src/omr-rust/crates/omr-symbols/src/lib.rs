@@ -25,7 +25,7 @@ pub mod jump_marks;
 pub mod rests;
 pub mod svm_model;
 pub use bars::{detect_measure_bars, MeasureBar};
-pub use beams::{detect_beams, beams_per_stem, Beam};
+pub use beams::{detect_beams, beams_per_stem, filter_noteheads_on_beams, Beam};
 pub use cc::{connected_components, ConnectedComponent};
 pub use meta::{detect_clef, detect_key_signature};
 pub use plausibility::{check_measure, repair_measure, validate_and_repair_part, MeasureCheck, MeasurePlausibility};

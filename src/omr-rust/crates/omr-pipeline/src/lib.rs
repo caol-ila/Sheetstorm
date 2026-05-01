@@ -468,9 +468,21 @@ fn process_gray_single(gray: GrayImage, opts: &PipelineOptions) -> Result<Pipeli
     let noteheads = omr_symbols::filter_bow_marks_and_articulations(&removed, noteheads, &systems);
     let (bow_f, bow_o, bow_w) = count_kinds(&noteheads);
     info!(bow_F = bow_f, bow_O = bow_o, bow_W = bow_w, "kind after bow-mark filter");
-    let stems = omr_symbols::stems::detect_stems(&removed, &noteheads, line_spacing);
+    // Beam-FP-Filter: Bei dichten Sechzehntel-/Achtel-Gruppen werden Beam-Pixelblöcke
+    // gelegentlich als zusätzliche Noteheads detektiert (CC-Splits). Echte NHs liegen
+    // nie MITTIG auf einem Beam — Stems berühren Beams nur am Stem-Ende gegenüber dem NH.
     let beams = omr_symbols::detect_beams(&removed, line_spacing);
-    let beam_counts = omr_symbols::beams_per_stem(&stems, &beams);
+    let n_before_beam_filter = noteheads.len();
+    let beam_tol = (line_spacing * 0.15) as u32;
+    let noteheads = omr_symbols::filter_noteheads_on_beams(noteheads, &beams, beam_tol);
+    let (beam_f, beam_o, beam_w) = count_kinds(&noteheads);
+    info!(
+        beam_F = beam_f, beam_O = beam_o, beam_W = beam_w,
+        before = n_before_beam_filter, after = noteheads.len(),
+        "kind after beam-overlap filter"
+    );
+    let stems = omr_symbols::stems::detect_stems(&removed, &noteheads, line_spacing);
+    let _beam_counts = omr_symbols::beams_per_stem(&stems, &beams);
     let bars = omr_symbols::detect_measure_bars(&bin, &systems, &noteheads);
     // Pausen-Detection (Whole-Rest, Half-Rest) — füllt leere Measures mit
     // expliziten Pause-Notes statt Tacet zu lassen.

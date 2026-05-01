@@ -85,6 +85,38 @@ fn has_similar_run(bin: &Binary, x0: u32, x1: u32, y: u32) -> bool {
     coverage > 0.55
 }
 
+/// Filtert Noteheads, deren Center in einem Beam-Bbox liegt.
+///
+/// Bei dichten Sechzehntel-/Achtel-Gruppen werden Beam-Pixelblöcke gelegentlich
+/// als zusätzliche Noteheads detektiert (Connected-Component-Splits). Da Beams
+/// horizontale Balken zwischen mehreren Stems sind, kann ein echter Notehead
+/// niemals MITTIG auf einem Beam liegen — Stems berühren Beams am Stem-Ende
+/// gegenüber dem NH.
+///
+/// Tolerance: y_top und y_bot werden um `tol` (in Pixeln) erweitert, um auch
+/// nahe-am-Beam liegende FPs zu fangen.
+pub fn filter_noteheads_on_beams(
+    noteheads: Vec<omr_core::Notehead>,
+    beams: &[Beam],
+    tol: u32,
+) -> Vec<omr_core::Notehead> {
+    noteheads
+        .into_iter()
+        .filter(|nh| {
+            let cx = nh.center.x as i32;
+            let cy = nh.center.y as i32;
+            !beams.iter().any(|b| {
+                let y0 = b.y_top.saturating_sub(tol) as i32;
+                let y1 = (b.y_bot + tol) as i32;
+                cx >= b.x_start as i32
+                    && cx <= b.x_end as i32
+                    && cy >= y0
+                    && cy <= y1
+            })
+        })
+        .collect()
+}
+
 /// Anzahl Beams die einen gegebenen Stem berühren.
 pub fn beams_per_stem(stems: &[Stem], beams: &[Beam]) -> Vec<u32> {
     stems
