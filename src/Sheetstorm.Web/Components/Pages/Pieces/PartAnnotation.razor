@@ -174,13 +174,19 @@ else
                         <div class="annotate-quickconfirm mt-2 small">
                             @if (stepDetection.measure_number.HasValue)
                             {
-                                <button type="button" class="btn btn-sm btn-outline-success w-100"
+                                <button type="button" class="btn btn-sm btn-outline-success w-100 mb-1"
                                         @onclick="() => ConfirmEntireMeasureAsync(stepDetection.measure_number!.Value)"
                                         data-testid="confirm-measure"
                                         title="Alle erkannten Symbole in diesem Takt als korrekt bestätigen">
                                     ✓✓ Ganzen Takt @stepDetection.measure_number bestätigen
                                 </button>
                             }
+                            <button type="button" class="btn btn-sm btn-outline-primary w-100"
+                                    @onclick="ConfirmHighConfidencePageAsync"
+                                    data-testid="confirm-page"
+                                    title="Alle Detections auf dieser Seite mit Confidence ≥ 0.85 als korrekt bestätigen">
+                                ✓✓✓ Alle sicheren auf dieser Seite (≥ 85% conf)
+                            </button>
                         </div>
 
                         <details class="mt-2 step-options-details">
@@ -1248,11 +1254,26 @@ window.sheetstormAnnotate = window.sheetstormAnnotate || {
         if (page?.noteheads is null) return;
         var nhsInMeasure = page.noteheads.Where(n => n.measure_number == measureNumber).ToList();
         if (nhsInMeasure.Count == 0) return;
+        await BulkConfirmNhsAsync(nhsInMeasure);
+    }
+
+    /// Bestätigt alle Detections der aktuellen Seite mit Confidence ≥ 0.85 in einem Klick.
+    private async Task ConfirmHighConfidencePageAsync()
+    {
+        var page = detections?.pages?.ElementAtOrDefault(currentPage);
+        if (page?.noteheads is null) return;
+        var highConf = page.noteheads.Where(n => n.confidence is not null && n.confidence.Value >= 0.85).ToList();
+        if (highConf.Count == 0) return;
+        await BulkConfirmNhsAsync(highConf);
+    }
+
+    private async Task BulkConfirmNhsAsync(List<NoteheadDto> nhs)
+    {
         try
         {
-            foreach (var nh in nhsInMeasure)
+            int added = 0;
+            foreach (var nh in nhs)
             {
-                // Skip if already annotated
                 var existing = annotationsThisPage.FirstOrDefault(a =>
                 {
                     var ax = a.x + a.w / 2.0;
@@ -1268,11 +1289,13 @@ window.sheetstormAnnotate = window.sheetstormAnnotate || {
                     nh.bbox[0], nh.bbox[1], nh.bbox[2], nh.bbox[3],
                     Sheetstorm.Domain.Music.PartAnnotationKind.Confirmed,
                     null, null);
+                added++;
             }
             await LoadDetectionsAsync();
             StateHasChanged();
+            Logger.LogInformation("Bulk-Confirm: {Added} new annotations", added);
         }
-        catch (Exception ex) { Logger.LogWarning(ex, "ConfirmEntireMeasureAsync failed"); }
+        catch (Exception ex) { Logger.LogWarning(ex, "BulkConfirmNhsAsync failed"); }
     }
 
     private void SetViewMode(ViewMode m)
