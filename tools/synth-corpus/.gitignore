@@ -5,3 +5,4 @@ data/augmented/
 data/*.json
 .venv/
 __pycache__/
+*.log

@@ -16,18 +16,18 @@ from pathlib import Path
 
 
 def render_with_verovio(xml_path: Path, out_dir: Path, dpi: int = 300):
+    """Verovio rendert SVG. SVG -> PNG via Playwright headless Chromium (kein cairo nötig)."""
     try:
         import verovio
-        import cairosvg
     except ImportError:
-        print("FEHLER: pip install verovio cairosvg", file=sys.stderr)
+        print("FEHLER: pip install verovio", file=sys.stderr)
         sys.exit(2)
 
     tk = verovio.toolkit()
     tk.setOptions({
-        "scale": 50,
-        "pageWidth": 2100,    # in 1/100 mm
-        "pageHeight": 2970,   # = A4
+        "scale": 100,
+        "pageWidth": 2100,
+        "pageHeight": 2970,
         "header": "auto",
         "footer": "none",
         "spacingNonLinear": 0.55,
@@ -40,18 +40,50 @@ def render_with_verovio(xml_path: Path, out_dir: Path, dpi: int = 300):
     written = 0
     for p in range(1, n_pages + 1):
         svg = tk.renderToSVG(p)
-        out_png = out_dir / f"{xml_path.stem}-page{p}.png"
-        # SVG → PNG via cairosvg (DPI hochsetzen für gute Qualität)
-        try:
-            cairosvg.svg2png(
-                bytestring=svg.encode("utf-8"),
-                write_to=str(out_png),
-                output_width=int(2100 / 25.4 * dpi / 100),
-                output_height=int(2970 / 25.4 * dpi / 100),
-            )
-            written += 1
-        except Exception as e:
-            print(f"  ERR svg2png ({xml_path.stem} p{p}): {e}", file=sys.stderr)
+        out_svg = out_dir / f"{xml_path.stem}-page{p}.svg"
+        out_svg.write_text(svg, encoding="utf-8")
+        written += 1
+    return written
+
+
+def svg_dir_to_png_via_playwright(svg_dir: Path, png_dir: Path, dpi: int = 300):
+    """Rendert alle SVGs in svg_dir zu PNGs via Playwright headless Chromium.
+
+    Verwendet die globale Playwright-Installation (npm install im e2e-Ordner).
+    """
+    try:
+        from playwright.sync_api import sync_playwright  # type: ignore
+    except ImportError:
+        print("WARN: playwright (Python) nicht installiert. SVGs bleiben ungerendert.", file=sys.stderr)
+        print("       pip install playwright + playwright install chromium", file=sys.stderr)
+        return 0
+
+    png_dir.mkdir(parents=True, exist_ok=True)
+    svgs = sorted(svg_dir.glob("*.svg"))
+    if not svgs:
+        return 0
+
+    written = 0
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch()
+        for svg_path in svgs:
+            try:
+                svg_text = svg_path.read_text(encoding="utf-8")
+                page = browser.new_page(viewport={"width": 2480, "height": 3508})
+                # 2480x3508 = A4 bei 300dpi
+                html = f"""<!DOCTYPE html><html><head><style>
+                    body, html {{ margin: 0; padding: 0; background: white; }}
+                    svg {{ display: block; width: 2100px; height: auto; }}
+                </style></head><body>{svg_text}</body></html>"""
+                page.set_content(html)
+                page.wait_for_load_state("networkidle", timeout=10_000)
+                out_png = png_dir / svg_path.with_suffix(".png").name
+                page.screenshot(path=str(out_png), full_page=True, omit_background=False)
+                page.close()
+                written += 1
+            except Exception as e:
+                print(f"  ERR playwright {svg_path.name}: {e}", file=sys.stderr)
+        browser.close()
     return written
 
 
@@ -96,7 +128,17 @@ def main():
             n = render_with_musescore(xml, args.output, args.mscore_exe)
         total_pages += n
         print(f"  -> {n} Seite(n)")
-    print(f"\nFertig — {total_pages} PNG-Seiten in {args.output}")
+
+    # Falls Engine nur SVG erzeugt hat: via Playwright zu PNG rastern
+    n_svg = len(list(args.output.glob("*.svg")))
+    n_png_existing = len(list(args.output.glob("*.png")))
+    if n_svg > 0 and n_png_existing < n_svg:
+        print(f"\n[SVG -> PNG via Playwright] {n_svg - n_png_existing} fehlende PNGs rastern...")
+        n_rastered = svg_dir_to_png_via_playwright(args.output, args.output, args.dpi)
+        print(f"  -> {n_rastered} PNGs erzeugt")
+
+    n_png_final = len(list(args.output.glob("*.png")))
+    print(f"\nFertig - {n_png_final} PNG-Seiten in {args.output}")
 
 
 if __name__ == "__main__":
