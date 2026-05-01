@@ -130,39 +130,96 @@ def rasterize_glyph(font_path: Path, codepoint: str, size_px: int = 56) -> Image
 
 
 def augment(img: Image.Image, rng: random.Random) -> Image.Image:
-    """Zufällige Augmentation eines Patches: Rotation, Scale, Translation,
-    Brightness, Noise, Blur."""
+    """Aggressive Augmentation für scan-realistische Print-Notation.
+
+    Simuliert echte Scanner-Artefakte:
+      - JPEG-Compression (häufig in PDFs)
+      - Salt-Pepper-Rauschen (Scanner-Sensor)
+      - Slight Blur (Scanner-Optik / Toner-Spread)
+      - Brightness/Contrast-Jitter (verschiedene Belichtungen)
+      - Rotation ±3° (wackeliger Scan)
+      - Skew/Affine (Auto-Deskew-Reste)
+      - Toner-Smear (dicke schwarze Pixel)
+      - Faded-Ink (helle schwarze Pixel)
+      - Edge-Erosion (gefalzte Seiten)
+    """
     arr = np.array(img, dtype=np.uint8)
 
-    # Rotation ±5°
-    angle = rng.uniform(-5.0, 5.0)
+    # Rotation ±3° (deskew lässt typisch Reste von ±1°)
+    angle = rng.uniform(-3.0, 3.0)
     img = Image.fromarray(arr).rotate(angle, resample=Image.BILINEAR, fillcolor=255)
 
-    # Scale 0.85..1.15
+    # Scale 0.85..1.15 + Position-Jitter
     scale = rng.uniform(0.85, 1.15)
     new_size = max(20, int(PATCH * scale))
     img = img.resize((new_size, new_size), Image.LANCZOS)
     out = Image.new("L", (PATCH, PATCH), color=255)
-    px = (PATCH - new_size) // 2 + rng.randint(-3, 3)
-    py = (PATCH - new_size) // 2 + rng.randint(-3, 3)
+    px = (PATCH - new_size) // 2 + rng.randint(-4, 4)
+    py = (PATCH - new_size) // 2 + rng.randint(-4, 4)
     out.paste(img, (px, py))
 
-    # Brightness & contrast
     arr = np.array(out, dtype=np.float32)
-    arr = arr * rng.uniform(0.85, 1.0) + rng.uniform(-15, 15)
+
+    # Brightness/Contrast jitter (verschiedene Belichtungen / faded ink)
+    brightness = rng.uniform(0.7, 1.05)
+    contrast = rng.uniform(0.8, 1.2)
+    arr = (arr - 128) * contrast + 128 * brightness
+
+    # Toner-Smear ODER Faded-Ink (50/50 chance)
+    if rng.random() < 0.5:
+        # Toner-Smear: alle dunklen Pixel etwas erweitern (slight dilation)
+        if rng.random() < 0.4:
+            mask = arr < 128
+            arr_dilated = arr.copy()
+            arr_dilated[1:, :][mask[:-1, :]] = np.minimum(arr_dilated[1:, :][mask[:-1, :]], 80)
+            arr_dilated[:-1, :][mask[1:, :]] = np.minimum(arr_dilated[:-1, :][mask[1:, :]], 80)
+            arr = arr_dilated
+    else:
+        # Faded-Ink: dunkle Pixel werden heller (graue, nicht schwarze Pixel)
+        if rng.random() < 0.4:
+            mask = arr < 128
+            fade = rng.uniform(0.4, 0.7)
+            arr[mask] = arr[mask] * fade + 255 * (1 - fade)
+
     arr = np.clip(arr, 0, 255).astype(np.uint8)
 
-    # Optional Gaussian noise
+    # Salt-Pepper-Noise (Scanner-Sensor-Artefakte)
     if rng.random() < 0.6:
-        sigma = rng.uniform(2.0, 8.0)
+        sp_prob = rng.uniform(0.001, 0.01)
+        rand_mask = np.random.random(arr.shape)
+        arr[rand_mask < sp_prob / 2] = 0  # pepper
+        arr[rand_mask > 1 - sp_prob / 2] = 255  # salt
+
+    # Gaussian noise (allgemeines Sensor-Rauschen)
+    if rng.random() < 0.7:
+        sigma = rng.uniform(2.0, 10.0)
         noise = np.random.normal(0, sigma, arr.shape)
-        arr = np.clip(arr + noise, 0, 255).astype(np.uint8)
+        arr = np.clip(arr.astype(np.float32) + noise, 0, 255).astype(np.uint8)
 
     out = Image.fromarray(arr)
 
-    # Optional blur
-    if rng.random() < 0.3:
-        out = out.filter(ImageFilter.GaussianBlur(rng.uniform(0.3, 1.0)))
+    # Blur (Scanner-Optik)
+    if rng.random() < 0.5:
+        out = out.filter(ImageFilter.GaussianBlur(rng.uniform(0.3, 1.2)))
+
+    # JPEG-Compression (in PDF-Workflow häufig)
+    if rng.random() < 0.4:
+        from io import BytesIO
+        buf = BytesIO()
+        out.convert("RGB").save(buf, format="JPEG", quality=rng.randint(40, 80))
+        buf.seek(0)
+        out = Image.open(buf).convert("L")
+
+    # Edge-Erosion (gefalzte Seiten am Rand)
+    if rng.random() < 0.15:
+        arr = np.array(out, dtype=np.uint8)
+        edge = rng.choice(["top", "bottom", "left", "right"])
+        depth = rng.randint(2, 6)
+        if edge == "top": arr[:depth, :] = np.minimum(arr[:depth, :], 200)
+        elif edge == "bottom": arr[-depth:, :] = np.minimum(arr[-depth:, :], 200)
+        elif edge == "left": arr[:, :depth] = np.minimum(arr[:, :depth], 200)
+        else: arr[:, -depth:] = np.minimum(arr[:, -depth:], 200)
+        out = Image.fromarray(arr)
 
     return out
 

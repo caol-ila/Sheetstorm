@@ -16,7 +16,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY src/omr-rust/Cargo.toml src/omr-rust/Cargo.lock ./
 COPY src/omr-rust/crates ./crates
 
-RUN cargo build --release --bin omr-server
+# CNN-Feature ist OPT-IN: Bauer mit `--build-arg ENABLE_CNN=1` um
+# tract-onnx-Inferenz zu aktivieren. Default ist OHNE CNN, weil das
+# aktuelle Modell nur auf Bravura-Synth trainiert ist und auf echten
+# Scans Symbol-Recall schlechter ist als HoG+SVM.
+ARG ENABLE_CNN=0
+RUN if [ "$ENABLE_CNN" = "1" ]; then \
+        cargo build --release --bin omr-server -p omr-server --features cnn; \
+    else \
+        cargo build --release --bin omr-server -p omr-server; \
+    fi
 
 FROM debian:bookworm-slim AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends \

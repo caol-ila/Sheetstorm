@@ -17,3 +17,8 @@ pdfium-render.workspace = true
 quick-xml.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+
+[features]
+default = []
+# Pass-through fuer omr-symbols/cnn (CNN-Klassifikator via tract-onnx).
+cnn = ["omr-symbols/cnn"]
