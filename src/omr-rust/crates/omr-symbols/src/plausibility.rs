@@ -118,6 +118,19 @@ pub fn repair_measure(m: &mut Measure, time: TimeSignature) -> bool {
         }
     }
 
+    // === Strategie A2: Triplet-Scale (Achtel als Triolen → 2/3-Faktor) ===
+    // Wenn actual ≈ 1.5 * expected UND alle Notes gleicher Kind: vermutlich
+    // sind alle Achtel als Triolen gemeint. Skaliere alle Durations × 2/3.
+    if actual > expected && expected > 0 && all_same_kind(&m.notes) {
+        let ratio = actual as f32 / expected as f32;
+        if (ratio - 1.5).abs() < 0.10 {
+            if try_triplet_scale(m, expected) {
+                return true;
+            }
+            restore(&mut m.notes, &snapshot);
+        }
+    }
+
     // === Strategie B: Subset-Halving der Längsten ===
     // Wenn actual > expected: halbiere die längsten Filled-NHs schrittweise
     // bis Σ = expected. Funktioniert für Mixed-Duration-Takte.
@@ -210,6 +223,44 @@ fn try_scale_to_fit(m: &mut Measure, expected: u32) -> bool {
                 return true;
             }
         }
+    }
+    false
+}
+
+/// Triplet-Scale: actual ≈ 1.5 × expected → alle Notes als Triolen gemeint.
+/// Strategie: durations × 2/3, auf u32 runden so dass Σ = expected.
+/// Distribuiert das Rounding-Residual auf die Notes.
+fn try_triplet_scale(m: &mut Measure, expected: u32) -> bool {
+    let lead_count = m.notes.iter().filter(|n| !n.in_chord).count();
+    if lead_count == 0 { return false; }
+    // Naive Skalierung
+    let mut new_durations: Vec<u32> = m.notes.iter()
+        .map(|n| (n.duration * 2 / 3).max(1))
+        .collect();
+    let mut sum: u32 = m.notes.iter().enumerate()
+        .filter(|(_, n)| !n.in_chord)
+        .map(|(i, _)| new_durations[i])
+        .sum();
+    // Differenz-Korrektur durch Anpassen einzelner Notes
+    let mut idx = 0;
+    while sum != expected && idx < m.notes.len() * 3 {
+        let i = idx % m.notes.len();
+        if !m.notes[i].in_chord {
+            if sum < expected {
+                new_durations[i] += 1;
+                sum += 1;
+            } else if new_durations[i] > 1 {
+                new_durations[i] -= 1;
+                sum -= 1;
+            }
+        }
+        idx += 1;
+    }
+    if sum == expected {
+        for (i, d) in new_durations.into_iter().enumerate() {
+            m.notes[i].duration = d;
+        }
+        return true;
     }
     false
 }
