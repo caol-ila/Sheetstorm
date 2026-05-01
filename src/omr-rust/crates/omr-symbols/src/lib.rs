@@ -127,15 +127,18 @@ pub fn detect_noteheads_with_skip(
 
     let expected_w = (spacing * 1.2).round() as u32;
     let expected_h = spacing.round() as u32;
-    let min_w = (expected_w as f32 * 0.4).round() as u32;
+    // Min-w gelockert von 0.4 → 0.35: bei kleinen NHs (z.B. Achtelnoten in dichten
+    // Beam-Gruppen) ist die NH-Breite oft 30-40% kleiner als typisch.
+    let min_w = (expected_w as f32 * 0.35).round() as u32;
     // KEIN harter max_w mehr: Beam-Gruppen können beliebig breit sein (5-10x
     // einzelner Notehead). Wir lassen extract_noteheads_from_complex pro X-Spalte
     // entscheiden ob ein NH da ist. Begrenze nur auf "absurd breit" (>20*spacing).
     let max_w_simple = (expected_w as f32 * 2.5).round() as u32;
     let max_w_complex = (spacing * 20.0).round() as u32;
-    // Real NHs sind ~0.7-0.9*spacing hoch. Untergrenze 0.55*spacing eliminiert
-    // dünne horizontale Bar-Fragmente (MMR-Slices, Beam-Pieces).
-    let min_h_simple = (expected_h as f32 * 0.55).round() as u32;
+    // Real NHs sind ~0.7-0.9*spacing hoch. Untergrenze 0.45*spacing eliminiert
+    // dünne horizontale Bar-Fragmente (MMR-Slices, Beam-Pieces) — vorher 0.55,
+    // gelockert um auch kleine NHs in komprimierten Layouts zu fangen.
+    let min_h_simple = (expected_h as f32 * 0.45).round() as u32;
     let max_h_simple = (expected_h as f32 * 2.0).round() as u32;
     let max_h_tall = (spacing * 5.0).round() as u32;
 
