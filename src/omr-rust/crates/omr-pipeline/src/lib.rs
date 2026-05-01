@@ -629,10 +629,18 @@ fn process_gray_single(gray: GrayImage, opts: &PipelineOptions) -> Result<Pipeli
                 .cloned()
                 .collect();
             let beam_counts_local: Vec<u32> = omr_symbols::beams_per_stem(&stems_local, &beams);
+            // Flag-Detection: bei Stems ohne Beams suchen wir Flags (einzelne 8th/16th).
+            // Die Flags werden zu beam_counts_local addiert, damit noteheads_to_notes
+            // die richtige Duration ableitet (1 Flag = 8th, 2 Flags = 16th).
+            let flag_counts_local = omr_symbols::detect_flags(
+                &bin, &stems_local, &nh_local, &beam_counts_local, line_spacing
+            );
+            let combined_counts: Vec<u32> = beam_counts_local.iter().zip(flag_counts_local.iter())
+                .map(|(b, f)| b + f).collect();
             let clef_for_sys = clefs.get(sys_i).copied().unwrap_or(Clef::Treble);
             let key_for_sys = keys.get(sys_i).copied().unwrap_or(KeySignature::default());
             let mut all_notes = omr_symbols::noteheads_to_notes_with_dots(
-                &nh_local, &systems, &stems_local, &beam_counts_local, clef_for_sys, key_for_sys,
+                &nh_local, &systems, &stems_local, &combined_counts, clef_for_sys, key_for_sys,
                 &dots_local,
             );
             all_notes.sort_by(|a, b| a.center.x.partial_cmp(&b.center.x).unwrap_or(std::cmp::Ordering::Equal));
