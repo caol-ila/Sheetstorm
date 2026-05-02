@@ -1,9 +1,9 @@
-//! MusicXML → Sig Importer.
+//! MusicXML ΓåÆ Sig Importer.
 //!
 //! Parst eine `score-partwise` MusicXML-Datei und baut daraus einen SIG auf.
-//! Für jede `<part>` wird `system_idx` hochgezählt. Noten ohne `<pitch>`
-//! (Pausen) werden als `RestInter` behandelt und übersprungen (noch nicht
-//! als vollständiger RestInter modelliert).
+//! F├╝r jede `<part>` wird `system_idx` hochgez├ñhlt. Noten ohne `<pitch>`
+//! (Pausen) werden als `RestInter` behandelt und ├╝bersprungen (noch nicht
+//! als vollst├ñndiger RestInter modelliert).
 
 use omr_core::{NoteheadKind, PitchStep, Point, Rect};
 use omr_sig::{
@@ -68,7 +68,7 @@ pub(crate) fn import(
 
                 match name.as_str() {
                     "part" => {
-                        // part_idx bleibt während der Verarbeitung dieser Part konstant
+                        // part_idx bleibt w├ñhrend der Verarbeitung dieser Part konstant
                     }
                     "measure" => {
                         for attr in e.attributes().flatten() {
@@ -82,7 +82,7 @@ pub(crate) fn import(
                     }
                     "attributes" => {
                         in_attributes = true;
-                        // Reset Akkumulatoren für diesen Attribut-Block
+                        // Reset Akkumulatoren f├╝r diesen Attribut-Block
                         key_fifths = None;
                         time_beats = None;
                         time_beat_type = None;
@@ -159,7 +159,7 @@ pub(crate) fn import(
                         note_octave = text.parse().ok();
                     }
                     Some("alter") if in_pitch => {
-                        // alter kann Dezimalzahl sein (z.B. "-1.0") → parse als f32, dann runden
+                        // alter kann Dezimalzahl sein (z.B. "-1.0") ΓåÆ parse als f32, dann runden
                         note_alter = text
                             .parse::<f32>()
                             .map(|f| f.round() as i8)
@@ -267,7 +267,7 @@ pub(crate) fn import(
                     "measure" => {}
                     "part" => {
                         part_idx += 1;
-                        // attrs_created_for per-part zurücksetzen, damit nächste Part
+                        // attrs_created_for per-part zur├╝cksetzen, damit n├ñchste Part
                         // ihre eigenen Attribute-Inters bekommt
                         attrs_created_for = None;
                     }
@@ -284,8 +284,8 @@ pub(crate) fn import(
     Ok((sig, id_mapping))
 }
 
-/// Erstellt Clef-, KeySignature- und TimeSignature-Inters für einen
-/// Attribut-Block und fügt sie dem SIG hinzu.
+/// Erstellt Clef-, KeySignature- und TimeSignature-Inters f├╝r einen
+/// Attribut-Block und f├╝gt sie dem SIG hinzu.
 fn emit_attribute_inters(
     sig: &mut Sig,
     part_idx: u32,
@@ -387,10 +387,10 @@ pub(crate) fn pitch_to_midi(step: PitchStep, octave: i8, alter: i8) -> u8 {
     midi.clamp(0, 127) as u8
 }
 
-/// Hilfsfunktion: raw tag-name bytes → String (ohne Namespace-Präfix).
+/// Hilfsfunktion: raw tag-name bytes ΓåÆ String (ohne Namespace-Pr├ñfix).
 fn tag_name(bytes: &[u8]) -> String {
     let s = std::str::from_utf8(bytes).unwrap_or("");
-    // Namespace-Präfix abschneiden (z.B. "xml:id" → "id")
+    // Namespace-Pr├ñfix abschneiden (z.B. "xml:id" ΓåÆ "id")
     if let Some(pos) = s.rfind(':') {
         s[pos + 1..].to_string()
     } else {

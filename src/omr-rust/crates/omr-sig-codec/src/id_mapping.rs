@@ -1,12 +1,12 @@
 //! Stabiles ID-Mapping zwischen MusicXML `<note id="..."/>` und `InterId`.
 //!
 //! Das Mapping wird beim Import aufgebaut und kann anschliessend genutzt
-//! werden, um MusicXML-IDs zu Sig-Inters aufzulösen und umgekehrt.
+//! werden, um MusicXML-IDs zu Sig-Inters aufzul├╢sen und umgekehrt.
 
 use omr_sig::inter::InterId;
 use std::collections::HashMap;
 
-/// Bidirektionales Mapping: MusicXML-ID ↔ InterId.
+/// Bidirektionales Mapping: MusicXML-ID Γåö InterId.
 #[derive(Debug, Default, Clone)]
 pub struct IdMapping {
     inter_to_xml: HashMap<InterId, String>,
@@ -26,12 +26,12 @@ impl IdMapping {
         self.inter_to_xml.insert(inter_id, xml_id);
     }
 
-    /// XML-ID für einen Inter (falls vorhanden).
+    /// XML-ID f├╝r einen Inter (falls vorhanden).
     pub fn xml_id_for(&self, id: InterId) -> Option<&str> {
         self.inter_to_xml.get(&id).map(String::as_str)
     }
 
-    /// InterId für eine XML-ID (falls vorhanden).
+    /// InterId f├╝r eine XML-ID (falls vorhanden).
     pub fn inter_id_for(&self, xml_id: &str) -> Option<InterId> {
         self.xml_to_inter.get(xml_id).copied()
     }
