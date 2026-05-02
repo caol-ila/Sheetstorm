@@ -151,6 +151,17 @@ impl Sig {
         self.inters().filter(move |i| i.kind() == kind)
     }
 
+    /// Typed-Iterator: alle Inters die zu konkretem Typ `T` downcast-bar sind.
+    /// Erlaubt typed Field-Access (z.B. midi, pitch, duration bei HeadInter).
+    pub fn typed_inters<T: 'static>(&self) -> impl Iterator<Item = &T> + '_ {
+        self.inters().filter_map(|i| i.as_any().downcast_ref::<T>())
+    }
+
+    /// Liefert ein konkretes typisiertes Inter via Downcast.
+    pub fn get_typed<T: 'static>(&self, id: InterId) -> Option<&T> {
+        self.get(id).and_then(|i| i.as_any().downcast_ref::<T>())
+    }
+
     /// Iterator über alle `Relation`s.
     pub fn relations(&self) -> impl Iterator<Item = &Relation> + '_ {
         self.graph.edge_indices().filter_map(move |e| self.graph.edge_weight(e))
@@ -359,6 +370,12 @@ mod tests {
         }
         fn meta_mut(&mut self) -> &mut InterMeta {
             &mut self.meta
+        }
+        fn as_any(&self) -> &dyn std::any::Any {
+            self
+        }
+        fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+            self
         }
     }
 

@@ -45,6 +45,7 @@ pub mod grade;
 pub mod history;
 pub mod inter;
 pub mod inters;
+pub mod music_theory;
 pub mod relation;
 pub mod sig;
 
@@ -55,6 +56,9 @@ pub use inter::{Inter, InterId, InterKind, InterMeta, Provenance};
 pub use inters::{
     AlterInter, BarInter, BeamInter, ClefInter, ClefType, HeadInter, KeySignatureInter,
     LedgerInter, RestInter, SlurInter, StemInter, TimeSignatureInter,
+};
+pub use music_theory::{
+    add_key_consistency_edges, add_measure_budget_edges, diatonic_pitches, is_diatonic,
 };
 pub use relation::{ExclusionCause, Relation, RelationKind, SupportImpacts, SupportKind};
 pub use sig::{ReduceReport, Sig};

@@ -157,11 +157,18 @@ impl InterMeta {
 /// Konkrete Inters wie `HeadInter`, `StemInter`, ... implementieren dieses
 /// Trait und tragen typ-spezifische Daten (z.B. Pitch bei Head, x-Position
 /// bei Stem). Über das Trait kann `Sig` einheitlich auf Metadaten zugreifen.
-pub trait Inter: std::fmt::Debug + Send + Sync {
+///
+/// Erweiterung von `Any` erlaubt sicheres Downcasten zu konkreten Typen,
+/// was für typed-Lookup-Operationen wie `sig.head_inters()` notwendig ist.
+pub trait Inter: std::fmt::Debug + Send + Sync + std::any::Any {
     /// Gemeinsame Metadaten.
     fn meta(&self) -> &InterMeta;
     /// Mutable Zugriff auf Metadaten (für `set_contextual`, `freeze`).
     fn meta_mut(&mut self) -> &mut InterMeta;
+    /// Downcast-Zugriff für typed accessors.
+    fn as_any(&self) -> &dyn std::any::Any;
+    /// Mutable Downcast-Zugriff.
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any;
 
     /// Convenience: ID.
     fn id(&self) -> InterId {
@@ -204,6 +211,12 @@ mod tests {
         }
         fn meta_mut(&mut self) -> &mut InterMeta {
             &mut self.meta
+        }
+        fn as_any(&self) -> &dyn std::any::Any {
+            self
+        }
+        fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+            self
         }
     }
 
