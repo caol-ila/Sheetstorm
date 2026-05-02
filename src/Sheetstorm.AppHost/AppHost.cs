@@ -10,19 +10,48 @@ var mailhog = builder.AddContainer("mailhog", "mailhog/mailhog")
     .WithEndpoint(port: 1025, targetPort: 1025, name: "smtp")
     .WithEndpoint(port: 8025, targetPort: 8025, name: "ui", scheme: "http");
 
-// Audiveris-Sidecar.
+// ─── OMR-Engine-Auswahl ───────────────────────────────────────────────────
 //
-// Strategie: Wir bauen das Image NUR EINMAL ueber `scripts/build-audiveris.ps1`
-// (oder beim ersten AppHost-Start, wenn nicht vorhanden). Aspire startet hier
-// nur den fertigen Container ueber `AddContainer(name, image)` — kein Build,
-// kein Wartezeit-Verlust. Aenderungen am Dockerfile/server.py erkennt das
-// Build-Skript ueber einen SHA256-Hash der Quellen unter docker/audiveris/.
-// Wenn der Hash sich geaendert hat, wird neu gebaut.
+// Sheetstorm hat **zwei** OMR-Engines, die parallel laufen koennen:
 //
-// Aktivieren: dotnet run --project src/Sheetstorm.AppHost -- --enable-audiveris
+// 1. **Sheetstorm-OMR** (Rust, eigene Engine, in src/omr-rust/)
+//    Schnell (~1s/Seite), produziert Detections-JSON mit Bbox-Daten und SIG.
+//    Aktivieren: `--enable-omr` ODER env SHEETSTORM_ENABLE_OMR=true
+//
+// 2. **Audiveris** (Java, https://github.com/Audiveris/audiveris)
+//    Langsamer (5-60s/Seite), produziert komplettes MusicXML (inkl. Texte).
+//    Aktivieren: `--enable-audiveris` ODER env SHEETSTORM_ENABLE_AUDIVERIS=true
+//
+// **Welcher wird vom Web-UI verwendet?** Steuerbar via:
+//
+// - `--use-engine=sheetstorm` → Sheetstorm-OMR ist aktiv (Default wenn beide laufen)
+// - `--use-engine=audiveris`  → Audiveris ist aktiv
+// - `--use-engine=stub`       → Stub-Engine (Demo-Daten)
+// - keine Angabe              → automatisch: Audiveris wenn nur Audiveris laeuft,
+//                               sonst Sheetstorm-OMR
+//
+// Beispiele:
+//   dotnet run --project src/Sheetstorm.AppHost -- --enable-omr
+//   dotnet run --project src/Sheetstorm.AppHost -- --enable-audiveris
+//   dotnet run --project src/Sheetstorm.AppHost -- --enable-omr --enable-audiveris --use-engine=audiveris
+//
+// Die Container-Images werden bei Bedarf automatisch via docker build erstellt
+// (siehe EnsureContainerImageBuilt unten).
 
 var enableAudiveris = args.Contains("--enable-audiveris")
     || string.Equals(Environment.GetEnvironmentVariable("SHEETSTORM_ENABLE_AUDIVERIS"), "true", StringComparison.OrdinalIgnoreCase);
+
+var enableOmr = args.Contains("--enable-omr")
+    || string.Equals(Environment.GetEnvironmentVariable("SHEETSTORM_ENABLE_OMR"), "true", StringComparison.OrdinalIgnoreCase);
+
+// Gewuenschte Engine ableiten.
+string? requestedEngine = null;
+foreach (var a in args)
+{
+    if (a.StartsWith("--use-engine=", StringComparison.OrdinalIgnoreCase))
+        requestedEngine = a.Substring("--use-engine=".Length).ToLowerInvariant();
+}
+requestedEngine ??= Environment.GetEnvironmentVariable("SHEETSTORM_USE_ENGINE")?.ToLowerInvariant();
 
 IResourceBuilder<ContainerResource>? audiveris = null;
 if (enableAudiveris)
@@ -32,19 +61,6 @@ if (enableAudiveris)
         .WithEndpoint(port: 8081, targetPort: 8080, name: "http", scheme: "http")
         .WithHttpHealthCheck("/health");
 }
-
-// Sheetstorm-OMR-Engine (Rust).
-//
-// Drop-in-Replacement fuer Audiveris mit gleicher HTTP-API. Aktivieren:
-//   dotnet run --project src/Sheetstorm.AppHost -- --enable-omr
-// oder Env: SHEETSTORM_ENABLE_OMR=true.
-//
-// Wenn beide enableAudiveris UND enableOmr aktiv sind, wird OMR als
-// Sheetstorm.Web-Provider verwendet (Audiveris bleibt erreichbar fuer
-// vergleichende Tests).
-
-var enableOmr = args.Contains("--enable-omr")
-    || string.Equals(Environment.GetEnvironmentVariable("SHEETSTORM_ENABLE_OMR"), "true", StringComparison.OrdinalIgnoreCase);
 
 IResourceBuilder<ContainerResource>? omr = null;
 if (enableOmr)
@@ -70,19 +86,48 @@ var web = builder.AddProject<Projects.Sheetstorm_Web>("webfrontend")
     .WaitFor(apiService)
     .WaitFor(sheetstormDb);
 
+// Engine-URLs verfuegbar machen — egal welche aktiv ist, beide URLs werden
+// gesetzt damit das Web-Projekt notfalls beide ansprechen kann (z.B. fuer
+// Comparison-View in der UI).
 if (audiveris is not null)
 {
     web = web
         .WithEnvironment("Audiveris__BaseUrl", audiveris.GetEndpoint("http"))
         .WaitFor(audiveris);
 }
-
 if (omr is not null)
 {
     web = web
-        .WithEnvironment("Omr__Provider", "sheetstorm")
         .WithEnvironment("Omr__BaseUrl", omr.GetEndpoint("http"))
         .WaitFor(omr);
+}
+
+// Active-Provider explizit setzen.
+// Logik:
+//   1. Wenn requestedEngine gesetzt → genau diese Engine aktivieren (sofern URL da)
+//   2. Sonst: Wenn beide laufen → Sheetstorm-OMR (schneller, neuere Engine)
+//   3. Sonst: nur die laufende Engine
+//   4. Sonst: Stub (kein Provider gesetzt)
+string? activeProvider = (requestedEngine, omr is not null, audiveris is not null) switch
+{
+    ("audiveris", _, true) => "audiveris",
+    ("audiveris", _, false) => null, // gewuenscht aber nicht da → fallback Stub
+    ("sheetstorm", true, _) => "sheetstorm",
+    ("sheetstorm", false, _) => null,
+    ("stub", _, _) => null,
+    (null, true, _) => "sheetstorm",
+    (null, false, true) => "audiveris",
+    _ => null,
+};
+
+if (activeProvider is not null)
+{
+    web = web.WithEnvironment("Omr__Provider", activeProvider);
+    Console.WriteLine($"⚡ Web-Frontend nutzt OMR-Engine: {activeProvider.ToUpperInvariant()}");
+}
+else if (enableOmr || enableAudiveris)
+{
+    Console.WriteLine("⚠ OMR-Engine erwuenscht aber nicht verfuegbar — Web faellt auf Stub zurueck.");
 }
 
 builder.Build().Run();
