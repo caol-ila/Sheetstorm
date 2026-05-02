@@ -1100,13 +1100,37 @@ pub fn noteheads_to_notes_with_dots(
     key: omr_core::KeySignature,
     dots_per_nh: &[u8],
 ) -> Vec<ScoreNote> {
+    noteheads_to_notes_with_ledger(noteheads, systems, stems, beam_counts, clef, key, dots_per_nh, &[])
+}
+
+/// Wie [`noteheads_to_notes_with_dots`], aber mit Ledger-Info pro NH für
+/// kalibrierte Pitch-Berechnung außerhalb der Staff.
+pub fn noteheads_to_notes_with_ledger(
+    noteheads: &[Notehead],
+    systems: &[StaffSystem],
+    stems: &[Stem],
+    beam_counts: &[u32],
+    clef: omr_core::Clef,
+    key: omr_core::KeySignature,
+    dots_per_nh: &[u8],
+    ledger_per_nh: &[Option<crate::ledger_lines::LedgerInfo>],
+) -> Vec<ScoreNote> {
     let mut notes = Vec::with_capacity(noteheads.len());
     for (idx, nh) in noteheads.iter().enumerate() {
         let staff = match systems.get(nh.staff_idx) {
             Some(s) => s,
             None => continue,
         };
-        let pitch = pitch::pitch_from_xy(nh.center.x, nh.center.y, staff, clef, key);
+        // Wenn ledger_info vorhanden: nutze pitch_from_xy_with_ledger fuer
+        // kalibrierte Pitch-Berechnung. Sonst standard pitch_from_xy.
+        let pitch = if let Some(Some(ledger)) = ledger_per_nh.get(idx) {
+            pitch::pitch_from_xy_with_ledger(
+                nh.center.x, nh.center.y, staff, clef, key,
+                Some(ledger.ledger_y), ledger.ledger_count,
+            )
+        } else {
+            pitch::pitch_from_xy(nh.center.x, nh.center.y, staff, clef, key)
+        };
         let stem_idx = stems.iter().position(|s| s.notehead_idx == Some(idx));
         let has_stem = stem_idx.is_some();
         let n_beams = stem_idx.and_then(|i| beam_counts.get(i)).copied().unwrap_or(0);
