@@ -5,7 +5,6 @@
 //! Jedes eindeutige `system_idx` wird als separate `<part>` ausgegeben.
 
 use omr_sig::{
-    inter::InterKind,
     inters::{ClefInter, ClefType, HeadInter, KeySignatureInter, TimeSignatureInter},
     sig::Sig,
 };
