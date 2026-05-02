@@ -41,6 +41,7 @@
 #![warn(missing_docs)]
 
 pub mod builder;
+pub mod cross_part;
 pub mod distribution;
 pub mod grade;
 pub mod history;

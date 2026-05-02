@@ -215,6 +215,27 @@ pub fn sig_summary(sig: &Sig) -> String {
     )
 }
 
+/// Helper: validiert mehrere Sigs als Cross-Part-Vergleich.
+///
+/// # Argumente
+/// - `parts_with_names`: Slice aus `(part_name, sig_ref, transposition_semitones)`.
+///
+/// # Rückgabe
+/// `CrossPartReport` mit allen gefundenen Inkonsistenzen.
+pub fn validate_parts<'a>(
+    parts_with_names: &[(String, &'a omr_sig::Sig, i8)],
+) -> omr_sig::cross_part::CrossPartReport {
+    let parts: Vec<_> = parts_with_names
+        .iter()
+        .map(|(name, sig, transp)| omr_sig::cross_part::Part {
+            name: name.clone(),
+            sig,
+            transposition_semitones: *transp,
+        })
+        .collect();
+    omr_sig::cross_part::validate_cross_parts(&parts)
+}
+
 /// Befüllt die `sig`-Summary eines `DetectionPage` durch Aufbau des SIG.
 ///
 /// Baut den SIG aus der DetectionPage auf, zählt alle Inters und Relations
