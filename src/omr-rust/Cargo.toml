@@ -10,6 +10,7 @@ members = [
     "crates/omr-server",
     "crates/omr-sig",
     "crates/omr-sig-store",
+    "crates/omr-sig-codec",
 ]
 
 [workspace.package]
@@ -58,6 +59,7 @@ omr-musicxml = { path = "crates/omr-musicxml" }
 omr-pipeline = { path = "crates/omr-pipeline" }
 omr-sig = { path = "crates/omr-sig" }
 omr-sig-store = { path = "crates/omr-sig-store" }
+omr-sig-codec = { path = "crates/omr-sig-codec" }
 
 [profile.release]
 opt-level = 3
