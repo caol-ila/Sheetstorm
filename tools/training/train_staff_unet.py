@@ -28,7 +28,7 @@ import sys
 from pathlib import Path
 
 if sys.platform == "win32":
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", line_buffering=True)
 
 try:
     import numpy as np
@@ -137,8 +137,15 @@ def main():
     ap.add_argument("--lr", type=float, default=1e-3)
     ap.add_argument("--patch-size", type=int, default=256)
     ap.add_argument("--cpu", action="store_true")
+    ap.add_argument("--num-workers", type=int, default=None,
+                    help="DataLoader workers (default: 0 on Windows, 2 elsewhere)")
     args = ap.parse_args()
 
+    # Windows: multiprocessing in DataLoader kann hängen → default 0
+    if args.num_workers is None:
+        args.num_workers = 0 if sys.platform == "win32" else 2
+
+    args.output = Path(args.output)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     device = torch.device("cuda" if (not args.cpu and torch.cuda.is_available()) else "cpu")
     print(f"Device: {device}")
@@ -147,7 +154,7 @@ def main():
     if len(ds) == 0:
         print("FEHLER: keine Trainingsdaten gefunden", file=sys.stderr)
         sys.exit(1)
-    loader = DataLoader(ds, batch_size=args.batch_size, shuffle=True, num_workers=2,
+    loader = DataLoader(ds, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers,
                         pin_memory=device.type == "cuda")
 
     model = StaffRemovalUNet().to(device)
@@ -169,11 +176,11 @@ def main():
             total += loss.item() * inp.size(0)
             n += inp.size(0)
         avg = total / max(n, 1)
-        print(f"Epoch {epoch+1}/{args.epochs}  loss={avg:.5f}")
+        print(f"Epoch {epoch+1}/{args.epochs}  loss={avg:.5f}", flush=True)
         if avg < best_loss:
             best_loss = avg
             torch.save(model.state_dict(), str(args.output) + ".pt")
-            print(f"  → Modell gespeichert ({avg:.5f})")
+            print(f"  → Modell gespeichert ({avg:.5f})", flush=True)
 
     # ONNX export
     model.eval()

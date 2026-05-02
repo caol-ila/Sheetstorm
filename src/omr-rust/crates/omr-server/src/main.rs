@@ -132,6 +132,14 @@ async fn recognize(mut multipart: Multipart) -> Response {
     }
 
     let opts = PipelineOptions::default();
+    let unet_path = std::env::var("OMR_UNET_MODEL")
+        .ok()
+        .map(std::path::PathBuf::from)
+        .filter(|p| p.exists());
+    let opts = PipelineOptions {
+        unet_model_path: unet_path,
+        ..opts
+    };
     let path = tmp.clone();
     let result = tokio::task::spawn_blocking(move || {
         let lower = filename.to_lowercase();
@@ -234,6 +242,10 @@ async fn detections(mut multipart: Multipart) -> Response {
 
     let opts = PipelineOptions {
         collect_detections: true,
+        unet_model_path: std::env::var("OMR_UNET_MODEL")
+            .ok()
+            .map(std::path::PathBuf::from)
+            .filter(|p| p.exists()),
         ..Default::default()
     };
     let path = tmp.clone();
