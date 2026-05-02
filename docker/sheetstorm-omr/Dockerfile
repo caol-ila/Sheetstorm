@@ -42,9 +42,13 @@ RUN curl -sSL https://github.com/bblanchon/pdfium-binaries/releases/latest/downl
 
 WORKDIR /app
 COPY --from=builder /build/target/release/omr-server /app/omr-server
+# CNN-Modell wird mitkopiert wenn vorhanden (assets-Folder im Repo).
+# Wenn ENABLE_CNN=1 gebaut wurde, lädt der Server das Modell beim Start.
+COPY src/omr-rust/crates/omr-symbols/assets/cnn-model.onnx /app/cnn-model.onnx
 ENV OMR_HOST=0.0.0.0
 ENV OMR_PORT=8091
 ENV OMR_RUST_LOG=info
+ENV OMR_CNN_MODEL=/app/cnn-model.onnx
 EXPOSE 8091
 HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
     CMD curl -fsS http://localhost:8091/health || exit 1
