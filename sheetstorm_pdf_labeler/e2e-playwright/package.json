@@ -1,0 +1,17 @@
+{
+  "name": "sheetstorm-pdf-labeler-e2e",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Playwright E2E tests for PDF Labeler Flutter Web",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui",
+    "serve:build": "http-server ../build/web -p 4173 -s",
+    "install:chromium": "playwright install chromium"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0",
+    "http-server": "^14.1.1"
+  }
+}

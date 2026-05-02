@@ -9,9 +9,12 @@ final labelingProvider = StateNotifierProvider<LabelingNotifier, AsyncValue<Labe
 );
 
 class LabelingNotifier extends StateNotifier<AsyncValue<LabelingState>> {
-  LabelingNotifier() : super(const AsyncValue.data(LabelingState()));
+  LabelingNotifier() : _service = LabelingService(), super(const AsyncValue.data(LabelingState()));
 
-  final LabelingService _service = LabelingService();
+  LabelingNotifier.withService(this._service)
+      : super(const AsyncValue.data(LabelingState()));
+
+  final LabelingService _service;
   StreamSubscription<LabelingEvent>? _subscription;
 
   void startLabeling({
