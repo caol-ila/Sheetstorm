@@ -10,6 +10,7 @@ omr-preprocessing.workspace = true
 omr-staff.workspace = true
 omr-symbols.workspace = true
 omr-musicxml.workspace = true
+omr-sig.workspace = true
 image.workspace = true
 imageproc.workspace = true
 tracing.workspace = true
