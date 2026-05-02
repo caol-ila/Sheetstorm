@@ -16,11 +16,16 @@ path = "src/bin/omr-cli.rs"
 name = "omr-bench"
 path = "src/bin/omr-bench.rs"
 
+[[bin]]
+name = "omr-sig-inspect"
+path = "src/bin/omr-sig-inspect.rs"
+
 [dependencies]
 omr-pipeline.workspace = true
 omr-musicxml.workspace = true
 omr-core.workspace = true
 omr-symbols.workspace = true
+omr-sig.workspace = true
 axum.workspace = true
 tokio.workspace = true
 tower.workspace = true
@@ -30,6 +35,7 @@ tracing-subscriber.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 anyhow.workspace = true
+clap.workspace = true
 
 [features]
 default = []

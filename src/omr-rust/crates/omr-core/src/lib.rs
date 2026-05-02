@@ -438,7 +438,7 @@ mod timeline_tests {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct PipelineOptions {
     pub debug_dir: Option<PathBuf>,
     pub trace_only: bool,
@@ -448,6 +448,17 @@ pub struct PipelineOptions {
     pub unet_model_path: Option<PathBuf>,
     /// Wenn true, sammelt die Pipeline alle Detection-Bboxes (NHs, Stems,
     /// Beams, Bars) und gibt sie im `PipelineResult.detections` zurück.
-    /// Nötig für das Annotation-/Training-Tool. Default: false.
+    /// Nötig für das Annotation-/Training-Tool. Default: true.
     pub collect_detections: bool,
+}
+
+impl Default for PipelineOptions {
+    fn default() -> Self {
+        Self {
+            debug_dir: None,
+            trace_only: false,
+            unet_model_path: None,
+            collect_detections: true,
+        }
+    }
 }
