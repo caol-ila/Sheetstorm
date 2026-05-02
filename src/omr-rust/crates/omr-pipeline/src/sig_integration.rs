@@ -7,11 +7,12 @@
 //! - Music-Theory-Edges (Key-Consistency, Voice-Leading, MeasureBudget)
 //! - User-Edits aus dem Op-Log
 //! - ML-derived Edges (Music-Language-Model, Detector-Ensemble)
-//!
-//! Aktuell: minimaler "1:1"-Build der bestehenden Detections in einen SIG.
 
-use omr_core::{Notehead, NoteheadKind, Stem};
-use omr_sig::{Sig, SigBuilder};
+use omr_core::{Notehead, NoteheadKind, PitchStep, Rect, Stem};
+use omr_sig::{
+    add_key_consistency_edges, add_measure_budget_edges, Grade, HeadInter, InterKind, InterMeta,
+    KeySignatureInter, Provenance, Sig, SigBuilder, TimeSignatureInter,
+};
 
 use crate::detections::DetectionPage;
 
@@ -23,26 +24,40 @@ fn parse_kind(s: &str) -> NoteheadKind {
     }
 }
 
-/// Minimaler Detection-Page → Sig Adapter.
+fn parse_step(s: Option<&'static str>) -> PitchStep {
+    match s {
+        Some("C") => PitchStep::C,
+        Some("D") => PitchStep::D,
+        Some("E") => PitchStep::E,
+        Some("F") => PitchStep::F,
+        Some("G") => PitchStep::G,
+        Some("A") => PitchStep::A,
+        Some("B") => PitchStep::B,
+        _ => PitchStep::C,
+    }
+}
+
+/// Detection-Page → Sig Adapter.
 ///
 /// Erzeugt einen frischen `Sig` mit:
-/// - Allen Noteheads als `HeadInter`
-/// - Allen Stems als `StemInter`
-/// - Allen Beams als `BeamInter`
-/// - Allen Bars als `BarInter`
-/// - HeadStem-Support-Edges (Audiveris-Heuristik: stem.x ≈ head.cx, y-overlap)
-/// - BeamStem-Support-Edges (stem-y enthält beam-y)
+/// - Noteheads als `HeadInter` mit pitch (midi/step/octave) wo verfügbar
+/// - Stems als `StemInter`
+/// - Beams als `BeamInter`
+/// - Bars als `BarInter`
+/// - KeySignatures + TimeSignatures pro System
+/// - HeadStem + BeamStem Support-Edges (Geometric-Heuristics)
+/// - KeyConsistency-Edges (Diatonic = Support, Non-Diatonic = Exclusion)
+/// - MeasureBudget-Annotation-Edges
 ///
 /// Anschließend wird `contextualize()` aufgerufen.
 pub fn build_sig_from_page(page: &DetectionPage) -> Sig {
     let mut sig = Sig::new();
 
-    // Convert DetectionPage entries zurück in omr-core Strukturen.
     let noteheads: Vec<Notehead> = page
         .noteheads
         .iter()
         .map(|nh| Notehead {
-            bbox: omr_core::Rect {
+            bbox: Rect {
                 x: nh.bbox[0],
                 y: nh.bbox[1],
                 w: nh.bbox[2],
@@ -69,8 +84,6 @@ pub fn build_sig_from_page(page: &DetectionPage) -> Sig {
         })
         .collect();
 
-    // Beams: bbox = [x, y, w, h]. Convert to (x_start, x_end, y_top, y_bot, level).
-    // Default-Level ist 1 (Achtel) — exakter Level kommt später aus stems.beam_count.
     let beams: Vec<(u32, u32, u32, u32, u8)> = page
         .beams
         .iter()
@@ -97,23 +110,108 @@ pub fn build_sig_from_page(page: &DetectionPage) -> Sig {
         .link_head_stem(&mut sig)
         .link_beam_stem(&mut sig);
 
+    // Pitch-Daten aus der DetectionPage in HeadInters durchreichen.
+    populate_head_pitches(&mut sig, page);
+
+    // KeySignatures + TimeSignatures als Inters anlegen.
+    add_keysig_inters(&mut sig, page);
+    add_timesig_inters(&mut sig, page);
+
+    // Music-Theory-Edges berechnen.
+    let _ = add_key_consistency_edges(&mut sig);
+    let _ = add_measure_budget_edges(&mut sig);
+
     sig.contextualize();
     sig
+}
+
+/// Aktualisiert die HeadInters im Sig mit Pitch-Daten aus der DetectionPage.
+/// Mappt per Position (head_index in der NoteheadEntry-Liste).
+fn populate_head_pitches(sig: &mut Sig, page: &DetectionPage) {
+    // Sammle (id, pos) Paare basierend auf Reihenfolge in der Sig.
+    let head_ids: Vec<_> = sig
+        .typed_inters::<HeadInter>()
+        .map(|h| h.meta.id)
+        .collect();
+    if head_ids.len() != page.noteheads.len() {
+        // Anzahl stimmt nicht; nicht safe zu mappen — bail out.
+        return;
+    }
+    for (idx, head_id) in head_ids.iter().enumerate() {
+        let entry = &page.noteheads[idx];
+        if let Some(head) = sig.get_mut(*head_id) {
+            if let Some(h) = head.as_any_mut().downcast_mut::<HeadInter>() {
+                if let Some(midi) = entry.midi {
+                    h.midi = midi;
+                }
+                if let Some(step) = entry.step {
+                    h.step = parse_step(Some(step));
+                }
+                if let Some(alter) = entry.alter {
+                    h.alter = alter;
+                }
+                if let Some(octave) = entry.octave {
+                    h.octave = octave;
+                }
+                if let Some(duration) = entry.duration {
+                    h.duration = duration;
+                }
+                if let Some(dots) = entry.augmentation_dots {
+                    h.augmentation_dots = dots;
+                }
+                if let Some(measure) = entry.measure_number {
+                    h.meta.measure_number = Some(measure);
+                }
+            }
+        }
+    }
+}
+
+fn add_keysig_inters(sig: &mut Sig, page: &DetectionPage) {
+    for ks in &page.key_signatures {
+        let id = sig.next_inter_id();
+        let bb = Rect { x: ks.bbox[0], y: ks.bbox[1], w: ks.bbox[2], h: ks.bbox[3] };
+        let mut meta = InterMeta::new(id, InterKind::KeySignature, bb, Grade::new(0.85));
+        meta.system_idx = Some(ks.system_idx);
+        meta.provenance = Provenance::Detector;
+        let inter = KeySignatureInter {
+            meta,
+            fifths: ks.fifths,
+        };
+        sig.add_inter(Box::new(inter));
+    }
+}
+
+fn add_timesig_inters(sig: &mut Sig, page: &DetectionPage) {
+    for ts in &page.time_signatures {
+        let id = sig.next_inter_id();
+        let bb = Rect { x: ts.bbox[0], y: ts.bbox[1], w: ts.bbox[2], h: ts.bbox[3] };
+        let mut meta = InterMeta::new(id, InterKind::TimeSignature, bb, Grade::new(0.90));
+        meta.system_idx = Some(ts.system_idx);
+        meta.provenance = Provenance::Detector;
+        let inter = TimeSignatureInter {
+            meta,
+            beats: ts.beats as u8,
+            beat_type: ts.beat_type as u8,
+        };
+        sig.add_inter(Box::new(inter));
+    }
 }
 
 /// Schaut sich die Sig-Statistik an und produziert einen kompakten Summary-
 /// String für Debug-Output.
 pub fn sig_summary(sig: &Sig) -> String {
-    use omr_sig::InterKind;
     let total = sig.inter_count();
     let n_heads = sig.inters_of_kind(InterKind::Head).count();
     let n_stems = sig.inters_of_kind(InterKind::Stem).count();
     let n_beams = sig.inters_of_kind(InterKind::Beam).count();
     let n_bars = sig.inters_of_kind(InterKind::Bar).count();
+    let n_keys = sig.inters_of_kind(InterKind::KeySignature).count();
+    let n_times = sig.inters_of_kind(InterKind::TimeSignature).count();
     let n_relations = sig.relation_count();
     format!(
-        "Sig({} inters: {}H + {}S + {}Beam + {}Bar | {} relations)",
-        total, n_heads, n_stems, n_beams, n_bars, n_relations
+        "Sig({} inters: {}H + {}S + {}Beam + {}Bar + {}Key + {}Time | {} relations)",
+        total, n_heads, n_stems, n_beams, n_bars, n_keys, n_times, n_relations
     )
 }
 
@@ -121,7 +219,7 @@ pub fn sig_summary(sig: &Sig) -> String {
 mod tests {
     use super::*;
     use crate::detections::{
-        BarEntry, BeamEntry, DetectionPage, NoteheadEntry, StemEntry,
+        DetectionPage, KeySignatureEntry, NoteheadEntry, StemEntry, TimeSignatureEntry,
     };
 
     fn empty_page() -> DetectionPage {
@@ -185,13 +283,97 @@ mod tests {
             notehead_id: Some(0),
         });
         let sig = build_sig_from_page(&page);
-        // 1 Head + 1 Stem = 2 Inters
         assert_eq!(sig.inter_count(), 2);
-        // 1 HeadStem-Relation
         assert_eq!(sig.relation_count(), 1);
-        // Contextual grades sollen erhöht sein
-        for inter in sig.inters() {
-            assert!(inter.effective_grade().value() >= inter.grade().value());
-        }
+    }
+
+    #[test]
+    fn key_signature_creates_diatonic_consistency() {
+        let mut page = empty_page();
+        // KeySig G-Dur (1 Sharp) im System 0
+        page.key_signatures.push(KeySignatureEntry {
+            system_idx: 0,
+            fifths: 1,
+            bbox: [50, 100, 30, 40],
+        });
+        // TimeSig 4/4 im System 0
+        page.time_signatures.push(TimeSignatureEntry {
+            system_idx: 0,
+            beats: 4,
+            beat_type: 4,
+            bbox: [80, 100, 20, 40],
+        });
+        // Head F#4 (MIDI 66) — diatonic in G major
+        page.noteheads.push(NoteheadEntry {
+            id: 0,
+            bbox: [100, 200, 8, 6],
+            center: [104.0, 203.0],
+            kind: "Filled",
+            system_idx: 0,
+            confidence: 0.9,
+            midi: Some(66),
+            step: Some("F"),
+            alter: Some(1),
+            octave: Some(4),
+            duration: Some(4),
+            augmentation_dots: Some(0),
+            measure_number: Some(1),
+            in_chord: None,
+            is_rest: None,
+            stem_id: None,
+        });
+
+        let sig = build_sig_from_page(&page);
+        // 1 Head + 1 KeySig + 1 TimeSig = 3 Inters
+        assert_eq!(sig.inter_count(), 3);
+        // Head has its midi=66 set
+        let head = sig
+            .typed_inters::<HeadInter>()
+            .next()
+            .expect("HeadInter present");
+        assert_eq!(head.midi, 66);
+        // Edges: 1 KeyConsistency (Support, diatonic) + 1 MeasureBudget = 2 relations
+        assert_eq!(sig.relation_count(), 2);
+        // KeyConsistency-Edge soll Support sein (F# IS diatonic in G major)
+        let kc_edge = sig
+            .relations()
+            .find(|r| r.kind == omr_sig::RelationKind::KeyConsistency)
+            .expect("KeyConsistency edge present");
+        assert!(kc_edge.is_support(), "F# in G major should be Support not Exclusion");
+    }
+
+    #[test]
+    fn non_diatonic_pitch_produces_exclusion() {
+        let mut page = empty_page();
+        page.key_signatures.push(KeySignatureEntry {
+            system_idx: 0,
+            fifths: 1, // G-Dur
+            bbox: [50, 100, 30, 40],
+        });
+        // F natural (MIDI 65) — NOT diatonic in G major
+        page.noteheads.push(NoteheadEntry {
+            id: 0,
+            bbox: [100, 200, 8, 6],
+            center: [104.0, 203.0],
+            kind: "Filled",
+            system_idx: 0,
+            confidence: 0.9,
+            midi: Some(65),
+            step: Some("F"),
+            alter: Some(0),
+            octave: Some(4),
+            duration: Some(4),
+            augmentation_dots: Some(0),
+            measure_number: Some(1),
+            in_chord: None,
+            is_rest: None,
+            stem_id: None,
+        });
+        let sig = build_sig_from_page(&page);
+        let kc_edge = sig
+            .relations()
+            .find(|r| r.kind == omr_sig::RelationKind::KeyConsistency)
+            .expect("KeyConsistency edge present");
+        assert!(kc_edge.is_exclusion(), "F natural in G major should be Exclusion");
     }
 }

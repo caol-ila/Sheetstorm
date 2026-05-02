@@ -69,7 +69,8 @@ impl_inter!(HeadInter);
 impl HeadInter {
     /// Erstellt einen neuen HeadInter aus einer omr-core Notehead.
     pub fn from_notehead(id: InterId, nh: &omr_core::Notehead) -> Self {
-        let meta = InterMeta::new(id, InterKind::Head, nh.bbox, Grade::new(nh.confidence as f64));
+        let mut meta = InterMeta::new(id, InterKind::Head, nh.bbox, Grade::new(nh.confidence as f64));
+        meta.system_idx = Some(nh.staff_idx as u32);
         Self {
             meta,
             center: nh.center,
