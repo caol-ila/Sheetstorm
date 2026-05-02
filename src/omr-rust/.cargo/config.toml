@@ -1,0 +1,9 @@
+# Cargo-Workspace-Konfiguration für omr-rust.
+#
+# Setzt Umgebungsvariablen für SQLite-Linking (kein C-Compiler benötigt):
+# - SQLITE3_LIB_DIR zeigt auf die vorab erzeugte Import-Library aus winsqlite3.dll
+# - SQLITE3_STATIC=0 → dynamisches Linken gegen winsqlite3.dll
+
+[env]
+SQLITE3_LIB_DIR = { value = "sqlite3lib", relative = true }
+SQLITE3_STATIC = "0"
