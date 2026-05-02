@@ -47,7 +47,9 @@ pub fn expected_total_duration(divisions: u32, time: TimeSignature) -> u32 {
 /// Akkord-Member (in_chord=true) gehören zum gleichen Onset wie der Lead und
 /// dürfen nicht doppelt zählen.
 fn lead_duration_sum(notes: &[ScoreNote]) -> u32 {
-    notes.iter().filter(|n| !n.in_chord).map(|n| n.duration).sum()
+    // Ignoriere Akkord-Members (in_chord) UND Sekundär-Voices (voice >= 2).
+    // Beide tragen nicht zur Takt-Dauer der primary voice bei.
+    notes.iter().filter(|n| !n.in_chord && n.voice <= 1).map(|n| n.duration).sum()
 }
 
 pub fn check_measure(m: &Measure, time: TimeSignature, is_first: bool) -> MeasureCheck {
@@ -333,7 +335,10 @@ fn try_voice_split(m: &mut Measure, expected: u32) -> bool {
 
     if let Some(secondary) = secondary_idxs {
         for &i in secondary {
-            m.notes[i].in_chord = true;
+            // SEMANTISCH KORREKT: voice=2 markiert Sekundär-Stimme.
+            // in_chord=false weil zwei Voices NICHT denselben Onset teilen.
+            // lead_duration_sum überspringt voice>=2 NHs.
+            m.notes[i].in_chord = false;
             m.notes[i].voice = 2;
         }
         return true;
