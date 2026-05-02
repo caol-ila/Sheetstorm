@@ -124,6 +124,51 @@ public sealed class SheetstormOmrEngine(
         return xml;
     }
 
+    /// <summary>
+    /// Markiert einen Inter als frozen (User-bestätigt).
+    /// </summary>
+    public async Task<bool> FreezeInterAsync(int interId, CancellationToken ct = default)
+    {
+        var client = httpFactory.CreateClient("sheetstorm-omr");
+        var resp = await client.PostAsync($"/sig/inter/{interId}/freeze", null, ct);
+        if (!resp.IsSuccessStatusCode)
+        {
+            log.LogWarning("FreezeInter {Id} failed with {Code}", interId, (int)resp.StatusCode);
+            return false;
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// Entfernt das frozen-Flag von einem Inter.
+    /// </summary>
+    public async Task<bool> UnfreezeInterAsync(int interId, CancellationToken ct = default)
+    {
+        var client = httpFactory.CreateClient("sheetstorm-omr");
+        var resp = await client.PostAsync($"/sig/inter/{interId}/unfreeze", null, ct);
+        if (!resp.IsSuccessStatusCode)
+        {
+            log.LogWarning("UnfreezeInter {Id} failed with {Code}", interId, (int)resp.StatusCode);
+            return false;
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// Macht die letzte SIG-Operation rückgängig.
+    /// </summary>
+    public async Task<bool> UndoLastOperationAsync(CancellationToken ct = default)
+    {
+        var client = httpFactory.CreateClient("sheetstorm-omr");
+        var resp = await client.PostAsync("/sig/undo", null, ct);
+        if (!resp.IsSuccessStatusCode)
+        {
+            log.LogWarning("UndoLastOperation failed with {Code}", (int)resp.StatusCode);
+            return false;
+        }
+        return true;
+    }
+
     private static string GuessMimeType(string filename)
     {
         var ext = System.IO.Path.GetExtension(filename).ToLowerInvariant();
