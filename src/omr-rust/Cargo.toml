@@ -8,6 +8,7 @@ members = [
     "crates/omr-musicxml",
     "crates/omr-pipeline",
     "crates/omr-server",
+    "crates/omr-sig",
 ]
 
 [workspace.package]
@@ -52,6 +53,7 @@ omr-staff = { path = "crates/omr-staff" }
 omr-symbols = { path = "crates/omr-symbols" }
 omr-musicxml = { path = "crates/omr-musicxml" }
 omr-pipeline = { path = "crates/omr-pipeline" }
+omr-sig = { path = "crates/omr-sig" }
 
 [profile.release]
 opt-level = 3
