@@ -41,15 +41,18 @@
 #![warn(missing_docs)]
 
 pub mod builder;
+pub mod distribution;
 pub mod grade;
 pub mod history;
 pub mod inter;
 pub mod inters;
+pub mod multi_hypothesis;
 pub mod music_theory;
 pub mod relation;
 pub mod sig;
 
 pub use builder::SigBuilder;
+pub use distribution::Distribution;
 pub use grade::{contextual_grade, Grade, GradeImpacts};
 pub use history::{EditOperation, EditOperationKind, History, OperationId};
 pub use inter::{Inter, InterId, InterKind, InterMeta, Provenance};
@@ -57,6 +60,7 @@ pub use inters::{
     AlterInter, BarInter, BeamInter, ClefInter, ClefType, HeadInter, KeySignatureInter,
     LedgerInter, RestInter, SlurInter, StemInter, TimeSignatureInter,
 };
+pub use multi_hypothesis::{find_uncertain_inters, HeadInterMulti};
 pub use music_theory::{
     add_key_consistency_edges, add_measure_budget_edges, diatonic_pitches, is_diatonic,
 };
