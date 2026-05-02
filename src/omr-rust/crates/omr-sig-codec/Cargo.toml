@@ -1,0 +1,23 @@
+[package]
+name = "omr-sig-codec"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+# Bidirektionaler MusicXML ↔ SIG Codec.
+#
+# Importiert MusicXML in einen SIG (mit stabilen IDs) und exportiert
+# einen SIG als MusicXML. Basis für Round-Trip-Tests und Editor-Integration.
+
+[dependencies]
+omr-sig.workspace = true
+omr-core.workspace = true
+omr-musicxml.workspace = true
+quick-xml.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+pretty_assertions = "1"

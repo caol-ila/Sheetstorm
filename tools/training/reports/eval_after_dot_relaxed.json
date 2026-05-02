@@ -1,0 +1,797 @@
+{
+  "aggregate": {
+    "n_pages": 48,
+    "n_measures": 1857,
+    "n_exact": 1820,
+    "n_repaired": 23,
+    "n_broken": 14,
+    "n_noteheads": 6646,
+    "n_stems": 5987,
+    "n_bars": 1331,
+    "n_rests": 200,
+    "n_slurs": 112,
+    "n_ties": 22,
+    "n_anomalies": 165,
+    "anomaly_breakdown": {
+      "orphan_note_after_final_bar": 143,
+      "beat_mismatch": 21,
+      "note_in_header": 1
+    },
+    "kind_breakdown": {
+      "Filled": 6220,
+      "Open": 357,
+      "Whole": 69
+    },
+    "plausibility_pct": 99.25,
+    "exact_pct": 98.01,
+    "broken_pct": 0.75,
+    "stem_coverage_pct": 90.08,
+    "n_pdfs": 26,
+    "pdfs_with_errors": [],
+    "timestamp": "2026-05-02T00:59:27.824887",
+    "server": "http://localhost:8091",
+    "filestore": "..\\..\\src\\.filestore\\parts"
+  },
+  "per_pdf": [
+    {
+      "name": "9190d5acfa6144f1898aedb37d46c513-Dichterliebe01.pdf",
+      "size_kb": 171.2,
+      "elapsed_sec": 11.01,
+      "n_pages": 2,
+      "n_measures": 64,
+      "n_exact": 62,
+      "n_repaired": 1,
+      "n_broken": 1,
+      "n_noteheads": 243,
+      "n_stems": 217,
+      "n_bars": 35,
+      "n_rests": 7,
+      "n_slurs": 6,
+      "n_ties": 0,
+      "n_anomalies": 9,
+      "anomaly_breakdown": {
+        "orphan_note_after_final_bar": 9
+      },
+      "kind_breakdown": {
+        "Filled": 232,
+        "Open": 11,
+        "Whole": 0
+      },
+      "plausibility_pct": 98.44,
+      "exact_pct": 96.88,
+      "broken_pct": 1.56,
+      "stem_coverage_pct": 89.3
+    },
+    {
+      "name": "0e50bc8b811e4720a86e3834001b7a81-Blas' Musik in die Welt!.pdf-Stimme.pdf",
+      "size_kb": 463.4,
+      "elapsed_sec": 10.96,
+      "n_pages": 2,
+      "n_measures": 145,
+      "n_exact": 144,
+      "n_repaired": 1,
+      "n_broken": 0,
+      "n_noteheads": 440,
+      "n_stems": 417,
+      "n_bars": 132,
+      "n_rests": 14,
+      "n_slurs": 8,
+      "n_ties": 3,
+      "n_anomalies": 3,
+      "anomaly_breakdown": {
+        "beat_mismatch": 1,
+        "orphan_note_after_final_bar": 2
+      },
+      "kind_breakdown": {
+        "Filled": 393,
+        "Open": 31,
+        "Whole": 16
+      },
+      "plausibility_pct": 100.0,
+      "exact_pct": 99.31,
+      "broken_pct": 0.0,
+      "stem_coverage_pct": 94.77
+    },
+    {
+      "name": "5af5a18da0b448539c28e82a31bc5549-Dichterliebe01.pdf",
+      "size_kb": 171.2,
+      "elapsed_sec": 10.99,
+      "n_pages": 2,
+      "n_measures": 64,
+      "n_exact": 62,
+      "n_repaired": 1,
+      "n_broken": 1,
+      "n_noteheads": 243,
+      "n_stems": 217,
+      "n_bars": 35,
+      "n_rests": 7,
+      "n_slurs": 6,
+      "n_ties": 0,
+      "n_anomalies": 9,
+      "anomaly_breakdown": {
+        "orphan_note_after_final_bar": 9
+      },
+      "kind_breakdown": {
+        "Filled": 232,
+        "Open": 11,
+        "Whole": 0
+      },
+      "plausibility_pct": 98.44,
+      "exact_pct": 96.88,
+      "broken_pct": 1.56,
+      "stem_coverage_pct": 89.3
+    },
+    {
+      "name": "95e4fcd2eb7d49a799c7be3859e73d31-ANGELS.pdf-Stimme.pdf",
+      "size_kb": 216.9,
+      "elapsed_sec": 5.34,
+      "n_pages": 1,
+      "n_measures": 64,
+      "n_exact": 64,
+      "n_repaired": 0,
+      "n_broken": 0,
+      "n_noteheads": 222,
+      "n_stems": 197,
+      "n_bars": 57,
+      "n_rests": 2,
+      "n_slurs": 0,
+      "n_ties": 0,
+      "n_anomalies": 1,
+      "anomaly_breakdown": {
+        "beat_mismatch": 1
+      },
+      "kind_breakdown": {
+        "Filled": 203,
+        "Open": 16,
+        "Whole": 3
+      },
+      "plausibility_pct": 100.0,
+      "exact_pct": 100.0,
+      "broken_pct": 0.0,
+      "stem_coverage_pct": 88.74
+    },
+    {
+      "name": "0751bf06a8d34ee586c3e63437c4dc6e-ANGELS.pdf-Stimme.pdf",
+      "size_kb": 216.9,
+      "elapsed_sec": 5.51,
+      "n_pages": 1,
+      "n_measures": 64,
+      "n_exact": 64,
+      "n_repaired": 0,
+      "n_broken": 0,
+      "n_noteheads": 222,
+      "n_stems": 197,
+      "n_bars": 57,
+      "n_rests": 2,
+      "n_slurs": 0,
+      "n_ties": 0,
+      "n_anomalies": 1,
+      "anomaly_breakdown": {
+        "beat_mismatch": 1
+      },
+      "kind_breakdown": {
+        "Filled": 203,
+        "Open": 16,
+        "Whole": 3
+      },
+      "plausibility_pct": 100.0,
+      "exact_pct": 100.0,
+      "broken_pct": 0.0,
+      "stem_coverage_pct": 88.74
+    },
+    {
+      "name": "b0622f196a6b4c449560c74fde101477-Dichterliebe01.pdf",
+      "size_kb": 171.2,
+      "elapsed_sec": 14.53,
+      "n_pages": 2,
+      "n_measures": 64,
+      "n_exact": 62,
+      "n_repaired": 1,
+      "n_broken": 1,
+      "n_noteheads": 243,
+      "n_stems": 217,
+      "n_bars": 35,
+      "n_rests": 7,
+      "n_slurs": 6,
+      "n_ties": 0,
+      "n_anomalies": 9,
+      "anomaly_breakdown": {
+        "orphan_note_after_final_bar": 9
+      },
+      "kind_breakdown": {
+        "Filled": 232,
+        "Open": 11,
+        "Whole": 0
+      },
+      "plausibility_pct": 98.44,
+      "exact_pct": 96.88,
+      "broken_pct": 1.56,
+      "stem_coverage_pct": 89.3
+    },
+    {
+      "name": "8ad09be1f6cd4d98a2c0c5e000e08144-lichterkinder-1.2.pdf-Stimme.pdf",
+      "size_kb": 121.2,
+      "elapsed_sec": 29.19,
+      "n_pages": 6,
+      "n_measures": 84,
+      "n_exact": 79,
+      "n_repaired": 5,
+      "n_broken": 0,
+      "n_noteheads": 280,
+      "n_stems": 260,
+      "n_bars": 60,
+      "n_rests": 32,
+      "n_slurs": 5,
+      "n_ties": 13,
+      "n_anomalies": 10,
+      "anomaly_breakdown": {
+        "beat_mismatch": 8,
+        "orphan_note_after_final_bar": 2
+      },
+      "kind_breakdown": {
+        "Filled": 271,
+        "Open": 4,
+        "Whole": 5
+      },
+      "plausibility_pct": 100.0,
+      "exact_pct": 94.05,
+      "broken_pct": 0.0,
+      "stem_coverage_pct": 92.86
+    },
+    {
+      "name": "b26ac3fbfc674bce9c0bbca4d3126ee2-ANGELS.pdf",
+      "size_kb": 216.9,
+      "elapsed_sec": 5.88,
+      "n_pages": 1,
+      "n_measures": 64,
+      "n_exact": 64,
+      "n_repaired": 0,
+      "n_broken": 0,
+      "n_noteheads": 222,
+      "n_stems": 197,
+      "n_bars": 57,
+      "n_rests": 2,
+      "n_slurs": 0,
+      "n_ties": 0,
+      "n_anomalies": 1,
+      "anomaly_breakdown": {
+        "beat_mismatch": 1
+      },
+      "kind_breakdown": {
+        "Filled": 203,
+        "Open": 16,
+        "Whole": 3
+      },
+      "plausibility_pct": 100.0,
+      "exact_pct": 100.0,
+      "broken_pct": 0.0,
+      "stem_coverage_pct": 88.74
+    },
+    {
+      "name": "87fafe7e1a044a33ba197b21d41e705f-Dichterliebe01.pdf",
+      "size_kb": 171.2,
+      "elapsed_sec": 12.06,
+      "n_pages": 2,
+      "n_measures": 64,
+      "n_exact": 62,
+      "n_repaired": 1,
+      "n_broken": 1,
+      "n_noteheads": 243,
+      "n_stems": 217,
+      "n_bars": 35,
+      "n_rests": 7,
+      "n_slurs": 6,
+      "n_ties": 0,
+      "n_anomalies": 9,
+      "anomaly_breakdown": {
+        "orphan_note_after_final_bar": 9
+      },
+      "kind_breakdown": {
+        "Filled": 232,
+        "Open": 11,
+        "Whole": 0
+      },
+      "plausibility_pct": 98.44,
+      "exact_pct": 96.88,
+      "broken_pct": 1.56,
+      "stem_coverage_pct": 89.3
+    },
+    {
+      "name": "9db792b608b045a3bb8d4d794653ec3d-Dichterliebe01.pdf",
+      "size_kb": 171.2,
+      "elapsed_sec": 13.79,
+      "n_pages": 2,
+      "n_measures": 64,
+      "n_exact": 62,
+      "n_repaired": 1,
+      "n_broken": 1,
+      "n_noteheads": 243,
+      "n_stems": 217,
+      "n_bars": 35,
+      "n_rests": 7,
+      "n_slurs": 6,
+      "n_ties": 0,
+      "n_anomalies": 9,
+      "anomaly_breakdown": {
+        "orphan_note_after_final_bar": 9
+      },
+      "kind_breakdown": {
+        "Filled": 232,
+        "Open": 11,
+        "Whole": 0
+      },
+      "plausibility_pct": 98.44,
+      "exact_pct": 96.88,
+      "broken_pct": 1.56,
+      "stem_coverage_pct": 89.3
+    },
+    {
+      "name": "a8dc8c091caa4f42ac4925a33e2c502c-Anita.pdf-Stimme.pdf",
+      "size_kb": 101.1,
+      "elapsed_sec": 5.19,
+      "n_pages": 1,
+      "n_measures": 37,
+      "n_exact": 36,
+      "n_repaired": 1,
+      "n_broken": 0,
+      "n_noteheads": 109,
+      "n_stems": 100,
+      "n_bars": 33,
+      "n_rests": 11,
+      "n_slurs": 3,
+      "n_ties": 3,
+      "n_anomalies": 3,
+      "anomaly_breakdown": {
+        "beat_mismatch": 2,
+        "orphan_note_after_final_bar": 1
+      },
+      "kind_breakdown": {
+        "Filled": 96,
+        "Open": 8,
+        "Whole": 5
+      },
+      "plausibility_pct": 100.0,
+      "exact_pct": 97.3,
+      "broken_pct": 0.0,
+      "stem_coverage_pct": 91.74
+    },
+    {
+      "name": "982d6dcd60db4d7a99e3712ce7a90a41-Dichterliebe01.pdf",
+      "size_kb": 171.2,
+      "elapsed_sec": 13.06,
+      "n_pages": 2,
+      "n_measures": 64,
+      "n_exact": 62,
+      "n_repaired": 1,
+      "n_broken": 1,
+      "n_noteheads": 243,
+      "n_stems": 217,
+      "n_bars": 35,
+      "n_rests": 7,
+      "n_slurs": 6,
+      "n_ties": 0,
+      "n_anomalies": 9,
+      "anomaly_breakdown": {
+        "orphan_note_after_final_bar": 9
+      },
+      "kind_breakdown": {
+        "Filled": 232,
+        "Open": 11,
+        "Whole": 0
+      },
+      "plausibility_pct": 98.44,
+      "exact_pct": 96.88,
+      "broken_pct": 1.56,
+      "stem_coverage_pct": 89.3
+    },
+    {
+      "name": "c8ee95f9b777405aad801d7b1d909182-Dichterliebe01.pdf",
+      "size_kb": 171.2,
+      "elapsed_sec": 12.0,
+      "n_pages": 2,
+      "n_measures": 64,
+      "n_exact": 62,
+      "n_repaired": 1,
+      "n_broken": 1,
+      "n_noteheads": 243,
+      "n_stems": 217,
+      "n_bars": 35,
+      "n_rests": 7,
+      "n_slurs": 6,
+      "n_ties": 0,
+      "n_anomalies": 9,
+      "anomaly_breakdown": {
+        "orphan_note_after_final_bar": 9
+      },
+      "kind_breakdown": {
+        "Filled": 232,
+        "Open": 11,
+        "Whole": 0
+      },
+      "plausibility_pct": 98.44,
+      "exact_pct": 96.88,
+      "broken_pct": 1.56,
+      "stem_coverage_pct": 89.3
+    },
+    {
+      "name": "d26fa636321e4dbeb753d148b069dcc3-Dichterliebe01.pdf",
+      "size_kb": 171.2,
+      "elapsed_sec": 12.86,
+      "n_pages": 2,
+      "n_measures": 64,
+      "n_exact": 62,
+      "n_repaired": 1,
+      "n_broken": 1,
+      "n_noteheads": 243,
+      "n_stems": 217,
+      "n_bars": 35,
+      "n_rests": 7,
+      "n_slurs": 6,
+      "n_ties": 0,
+      "n_anomalies": 9,
+      "anomaly_breakdown": {
+        "orphan_note_after_final_bar": 9
+      },
+      "kind_breakdown": {
+        "Filled": 232,
+        "Open": 11,
+        "Whole": 0
+      },
+      "plausibility_pct": 98.44,
+      "exact_pct": 96.88,
+      "broken_pct": 1.56,
+      "stem_coverage_pct": 89.3
+    },
+    {
+      "name": "c8931fbebda540529e8d2da8d9200d96-ANGELS.pdf",
+      "size_kb": 216.9,
+      "elapsed_sec": 7.64,
+      "n_pages": 1,
+      "n_measures": 64,
+      "n_exact": 64,
+      "n_repaired": 0,
+      "n_broken": 0,
+      "n_noteheads": 222,
+      "n_stems": 197,
+      "n_bars": 57,
+      "n_rests": 2,
+      "n_slurs": 0,
+      "n_ties": 0,
+      "n_anomalies": 1,
+      "anomaly_breakdown": {
+        "beat_mismatch": 1
+      },
+      "kind_breakdown": {
+        "Filled": 203,
+        "Open": 16,
+        "Whole": 3
+      },
+      "plausibility_pct": 100.0,
+      "exact_pct": 100.0,
+      "broken_pct": 0.0,
+      "stem_coverage_pct": 88.74
+    },
+    {
+      "name": "b2d5799efca840bf9a1e6749466389e8-Dichterliebe01.pdf",
+      "size_kb": 171.2,
+      "elapsed_sec": 16.62,
+      "n_pages": 2,
+      "n_measures": 64,
+      "n_exact": 62,
+      "n_repaired": 1,
+      "n_broken": 1,
+      "n_noteheads": 243,
+      "n_stems": 217,
+      "n_bars": 35,
+      "n_rests": 7,
+      "n_slurs": 6,
+      "n_ties": 0,
+      "n_anomalies": 9,
+      "anomaly_breakdown": {
+        "orphan_note_after_final_bar": 9
+      },
+      "kind_breakdown": {
+        "Filled": 232,
+        "Open": 11,
+        "Whole": 0
+      },
+      "plausibility_pct": 98.44,
+      "exact_pct": 96.88,
+      "broken_pct": 1.56,
+      "stem_coverage_pct": 89.3
+    },
+    {
+      "name": "b14aae78a02749dc9020aa0d3cc0a804-Blas' Musik in die Welt!.pdf-Stimme.pdf",
+      "size_kb": 463.4,
+      "elapsed_sec": 17.98,
+      "n_pages": 2,
+      "n_measures": 145,
+      "n_exact": 144,
+      "n_repaired": 1,
+      "n_broken": 0,
+      "n_noteheads": 440,
+      "n_stems": 417,
+      "n_bars": 132,
+      "n_rests": 14,
+      "n_slurs": 8,
+      "n_ties": 3,
+      "n_anomalies": 3,
+      "anomaly_breakdown": {
+        "beat_mismatch": 1,
+        "orphan_note_after_final_bar": 2
+      },
+      "kind_breakdown": {
+        "Filled": 393,
+        "Open": 31,
+        "Whole": 16
+      },
+      "plausibility_pct": 100.0,
+      "exact_pct": 99.31,
+      "broken_pct": 0.0,
+      "stem_coverage_pct": 94.77
+    },
+    {
+      "name": "51632db4dcad44548f2009585ba07b0f-Dichterliebe01.pdf",
+      "size_kb": 171.2,
+      "elapsed_sec": 11.22,
+      "n_pages": 2,
+      "n_measures": 64,
+      "n_exact": 62,
+      "n_repaired": 1,
+      "n_broken": 1,
+      "n_noteheads": 243,
+      "n_stems": 217,
+      "n_bars": 35,
+      "n_rests": 7,
+      "n_slurs": 6,
+      "n_ties": 0,
+      "n_anomalies": 9,
+      "anomaly_breakdown": {
+        "orphan_note_after_final_bar": 9
+      },
+      "kind_breakdown": {
+        "Filled": 232,
+        "Open": 11,
+        "Whole": 0
+      },
+      "plausibility_pct": 98.44,
+      "exact_pct": 96.88,
+      "broken_pct": 1.56,
+      "stem_coverage_pct": 89.3
+    },
+    {
+      "name": "2d31d67e4636445c98b6b4bd3e8fe9b3-ANGELS.pdf",
+      "size_kb": 216.9,
+      "elapsed_sec": 4.7,
+      "n_pages": 1,
+      "n_measures": 64,
+      "n_exact": 64,
+      "n_repaired": 0,
+      "n_broken": 0,
+      "n_noteheads": 222,
+      "n_stems": 197,
+      "n_bars": 57,
+      "n_rests": 2,
+      "n_slurs": 0,
+      "n_ties": 0,
+      "n_anomalies": 1,
+      "anomaly_breakdown": {
+        "beat_mismatch": 1
+      },
+      "kind_breakdown": {
+        "Filled": 203,
+        "Open": 16,
+        "Whole": 3
+      },
+      "plausibility_pct": 100.0,
+      "exact_pct": 100.0,
+      "broken_pct": 0.0,
+      "stem_coverage_pct": 88.74
+    },
+    {
+      "name": "5661b4ab6fd74c31a41e5cc5f618ffe5-ANGELS.pdf",
+      "size_kb": 216.9,
+      "elapsed_sec": 3.78,
+      "n_pages": 1,
+      "n_measures": 64,
+      "n_exact": 64,
+      "n_repaired": 0,
+      "n_broken": 0,
+      "n_noteheads": 222,
+      "n_stems": 197,
+      "n_bars": 57,
+      "n_rests": 2,
+      "n_slurs": 0,
+      "n_ties": 0,
+      "n_anomalies": 1,
+      "anomaly_breakdown": {
+        "beat_mismatch": 1
+      },
+      "kind_breakdown": {
+        "Filled": 203,
+        "Open": 16,
+        "Whole": 3
+      },
+      "plausibility_pct": 100.0,
+      "exact_pct": 100.0,
+      "broken_pct": 0.0,
+      "stem_coverage_pct": 88.74
+    },
+    {
+      "name": "f55bf9b772e84e8a8059281eada3bd14-ANGELS.pdf",
+      "size_kb": 216.9,
+      "elapsed_sec": 3.4,
+      "n_pages": 1,
+      "n_measures": 64,
+      "n_exact": 64,
+      "n_repaired": 0,
+      "n_broken": 0,
+      "n_noteheads": 222,
+      "n_stems": 197,
+      "n_bars": 57,
+      "n_rests": 2,
+      "n_slurs": 0,
+      "n_ties": 0,
+      "n_anomalies": 1,
+      "anomaly_breakdown": {
+        "beat_mismatch": 1
+      },
+      "kind_breakdown": {
+        "Filled": 203,
+        "Open": 16,
+        "Whole": 3
+      },
+      "plausibility_pct": 100.0,
+      "exact_pct": 100.0,
+      "broken_pct": 0.0,
+      "stem_coverage_pct": 88.74
+    },
+    {
+      "name": "a58b899093d44adb84f1fb0ed27c71c6-Dichterliebe01.pdf",
+      "size_kb": 171.2,
+      "elapsed_sec": 9.95,
+      "n_pages": 2,
+      "n_measures": 64,
+      "n_exact": 62,
+      "n_repaired": 1,
+      "n_broken": 1,
+      "n_noteheads": 243,
+      "n_stems": 217,
+      "n_bars": 35,
+      "n_rests": 7,
+      "n_slurs": 6,
+      "n_ties": 0,
+      "n_anomalies": 9,
+      "anomaly_breakdown": {
+        "orphan_note_after_final_bar": 9
+      },
+      "kind_breakdown": {
+        "Filled": 232,
+        "Open": 11,
+        "Whole": 0
+      },
+      "plausibility_pct": 98.44,
+      "exact_pct": 96.88,
+      "broken_pct": 1.56,
+      "stem_coverage_pct": 89.3
+    },
+    {
+      "name": "fda74766409646fca798b021dc2daa14-Dichterliebe01.pdf",
+      "size_kb": 171.2,
+      "elapsed_sec": 9.45,
+      "n_pages": 2,
+      "n_measures": 64,
+      "n_exact": 62,
+      "n_repaired": 1,
+      "n_broken": 1,
+      "n_noteheads": 243,
+      "n_stems": 217,
+      "n_bars": 35,
+      "n_rests": 7,
+      "n_slurs": 6,
+      "n_ties": 0,
+      "n_anomalies": 9,
+      "anomaly_breakdown": {
+        "orphan_note_after_final_bar": 9
+      },
+      "kind_breakdown": {
+        "Filled": 232,
+        "Open": 11,
+        "Whole": 0
+      },
+      "plausibility_pct": 98.44,
+      "exact_pct": 96.88,
+      "broken_pct": 1.56,
+      "stem_coverage_pct": 89.3
+    },
+    {
+      "name": "2832ac1a36e34ec1852df8f7772463c5-Dichterliebe01.pdf",
+      "size_kb": 171.2,
+      "elapsed_sec": 11.56,
+      "n_pages": 2,
+      "n_measures": 64,
+      "n_exact": 62,
+      "n_repaired": 1,
+      "n_broken": 1,
+      "n_noteheads": 243,
+      "n_stems": 217,
+      "n_bars": 35,
+      "n_rests": 7,
+      "n_slurs": 6,
+      "n_ties": 0,
+      "n_anomalies": 9,
+      "anomaly_breakdown": {
+        "orphan_note_after_final_bar": 9
+      },
+      "kind_breakdown": {
+        "Filled": 232,
+        "Open": 11,
+        "Whole": 0
+      },
+      "plausibility_pct": 98.44,
+      "exact_pct": 96.88,
+      "broken_pct": 1.56,
+      "stem_coverage_pct": 89.3
+    },
+    {
+      "name": "26d075c6cd8d4865a5056c7746deace5-BEACH BOYS GOLDEN HITS.pdf",
+      "size_kb": 449.3,
+      "elapsed_sec": 7.28,
+      "n_pages": 2,
+      "n_measures": 102,
+      "n_exact": 101,
+      "n_repaired": 1,
+      "n_broken": 0,
+      "n_noteheads": 421,
+      "n_stems": 376,
+      "n_bars": 85,
+      "n_rests": 17,
+      "n_slurs": 4,
+      "n_ties": 0,
+      "n_anomalies": 13,
+      "anomaly_breakdown": {
+        "beat_mismatch": 2,
+        "orphan_note_after_final_bar": 10,
+        "note_in_header": 1
+      },
+      "kind_breakdown": {
+        "Filled": 398,
+        "Open": 17,
+        "Whole": 6
+      },
+      "plausibility_pct": 100.0,
+      "exact_pct": 99.02,
+      "broken_pct": 0.0,
+      "stem_coverage_pct": 89.31
+    },
+    {
+      "name": "39d2b3fd00f149e09630cea32ef11ccd-Dichterliebe01.pdf",
+      "size_kb": 171.2,
+      "elapsed_sec": 9.74,
+      "n_pages": 2,
+      "n_measures": 64,
+      "n_exact": 62,
+      "n_repaired": 1,
+      "n_broken": 1,
+      "n_noteheads": 243,
+      "n_stems": 217,
+      "n_bars": 35,
+      "n_rests": 7,
+      "n_slurs": 6,
+      "n_ties": 0,
+      "n_anomalies": 9,
+      "anomaly_breakdown": {
+        "orphan_note_after_final_bar": 9
+      },
+      "kind_breakdown": {
+        "Filled": 232,
+        "Open": 11,
+        "Whole": 0
+      },
+      "plausibility_pct": 98.44,
+      "exact_pct": 96.88,
+      "broken_pct": 1.56,
+      "stem_coverage_pct": 89.3
+    }
+  ]
+}

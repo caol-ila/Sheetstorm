@@ -26,6 +26,7 @@ omr-musicxml.workspace = true
 omr-core.workspace = true
 omr-symbols.workspace = true
 omr-sig.workspace = true
+omr-sig-store.workspace = true
 axum.workspace = true
 tokio.workspace = true
 tower.workspace = true
@@ -36,6 +37,9 @@ serde.workspace = true
 serde_json.workspace = true
 anyhow.workspace = true
 clap.workspace = true
+
+[dev-dependencies]
+http-body-util = "0.1"
 
 [features]
 default = []

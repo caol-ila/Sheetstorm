@@ -1713,10 +1713,12 @@ dependencies = [
  "anyhow",
  "axum",
  "clap",
+ "http-body-util",
  "omr-core",
  "omr-musicxml",
  "omr-pipeline",
  "omr-sig",
+ "omr-sig-store",
  "omr-symbols",
  "serde",
  "serde_json",
@@ -1737,6 +1739,21 @@ dependencies = [
  "serde",
  "serde_json",
  "slab",
+ "thiserror 1.0.69",
+ "tracing",
+]
+
+[[package]]
+name = "omr-sig-codec"
+version = "0.1.0"
+dependencies = [
+ "omr-core",
+ "omr-musicxml",
+ "omr-sig",
+ "pretty_assertions",
+ "quick-xml",
+ "serde",
+ "serde_json",
  "thiserror 1.0.69",
  "tracing",
 ]

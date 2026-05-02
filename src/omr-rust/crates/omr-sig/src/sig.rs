@@ -167,6 +167,26 @@ impl Sig {
         self.graph.edge_indices().filter_map(move |e| self.graph.edge_weight(e))
     }
 
+    /// Entfernt die erste Relation zwischen `from` und `to`.
+    ///
+    /// Gibt `true` zurück falls eine Relation gefunden und entfernt wurde.
+    pub fn remove_relation(&mut self, from: InterId, to: InterId) -> bool {
+        let from_node = match self.node_for_id.get(&from) {
+            Some(n) => *n,
+            None => return false,
+        };
+        let to_node = match self.node_for_id.get(&to) {
+            Some(n) => *n,
+            None => return false,
+        };
+        if let Some(edge_idx) = self.graph.find_edge(from_node, to_node) {
+            self.graph.remove_edge(edge_idx);
+            true
+        } else {
+            false
+        }
+    }
+
     /// Iterator über Relationen eines spezifischen Kinds.
     pub fn relations_of_kind(&self, kind: RelationKind) -> impl Iterator<Item = &Relation> + '_ {
         self.relations().filter(move |r| r.kind == kind)

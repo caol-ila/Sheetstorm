@@ -13,7 +13,7 @@
 use anyhow::Context;
 use axum::{
     body::Bytes,
-    extract::{DefaultBodyLimit, Multipart, State},
+    extract::{DefaultBodyLimit, Extension, Multipart, State},
     http::{header, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, post},
@@ -25,6 +25,8 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tower_http::trace::TraceLayer;
 use tracing::{error, info, warn};
+
+mod sig_editor;
 
 #[derive(Clone)]
 struct AppState {
@@ -58,11 +60,14 @@ async fn main() -> anyhow::Result<()> {
     let port: u16 = std::env::var("OMR_PORT").unwrap_or_else(|_| "8091".into()).parse().unwrap_or(8091);
 
     let state = Arc::new(AppState { started_at: std::time::Instant::now() });
+    let sig_state = Arc::new(sig_editor::SigState::new());
 
     let app = Router::new()
         .route("/health", get(health))
         .route("/recognize", post(recognize))
         .route("/detections", post(detections))
+        .merge(sig_editor::router())
+        .layer(Extension(sig_state))
         .layer(DefaultBodyLimit::max(50 * 1024 * 1024)) // 50 MB
         .layer(TraceLayer::new_for_http())
         .with_state(state);
