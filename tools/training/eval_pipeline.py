@@ -55,6 +55,8 @@ def analyze_response(detections: dict) -> dict:
         "n_exact": 0,
         "n_repaired": 0,
         "n_broken": 0,
+        "n_anacrusis": 0,
+        "n_unknown": 0,
         "n_noteheads": 0,
         "n_stems": 0,
         "n_bars": 0,
@@ -84,7 +86,9 @@ def analyze_response(detections: dict) -> dict:
             p = m.get("plausibility")
             if p == "exact": summary["n_exact"] += 1
             elif p == "broken": summary["n_broken"] += 1
-            else: summary["n_repaired"] += 1
+            elif p == "repaired": summary["n_repaired"] += 1
+            elif p == "anacrusis": summary["n_anacrusis"] += 1
+            else: summary["n_unknown"] = summary.get("n_unknown", 0) + 1
         rs = page.get("reading_stream") or {}
         for sys_data in rs.get("systems") or []:
             for a in sys_data.get("anomalies") or []:
@@ -99,8 +103,13 @@ def compute_metrics(s: dict) -> dict:
     m = dict(s)
     n_meas = max(1, s["n_measures"])
     n_nh = max(1, s["n_noteheads"])
-    m["plausibility_pct"] = round(100.0 * (s["n_exact"] + s["n_repaired"]) / n_meas, 2)
+    # Plausibility: exact + repaired + anacrusis sind alle "valid"
+    # (anacrusis = leere Takte / Whole-Rest-Takte, sind korrekt erkannt aber leer).
+    valid = s["n_exact"] + s["n_repaired"] + s.get("n_anacrusis", 0)
+    m["plausibility_pct"] = round(100.0 * valid / n_meas, 2)
     m["exact_pct"] = round(100.0 * s["n_exact"] / n_meas, 2)
+    m["repaired_pct"] = round(100.0 * s["n_repaired"] / n_meas, 2)
+    m["anacrusis_pct"] = round(100.0 * s.get("n_anacrusis", 0) / n_meas, 2)
     m["broken_pct"] = round(100.0 * s["n_broken"] / n_meas, 2)
     m["stem_coverage_pct"] = round(100.0 * s["n_stems"] / n_nh, 2)
     return m
@@ -132,6 +141,7 @@ def main():
     per_pdf = []
     aggregate = {
         "n_pages": 0, "n_measures": 0, "n_exact": 0, "n_repaired": 0, "n_broken": 0,
+        "n_anacrusis": 0, "n_unknown": 0,
         "n_noteheads": 0, "n_stems": 0, "n_bars": 0, "n_rests": 0,
         "n_slurs": 0, "n_ties": 0, "n_anomalies": 0,
         "anomaly_breakdown": {}, "kind_breakdown": {"Filled": 0, "Open": 0, "Whole": 0},
@@ -155,6 +165,7 @@ def main():
         })
         # Aggregate
         for k in ["n_pages", "n_measures", "n_exact", "n_repaired", "n_broken",
+                  "n_anacrusis", "n_unknown",
                   "n_noteheads", "n_stems", "n_bars", "n_rests",
                   "n_slurs", "n_ties", "n_anomalies"]:
             aggregate[k] += summary[k]
@@ -185,9 +196,11 @@ def main():
     print("=" * 70)
     print(f"EVAL-SUMMARY ({len(per_pdf)} PDFs)")
     print("=" * 70)
-    print(f"  Plausibility:     {final['plausibility_pct']:.2f}%  ({final['n_exact'] + final['n_repaired']} / {final['n_measures']})")
+    valid = final['n_exact'] + final['n_repaired'] + final['n_anacrusis']
+    print(f"  Plausibility:     {final['plausibility_pct']:.2f}%  ({valid} / {final['n_measures']})")
     print(f"    Exact:          {final['exact_pct']:.2f}%  ({final['n_exact']})")
-    print(f"    Repaired:       {round(100.0 * final['n_repaired'] / max(1, final['n_measures']), 2):.2f}%  ({final['n_repaired']})")
+    print(f"    Repaired:       {final['repaired_pct']:.2f}%  ({final['n_repaired']})")
+    print(f"    Anacrusis:      {final['anacrusis_pct']:.2f}%  ({final['n_anacrusis']})")
     print(f"    Broken:         {final['broken_pct']:.2f}%  ({final['n_broken']})")
     print(f"  Stem-Coverage:    {final['stem_coverage_pct']:.2f}%  ({final['n_stems']} / {final['n_noteheads']})")
     print(f"  Slurs / Ties:     {final['n_slurs']} / {final['n_ties']}")
