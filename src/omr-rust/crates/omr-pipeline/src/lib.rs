@@ -14,6 +14,7 @@ pub mod debug_viz;
 pub mod detections;
 pub mod muscima;
 pub mod pdf_render;
+pub mod sig_integration;
 pub mod synthetic;
 
 /// Eingebettetes vortrainiertes Klassifikator-Modell.

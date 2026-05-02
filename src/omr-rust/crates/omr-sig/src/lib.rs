@@ -40,14 +40,25 @@
 
 #![warn(missing_docs)]
 
+pub mod builder;
 pub mod grade;
 pub mod history;
 pub mod inter;
+pub mod inters;
+pub mod music_theory;
 pub mod relation;
 pub mod sig;
 
+pub use builder::SigBuilder;
 pub use grade::{contextual_grade, Grade, GradeImpacts};
 pub use history::{EditOperation, EditOperationKind, History, OperationId};
 pub use inter::{Inter, InterId, InterKind, InterMeta, Provenance};
+pub use inters::{
+    AlterInter, BarInter, BeamInter, ClefInter, ClefType, HeadInter, KeySignatureInter,
+    LedgerInter, RestInter, SlurInter, StemInter, TimeSignatureInter,
+};
+pub use music_theory::{
+    add_key_consistency_edges, add_measure_budget_edges, diatonic_pitches, is_diatonic,
+};
 pub use relation::{ExclusionCause, Relation, RelationKind, SupportImpacts, SupportKind};
 pub use sig::{ReduceReport, Sig};

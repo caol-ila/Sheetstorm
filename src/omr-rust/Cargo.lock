@@ -1508,6 +1508,7 @@ dependencies = [
  "omr-core",
  "omr-musicxml",
  "omr-preprocessing",
+ "omr-sig",
  "omr-staff",
  "omr-symbols",
  "pdfium-render",
