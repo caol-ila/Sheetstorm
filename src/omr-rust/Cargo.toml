@@ -9,6 +9,7 @@ members = [
     "crates/omr-pipeline",
     "crates/omr-server",
     "crates/omr-sig",
+    "crates/omr-sig-store",
 ]
 
 [workspace.package]
@@ -38,6 +39,8 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 rayon = "1.10"
 # XML
 quick-xml = { version = "0.36", features = ["serialize"] }
+# CLI argument parsing
+clap = { version = "4", features = ["derive"] }
 # Async / HTTP
 tokio = { version = "1", features = ["full"] }
 axum = { version = "0.7", features = ["multipart"] }
@@ -54,6 +57,7 @@ omr-symbols = { path = "crates/omr-symbols" }
 omr-musicxml = { path = "crates/omr-musicxml" }
 omr-pipeline = { path = "crates/omr-pipeline" }
 omr-sig = { path = "crates/omr-sig" }
+omr-sig-store = { path = "crates/omr-sig-store" }
 
 [profile.release]
 opt-level = 3
