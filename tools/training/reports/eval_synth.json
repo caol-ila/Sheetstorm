@@ -1,0 +1,416 @@
+{
+  "summary": {
+    "total_records": 20,
+    "records_with_metrics": 0,
+    "mean_recall": null,
+    "mean_precision": null,
+    "mean_pitch_accuracy": null,
+    "total_gt_notes": 1391,
+    "total_detections": 0,
+    "total_matched": 0,
+    "dry_run": false,
+    "match_radius_px": 20.0
+  },
+  "per_file": [
+    {
+      "source": "corpus_bach_bwv103_6__track00.musicxml",
+      "pages": [
+        {
+          "page": "corpus_bach_bwv103_6__track00_p01.png",
+          "detection_count": 0
+        }
+      ],
+      "metrics": {
+        "recall": null,
+        "precision": null,
+        "pitch_accuracy": null,
+        "duration_accuracy": null,
+        "gt_count": 69,
+        "det_count": 0,
+        "gt_with_pos": 69,
+        "matched": 0,
+        "note": "insufficient position data"
+      }
+    },
+    {
+      "source": "corpus_bach_bwv103_6__track01.musicxml",
+      "pages": [
+        {
+          "page": "corpus_bach_bwv103_6__track01_p01.png",
+          "detection_count": 0
+        }
+      ],
+      "metrics": {
+        "recall": null,
+        "precision": null,
+        "pitch_accuracy": null,
+        "duration_accuracy": null,
+        "gt_count": 87,
+        "det_count": 0,
+        "gt_with_pos": 87,
+        "matched": 0,
+        "note": "insufficient position data"
+      }
+    },
+    {
+      "source": "corpus_bach_bwv103_6__track02.musicxml",
+      "pages": [
+        {
+          "page": "corpus_bach_bwv103_6__track02_p01.png",
+          "detection_count": 0
+        }
+      ],
+      "metrics": {
+        "recall": null,
+        "precision": null,
+        "pitch_accuracy": null,
+        "duration_accuracy": null,
+        "gt_count": 88,
+        "det_count": 0,
+        "gt_with_pos": 88,
+        "matched": 0,
+        "note": "insufficient position data"
+      }
+    },
+    {
+      "source": "corpus_bach_bwv103_6__track03.musicxml",
+      "pages": [
+        {
+          "page": "corpus_bach_bwv103_6__track03_p01.png",
+          "detection_count": 0
+        }
+      ],
+      "metrics": {
+        "recall": null,
+        "precision": null,
+        "pitch_accuracy": null,
+        "duration_accuracy": null,
+        "gt_count": 81,
+        "det_count": 0,
+        "gt_with_pos": 81,
+        "matched": 0,
+        "note": "insufficient position data"
+      }
+    },
+    {
+      "source": "corpus_bach_bwv108_6__track00.musicxml",
+      "pages": [
+        {
+          "page": "corpus_bach_bwv108_6__track00_p01.png",
+          "detection_count": 0
+        }
+      ],
+      "metrics": {
+        "recall": null,
+        "precision": null,
+        "pitch_accuracy": null,
+        "duration_accuracy": null,
+        "gt_count": 63,
+        "det_count": 0,
+        "gt_with_pos": 63,
+        "matched": 0,
+        "note": "insufficient position data"
+      }
+    },
+    {
+      "source": "corpus_bach_bwv108_6__track01.musicxml",
+      "pages": [
+        {
+          "page": "corpus_bach_bwv108_6__track01_p01.png",
+          "detection_count": 0
+        }
+      ],
+      "metrics": {
+        "recall": null,
+        "precision": null,
+        "pitch_accuracy": null,
+        "duration_accuracy": null,
+        "gt_count": 66,
+        "det_count": 0,
+        "gt_with_pos": 66,
+        "matched": 0,
+        "note": "insufficient position data"
+      }
+    },
+    {
+      "source": "corpus_bach_bwv108_6__track02.musicxml",
+      "pages": [
+        {
+          "page": "corpus_bach_bwv108_6__track02_p01.png",
+          "detection_count": 0
+        }
+      ],
+      "metrics": {
+        "recall": null,
+        "precision": null,
+        "pitch_accuracy": null,
+        "duration_accuracy": null,
+        "gt_count": 71,
+        "det_count": 0,
+        "gt_with_pos": 71,
+        "matched": 0,
+        "note": "insufficient position data"
+      }
+    },
+    {
+      "source": "corpus_bach_bwv108_6__track03.musicxml",
+      "pages": [
+        {
+          "page": "corpus_bach_bwv108_6__track03_p01.png",
+          "detection_count": 0
+        }
+      ],
+      "metrics": {
+        "recall": null,
+        "precision": null,
+        "pitch_accuracy": null,
+        "duration_accuracy": null,
+        "gt_count": 94,
+        "det_count": 0,
+        "gt_with_pos": 94,
+        "matched": 0,
+        "note": "insufficient position data"
+      }
+    },
+    {
+      "source": "corpus_bach_bwv10_7__track00.musicxml",
+      "pages": [
+        {
+          "page": "corpus_bach_bwv10_7__track00_p01.png",
+          "detection_count": 0
+        }
+      ],
+      "metrics": {
+        "recall": null,
+        "precision": null,
+        "pitch_accuracy": null,
+        "duration_accuracy": null,
+        "gt_count": 46,
+        "det_count": 0,
+        "gt_with_pos": 46,
+        "matched": 0,
+        "note": "insufficient position data"
+      }
+    },
+    {
+      "source": "corpus_bach_bwv10_7__track01.musicxml",
+      "pages": [
+        {
+          "page": "corpus_bach_bwv10_7__track01_p01.png",
+          "detection_count": 0
+        }
+      ],
+      "metrics": {
+        "recall": null,
+        "precision": null,
+        "pitch_accuracy": null,
+        "duration_accuracy": null,
+        "gt_count": 50,
+        "det_count": 0,
+        "gt_with_pos": 50,
+        "matched": 0,
+        "note": "insufficient position data"
+      }
+    },
+    {
+      "source": "corpus_bach_bwv10_7__track02.musicxml",
+      "pages": [
+        {
+          "page": "corpus_bach_bwv10_7__track02_p01.png",
+          "detection_count": 0
+        }
+      ],
+      "metrics": {
+        "recall": null,
+        "precision": null,
+        "pitch_accuracy": null,
+        "duration_accuracy": null,
+        "gt_count": 57,
+        "det_count": 0,
+        "gt_with_pos": 57,
+        "matched": 0,
+        "note": "insufficient position data"
+      }
+    },
+    {
+      "source": "corpus_bach_bwv10_7__track03.musicxml",
+      "pages": [
+        {
+          "page": "corpus_bach_bwv10_7__track03_p01.png",
+          "detection_count": 0
+        }
+      ],
+      "metrics": {
+        "recall": null,
+        "precision": null,
+        "pitch_accuracy": null,
+        "duration_accuracy": null,
+        "gt_count": 59,
+        "det_count": 0,
+        "gt_with_pos": 59,
+        "matched": 0,
+        "note": "insufficient position data"
+      }
+    },
+    {
+      "source": "corpus_bach_bwv112_5__track00.musicxml",
+      "pages": [
+        {
+          "page": "corpus_bach_bwv112_5__track00_p01.png",
+          "detection_count": 0
+        }
+      ],
+      "metrics": {
+        "recall": null,
+        "precision": null,
+        "pitch_accuracy": null,
+        "duration_accuracy": null,
+        "gt_count": 68,
+        "det_count": 0,
+        "gt_with_pos": 68,
+        "matched": 0,
+        "note": "insufficient position data"
+      }
+    },
+    {
+      "source": "corpus_bach_bwv112_5__track01.musicxml",
+      "pages": [
+        {
+          "page": "corpus_bach_bwv112_5__track01_p01.png",
+          "detection_count": 0
+        }
+      ],
+      "metrics": {
+        "recall": null,
+        "precision": null,
+        "pitch_accuracy": null,
+        "duration_accuracy": null,
+        "gt_count": 65,
+        "det_count": 0,
+        "gt_with_pos": 65,
+        "matched": 0,
+        "note": "insufficient position data"
+      }
+    },
+    {
+      "source": "corpus_bach_bwv112_5__track02.musicxml",
+      "pages": [
+        {
+          "page": "corpus_bach_bwv112_5__track02_p01.png",
+          "detection_count": 0
+        }
+      ],
+      "metrics": {
+        "recall": null,
+        "precision": null,
+        "pitch_accuracy": null,
+        "duration_accuracy": null,
+        "gt_count": 78,
+        "det_count": 0,
+        "gt_with_pos": 78,
+        "matched": 0,
+        "note": "insufficient position data"
+      }
+    },
+    {
+      "source": "corpus_bach_bwv112_5__track03.musicxml",
+      "pages": [
+        {
+          "page": "corpus_bach_bwv112_5__track03_p01.png",
+          "detection_count": 0
+        }
+      ],
+      "metrics": {
+        "recall": null,
+        "precision": null,
+        "pitch_accuracy": null,
+        "duration_accuracy": null,
+        "gt_count": 67,
+        "det_count": 0,
+        "gt_with_pos": 67,
+        "matched": 0,
+        "note": "insufficient position data"
+      }
+    },
+    {
+      "source": "corpus_bach_bwv112_5__track04.musicxml",
+      "pages": [
+        {
+          "page": "corpus_bach_bwv112_5__track04_p01.png",
+          "detection_count": 0
+        }
+      ],
+      "metrics": {
+        "recall": null,
+        "precision": null,
+        "pitch_accuracy": null,
+        "duration_accuracy": null,
+        "gt_count": 76,
+        "det_count": 0,
+        "gt_with_pos": 76,
+        "matched": 0,
+        "note": "insufficient position data"
+      }
+    },
+    {
+      "source": "corpus_bach_bwv112_5__track05.musicxml",
+      "pages": [
+        {
+          "page": "corpus_bach_bwv112_5__track05_p01.png",
+          "detection_count": 0
+        }
+      ],
+      "metrics": {
+        "recall": null,
+        "precision": null,
+        "pitch_accuracy": null,
+        "duration_accuracy": null,
+        "gt_count": 73,
+        "det_count": 0,
+        "gt_with_pos": 73,
+        "matched": 0,
+        "note": "insufficient position data"
+      }
+    },
+    {
+      "source": "corpus_bach_bwv112_5__track06.musicxml",
+      "pages": [
+        {
+          "page": "corpus_bach_bwv112_5__track06_p01.png",
+          "detection_count": 0
+        }
+      ],
+      "metrics": {
+        "recall": null,
+        "precision": null,
+        "pitch_accuracy": null,
+        "duration_accuracy": null,
+        "gt_count": 80,
+        "det_count": 0,
+        "gt_with_pos": 80,
+        "matched": 0,
+        "note": "insufficient position data"
+      }
+    },
+    {
+      "source": "corpus_bach_bwv116_6__track00.musicxml",
+      "pages": [
+        {
+          "page": "corpus_bach_bwv116_6__track00_p01.png",
+          "detection_count": 0
+        }
+      ],
+      "metrics": {
+        "recall": null,
+        "precision": null,
+        "pitch_accuracy": null,
+        "duration_accuracy": null,
+        "gt_count": 53,
+        "det_count": 0,
+        "gt_with_pos": 53,
+        "matched": 0,
+        "note": "insufficient position data"
+      }
+    }
+  ]
+}
