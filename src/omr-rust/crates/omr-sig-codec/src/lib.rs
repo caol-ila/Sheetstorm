@@ -1,9 +1,9 @@
-//! omr-sig-codec — bidirektionale Konvertierung zwischen MusicXML und Sig.
+//! omr-sig-codec ΓÇö bidirektionale Konvertierung zwischen MusicXML und Sig.
 //!
-//! # Überblick
+//! # ├£berblick
 //!
-//! Dieser Crate implementiert den vollständigen Import (MusicXML → SIG) und
-//! Export (SIG → MusicXML), einschließlich stabiler ID-Erhaltung via
+//! Dieser Crate implementiert den vollst├ñndigen Import (MusicXML ΓåÆ SIG) und
+//! Export (SIG ΓåÆ MusicXML), einschlie├ƒlich stabiler ID-Erhaltung via
 //! [`IdMapping`].
 //!
 //! # Beispiel
@@ -26,7 +26,7 @@ mod tests {
     use super::*;
     use omr_sig::{inters::HeadInter, Inter};
 
-    // ── Hilfsfunktionen ───────────────────────────────────────────────────────
+    // ΓöÇΓöÇ Hilfsfunktionen ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
     /// Minimales XML mit einem Takt und einer Note C4.
     fn xml_one_note(note_id: &str, step: &str, octave: i8, alter: i8) -> String {
@@ -71,7 +71,7 @@ mod tests {
         count
     }
 
-    // ── Tests ─────────────────────────────────────────────────────────────────
+    // ΓöÇΓöÇ Tests ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
     #[test]
     fn import_simple_score() {
@@ -182,7 +182,7 @@ mod tests {
   </part>
 </score-partwise>"#;
         let sig = SigCodec::new().import_musicxml(xml).unwrap();
-        // 2 Parts × (1 Clef + 1 Key + 1 Time + 1 Head) = 8 Inters
+        // 2 Parts ├ù (1 Clef + 1 Key + 1 Time + 1 Head) = 8 Inters
         assert_eq!(sig.inter_count(), 8);
 
         let heads: Vec<&HeadInter> = sig.typed_inters::<HeadInter>().collect();
@@ -267,7 +267,7 @@ mod tests {
 
     #[test]
     fn import_sets_pitch_correctly_bb3() {
-        // Bb3 = B♭3 = step=B, alter=-1, octave=3 → MIDI 58
+        // Bb3 = BΓÖ¡3 = step=B, alter=-1, octave=3 ΓåÆ MIDI 58
         let xml = xml_one_note("n1", "B", 3, -1);
         let sig = SigCodec::new().import_musicxml(&xml).unwrap();
         let heads: Vec<&HeadInter> = sig.typed_inters::<HeadInter>().collect();
@@ -383,7 +383,7 @@ pub use id_mapping::IdMapping;
 
 use omr_sig::sig::Sig;
 
-/// Fehler beim MusicXML ↔ Sig Codec.
+/// Fehler beim MusicXML Γåö Sig Codec.
 #[derive(thiserror::Error, Debug)]
 pub enum CodecError {
     /// XML-Syntaxfehler.
@@ -392,15 +392,15 @@ pub enum CodecError {
     /// Pflicht-Element fehlt.
     #[error("Missing required element: {0}")]
     MissingElement(String),
-    /// Taktangabe ungültig (z.B. beats=0).
+    /// Taktangabe ung├╝ltig (z.B. beats=0).
     #[error("Invalid time signature: {0}")]
     InvalidTimeSig(String),
-    /// Unbekannter Pitch-Step (nicht C–B).
+    /// Unbekannter Pitch-Step (nicht CΓÇôB).
     #[error("Invalid pitch step: {0}")]
     InvalidStep(String),
 }
 
-/// Bidirektionaler MusicXML ↔ SIG Codec.
+/// Bidirektionaler MusicXML Γåö SIG Codec.
 pub struct SigCodec {
     /// Divisions pro Viertelnote (default: 4).
     pub divisions: u32,
@@ -421,13 +421,13 @@ impl SigCodec {
     /// Importiert MusicXML als String zu einem neuen Sig.
     ///
     /// Stable IDs aus MusicXML `<note id="..."/>` werden in der
-    /// zurückgegebenen `IdMapping` gespeichert (via
+    /// zur├╝ckgegebenen `IdMapping` gespeichert (via
     /// [`import_musicxml_with_mapping`]).
     pub fn import_musicxml(&self, xml: &str) -> Result<Sig, CodecError> {
         importer::import(xml, self.divisions).map(|(sig, _)| sig)
     }
 
-    /// Importiert MusicXML und liefert zusätzlich das ID-Mapping.
+    /// Importiert MusicXML und liefert zus├ñtzlich das ID-Mapping.
     pub fn import_musicxml_with_mapping(
         &self,
         xml: &str,
@@ -442,7 +442,7 @@ impl SigCodec {
         exporter::export(sig, self.divisions)
     }
 
-    /// Round-trip: import dann export. Gibt das exportierte XML zurück.
+    /// Round-trip: import dann export. Gibt das exportierte XML zur├╝ck.
     pub fn roundtrip(&self, xml: &str) -> Result<String, CodecError> {
         let sig = self.import_musicxml(xml)?;
         self.export_musicxml(&sig)

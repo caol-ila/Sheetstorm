@@ -4,10 +4,10 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 
-# Bidirektionaler MusicXML ↔ SIG Codec.
+# Bidirektionaler MusicXML Γåö SIG Codec.
 #
 # Importiert MusicXML in einen SIG (mit stabilen IDs) und exportiert
-# einen SIG als MusicXML. Basis für Round-Trip-Tests und Editor-Integration.
+# einen SIG als MusicXML. Basis f├╝r Round-Trip-Tests und Editor-Integration.
 
 [dependencies]
 omr-sig.workspace = true

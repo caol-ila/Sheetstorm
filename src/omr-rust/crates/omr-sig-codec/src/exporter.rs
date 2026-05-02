@@ -1,11 +1,10 @@
-//! Sig → MusicXML Exporter.
+//! Sig ΓåÆ MusicXML Exporter.
 //!
 //! Schreibt alle Inters eines SIG als `score-partwise` MusicXML 4.0.
 //! Heads werden sortiert nach `(system_idx, measure_number, bbox.x)`.
 //! Jedes eindeutige `system_idx` wird als separate `<part>` ausgegeben.
 
 use omr_sig::{
-    inter::InterKind,
     inters::{ClefInter, ClefType, HeadInter, KeySignatureInter, TimeSignatureInter},
     sig::Sig,
 };
@@ -29,7 +28,7 @@ pub(crate) fn export(sig: &Sig, divisions: u32) -> Result<String, CodecError> {
     let key_sigs: Vec<&KeySignatureInter> = sig.typed_inters::<KeySignatureInter>().collect();
     let time_sigs: Vec<&TimeSignatureInter> = sig.typed_inters::<TimeSignatureInter>().collect();
 
-    // Eindeutige system_idx-Werte → Parts
+    // Eindeutige system_idx-Werte ΓåÆ Parts
     let mut system_idxs: Vec<u32> = {
         let mut idxs: Vec<u32> = heads
             .iter()
@@ -61,7 +60,7 @@ pub(crate) fn export(sig: &Sig, divisions: u32) -> Result<String, CodecError> {
     for &sys in &system_idxs {
         writeln!(out, "  <part id=\"P{}\">", sys + 1).unwrap();
 
-        // Takt-Nummern für diese Part (aus Heads und Attribut-Inters)
+        // Takt-Nummern f├╝r diese Part (aus Heads und Attribut-Inters)
         let mut measure_numbers: Vec<u32> = heads
             .iter()
             .filter(|h| h.meta.system_idx == Some(sys))
@@ -87,7 +86,7 @@ pub(crate) fn export(sig: &Sig, divisions: u32) -> Result<String, CodecError> {
             for &m_num in &measure_numbers {
                 writeln!(out, "    <measure number=\"{}\">", m_num).unwrap();
 
-                // Attribute-Inters für diesen Takt?
+                // Attribute-Inters f├╝r diesen Takt?
                 let clef = clefs
                     .iter()
                     .find(|c| c.meta.system_idx == Some(sys) && c.meta.measure_number == Some(m_num));
@@ -123,7 +122,7 @@ pub(crate) fn export(sig: &Sig, divisions: u32) -> Result<String, CodecError> {
                     writeln!(out, "      </attributes>").unwrap();
                 }
 
-                // Noten für diesen Takt, sortiert nach x
+                // Noten f├╝r diesen Takt, sortiert nach x
                 let measure_heads: Vec<&&HeadInter> = heads
                     .iter()
                     .filter(|h| {

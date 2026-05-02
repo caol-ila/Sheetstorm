@@ -1,20 +1,20 @@
 # omr-sig-codec
 
-Bidirektionaler MusicXML ↔ SIG Codec für den Sheetstorm OMR-Stack.
+Bidirektionaler MusicXML Γåö SIG Codec f├╝r den Sheetstorm OMR-Stack.
 
-## Überblick
+## ├£berblick
 
 Dieser Crate implementiert:
 
-- **Import**: MusicXML (`score-partwise`) → SIG (`omr-sig`)  
+- **Import**: MusicXML (`score-partwise`) ΓåÆ SIG (`omr-sig`)  
   Erzeugt `ClefInter`, `KeySignatureInter`, `TimeSignatureInter`, `HeadInter` und `RestInter`.
   Stabile IDs aus `<note id="..."/>` werden via `IdMapping` erhalten.
 
-- **Export**: SIG → MusicXML  
+- **Export**: SIG ΓåÆ MusicXML  
   Sortiert Heads nach `(system_idx, measure_number, bbox.x)`.
   Jedes `system_idx` wird als separate `<part>` ausgegeben.
 
-- **Round-Trip**: import → export, inhaltlich äquivalentes XML.
+- **Round-Trip**: import ΓåÆ export, inhaltlich ├ñquivalentes XML.
 
 ## Schnellstart
 
@@ -58,8 +58,8 @@ assert!(roundtripped.contains("<step>C</step>"));
 
 ```rust
 let (sig, mapping) = codec.import_musicxml_with_mapping(xml).unwrap();
-// mapping.xml_id_for(inter_id) → Some("n1")
-// mapping.inter_id_for("n1")   → Some(InterId(...))
+// mapping.xml_id_for(inter_id) ΓåÆ Some("n1")
+// mapping.inter_id_for("n1")   ΓåÆ Some(InterId(...))
 ```
 
 ## Tests
