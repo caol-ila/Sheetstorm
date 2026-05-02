@@ -1742,6 +1742,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "omr-sig-codec"
+version = "0.1.0"
+dependencies = [
+ "omr-core",
+ "omr-musicxml",
+ "omr-sig",
+ "pretty_assertions",
+ "quick-xml",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+ "tracing",
+]
+
+[[package]]
 name = "omr-sig-store"
 version = "0.1.0"
 dependencies = [
