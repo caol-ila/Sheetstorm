@@ -1,0 +1,30 @@
+[package]
+name = "omr-sig"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+# Symbol Interpretation Graph (SIG) — Multi-Hypothesen-Architektur fuer OMR.
+#
+# Inspiriert von Audiveris (https://github.com/Audiveris/audiveris), aber
+# erweitert um:
+# - User-Provenance & Frozen-Inters fuer Editierbarkeit
+# - Probabilistic GradeDistributions statt single Score
+# - Music-Theory-Relations (Key, Voice-Leading, Phrase, Genre)
+# - Cross-Document-Relations fuer Multi-Stimmen-Konsistenz
+# - Edit-History fuer Undo/Redo
+# - Spatial-Index fuer effiziente Region-Queries
+#
+# Design-Doku siehe omr-sig/README.md.
+
+[dependencies]
+omr-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+petgraph = { version = "0.7", features = ["serde-1"] }
+slab = "0.4"
+
+[dev-dependencies]
+pretty_assertions = "1"
