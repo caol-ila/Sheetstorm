@@ -664,9 +664,16 @@ fn process_gray_single(gray: GrayImage, opts: &PipelineOptions) -> Result<Pipeli
                 .map(|(b, f)| b + f).collect();
             let clef_for_sys = clefs.get(sys_i).copied().unwrap_or(Clef::Treble);
             let key_for_sys = keys.get(sys_i).copied().unwrap_or(KeySignature::default());
-            let mut all_notes = omr_symbols::noteheads_to_notes_with_dots(
+
+            // Ledger-Info pro lokalen NH: nutze ledger_by_nh map (global indices)
+            let ledger_local: Vec<Option<omr_symbols::ledger_lines::LedgerInfo>> = sorted_global
+                .iter()
+                .map(|&i| ledger_by_nh.get(&i).copied())
+                .collect();
+
+            let mut all_notes = omr_symbols::noteheads_to_notes_with_ledger(
                 &nh_local, &systems, &stems_local, &combined_counts, clef_for_sys, key_for_sys,
-                &dots_local,
+                &dots_local, &ledger_local,
             );
 
             // Lokale Accidentals anwenden: für jede NH die einen alter-Override
