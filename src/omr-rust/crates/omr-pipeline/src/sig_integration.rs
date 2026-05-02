@@ -215,6 +215,50 @@ pub fn sig_summary(sig: &Sig) -> String {
     )
 }
 
+/// Befüllt die `sig`-Summary eines `DetectionPage` durch Aufbau des SIG.
+///
+/// Baut den SIG aus der DetectionPage auf, zählt alle Inters und Relations
+/// nach Kind und schreibt das Ergebnis in `page.sig`.
+/// Idempotent — mehrfaches Aufrufen überschreibt den vorherigen Wert.
+pub fn enrich_with_sig(page: &mut crate::detections::DetectionPage) {
+    use crate::detections::SigSummary;
+    use omr_sig::{InterKind, RelationKind};
+
+    let sig = build_sig_from_page(page);
+
+    let summary = SigSummary {
+        n_inters: sig.inter_count() as u32,
+        n_heads: sig.inters_of_kind(InterKind::Head).count() as u32,
+        n_stems: sig.inters_of_kind(InterKind::Stem).count() as u32,
+        n_beams: sig.inters_of_kind(InterKind::Beam).count() as u32,
+        n_bars: sig.inters_of_kind(InterKind::Bar).count() as u32,
+        n_keysigs: sig.inters_of_kind(InterKind::KeySignature).count() as u32,
+        n_timesigs: sig.inters_of_kind(InterKind::TimeSignature).count() as u32,
+        n_relations: sig.relation_count() as u32,
+        n_keyconsistency_supports: sig
+            .relations()
+            .filter(|r| r.kind == RelationKind::KeyConsistency && r.is_support())
+            .count() as u32,
+        n_keyconsistency_conflicts: sig
+            .relations()
+            .filter(|r| r.kind == RelationKind::KeyConsistency && r.is_exclusion())
+            .count() as u32,
+        n_headstem_links: sig
+            .relations()
+            .filter(|r| r.kind == RelationKind::HeadStem && r.is_support())
+            .count() as u32,
+        n_beamstem_links: sig
+            .relations()
+            .filter(|r| r.kind == RelationKind::BeamStem && r.is_support())
+            .count() as u32,
+        n_measurebudget_edges: sig
+            .relations()
+            .filter(|r| r.kind == RelationKind::MeasureBudget)
+            .count() as u32,
+    };
+    page.sig = Some(summary);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -243,6 +287,7 @@ mod tests {
             rests: vec![],
             slurs: vec![],
             reading_stream: None,
+            sig: None,
         }
     }
 
@@ -375,5 +420,67 @@ mod tests {
             .find(|r| r.kind == omr_sig::RelationKind::KeyConsistency)
             .expect("KeyConsistency edge present");
         assert!(kc_edge.is_exclusion(), "F natural in G major should be Exclusion");
+    }
+
+    #[test]
+    fn enrich_with_sig_populates_summary() {
+        let mut page = empty_page();
+        // G-Dur Tonart
+        page.key_signatures.push(KeySignatureEntry {
+            system_idx: 0,
+            fifths: 1,
+            bbox: [50, 100, 30, 40],
+        });
+        // Diatonischer Head F#4 (MIDI 66)
+        page.noteheads.push(NoteheadEntry {
+            id: 0,
+            bbox: [100, 200, 8, 6],
+            center: [104.0, 203.0],
+            kind: "Filled",
+            system_idx: 0,
+            confidence: 0.9,
+            midi: Some(66),
+            step: Some("F"),
+            alter: Some(1),
+            octave: Some(4),
+            duration: Some(4),
+            augmentation_dots: Some(0),
+            measure_number: Some(1),
+            in_chord: None,
+            is_rest: None,
+            stem_id: None,
+        });
+        // Nicht-diatonischer Head F natural (MIDI 65)
+        page.noteheads.push(NoteheadEntry {
+            id: 1,
+            bbox: [200, 200, 8, 6],
+            center: [204.0, 203.0],
+            kind: "Filled",
+            system_idx: 0,
+            confidence: 0.85,
+            midi: Some(65),
+            step: Some("F"),
+            alter: Some(0),
+            octave: Some(4),
+            duration: Some(4),
+            augmentation_dots: Some(0),
+            measure_number: Some(1),
+            in_chord: None,
+            is_rest: None,
+            stem_id: None,
+        });
+
+        assert!(page.sig.is_none());
+        super::enrich_with_sig(&mut page);
+
+        let sig = page.sig.expect("sig populated after enrich_with_sig");
+        assert_eq!(sig.n_heads, 2);
+        assert_eq!(sig.n_keysigs, 1);
+        // 1 diatonic Head → 1 Support
+        assert_eq!(sig.n_keyconsistency_supports, 1);
+        // 1 non-diatonic Head → 1 Exclusion/Conflict
+        assert_eq!(sig.n_keyconsistency_conflicts, 1);
+        // Inters: 2 Heads + 1 KeySig = 3
+        assert_eq!(sig.n_inters, 3);
     }
 }

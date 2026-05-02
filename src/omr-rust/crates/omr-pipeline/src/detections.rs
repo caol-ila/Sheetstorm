@@ -12,6 +12,40 @@ use omr_core::{Measure, Notehead, NoteheadKind, ScoreNote, StaffSystem, Stem};
 use omr_symbols::{Beam, MeasureBar};
 use serde::Serialize;
 
+/// Kompakte SIG-Statistik für eine DetectionPage.
+///
+/// Wird von `sig_integration::enrich_with_sig` befüllt und im JSON-Output
+/// des `/detections`-Endpoints unter dem Feld `sig` serialisiert.
+#[derive(Debug, Clone, Serialize)]
+pub struct SigSummary {
+    /// Gesamtzahl der Inters im SIG.
+    pub n_inters: u32,
+    /// Anzahl Noteheads.
+    pub n_heads: u32,
+    /// Anzahl Stems.
+    pub n_stems: u32,
+    /// Anzahl Beams.
+    pub n_beams: u32,
+    /// Anzahl Taktstriche.
+    pub n_bars: u32,
+    /// Anzahl Tonart-Vorzeichen.
+    pub n_keysigs: u32,
+    /// Anzahl Taktart-Angaben.
+    pub n_timesigs: u32,
+    /// Gesamtzahl der Relations (Edges).
+    pub n_relations: u32,
+    /// Anzahl KeyConsistency-Support-Edges (diatonische Noteheads).
+    pub n_keyconsistency_supports: u32,
+    /// Anzahl KeyConsistency-Exclusion-Edges (nicht-diatonische Noteheads).
+    pub n_keyconsistency_conflicts: u32,
+    /// Anzahl HeadStem-Support-Edges.
+    pub n_headstem_links: u32,
+    /// Anzahl BeamStem-Support-Edges.
+    pub n_beamstem_links: u32,
+    /// Anzahl MeasureBudget-Edges.
+    pub n_measurebudget_edges: u32,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct DetectionsResult {
     pub schema_version: u32,
@@ -48,6 +82,10 @@ pub struct DetectionPage {
     /// Wird über `read_page_sequentially` produziert.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reading_stream: Option<omr_symbols::PageReadingStream>,
+    /// Optionale SIG-Zusammenfassung — wird von `sig_integration::enrich_with_sig`
+    /// befüllt wenn `include_sig=true` beim Endpoint gesetzt ist.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sig: Option<SigSummary>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -522,5 +560,56 @@ pub fn build_detection_page(
         rests: rest_entries,
         slurs: slur_entries,
         reading_stream,
+        sig: None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sig_summary_fields_default_zero() {
+        let summary = SigSummary {
+            n_inters: 0,
+            n_heads: 0,
+            n_stems: 0,
+            n_beams: 0,
+            n_bars: 0,
+            n_keysigs: 0,
+            n_timesigs: 0,
+            n_relations: 0,
+            n_keyconsistency_supports: 0,
+            n_keyconsistency_conflicts: 0,
+            n_headstem_links: 0,
+            n_beamstem_links: 0,
+            n_measurebudget_edges: 0,
+        };
+        assert_eq!(summary.n_inters, 0);
+        assert_eq!(summary.n_heads, 0);
+        assert_eq!(summary.n_relations, 0);
+    }
+
+    #[test]
+    fn sig_summary_serializes_with_all_fields() {
+        let summary = SigSummary {
+            n_inters: 10,
+            n_heads: 5,
+            n_stems: 3,
+            n_beams: 1,
+            n_bars: 2,
+            n_keysigs: 1,
+            n_timesigs: 1,
+            n_relations: 8,
+            n_keyconsistency_supports: 4,
+            n_keyconsistency_conflicts: 1,
+            n_headstem_links: 3,
+            n_beamstem_links: 1,
+            n_measurebudget_edges: 5,
+        };
+        let json = serde_json::to_string(&summary).expect("serialize ok");
+        assert!(json.contains("n_inters"));
+        assert!(json.contains("n_keyconsistency_conflicts"));
+        assert!(json.contains("n_measurebudget_edges"));
     }
 }

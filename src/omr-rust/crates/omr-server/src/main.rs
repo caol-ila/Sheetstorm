@@ -263,7 +263,7 @@ async fn detections(mut multipart: Multipart) -> Response {
 
     match result {
         Ok(Ok(res)) => {
-            let dump = match res.detections {
+            let mut dump = match res.detections {
                 Some(d) => d,
                 None => {
                     return error_resp(
@@ -273,6 +273,10 @@ async fn detections(mut multipart: Multipart) -> Response {
                     );
                 }
             };
+            // SIG-Summary für jede Seite berechnen.
+            for page in &mut dump.pages {
+                omr_pipeline::sig_integration::enrich_with_sig(page);
+            }
             info!(
                 elapsed_ms = started.elapsed().as_millis() as u64,
                 n_pages = dump.pages.len(),
