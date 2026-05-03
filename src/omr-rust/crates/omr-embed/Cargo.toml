@@ -1,0 +1,29 @@
+[package]
+name = "omr-embed"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+omr-sig.workspace = true
+omr-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+image.workspace = true
+ndarray.workspace = true
+instant-distance = { version = "0.6", optional = true }
+rusqlite = { version = "0.32", features = [] }
+
+[features]
+default = []
+# Optional CNN-Encoder via tract-onnx (analog zu omr-symbols/cnn).
+cnn = ["dep:tract-onnx"]
+# Optional HNSW index via instant-distance (requires MinGW dlltool on Windows GNU).
+hnsw = ["dep:instant-distance"]
+
+[dependencies.tract-onnx]
+version = "0.21"
+optional = true
+default-features = false
