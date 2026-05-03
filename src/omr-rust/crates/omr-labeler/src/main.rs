@@ -5,11 +5,12 @@
 //! standardmäßig den Browser auf der UI.
 
 use clap::Parser;
-use omr_labeler::active_learning::LabelingQueue;
-use omr_labeler::api::{router, AppState};
+use omr_labeler::active_learning::{LabelingQueue, Level, QueueItem};
+use omr_labeler::api::{default_class_top_k, router, AppState};
 use omr_labeler::persistence::LabelDb;
 use omr_labeler::pipeline::PipelineState;
 use omr_labeler::synthetic_warmup::{load_synthetic_corpus, seed_queue_with_synthetic};
+use std::collections::HashSet;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -82,26 +83,115 @@ async fn main() -> anyhow::Result<()> {
                     warn!("PDF-Vorverarbeitung fehlgeschlagen ({}): {}", pdf.display(), e);
                 }
             }
-            // Initial-Items der Queue: ein Line-Item pro System.
+
+            // Bereits persistierte Labels aus der DB lesen, damit wir
+            // nicht doppelt fragen. Wir brauchen drei Sets:
+            //  * line_done    : System-IDs mit Line-Label (yes/no)
+            //  * element_done : Element-IDs mit Element-Label (yes/no)
+            //  * yes_elements : Element-IDs, die Element=Yes bekommen haben
+            //  * class_done   : Element-IDs mit Class-Label
+            let (line_done, element_done, yes_elements, class_done) = {
+                let guard = state_bg.db.lock().expect("db mutex poisoned");
+                match guard.as_ref() {
+                    Some(db) => match db.get_all_labels() {
+                        Ok(all) => {
+                            let mut line_done = HashSet::new();
+                            let mut element_done = HashSet::new();
+                            let mut yes_elements = HashSet::new();
+                            let mut class_done = HashSet::new();
+                            for l in all {
+                                match l.level.as_str() {
+                                    "line" => {
+                                        line_done.insert(l.item_ref.clone());
+                                    }
+                                    "element" => {
+                                        element_done.insert(l.item_ref.clone());
+                                        if l.decision == "yes" {
+                                            yes_elements.insert(l.item_ref.clone());
+                                        }
+                                    }
+                                    "class" => {
+                                        class_done.insert(l.item_ref.clone());
+                                    }
+                                    _ => {}
+                                }
+                            }
+                            (line_done, element_done, yes_elements, class_done)
+                        }
+                        Err(e) => {
+                            warn!("Konnte bestehende Labels nicht lesen: {}", e);
+                            (
+                                HashSet::new(),
+                                HashSet::new(),
+                                HashSet::new(),
+                                HashSet::new(),
+                            )
+                        }
+                    },
+                    None => (
+                        HashSet::new(),
+                        HashSet::new(),
+                        HashSet::new(),
+                        HashSet::new(),
+                    ),
+                }
+            };
+            info!(
+                "Bestehende Labels: line={} element={} yes_elements={} class={}",
+                line_done.len(),
+                element_done.len(),
+                yes_elements.len(),
+                class_done.len()
+            );
+
+            // Initial-Items der Queue:
+            //  * ein Line-Item pro System ohne Line-Label
+            //  * ein Element-Item pro Element ohne Element-Label
+            //  * ein Class-Item pro yes-Element ohne Class-Label
             let mut q = state_bg.queue.write().await;
             let p = state_bg.pipeline.read().await;
             let mut q_owned = std::mem::take(&mut *q);
+            let mut line_pushed = 0usize;
+            let mut element_pushed = 0usize;
+            let mut class_pushed = 0usize;
             for sys in &p.systems {
-                q_owned.push(
-                    omr_labeler::active_learning::Level::Line,
-                    sys.id.clone(),
-                    None,
-                    0.5,
-                );
+                if line_done.contains(&sys.id) {
+                    continue;
+                }
+                q_owned.push(Level::Line, sys.id.clone(), None, 0.5);
+                line_pushed += 1;
             }
             for elt in &p.elements {
-                q_owned.push(
-                    omr_labeler::active_learning::Level::Element,
-                    elt.system_id.clone(),
-                    Some(elt.id.clone()),
-                    0.7,
-                );
+                if !element_done.contains(&elt.id) {
+                    q_owned.push(
+                        Level::Element,
+                        elt.system_id.clone(),
+                        Some(elt.id.clone()),
+                        0.7,
+                    );
+                    element_pushed += 1;
+                }
+                // Backfill: yes-Elemente ohne Class-Label bekommen ein Class-Item.
+                if yes_elements.contains(&elt.id) && !class_done.contains(&elt.id) {
+                    q_owned.push_item(QueueItem {
+                        id: 0,
+                        level: Level::Class,
+                        uncertainty: 0.95,
+                        system_id: elt.system_id.clone(),
+                        element_id: Some(elt.id.clone()),
+                        suggested_class: None,
+                        top_k: default_class_top_k(),
+                    });
+                    class_pushed += 1;
+                }
             }
+            info!(
+                "Queue gefuellt: line+={} element+={} class+={} (gesamt {} items)",
+                line_pushed,
+                element_pushed,
+                class_pushed,
+                q_owned.len()
+            );
             q_owned.re_prioritize();
             *q = q_owned;
         });

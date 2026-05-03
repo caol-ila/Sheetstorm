@@ -23,6 +23,11 @@ pub struct RectifiedSystem {
     pub system_idx: usize,
     pub bbox_top: u32,
     pub bbox_bottom: u32,
+    /// Vollständiges Page-Bild (ungeschnitten), gleiche Page-Index.
+    /// Wird für Kontext-View benötigt (oben/unten drumrum).
+    pub page_image: GrayImage,
+    /// Y-Offset des Systems im Page-Bild (top in page-Koordinaten).
+    pub page_top: u32,
 }
 
 #[derive(Debug, Clone)]
@@ -48,6 +53,14 @@ impl PipelineState {
     }
 
     /// Rekursiver Walk durch `dir`; sammelt alle `*.pdf`-Dateien.
+    ///
+    /// Filtert automatisch:
+    /// - Test-/Junk-Files mit Pattern "conduct" oder "test" im Filename
+    /// - Bekannte Multi-Staff-Stuecke (Klavier-Begleitung), die kein Blasmusik-
+    ///   Material sind (Dichterliebe, Schumann, Klavier).
+    /// - Files unter 1 KB (offensichtlich kaputt)
+    ///
+    /// Damit landen nur realistische Single-Staff-Blasmusik-Stimmen im Tool.
     pub fn scan_filestore(dir: &Path) -> Vec<PathBuf> {
         let mut out = Vec::new();
         if !dir.exists() {
@@ -64,9 +77,14 @@ impl PipelineState {
                 if p.is_dir() {
                     stack.push(p);
                 } else if let Some(ext) = p.extension().and_then(|s| s.to_str()) {
-                    if ext.eq_ignore_ascii_case("pdf") {
-                        out.push(p);
+                    if !ext.eq_ignore_ascii_case("pdf") {
+                        continue;
                     }
+                    if !is_realistic_blasmusik_pdf(&p) {
+                        tracing::debug!("Filter: ueberspringe {} (kein Blasmusik-Material)", p.display());
+                        continue;
+                    }
+                    out.push(p);
                 }
             }
         }
@@ -99,6 +117,19 @@ impl PipelineState {
             if systems.is_empty() {
                 continue;
             }
+            // Filter: ueberspringe Multi-Staff-Seiten (Klavier-Grand-Staff,
+            // Chor-Partitur o.ae.). Blasmusik-Stimmen sind immer Single-Staff
+            // pro Zeile. Heuristik: wenn zwei aufeinanderfolgende Systeme
+            // weniger als 3.5 * line_spacing voneinander entfernt sind,
+            // gehoeren sie wahrscheinlich zu einem Grand-Staff/Bracket.
+            if is_multi_staff_page(&systems) {
+                tracing::info!(
+                    "{}#p{}: multi-staff page detected — skipping (kein Blasmusik-Material)",
+                    short_id(pdf),
+                    page_idx
+                );
+                continue;
+            }
             let staff_removed = omr_staff::remove_staff(&bin, &systems);
             for (sys_idx, system) in systems.iter().enumerate() {
                 let (top, bottom) = system_bbox(&gray, system);
@@ -115,9 +146,10 @@ impl PipelineState {
                     gray.width(),
                     crop_h,
                 );
-                let rects = detect_elements(&cropped_removed, system, top);
+                let rects_raw = detect_elements(&cropped_removed, system, top);
 
-                // Detect logical groups for suggested class labels.
+                // Logical-Groups + Slurs: das sind die *primaeren* Elemente.
+                // Atome die zu einer Gruppe gehoeren werden NICHT einzeln gelabelt.
                 let noteheads = omr_symbols::detect_noteheads(&staff_removed, std::slice::from_ref(system));
                 let stems = omr_symbols::stems::detect_stems(&staff_removed, &noteheads, system.line_spacing);
                 let beams = omr_symbols::detect_beams(&staff_removed, system.line_spacing);
@@ -128,24 +160,118 @@ impl PipelineState {
                     &beams,
                     adjusted_system.line_spacing,
                 );
+                let slurs = omr_symbols::slurs::detect_slurs(
+                    &staff_removed,
+                    &noteheads,
+                    std::slice::from_ref(system),
+                );
 
-                for (elt_idx, r) in rects.iter().enumerate() {
+                // Sammle "primary elements":
+                // 1. Logical Groups (BeamedGroup, ChordCluster, ...) — bbox + class_id
+                // 2. Slurs/Ties — werden mit ueberlapenden Logical Groups
+                //    zu einem grossen Element zusammengezogen
+                // 3. Standalone CC-Rects die NICHT von einer Group abgedeckt
+                //    sind (Clefs, KeySigs, TimeSigs, isolierte Symbole)
+                //    — gemerged via merge_close_rects (4/4-Taktangabe!)
+                let mut primary_elements: Vec<(Rect, Option<String>)> = Vec::new();
+
+                // Step A: Logical groups, mit Slur-Erweiterung wenn vorhanden
+                let mut logical_used = vec![false; logical_groups.len()];
+                let mut slur_used = vec![false; slurs.len()];
+
+                for (gi, g) in logical_groups.iter().enumerate() {
+                    if logical_used[gi] {
+                        continue;
+                    }
+                    logical_used[gi] = true;
+                    // crop-koordinaten — Logical groups sind in page-koordinaten,
+                    // slur bbox ebenfalls. Beide in crop-rel transformieren.
+                    let mut bbox = rect_to_crop(&g.bbox, top);
+                    let mut class_id = Some(g.class_id.clone());
+
+                    // Pruefe Slurs die mit dieser Group ueberlappen
+                    for (si, s) in slurs.iter().enumerate() {
+                        if slur_used[si] {
+                            continue;
+                        }
+                        if rects_overlap_or_touch(&g.bbox, &s.bbox, system.line_spacing) {
+                            // Bbox erweitern, klasse auf 'slurred' setzen wenn klein,
+                            // sonst class behalten + Slur hinzufuegen.
+                            slur_used[si] = true;
+                            let s_crop = rect_to_crop(&s.bbox, top);
+                            bbox = union_rect(bbox, s_crop);
+                            if class_id.as_deref() == Some("group/single_note")
+                                || class_id.as_deref() == Some("group/single_note_quarter")
+                            {
+                                class_id = Some(if s.is_tie {
+                                    "group/tied_pair".to_string()
+                                } else {
+                                    "group/slurred_phrase".to_string()
+                                });
+                            }
+                            // Auch andere Logical Groups die unter dem Slur liegen mergen
+                            for (gj, g2) in logical_groups.iter().enumerate() {
+                                if logical_used[gj] {
+                                    continue;
+                                }
+                                if rects_overlap_or_touch(&g2.bbox, &s.bbox, system.line_spacing) {
+                                    logical_used[gj] = true;
+                                    let g2_crop = rect_to_crop(&g2.bbox, top);
+                                    bbox = union_rect(bbox, g2_crop);
+                                    if !s.is_tie {
+                                        class_id = Some("group/slurred_phrase".to_string());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    primary_elements.push((bbox, class_id));
+                }
+
+                // Step B: Slurs ohne uebersnappende Logical Groups
+                for (si, s) in slurs.iter().enumerate() {
+                    if slur_used[si] {
+                        continue;
+                    }
+                    let bbox = rect_to_crop(&s.bbox, top);
+                    let class_id = if s.is_tie {
+                        "group/tied_pair".to_string()
+                    } else {
+                        "group/slurred_phrase".to_string()
+                    };
+                    primary_elements.push((bbox, Some(class_id)));
+                }
+
+                // Step C: CC-Rects die NICHT in einem Logical-Group/Slur liegen
+                // werden gemerged + als standalone-Elements aufgenommen.
+                let standalone_rects: Vec<Rect> = rects_raw
+                    .iter()
+                    .filter(|r| {
+                        !primary_elements.iter().any(|(pb, _)| rect_iou_or_inside(r, pb) > 0.4)
+                    })
+                    .copied()
+                    .collect();
+                let standalone_merged = merge_close_rects(&standalone_rects, system.line_spacing);
+                for r in standalone_merged {
+                    primary_elements.push((r, None));
+                }
+
+                // X-sortieren fuer stabiles Labeling-Ordering.
+                primary_elements.sort_by_key(|(r, _)| (r.x, r.y));
+
+                for (elt_idx, (r, class_id)) in primary_elements.iter().enumerate() {
                     let patch = extract_patch(&cropped, r, 64);
                     let emb = encoder
                         .embed(&patch)
                         .map(|e| e.vec)
                         .unwrap_or_default();
                     let elt_id = format!("{}#e{}", id, elt_idx);
-                    let suggested_class = logical_groups.iter().find(|g| {
-                        let b = &g.bbox;
-                        r.x < b.x + b.w && r.x + r.w > b.x && r.y < b.y + b.h && r.y + r.h > b.y
-                    }).map(|g| g.class_id.clone());
                     self.elements.push(DetectedElement {
                         id: elt_id,
                         system_id: id.clone(),
                         bbox: *r,
                         patch,
-                        suggested_class,
+                        suggested_class: class_id.clone(),
                         hog_embedding: emb,
                     });
                 }
@@ -157,6 +283,8 @@ impl PipelineState {
                     system_idx: sys_idx,
                     bbox_top: top,
                     bbox_bottom: bottom,
+                    page_image: gray.clone(),
+                    page_top: top,
                 });
                 added_systems += 1;
             }
@@ -356,10 +484,285 @@ fn resize_nn(src: &GrayImage, w: u32, h: u32) -> GrayImage {
     dst
 }
 
+/// Filter: ist eine PDF realistisches Blasmusik-Material?
+///
+/// Skip-Liste basiert auf User-Vorgabe: "fast alle unsere Noten sind nur eine
+/// Stimme oder maximal 2 stimmen aber in der gleichen Zeile. Wir haben keine
+/// noten mit mehreren Systemen."
+///
+/// - Skip Files unter 1 KB (Junk-Uploads, leere Test-Files)
+/// - Skip Filenames mit "conduct" / "test" / "demo" / "sample" (Test-Daten)
+/// - Skip Multi-Staff-Stuecke nach Filename: "Dichterliebe", "Schumann",
+///   "Klavier", "piano-trio", etc.
+fn is_realistic_blasmusik_pdf(path: &Path) -> bool {
+    let meta = match std::fs::metadata(path) {
+        Ok(m) => m,
+        Err(_) => return false,
+    };
+    if meta.len() < 1024 {
+        return false;
+    }
+    let name = match path.file_name().and_then(|s| s.to_str()) {
+        Some(s) => s.to_ascii_lowercase(),
+        None => return true,
+    };
+    // Skip Junk/Test-Uploads
+    for skip in [
+        "conduct",
+        "sheetstorm-test",
+        "sheetstorm-demo",
+        "sheetstorm-sample",
+    ] {
+        if name.contains(skip) {
+            return false;
+        }
+    }
+    // Skip Multi-Staff-Stuecke (Klavier-Begleitung, Lieder, Klavier-Trios)
+    for skip in [
+        "dichterliebe",
+        "schumann",
+        "klaviertrio",
+        "piano-trio",
+        "klaviersonate",
+        "piano-sonata",
+        "lied-",
+        "_lied_",
+    ] {
+        if name.contains(skip) {
+            return false;
+        }
+    }
+    true
+}
+
+/// Erkennt ob eine Page Multi-Staff-Material enthaelt (Klavier-Grand-Staff,
+/// Chor-Partitur, Orchestral-Score). Solche Seiten sind kein realistisches
+/// Blasmusik-Material und werden im Labeler ausgeblendet.
+///
+/// Heuristik: zwei Systeme die weniger als 3.5 × line_spacing voneinander
+/// entfernt liegen gehoeren wahrscheinlich zu einem Grand-Staff oder Bracket.
+/// Bei Blasmusik-Stimmen sind aufeinanderfolgende Zeilen ueblicherweise
+/// 4-8 × line_spacing voneinander entfernt.
+fn is_multi_staff_page(systems: &[StaffSystem]) -> bool {
+    if systems.len() < 2 {
+        return false;
+    }
+    let mut sorted: Vec<(f32, f32)> = systems
+        .iter()
+        .map(|s| {
+            let top_y = s.lines.first().map(|l| l.mean_y()).unwrap_or(0.0);
+            let bot_y = s.lines.last().map(|l| l.mean_y()).unwrap_or(0.0);
+            (top_y, bot_y)
+        })
+        .collect();
+    sorted.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+    for w in sorted.windows(2) {
+        let gap = w[1].0 - w[0].1;
+        let line_spacing = systems[0].line_spacing.max(1.0);
+        if gap < line_spacing * 3.5 {
+            return true;
+        }
+    }
+    false
+}
+
+/// Konvertiert eine Page-Rect in eine Crop-Rect (top wird abgezogen).
+fn rect_to_crop(r: &Rect, top: u32) -> Rect {
+    Rect {
+        x: r.x,
+        y: r.y.saturating_sub(top),
+        w: r.w,
+        h: r.h,
+    }
+}
+
+/// Vereinigt zwei Rects.
+fn union_rect(a: Rect, b: Rect) -> Rect {
+    let x0 = a.x.min(b.x);
+    let y0 = a.y.min(b.y);
+    let x1 = (a.x + a.w).max(b.x + b.w);
+    let y1 = (a.y + a.h).max(b.y + b.h);
+    Rect {
+        x: x0,
+        y: y0,
+        w: x1.saturating_sub(x0),
+        h: y1.saturating_sub(y0),
+    }
+}
+
+/// Pruefe ob zwei Rects ueberlappen ODER nahe genug sind (Lücke <= tol).
+fn rects_overlap_or_touch(a: &Rect, b: &Rect, line_spacing: f32) -> bool {
+    let tol = (line_spacing * 0.6).max(3.0) as i32;
+    let ax0 = a.x as i32;
+    let ax1 = (a.x + a.w) as i32;
+    let bx0 = b.x as i32;
+    let bx1 = (b.x + b.w) as i32;
+    let dx = if ax1 < bx0 {
+        bx0 - ax1
+    } else if bx1 < ax0 {
+        ax0 - bx1
+    } else {
+        0
+    };
+    let ay0 = a.y as i32;
+    let ay1 = (a.y + a.h) as i32;
+    let by0 = b.y as i32;
+    let by1 = (b.y + b.h) as i32;
+    let dy = if ay1 < by0 {
+        by0 - ay1
+    } else if by1 < ay0 {
+        ay0 - by1
+    } else {
+        0
+    };
+    dx <= tol && dy <= tol
+}
+
+/// Wie viel Prozent von rect r sind innerhalb von rect target (oder
+/// touchen). Returns 1.0 wenn r komplett in target liegt.
+/// (Note: r und target koennen in unterschiedlichen Koordinatensystemen
+/// sein. Diese Funktion vergleicht direkt; Aufrufer muss dafuer sorgen
+/// dass sie kompatibel sind.)
+fn rect_iou_or_inside(r: &Rect, target: &Rect) -> f32 {
+    let rx0 = r.x;
+    let ry0 = r.y;
+    let rx1 = r.x + r.w;
+    let ry1 = r.y + r.h;
+    let tx0 = target.x;
+    let ty0 = target.y;
+    let tx1 = target.x + target.w;
+    let ty1 = target.y + target.h;
+    let ix0 = rx0.max(tx0);
+    let iy0 = ry0.max(ty0);
+    let ix1 = rx1.min(tx1);
+    let iy1 = ry1.min(ty1);
+    if ix0 >= ix1 || iy0 >= iy1 {
+        return 0.0;
+    }
+    let inter = ((ix1 - ix0) as f32) * ((iy1 - iy0) as f32);
+    let r_area = (r.w as f32) * (r.h as f32);
+    if r_area <= 0.0 {
+        return 0.0;
+    }
+    inter / r_area
+}
+
+/// Merget eng beieinander liegende Bboxes zu Element-Gruppen.
+///
+/// Zwei Bboxes werden gemerged wenn:
+/// - vertikal überlappend ODER fast überlappend (Lücke ≤ 0.5 × line_spacing)
+/// - horizontal nahe (Lücke ≤ 0.6 × line_spacing)
+///
+/// Das löst u.a. das 4/4-Taktangabe-Problem: die zwei Ziffern sind getrennte
+/// Pixelinseln aber gehören als ein Element zusammen. Auch Akkorde werden
+/// dadurch zu einer Element-Bbox.
+///
+/// Iteration: Union-Find — repeat bis stabiler Zustand.
+fn merge_close_rects(rects: &[Rect], line_spacing: f32) -> Vec<Rect> {
+    if rects.is_empty() {
+        return Vec::new();
+    }
+    let n = rects.len();
+    // Union-Find
+    let mut parent: Vec<usize> = (0..n).collect();
+    fn find(p: &mut Vec<usize>, x: usize) -> usize {
+        if p[x] != x {
+            let r = find(p, p[x]);
+            p[x] = r;
+        }
+        p[x]
+    }
+    fn union(p: &mut Vec<usize>, a: usize, b: usize) {
+        let ra = find(p, a);
+        let rb = find(p, b);
+        if ra != rb {
+            p[ra] = rb;
+        }
+    }
+
+    let gap_x = (line_spacing * 0.6).max(3.0) as i32;
+    let gap_y = (line_spacing * 0.5).max(3.0) as i32;
+    for i in 0..n {
+        for j in (i + 1)..n {
+            let a = &rects[i];
+            let b = &rects[j];
+            // X-Lücke: 0 wenn überlappen, sonst Distanz
+            let ax0 = a.x as i32;
+            let ax1 = (a.x + a.w) as i32;
+            let bx0 = b.x as i32;
+            let bx1 = (b.x + b.w) as i32;
+            let dx = if ax1 < bx0 {
+                bx0 - ax1
+            } else if bx1 < ax0 {
+                ax0 - bx1
+            } else {
+                0
+            };
+            let ay0 = a.y as i32;
+            let ay1 = (a.y + a.h) as i32;
+            let by0 = b.y as i32;
+            let by1 = (b.y + b.h) as i32;
+            let dy = if ay1 < by0 {
+                by0 - ay1
+            } else if by1 < ay0 {
+                ay0 - by1
+            } else {
+                0
+            };
+            if dx <= gap_x && dy <= gap_y {
+                union(&mut parent, i, j);
+            }
+        }
+    }
+    // Group by root
+    let mut groups: std::collections::BTreeMap<usize, Vec<usize>> = std::collections::BTreeMap::new();
+    for i in 0..n {
+        let r = find(&mut parent, i);
+        groups.entry(r).or_default().push(i);
+    }
+    // Compute union-bbox per group
+    let mut out = Vec::new();
+    for (_root, members) in groups {
+        let mut min_x = u32::MAX;
+        let mut min_y = u32::MAX;
+        let mut max_x = 0u32;
+        let mut max_y = 0u32;
+        for &i in &members {
+            let r = &rects[i];
+            min_x = min_x.min(r.x);
+            min_y = min_y.min(r.y);
+            max_x = max_x.max(r.x + r.w);
+            max_y = max_y.max(r.y + r.h);
+        }
+        if min_x < max_x && min_y < max_y {
+            out.push(Rect {
+                x: min_x,
+                y: min_y,
+                w: max_x - min_x,
+                h: max_y - min_y,
+            });
+        }
+    }
+    // Sort by x for stable ordering
+    out.sort_by_key(|r| (r.x, r.y));
+    out
+}
+
 /// Hilfsfunktion: kodiert ein GrayImage als PNG-Bytes.
 pub fn encode_png(img: &GrayImage) -> Result<Vec<u8>> {
     let mut buf: Vec<u8> = Vec::new();
     let dyn_img = DynamicImage::ImageLuma8(img.clone());
+    dyn_img.write_to(
+        &mut std::io::Cursor::new(&mut buf),
+        image::ImageFormat::Png,
+    )?;
+    Ok(buf)
+}
+
+/// Hilfsfunktion: kodiert ein RGB-Bild (image::RgbImage) als PNG-Bytes.
+pub fn encode_png_rgb(img: &image::RgbImage) -> Result<Vec<u8>> {
+    let mut buf: Vec<u8> = Vec::new();
+    let dyn_img = DynamicImage::ImageRgb8(img.clone());
     dyn_img.write_to(
         &mut std::io::Cursor::new(&mut buf),
         image::ImageFormat::Png,

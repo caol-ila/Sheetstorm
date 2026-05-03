@@ -10,15 +10,19 @@
 //! - `POST /api/queue/answer          ` → Antwort persistieren + Queue
 //! - `POST /api/queue/skip            ` → Item überspringen
 //! - `POST /api/queue/undo            ` → letztes Label entfernen
-//! - `GET  /api/system/{id}/image     ` → System-PNG
-//! - `GET  /api/element/{id}/image    ` → Element-PNG
+//! - `GET  /api/system/{id}/image     ` → System-PNG (gesamte Notenzeile)
+//! - `GET  /api/element/{id}/image    ` → Element-PNG (nur das Patch)
+//! - `GET  /api/element/{id}/context  ` → Element im System-Kontext mit
+//!                                        rotem Highlight-Rahmen
+//! - `GET  /api/element/{id}/info     ` → Element-Metadaten (system_id, bbox,
+//!                                        suggested_class, ...)
 //! - `GET  /api/stats                 ` → Fortschritts-Stats
 //! - `GET  /api/export/corpus         ` → JSON-Export aller Labels
 
 use crate::active_learning::{Decision, LabelingQueue, Level, QueueItem};
 use crate::frontend::{APP_JS, INDEX_HTML, STYLE_CSS};
 use crate::persistence::{Label, LabelDb};
-use crate::pipeline::{encode_png, PipelineState};
+use crate::pipeline::{encode_png, encode_png_rgb, PipelineState};
 use axum::{
     body::Body,
     extract::{Path as AxumPath, Query, State},
@@ -27,6 +31,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
+use image::{ImageBuffer, Rgb, RgbImage};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -125,6 +130,8 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/api/queue/undo", post(api_queue_undo))
         .route("/api/system/:id/image", get(api_system_image))
         .route("/api/element/:id/image", get(api_element_image))
+        .route("/api/element/:id/context", get(api_element_context))
+        .route("/api/element/:id/info", get(api_element_info))
         .route("/api/stats", get(api_stats))
         .route("/api/export/corpus", get(api_export_corpus))
         .with_state(state)
@@ -267,21 +274,25 @@ async fn api_queue_answer(
         }
     };
 
-    // Item-Ref ermitteln (system_id oder element_id) bevor die Queue
-    // den Eintrag entfernt.
-    let item_ref = {
+    // Original-Item zwischenspeichern, bevor die Queue es entfernt.
+    // Wir brauchen es spaeter fuer die Auto-Promotion (Element-Yes -> Class-Item).
+    let original_item: Option<QueueItem> = {
         let queue = state.queue.read().await;
         queue
             .items
             .iter()
             .find(|it| it.id == req.item_id)
-            .map(|it| {
-                it.element_id
-                    .clone()
-                    .unwrap_or_else(|| it.system_id.clone())
-            })
-            .unwrap_or_else(|| format!("item-{}", req.item_id))
+            .cloned()
     };
+
+    let item_ref = original_item
+        .as_ref()
+        .map(|it| {
+            it.element_id
+                .clone()
+                .unwrap_or_else(|| it.system_id.clone())
+        })
+        .unwrap_or_else(|| format!("item-{}", req.item_id));
 
     {
         let mut queue = state.queue.write().await;
@@ -299,7 +310,42 @@ async fn api_queue_answer(
         }
     }
 
+    // Auto-Promotion: wenn der User ein Element mit "Yes" bestaetigt hat,
+    // schieben wir automatisch ein Class-Level-Item hinterher, damit der
+    // naechste Klick sofort die Klassifikations-Frage stellt. Dadurch
+    // bleibt der Workflow ohne Pause: Element=Yes -> "Was ist es?".
+    if let Some(item) = original_item.as_ref() {
+        if item.level == Level::Element
+            && matches!(dec, Decision::Yes)
+            && item.element_id.is_some()
+        {
+            let mut queue = state.queue.write().await;
+            queue.push_item(QueueItem {
+                id: 0,
+                level: Level::Class,
+                uncertainty: 0.95,
+                system_id: item.system_id.clone(),
+                element_id: item.element_id.clone(),
+                suggested_class: None,
+                top_k: default_class_top_k(),
+            });
+        }
+    }
+
     Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+/// Default-Top-5 fuer Class-Items ohne trainierten Classifier:
+/// die haeufigsten Blasmusik-Group-Klassen. Wird ersetzt, sobald
+/// ein Embedding-Index vorliegt.
+pub fn default_class_top_k() -> Vec<(String, f32)> {
+    vec![
+        ("group/single_note_quarter".to_string(), 0.0),
+        ("group/single_note_eighth".to_string(), 0.0),
+        ("group/beamed_group_2_eighths".to_string(), 0.0),
+        ("group/beamed_group_4_sixteenths".to_string(), 0.0),
+        ("group/chord_2_notes".to_string(), 0.0),
+    ]
 }
 
 async fn api_queue_skip(
@@ -359,6 +405,138 @@ async fn api_element_image(
         .header(header::CONTENT_TYPE, "image/png")
         .body(Body::from(png))
         .unwrap())
+}
+
+#[derive(Deserialize, Default)]
+pub struct ContextQuery {
+    /// Padding in Pixeln links und rechts vom Element.
+    /// Default 350px (~5cm bei 200dpi).
+    #[serde(default)]
+    pub padding: Option<u32>,
+    /// Vertikales Padding (oben/unten) — kann negativ wirken: 0 = ganzes System.
+    #[serde(default)]
+    pub padding_y: Option<u32>,
+}
+
+/// Liefert das **Page-Bild im Kontext um das Element herum**, mit einem
+/// roten Highlight-Rechteck um die Element-Bbox. Default-Padding 350px
+/// horizontal (~5cm bei 200dpi) und 200px vertikal (oben + unten),
+/// damit man Pausen vs. Notenkoepfe richtig einordnen kann.
+async fn api_element_context(
+    State(state): State<Arc<AppState>>,
+    AxumPath(id): AxumPath<String>,
+    Query(q): Query<ContextQuery>,
+) -> Result<Response, (StatusCode, String)> {
+    let pipeline = state.pipeline.read().await;
+    let elt = pipeline
+        .elements
+        .iter()
+        .find(|e| e.id == id)
+        .ok_or((StatusCode::NOT_FOUND, "Element nicht gefunden".to_string()))?;
+    let sys = pipeline
+        .systems
+        .iter()
+        .find(|s| s.id == elt.system_id)
+        .ok_or((StatusCode::NOT_FOUND, "System nicht gefunden".to_string()))?;
+
+    let pad_x = q.padding.unwrap_or(350);
+    let pad_y = q.padding_y.unwrap_or(200);
+
+    // Page-Bild: vollständiges Page in Page-Koordinaten.
+    // Element-bbox ist in CROP-Koordinaten (rel. zum System-Crop) →
+    // konvertiere via sys.page_top zurück nach Page-Koordinaten.
+    let page = &sys.page_image;
+    let pw = page.width();
+    let ph = page.height();
+    let bb = &elt.bbox;
+    let elt_page_y = bb.y + sys.page_top;
+
+    let crop_x0 = bb.x.saturating_sub(pad_x);
+    let crop_x1 = (bb.x + bb.w + pad_x).min(pw);
+    let crop_w = crop_x1.saturating_sub(crop_x0).max(1);
+
+    let crop_y0 = elt_page_y.saturating_sub(pad_y);
+    let crop_y1 = (elt_page_y + bb.h + pad_y).min(ph);
+    let crop_h = crop_y1.saturating_sub(crop_y0).max(1);
+
+    let mut rgb: RgbImage = ImageBuffer::new(crop_w, crop_h);
+    for yy in 0..crop_h {
+        for xx in 0..crop_w {
+            let sx = crop_x0 + xx;
+            let sy = crop_y0 + yy;
+            let p = page.get_pixel(sx, sy)[0];
+            rgb.put_pixel(xx, yy, Rgb([p, p, p]));
+        }
+    }
+
+    // Draw red border around the element bbox (3px thick).
+    let bx0 = bb.x.saturating_sub(crop_x0);
+    let by0 = elt_page_y.saturating_sub(crop_y0);
+    let bx1 = (bb.x + bb.w).saturating_sub(crop_x0).min(crop_w.saturating_sub(1));
+    let by1 = (elt_page_y + bb.h).saturating_sub(crop_y0).min(crop_h.saturating_sub(1));
+    let border_color = Rgb([255u8, 64, 64]);
+    let thickness = 3u32;
+    for t in 0..thickness {
+        for x in bx0..=bx1 {
+            if by0 + t < crop_h {
+                rgb.put_pixel(x, by0 + t, border_color);
+            }
+            if by1 >= t && by1 - t < crop_h {
+                rgb.put_pixel(x, by1 - t, border_color);
+            }
+        }
+        for y in by0..=by1 {
+            if bx0 + t < crop_w {
+                rgb.put_pixel(bx0 + t, y, border_color);
+            }
+            if bx1 >= t && bx1 - t < crop_w {
+                rgb.put_pixel(bx1 - t, y, border_color);
+            }
+        }
+    }
+
+    let png = encode_png_rgb(&rgb).map_err(internal)?;
+    Ok(Response::builder()
+        .header(header::CONTENT_TYPE, "image/png")
+        .body(Body::from(png))
+        .unwrap())
+}
+
+#[derive(Serialize)]
+pub struct ElementInfo {
+    pub id: String,
+    pub system_id: String,
+    pub bbox: [u32; 4],
+    pub system_size: [u32; 2],
+    pub suggested_class: Option<String>,
+    pub patch_size: [u32; 2],
+}
+
+async fn api_element_info(
+    State(state): State<Arc<AppState>>,
+    AxumPath(id): AxumPath<String>,
+) -> Result<Json<ElementInfo>, (StatusCode, String)> {
+    let pipeline = state.pipeline.read().await;
+    let elt = pipeline
+        .elements
+        .iter()
+        .find(|e| e.id == id)
+        .ok_or((StatusCode::NOT_FOUND, "Element nicht gefunden".to_string()))?;
+    let sys = pipeline
+        .systems
+        .iter()
+        .find(|s| s.id == elt.system_id);
+    let system_size = sys
+        .map(|s| [s.image.width(), s.image.height()])
+        .unwrap_or([0, 0]);
+    Ok(Json(ElementInfo {
+        id: elt.id.clone(),
+        system_id: elt.system_id.clone(),
+        bbox: [elt.bbox.x, elt.bbox.y, elt.bbox.w, elt.bbox.h],
+        system_size,
+        suggested_class: elt.suggested_class.clone(),
+        patch_size: [elt.patch.width(), elt.patch.height()],
+    }))
 }
 
 async fn api_stats(State(state): State<Arc<AppState>>) -> Json<StatsResponse> {

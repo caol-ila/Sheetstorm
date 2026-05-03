@@ -270,3 +270,89 @@ kbd {
   font-size: 0.8rem; 
   padding: 0.3rem 0.5rem; 
 }
+
+/* ── Context-View (Big Picture) ────────────────────────────────────── */
+.question-bar {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.8rem 1.2rem;
+  margin-bottom: 0.8rem;
+}
+.question-text {
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin-bottom: 0.3rem;
+  color: var(--accent);
+}
+.question-hint {
+  font-size: 0.9rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+.question-hint code {
+  background: var(--panel-light);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-family: ui-monospace, monospace;
+  color: var(--fg);
+}
+.question-hint kbd {
+  background: var(--panel-light);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 6px;
+  font-family: ui-monospace, monospace;
+}
+
+.context-view {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.8rem;
+  margin-bottom: 0.8rem;
+  overflow-x: auto;
+  text-align: center;
+  min-height: 100px;
+}
+.context-image {
+  max-width: 100%;
+  height: auto;
+  display: inline-block;
+  border-radius: 4px;
+}
+
+.patch-view {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.6rem 0.8rem;
+  margin-bottom: 0.8rem;
+}
+.patch-view h3 {
+  margin: 0 0 0.4rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.patch-view img {
+  display: block;
+  width: 128px;
+  height: 128px;
+  image-rendering: pixelated;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: white;
+}
+
+.btn[title] { cursor: help; }
+.action-bar .btn kbd {
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 3px;
+  padding: 0 5px;
+  margin-right: 4px;
+  font-family: ui-monospace, monospace;
+  font-size: 0.85em;
+}

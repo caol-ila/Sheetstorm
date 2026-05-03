@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="de">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -18,35 +18,44 @@
   </header>
   <main class="layout">
     <section class="main-panel">
-      <div id="context-prev" class="context-strip"></div>
-      <div id="main-image" class="main-image">
-        <p class="empty">Loading next item…</p>
+      <div id="question-bar" class="question-bar">
+        <div id="question-text" class="question-text">Lädt Frage…</div>
+        <div id="question-hint" class="question-hint"></div>
       </div>
-      <div id="context-next" class="context-strip"></div>
+      <div id="context-view" class="context-view">
+        <p class="empty">Lädt Kontext…</p>
+      </div>
+      <div id="patch-view" class="patch-view hidden">
+        <h3>Element im Detail (zoom)</h3>
+        <img id="patch-image" alt="Element" />
+      </div>
       <div id="action-bar" class="action-bar">
-        <button data-action="yes" class="btn yes">Yes (Y)</button>
-        <button data-action="no" class="btn no">No (N)</button>
-        <button data-action="skip" class="btn">Skip (Space)</button>
-        <button data-action="undo" class="btn">Undo (U)</button>
+        <button data-action="yes" class="btn yes" title="Ja, das markierte ist korrekt erkannt"><kbd>Y</kbd> Ja, korrekt</button>
+        <button data-action="no" class="btn no" title="Nein, das ist falsch / Müll"><kbd>N</kbd> Nein, falsch</button>
+        <button data-action="skip" class="btn" title="Bin unsicher, später nochmal"><kbd>Space</kbd> Skip</button>
+        <button data-action="undo" class="btn" title="Letzte Antwort rückgängig"><kbd>U</kbd> Undo</button>
       </div>
       <div id="class-buttons" class="class-buttons hidden"></div>
     </section>
     <aside class="sidebar">
-      <h2>Hotkeys</h2>
+      <h2>Was bedeuten die Tasten?</h2>
       <ul class="hotkey-list">
-        <li><kbd>Y</kbd> Yes</li>
-        <li><kbd>N</kbd> No</li>
-        <li><kbd>Space</kbd> Skip</li>
-        <li><kbd>U</kbd> Undo</li>
-        <li><kbd>1</kbd>–<kbd>5</kbd> Class shortcut</li>
-        <li><kbd>E</kbd> Edit class…</li>
+        <li><kbd>Y</kbd> <strong>Ja</strong>, der rote Rahmen umschließt ein gültiges Element</li>
+        <li><kbd>N</kbd> <strong>Nein</strong>, das ist falsch / kein Element / Müll</li>
+        <li><kbd>Space</kbd> <strong>Skip</strong> — unsicher, später nochmal</li>
+        <li><kbd>U</kbd> <strong>Undo</strong> letzte Antwort rückgängig</li>
+        <li><kbd>1</kbd>–<kbd>5</kbd> Top-5 Klasse direkt wählen</li>
+        <li><kbd>/</kbd> Live-Filter über alle Klassen öffnen</li>
+        <li><kbd>d</kbd> Drill-Down von Group → Atome</li>
+        <li><kbd>n</kbd> (auf Klassen-Ebene) Keine passende → manuell</li>
+        <li><kbd>e</kbd> Eigene Klasse manuell tippen</li>
       </ul>
-      <h2>Progress</h2>
+      <h2>Fortschritt</h2>
       <div class="progress">
         <div id="progress-bar" class="progress-bar"></div>
       </div>
       <p id="progress-text">0 / 0</p>
-      <h2>Current</h2>
+      <h2>Aktuell</h2>
       <p id="current-info">—</p>
     </aside>
   </main>

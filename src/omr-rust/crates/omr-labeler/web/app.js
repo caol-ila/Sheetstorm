@@ -95,47 +95,90 @@
 
   function renderEmpty(msg) {
     state.currentItem = null;
-    const m = $("main-image");
-    if (m) m.innerHTML = '<p class="empty">' + (msg || "Queue leer — alle Items bearbeitet 🎉") + "</p>";
-    const c = $("class-buttons");
-    if (c) c.classList.add("hidden");
+    const c = $("context-view");
+    if (c) c.innerHTML = '<p class="empty">' + (msg || "Queue leer — alle Items bearbeitet 🎉") + "</p>";
+    const p = $("patch-view");
+    if (p) p.classList.add("hidden");
+    const cb = $("class-buttons");
+    if (cb) cb.classList.add("hidden");
+    setQuestion("Fertig!", "Alle Items bearbeitet oder Pipeline noch beim Laden.");
     setText("current-info", "—");
   }
 
+  function setQuestion(text, hint) {
+    setText("question-text", text || "");
+    setText("question-hint", hint || "");
+  }
+
   function renderLevel(item) {
-    const m = $("main-image");
-    if (!m) return;
-    m.innerHTML = "";
-    const img = document.createElement("img");
+    // Frage je nach Level klar formulieren
     if (item.level === "line") {
-      img.src = "/api/system/" + encodeURIComponent(item.system_id) + "/image";
-    } else {
-      const id = item.element_id || item.system_id;
-      img.src = "/api/element/" + encodeURIComponent(id) + "/image";
+      setQuestion(
+        "Ist das eine gültige Notenzeile?",
+        "Y = Ja, das ist eine vollständige Notenzeile. N = Nein (Müll, abgeschnitten, kein Notensystem). Space = unsicher.",
+      );
+    } else if (item.level === "element") {
+      const sug = item.suggested_class
+        ? ` Vorschlag: <code>${item.suggested_class}</code>.`
+        : "";
+      setQuestion(
+        "Ist der rote Rahmen ein gültiges Notations-Element?",
+        `Y = Ja, der Rahmen umschließt sauber ein erkennbares Element (Notenkopf, Beam-Group, Akkord, Akzidens, …).${sug} N = Nein, der Rahmen ist Müll oder umschließt mehrere Elemente.`,
+      );
+    } else if (item.level === "class") {
+      const sug = item.suggested_class
+        ? ` Vorschlag: <code>${item.suggested_class}</code> — drücke 1, oder wähle eine andere.`
+        : " (Top-5 erscheinen rechts)";
+      setQuestion(
+        "Was ist im roten Rahmen?",
+        `Wähle die Klasse:${sug} Tippe <kbd>/</kbd> für Suche durch alle Klassen.`,
+      );
     }
-    img.alt = "Item " + item.id;
-    img.onerror = () => {
-      m.innerHTML = '<p class="empty">Kein Bild verfügbar (id=' + item.id + ").</p>";
-    };
-    m.appendChild(img);
+
+    // Kontext-Bild
+    const ctx = $("context-view");
+    if (ctx) {
+      ctx.innerHTML = "";
+      const img = document.createElement("img");
+      img.className = "context-image";
+      if (item.level === "line") {
+        img.src = "/api/system/" + encodeURIComponent(item.system_id) + "/image";
+        img.alt = "Notenzeile " + item.system_id;
+      } else {
+        const eid = item.element_id || item.system_id;
+        img.src = "/api/element/" + encodeURIComponent(eid) + "/context";
+        img.alt = "Element im Kontext " + eid;
+      }
+      img.onerror = () => {
+        ctx.innerHTML = '<p class="empty">Kein Bild verfügbar (id=' + item.id + ").</p>";
+      };
+      ctx.appendChild(img);
+    }
+
+    // Patch-Detail (nur bei element/class)
+    const patchView = $("patch-view");
+    const patchImg = $("patch-image");
+    if (patchView && patchImg) {
+      if (item.level === "line") {
+        patchView.classList.add("hidden");
+      } else {
+        const eid = item.element_id || item.system_id;
+        patchImg.src = "/api/element/" + encodeURIComponent(eid) + "/image";
+        patchImg.alt = "Patch " + eid;
+        patchView.classList.remove("hidden");
+      }
+    }
+
     setText(
       "current-info",
       "ID " + item.id + " · Level " + item.level + " · u=" + (item.uncertainty || 0).toFixed(2) +
         (item.suggested_class ? " · suggested " + item.suggested_class : ""),
     );
 
-    renderContextImages(item);
     renderClassButtons(item);
   }
 
-  function renderContextImages(item) {
-    // Platzhalter: wir laden keine echten Nachbar-Systeme, aber zeigen
-    // die letzten beiden gelabelten als gedimmte Strip-Items.
-    const prev = $("context-prev");
-    const next = $("context-next");
-    if (prev) prev.innerHTML = "";
-    if (next) next.innerHTML = "";
-  }
+  // (renderContextImages entfernt — Kontext kommt jetzt direkt vom Server)
 
   function renderClassButtons(item) {
     const wrap = $("class-buttons");
