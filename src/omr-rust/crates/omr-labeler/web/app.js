@@ -58,6 +58,23 @@
     } catch (e) {
       console.warn("status failed", e);
     }
+    await updateEmbeddingStats();
+  }
+
+  async function updateEmbeddingStats() {
+    try {
+      const s = await jsonGet("/api/embedding/stats");
+      setText("emb-total", s.total ?? 0);
+      setText("emb-user", s.user ?? 0);
+      setText("emb-synthetic", s.synthetic ?? 0);
+      setText("emb-classes", s.classes ?? 0);
+      const entropy = typeof s.entropy_bits === "number"
+        ? s.entropy_bits.toFixed(2) + " bits"
+        : "—";
+      setText("emb-entropy", entropy);
+    } catch (e) {
+      // Embedding-Stats sind optional — kein harter Fehler.
+    }
   }
 
   async function updateStats() {

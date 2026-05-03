@@ -1754,6 +1754,7 @@ dependencies = [
  "image",
  "imageproc",
  "omr-core",
+ "omr-embed",
  "omr-musicxml",
  "omr-preprocessing",
  "omr-sig",

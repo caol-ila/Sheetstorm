@@ -117,6 +117,9 @@ pub struct NoteheadEntry {
     pub in_chord: Option<bool>,
     pub is_rest: Option<bool>,
     pub stem_id: Option<u32>,
+    /// HOG-Embedding des Patches (optional, für Active-Learning-Integration).
+    #[serde(skip)]
+    pub hog_embedding: Option<Vec<f32>>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -333,6 +336,7 @@ pub fn build_detection_page(
                 in_chord: matched.map(|n| n.note.in_chord),
                 is_rest: matched.map(|n| n.note.is_rest),
                 stem_id: nh_to_stem.get(i).copied().flatten(),
+                hog_embedding: None,
             }
         })
         .collect();

@@ -236,6 +236,101 @@ pub fn validate_parts<'a>(
     omr_sig::cross_part::validate_cross_parts(&parts)
 }
 
+/// Reichert Noteheads einer `DetectionPage` mit Informationen aus dem
+/// User-Labels-Corpus an (Active-Learning-Integration).
+///
+/// Liest den Embedding-Corpus aus dem Pfad `OMR_USER_LABELS_DIR/corpus.db`.
+/// Für jeden Notehead mit einem gespeicherten `hog_embedding` wird eine
+/// k-NN-Suche durchgeführt. Das Top-1-Ergebnis bestimmt den `kind`-Wert
+/// ("Filled" / "Open" / "Whole"), wenn die Konfidenz ≥ `min_confidence`.
+///
+/// Ist `OMR_USER_LABELS_DIR` nicht gesetzt oder der Corpus leer, bleibt die
+/// Seite unverändert.
+///
+/// # Hinweise
+/// - Ist eine Best-Effort-Operation: Fehler werden geloggt, nie propagiert.
+/// - Benötigt `hog_embedding` im `NoteheadEntry`, sonst wird der Eintrag
+///   übersprungen.
+pub fn enrich_noteheads_from_user_labels(page: &mut crate::detections::DetectionPage) {
+    let labels_dir = match std::env::var("OMR_USER_LABELS_DIR") {
+        Ok(d) => std::path::PathBuf::from(d),
+        Err(_) => return,
+    };
+
+    let corpus_path = labels_dir.join("corpus.db");
+    if !corpus_path.exists() {
+        tracing::debug!(
+            "OMR_USER_LABELS_DIR gesetzt, aber corpus.db fehlt ({}). Überspringe.",
+            corpus_path.display()
+        );
+        return;
+    }
+
+    let corpus = match omr_embed::Corpus::open(&corpus_path) {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::warn!("Corpus öffnen fehlgeschlagen ({}): {}", corpus_path.display(), e);
+            return;
+        }
+    };
+
+    let mut index = match corpus.into_index("hog-v1") {
+        Ok(idx) => idx,
+        Err(e) => {
+            tracing::warn!("Index-Aufbau fehlgeschlagen: {}", e);
+            return;
+        }
+    };
+
+    if index.corpus_size() == 0 {
+        tracing::debug!("Corpus-Index leer — überspringe Notehead-Anreicherung.");
+        return;
+    }
+
+    let encoder_version = "hog-v1";
+    let encoder_dim = omr_embed::encoder::FEATURE_LEN;
+    let min_confidence = 0.6_f32;
+
+    let mut enriched = 0usize;
+
+    for nh in page.noteheads.iter_mut() {
+        let emb_vec = match &nh.hog_embedding {
+            Some(v) if v.len() == encoder_dim => v.clone(),
+            _ => continue,
+        };
+
+        let query = omr_embed::Embedding {
+            vec: emb_vec,
+            version: encoder_version.to_string(),
+        };
+
+        let matches = match index.knn(&query, 1) {
+            Ok(m) => m,
+            Err(_) => continue,
+        };
+
+        if let Some(top1) = matches.into_iter().next() {
+            let confidence = 1.0_f32 - top1.distance;
+            if confidence >= min_confidence {
+                nh.kind = match top1.label.to_ascii_lowercase().as_str() {
+                    s if s.contains("open") => "Open",
+                    s if s.contains("whole") => "Whole",
+                    _ => "Filled",
+                };
+                enriched += 1;
+            }
+        }
+    }
+
+    if enriched > 0 {
+        tracing::info!(
+            "Notehead-Anreicherung via User-Labels: {} von {} Noteheads aktualisiert.",
+            enriched,
+            page.noteheads.len()
+        );
+    }
+}
+
 /// Befüllt die `sig`-Summary eines `DetectionPage` durch Aufbau des SIG.
 ///
 /// Baut den SIG aus der DetectionPage auf, zählt alle Inters und Relations
@@ -340,6 +435,7 @@ mod tests {
             in_chord: None,
             is_rest: None,
             stem_id: None,
+            hog_embedding: None,
         });
         page.stems.push(StemEntry {
             id: 0,
@@ -387,6 +483,7 @@ mod tests {
             in_chord: None,
             is_rest: None,
             stem_id: None,
+            hog_embedding: None,
         });
 
         let sig = build_sig_from_page(&page);
@@ -434,6 +531,7 @@ mod tests {
             in_chord: None,
             is_rest: None,
             stem_id: None,
+            hog_embedding: None,
         });
         let sig = build_sig_from_page(&page);
         let kc_edge = sig
@@ -470,6 +568,7 @@ mod tests {
             in_chord: None,
             is_rest: None,
             stem_id: None,
+            hog_embedding: None,
         });
         // Nicht-diatonischer Head F natural (MIDI 65)
         page.noteheads.push(NoteheadEntry {
@@ -489,6 +588,7 @@ mod tests {
             in_chord: None,
             is_rest: None,
             stem_id: None,
+            hog_embedding: None,
         });
 
         assert!(page.sig.is_none());
