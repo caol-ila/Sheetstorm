@@ -11,6 +11,8 @@ members = [
     "crates/omr-sig",
     "crates/omr-sig-store",
     "crates/omr-sig-codec",
+    "crates/omr-embed",
+    "crates/omr-labeler",
 ]
 
 [workspace.package]
@@ -60,6 +62,7 @@ omr-pipeline = { path = "crates/omr-pipeline" }
 omr-sig = { path = "crates/omr-sig" }
 omr-sig-store = { path = "crates/omr-sig-store" }
 omr-sig-codec = { path = "crates/omr-sig-codec" }
+omr-embed = { path = "crates/omr-embed" }
 
 [profile.release]
 opt-level = 3
