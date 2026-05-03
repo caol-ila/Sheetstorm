@@ -58,6 +58,30 @@
     } catch (e) {
       console.warn("status failed", e);
     }
+    // Also refresh embedding stats
+    updateEmbeddingStats().catch(() => {});
+  }
+
+  async function updateEmbeddingStats() {
+    try {
+      const s = await jsonGet("/api/embedding/stats");
+      setText("emb-synthetic", "Synthetisch: " + s.synthetic_count);
+      setText("emb-user", "User-Labels: " + s.user_label_count);
+      setText("emb-classes", "Klassen: " + s.user_class_count);
+      setText("emb-total", "Index: " + s.corpus_size + " Patches");
+      // Confidence trend: entropy decreases as model gets better.
+      // We use labels_since_rebuild as a proxy — lower = fresher index.
+      const trendEl = $("emb-trend");
+      if (trendEl) {
+        const pct = s.corpus_size > 0
+          ? Math.round(Math.min(s.user_label_count / s.corpus_size * 100, 100))
+          : 0;
+        trendEl.textContent = "User-Anteil: " + pct + "%";
+        trendEl.style.color = pct > 20 ? "#4caf50" : "#ff9800";
+      }
+    } catch (e) {
+      // Embedding stats optional — ignore if endpoint not available
+    }
   }
 
   async function updateStats() {
@@ -416,6 +440,7 @@
     window.addEventListener("keydown", handleKeypress);
     fetchClasses().then(() => refreshAll());
     setInterval(updateStatus, 5000);
+    setInterval(updateEmbeddingStats, 15000);
     setInterval(() => {
       if (!state.currentItem) fetchQueue();
     }, 4000);

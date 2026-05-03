@@ -407,6 +407,111 @@ async fn api_export_corpus(
     Ok(Json(labels))
 }
 
+// ── New: labels import/export + embedding stats ────────────────────────────
+
+#[derive(Deserialize)]
+pub struct ImportRequest {
+    /// Liste von Labels im gleichen Format wie der Export.
+    pub labels: Vec<Label>,
+}
+
+#[derive(Serialize)]
+pub struct EmbeddingStatsResponse {
+    pub corpus_size: usize,
+    pub synthetic_count: usize,
+    pub user_label_count: usize,
+    pub user_class_count: usize,
+    pub labels_since_rebuild: usize,
+    pub label_distribution: std::collections::HashMap<String, usize>,
+}
+
+/// `POST /api/labels/import` — importiert Labels aus einem JSON-Body.
+///
+/// Jedes importierte Label wird in der DB gespeichert. Falls das Label
+/// eine class-Entscheidung ist und `image_data` enthält, wird der Patch
+/// außerdem dem Embedding-Corpus hinzugefügt.
+async fn api_labels_import(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<ImportRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let mut imported = 0usize;
+    let mut embedded = 0usize;
+
+    for label in &req.labels {
+        // Persistieren
+        {
+            let guard = state.db.lock().expect("db mutex poisoned");
+            if let Some(db) = guard.as_ref() {
+                db.save_label(label).map_err(internal)?;
+            }
+        }
+        imported += 1;
+
+        // Embedding hinzufügen wenn class-Entscheidung + image_data vorhanden
+        if label.decision.starts_with("class:") {
+            if let Some(png) = &label.image_data {
+                let class_name = label.decision.trim_start_matches("class:").to_string();
+                if let Some(emb_arc) = state.embedding_arc().await {
+                    let mut emb = emb_arc.lock().await;
+                    if emb.add_user_label(png, &class_name).await.is_ok() {
+                        embedded += 1;
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(Json(serde_json::json!({
+        "ok": true,
+        "imported": imported,
+        "embedded": embedded,
+    })))
+}
+
+/// `POST /api/labels/export` — exportiert alle User-Labels als JSON.
+///
+/// Gibt alle Labels aus der DB zurück. Enthält keine PNG-Daten in der
+/// Response (image_data ist None im Export).
+async fn api_labels_export(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<Vec<Label>>, (StatusCode, String)> {
+    let labels = {
+        let guard = state.db.lock().expect("db mutex poisoned");
+        if let Some(db) = guard.as_ref() {
+            db.get_all_labels().map_err(internal)?
+        } else {
+            Vec::new()
+        }
+    };
+    Ok(Json(labels))
+}
+
+/// `GET /api/embedding/stats` — Embedding-Corpus-Statistiken.
+async fn api_embedding_stats(
+    State(state): State<Arc<AppState>>,
+) -> Json<EmbeddingStatsResponse> {
+    if let Some(emb_arc) = state.embedding_arc().await {
+        let emb = emb_arc.lock().await;
+        Json(EmbeddingStatsResponse {
+            corpus_size: emb.corpus_size(),
+            synthetic_count: emb.synthetic_count(),
+            user_label_count: emb.user_label_count(),
+            user_class_count: emb.user_class_count(),
+            labels_since_rebuild: emb.labels_since_rebuild,
+            label_distribution: emb.label_distribution(),
+        })
+    } else {
+        Json(EmbeddingStatsResponse {
+            corpus_size: 0,
+            synthetic_count: 0,
+            user_label_count: 0,
+            user_class_count: 0,
+            labels_since_rebuild: 0,
+            label_distribution: std::collections::HashMap::new(),
+        })
+    }
+}
+
 fn internal<E: std::fmt::Display>(e: E) -> (StatusCode, String) {
     (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
 }
