@@ -7,6 +7,7 @@
 use clap::Parser;
 use omr_labeler::active_learning::LabelingQueue;
 use omr_labeler::api::{router, AppState};
+use omr_labeler::embedding_corpus::EmbeddingState;
 use omr_labeler::persistence::LabelDb;
 use omr_labeler::pipeline::PipelineState;
 use omr_labeler::synthetic_warmup::{load_synthetic_corpus, seed_queue_with_synthetic};
@@ -120,6 +121,30 @@ async fn main() -> anyhow::Result<()> {
         let mut q_owned = std::mem::take(&mut *q);
         seed_queue_with_synthetic(&mut q_owned, &samples);
         *q = q_owned;
+    }
+
+    // Embedding-Corpus initialisieren (aus demselben Pfad wie synthetischer Corpus).
+    match EmbeddingState::from_corpus_dir(&cli.synthetic_corpus) {
+        Ok(emb) => {
+            info!(
+                "Embedding-Corpus geladen ({}). Index-Größe: {}",
+                cli.synthetic_corpus.display(),
+                {
+                    let stats = emb.corpus_stats();
+                    stats.get("index_size")
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or(0)
+                }
+            );
+            state.set_embedding(emb).await;
+        }
+        Err(e) => {
+            warn!(
+                "Embedding-Corpus konnte nicht geladen werden ({}): {} — Active-Learning deaktiviert.",
+                cli.synthetic_corpus.display(),
+                e
+            );
+        }
     }
 
     let app = router(state.clone());

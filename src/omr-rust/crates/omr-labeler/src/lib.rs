@@ -6,6 +6,7 @@
 pub mod active_learning;
 pub mod api;
 pub mod classes;
+pub mod embedding_corpus;
 pub mod frontend;
 pub mod persistence;
 pub mod pipeline;

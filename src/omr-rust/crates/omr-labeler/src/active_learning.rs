@@ -11,6 +11,10 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::{HashSet, VecDeque};
+use std::sync::Arc;
+use tokio::sync::Mutex;
+
+use crate::embedding_corpus::EmbeddingState;
 
 /// Welcher Aspekt eines Items wird gerade gelabelt.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Hash)]
@@ -44,6 +48,9 @@ pub struct QueueItem {
     pub element_id: Option<String>,
     pub suggested_class: Option<String>,
     pub top_k: Vec<(String, f32)>,
+    /// Rohes PNG-Bild des Patches für Embedding-Anreicherung (nicht serialisiert).
+    #[serde(skip)]
+    pub patch_png: Option<Vec<u8>>,
 }
 
 /// Antwort des Annotators.
@@ -75,6 +82,8 @@ pub struct LabelingQueue {
     pub labeled_count: usize,
     pub last_resort: usize,
     next_id: u64,
+    /// Optionaler Embedding-Zustand für Active-Learning-Anreicherung.
+    pub embedding_state: Option<Arc<Mutex<EmbeddingState>>>,
 }
 
 impl LabelingQueue {
@@ -102,6 +111,7 @@ impl LabelingQueue {
             element_id,
             suggested_class: None,
             top_k: Vec::new(),
+            patch_png: None,
         });
         id
     }
@@ -161,6 +171,50 @@ impl LabelingQueue {
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
         self.items = v.into();
+    }
+
+    /// Reichert das Item mit `item_id` mit dem k-NN-Ergebnis aus dem Embedding
+    /// an: Setzt `suggested_class` und `top_k` wenn ein Match gefunden wird.
+    ///
+    /// Ist ein No-Op wenn kein Embedding-Zustand gesetzt oder der Index leer ist.
+    pub async fn enrich_with_top_k(&mut self, item_id: u64, patch_png: Vec<u8>) {
+        let emb_arc = match &self.embedding_state {
+            Some(a) => a.clone(),
+            None => return,
+        };
+        let mut emb = emb_arc.lock().await;
+        if let Some(top1) = emb.knn_classify(&patch_png) {
+            if let Some(it) = self.items.iter_mut().find(|it| it.id == item_id) {
+                it.suggested_class = Some(top1.label.clone());
+                it.top_k = vec![(top1.label, 1.0 - top1.distance)];
+            }
+        }
+    }
+
+    /// Re-Priorisiert die Queue unter Verwendung des Embedding-Index:
+    /// Items mit hoher Embedding-Entropie (wenig bekannte Nachbarn)
+    /// bekommen höhere Unsicherheit.
+    ///
+    /// Derzeit: plain `re_prioritize` als Fallback wenn kein Embedding gesetzt.
+    pub async fn re_prioritize_with_embeddings(&mut self) {
+        // Wenn kein Embedding-Zustand vorhanden, normale Re-Priorisierung.
+        if self.embedding_state.is_none() {
+            self.re_prioritize();
+            return;
+        }
+        // Für Items mit Patch-PNG: Unsicherheit via Embedding-Entropie anpassen.
+        let emb_arc = self.embedding_state.as_ref().unwrap().clone();
+        let mut emb = emb_arc.lock().await;
+        for it in self.items.iter_mut() {
+            if let Some(png) = &it.patch_png {
+                // Höhere Distanz zum nächsten Nachbarn → höhere Unsicherheit.
+                if let Some(top1) = emb.knn_classify(png) {
+                    it.uncertainty = top1.distance;
+                }
+            }
+        }
+        drop(emb);
+        self.re_prioritize();
     }
 
     pub fn len(&self) -> usize {

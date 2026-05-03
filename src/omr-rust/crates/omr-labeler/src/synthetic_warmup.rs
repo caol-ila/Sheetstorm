@@ -18,49 +18,67 @@ const IMAGE_EXTS: [&str; 5] = ["png", "jpg", "jpeg", "bmp", "tiff"];
 /// Liest `dir` und liefert bis zu 5 verschiedene Klassen mit je einem
 /// Sample (Round-Robin, Round 1). Wenn `dir` nicht existiert oder leer
 /// ist, kommt ein leeres Vec zurück.
+/// Liest alle PNGs aus dem Verzeichnisbaum unter `dir` rekursiv und
+/// klassifiziert sie über den **relativen Pfad ohne Datei-Extension** —
+/// d.h. das synthetic_corpus_v1 mit der Struktur
+/// `single/noteheads/filled_quarter/000001.png` liefert die Klasse
+/// `single/noteheads/filled_quarter`.
+fn collect_images_recursive(root: &Path) -> Vec<(String, PathBuf)> {
+    fn walk(base: &Path, dir: &Path, out: &mut Vec<(String, PathBuf)>) {
+        let entries = match std::fs::read_dir(dir) {
+            Ok(e) => e,
+            Err(_) => return,
+        };
+        for entry in entries.flatten() {
+            let p = entry.path();
+            if p.is_dir() {
+                walk(base, &p, out);
+                continue;
+            }
+            let ext = p
+                .extension()
+                .and_then(|s| s.to_str())
+                .map(|s| s.to_ascii_lowercase());
+            let Some(ext) = ext else { continue };
+            if !IMAGE_EXTS.contains(&ext.as_str()) {
+                continue;
+            }
+            let parent = match p.parent() {
+                Some(par) => par,
+                None => continue,
+            };
+            let rel = parent.strip_prefix(base).unwrap_or(parent);
+            let class = rel
+                .components()
+                .filter_map(|c| c.as_os_str().to_str())
+                .collect::<Vec<_>>()
+                .join("/");
+            if class.is_empty() {
+                continue;
+            }
+            out.push((class, p));
+        }
+    }
+    let mut out = Vec::new();
+    walk(root, root, &mut out);
+    out
+}
+
 pub fn load_synthetic_corpus(dir: &Path) -> Vec<SyntheticSample> {
     if !dir.exists() {
         return Vec::new();
     }
-    let mut by_class: Vec<(String, Vec<PathBuf>)> = Vec::new();
-    let entries = match std::fs::read_dir(dir) {
-        Ok(e) => e,
-        Err(_) => return Vec::new(),
-    };
-    for entry in entries.flatten() {
-        let p = entry.path();
-        if !p.is_dir() {
-            continue;
-        }
-        let class_name = match p.file_name().and_then(|s| s.to_str()) {
-            Some(s) => s.to_string(),
-            None => continue,
-        };
-        let mut images = Vec::new();
-        if let Ok(read) = std::fs::read_dir(&p) {
-            for f in read.flatten() {
-                let fp = f.path();
-                let ext = fp
-                    .extension()
-                    .and_then(|s| s.to_str())
-                    .map(|s| s.to_ascii_lowercase());
-                if let Some(ext) = ext {
-                    if IMAGE_EXTS.contains(&ext.as_str()) {
-                        images.push(fp);
-                    }
-                }
-            }
-        }
-        if !images.is_empty() {
-            images.sort();
-            by_class.push((class_name, images));
-        }
+    let images = collect_images_recursive(dir);
+    if images.is_empty() {
+        return Vec::new();
     }
-    by_class.sort_by(|a, b| a.0.cmp(&b.0));
-
-    // Round-Robin: pro Klasse genau ein Sample, max. 5 Klassen.
+    let mut by_class: std::collections::BTreeMap<String, Vec<PathBuf>> = std::collections::BTreeMap::new();
+    for (class, p) in images {
+        by_class.entry(class).or_default().push(p);
+    }
     let mut out = Vec::new();
-    for (class, images) in by_class.into_iter().take(5) {
+    for (class, mut images) in by_class.into_iter().take(5) {
+        images.sort();
         if let Some(p) = images.into_iter().next() {
             out.push(SyntheticSample {
                 class,
@@ -84,6 +102,7 @@ pub fn seed_queue_with_synthetic(queue: &mut LabelingQueue, samples: &[Synthetic
             element_id: Some(format!("synthetic#{}", i)),
             suggested_class: Some(s.class.clone()),
             top_k: vec![(s.class.clone(), 1.0)],
+            patch_png: None,
         };
         queue.push_item(item);
     }

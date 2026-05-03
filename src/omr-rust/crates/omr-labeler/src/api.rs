@@ -16,6 +16,7 @@
 //! - `GET  /api/export/corpus         ` → JSON-Export aller Labels
 
 use crate::active_learning::{Decision, LabelingQueue, Level, QueueItem};
+use crate::embedding_corpus::EmbeddingState;
 use crate::frontend::{APP_JS, INDEX_HTML, STYLE_CSS};
 use crate::persistence::{Label, LabelDb};
 use crate::pipeline::{encode_png, PipelineState};
@@ -32,6 +33,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tokio::sync::RwLock;
 use tower_http::cors::CorsLayer;
+use tracing;
 
 /// Globaler App-State, geteilt über alle Handler.
 ///
@@ -42,6 +44,7 @@ use tower_http::cors::CorsLayer;
 ///   verwenden wir `std::sync::Mutex`, das `Sync` bereitstellt für
 ///   `T: Send`. Die Datenbankoperationen sind kurz und blockierend,
 ///   sodass das Halten des Mutex über `await`-Punkte vermieden wird.
+/// - `embedding` ist im `LabelingQueue` eingebettet und wird dort verwaltet.
 #[derive(Default)]
 pub struct AppState {
     pub pipeline: RwLock<PipelineState>,
@@ -60,6 +63,20 @@ impl AppState {
             queue: RwLock::new(LabelingQueue::new()),
             db: Mutex::new(Some(db)),
         }
+    }
+
+    /// Setzt den Embedding-Zustand in der Queue.
+    pub async fn set_embedding(&self, state: EmbeddingState) {
+        let mut queue = self.queue.write().await;
+        queue.embedding_state = Some(Arc::new(tokio::sync::Mutex::new(state)));
+    }
+
+    /// Gibt eine geklonte Referenz auf den Embedding-Zustand zurück.
+    pub async fn embedding_arc(
+        &self,
+    ) -> Option<Arc<tokio::sync::Mutex<EmbeddingState>>> {
+        let queue = self.queue.read().await;
+        queue.embedding_state.clone()
     }
 }
 
@@ -92,6 +109,9 @@ pub struct AnswerRequest {
     pub decision: String,
     #[serde(default)]
     pub value: Option<String>,
+    /// Base64-enkodiertes PNG des Patches (für Embedding-Anreicherung).
+    #[serde(default)]
+    pub patch_png_b64: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -127,6 +147,9 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/api/element/:id/image", get(api_element_image))
         .route("/api/stats", get(api_stats))
         .route("/api/export/corpus", get(api_export_corpus))
+        .route("/api/labels/export", get(api_labels_export))
+        .route("/api/labels/import", post(api_labels_import))
+        .route("/api/embedding/stats", get(api_embedding_stats))
         .with_state(state)
         .layer(CorsLayer::permissive())
 }
@@ -283,11 +306,29 @@ async fn api_queue_answer(
             .unwrap_or_else(|| format!("item-{}", req.item_id))
     };
 
+    // Bei Klassen-Entscheidung: Embedding aus dem Patch erzeugen.
+    if let Decision::Class(ref class_name) = dec {
+        if let Some(b64) = &req.patch_png_b64 {
+            if let Some(emb_arc) = state.embedding_arc().await {
+                if let Ok(png_bytes) = base64_decode(b64) {
+                    let class = class_name.clone();
+                    let prov = item_ref.clone();
+                    tokio::spawn(async move {
+                        let mut emb = emb_arc.lock().await;
+                        if let Err(e) = emb.add_user_label(class, png_bytes, prov) {
+                            tracing::warn!("Embedding-Label hinzufügen fehlgeschlagen: {e}");
+                        }
+                    });
+                }
+            }
+        }
+    }
+
     {
         let mut queue = state.queue.write().await;
         queue.answer(req.item_id, dec.clone());
         if queue.labeled_count % 10 == 0 {
-            queue.re_prioritize();
+            queue.re_prioritize_with_embeddings().await;
         }
     }
 
@@ -405,6 +446,110 @@ async fn api_export_corpus(
         }
     };
     Ok(Json(labels))
+}
+
+/// Exportiert alle Labels als JSON (gleich wie `/api/export/corpus`).
+async fn api_labels_export(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<Vec<Label>>, (StatusCode, String)> {
+    let labels = {
+        let guard = state.db.lock().expect("db mutex poisoned");
+        if let Some(db) = guard.as_ref() {
+            db.get_all_labels().map_err(internal)?
+        } else {
+            Vec::new()
+        }
+    };
+    Ok(Json(labels))
+}
+
+#[derive(Deserialize)]
+pub struct ImportRequest {
+    pub labels: Vec<Label>,
+}
+
+/// Importiert Labels in die Datenbank (Upsert-semantik: bereits vorhandene
+/// werden übersprungen, neue eingefügt).
+async fn api_labels_import(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<ImportRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let inserted = {
+        let guard = state.db.lock().expect("db mutex poisoned");
+        if let Some(db) = guard.as_ref() {
+            let mut n = 0u64;
+            for label in &req.labels {
+                db.save_label(label).map_err(internal)?;
+                n += 1;
+            }
+            n
+        } else {
+            0
+        }
+    };
+    Ok(Json(serde_json::json!({ "ok": true, "inserted": inserted })))
+}
+
+/// Gibt aktuelle Embedding-Statistiken zurück.
+async fn api_embedding_stats(
+    State(state): State<Arc<AppState>>,
+) -> Json<serde_json::Value> {
+    if let Some(emb_arc) = state.embedding_arc().await {
+        let emb = emb_arc.lock().await;
+        let stats = emb.corpus_stats();
+        Json(serde_json::json!(stats))
+    } else {
+        Json(serde_json::json!({
+            "total": 0,
+            "synthetic": 0,
+            "user": 0,
+            "classes": 0,
+            "index_size": 0,
+            "entropy_bits": 0.0,
+            "labels_since_rebuild": 0,
+            "available": false,
+        }))
+    }
+}
+
+fn base64_decode(s: &str) -> Result<Vec<u8>, ()> {
+    // Verwende nur std — kein base64-Crate erforderlich. Basis-Impl via
+    // Rust-stdlib fehlt leider; wir nutzen eine minimalistische Handimpl.
+    // Da `base64` nicht im Workspace-Cargo ist, nutzen wir einen einfachen
+    // std-kompatiblen Decoder.
+    fn b64_char(c: u8) -> Option<u8> {
+        match c {
+            b'A'..=b'Z' => Some(c - b'A'),
+            b'a'..=b'z' => Some(c - b'a' + 26),
+            b'0'..=b'9' => Some(c - b'0' + 52),
+            b'+' | b'-' => Some(62),
+            b'/' | b'_' => Some(63),
+            b'=' => None,
+            _ => None,
+        }
+    }
+    let bytes: Vec<u8> = s
+        .bytes()
+        .filter(|b| *b != b'\n' && *b != b'\r' && *b != b' ')
+        .collect();
+    if bytes.len() % 4 != 0 {
+        return Err(());
+    }
+    let mut out = Vec::with_capacity(bytes.len() / 4 * 3);
+    for chunk in bytes.chunks(4) {
+        let a = b64_char(chunk[0]).ok_or(())?;
+        let b = b64_char(chunk[1]).ok_or(())?;
+        out.push((a << 2) | (b >> 4));
+        if chunk[2] != b'=' {
+            let c = b64_char(chunk[2]).ok_or(())?;
+            out.push((b << 4) | (c >> 2));
+            if chunk[3] != b'=' {
+                let d = b64_char(chunk[3]).ok_or(())?;
+                out.push((c << 6) | d);
+            }
+        }
+    }
+    Ok(out)
 }
 
 fn internal<E: std::fmt::Display>(e: E) -> (StatusCode, String) {
