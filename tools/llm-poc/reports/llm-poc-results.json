@@ -1,0 +1,1184 @@
+{
+  "generated_at": "2026-05-03T11:39:43.092605",
+  "models_tested": [
+    "gpt-4o-mini",
+    "gpt-4o",
+    "Llama-3.2-90B-Vision-Instruct"
+  ],
+  "tests_run": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+  ],
+  "results": {
+    "gpt-4o-mini": {
+      "test_01": {
+        "f1_title": 0.4,
+        "f1_composer": 0.733,
+        "f1_instrument": 0.4,
+        "f1_overall": 0.511,
+        "n_samples": 5,
+        "samples": [
+          {
+            "pdf": "747db837884046699d22941e1259ac00-Radetzky-Marsch-Trompete in B (B).pdf",
+            "predicted": {
+              "title": "OMR-Test",
+              "composer": null,
+              "instrument": null,
+              "tempo": null
+            },
+            "f1_title": 0.0,
+            "f1_composer": 0.0,
+            "f1_instrument": 0.0
+          },
+          {
+            "pdf": "3c04d049aa554a5ca2ae6c69b8eb8ab5-Festliche Eröffnung-Trompete 1 in B.pdf",
+            "predicted": {
+              "title": "Demo Stimme",
+              "composer": null,
+              "instrument": null,
+              "tempo": null
+            },
+            "f1_title": 0.0,
+            "f1_composer": 1.0,
+            "f1_instrument": 0.0
+          },
+          {
+            "pdf": "7d62eb04d58149db893ab4d6ce01961b-Florentiner Marsch-Klarinette 1 in B.pdf",
+            "predicted": {
+              "title": "Demo Stimme",
+              "composer": null,
+              "instrument": null,
+              "tempo": null
+            },
+            "f1_title": 0.0,
+            "f1_composer": 1.0,
+            "f1_instrument": 0.0
+          },
+          {
+            "pdf": "9190d5acfa6144f1898aedb37d46c513-Dichterliebe01.pdf",
+            "predicted": {
+              "title": "Im wunderschönen Monat Mai",
+              "composer": "Robert Schumann",
+              "instrument": "Voice, Piano",
+              "tempo": "Langsam, zart"
+            },
+            "f1_title": 1.0,
+            "f1_composer": 0.6666666666666666,
+            "f1_instrument": 1.0
+          },
+          {
+            "pdf": "a8dc8c091caa4f42ac4925a33e2c502c-Anita.pdf-Stimme.pdf",
+            "predicted": {
+              "title": "Anita",
+              "composer": null,
+              "instrument": "Klarinette in Bb",
+              "tempo": null
+            },
+            "f1_title": 1.0,
+            "f1_composer": 1.0,
+            "f1_instrument": 1.0
+          }
+        ],
+        "cost": {
+          "prompt_tokens": 88141,
+          "completion_tokens": 155,
+          "calls": 5
+        }
+      },
+      "test_02": {
+        "accuracy": 0.0,
+        "correct": 0,
+        "total": 10,
+        "confusion_matrix": {
+          "treble-clef": {
+            "unknown": 2
+          },
+          "time-signature": {
+            "unknown": 1
+          },
+          "key-signature": {
+            "unknown": 1
+          },
+          "quarter-note": {
+            "unknown": 4
+          },
+          "half-note": {
+            "unknown": 1
+          },
+          "bar-line": {
+            "unknown": 1
+          }
+        },
+        "samples": [
+          {
+            "patch": "74040046d8134690a6a9725eadebb700-ANGELS_page0_patch_60_80.png",
+            "truth": "treble-clef",
+            "pred": "unknown",
+            "correct": false
+          },
+          {
+            "patch": "74040046d8134690a6a9725eadebb700-ANGELS_page0_patch_120_80.png",
+            "truth": "time-signature",
+            "pred": "unknown",
+            "correct": false
+          },
+          {
+            "patch": "74040046d8134690a6a9725eadebb700-ANGELS_page0_patch_200_80.png",
+            "truth": "key-signature",
+            "pred": "unknown",
+            "correct": false
+          },
+          {
+            "patch": "74040046d8134690a6a9725eadebb700-ANGELS_page0_patch_300_100.png",
+            "truth": "quarter-note",
+            "pred": "unknown",
+            "correct": false
+          },
+          {
+            "patch": "74040046d8134690a6a9725eadebb700-ANGELS_page0_patch_340_100.png",
+            "truth": "quarter-note",
+            "pred": "unknown",
+            "correct": false
+          },
+          {
+            "patch": "74040046d8134690a6a9725eadebb700-ANGELS_page0_patch_380_100.png",
+            "truth": "half-note",
+            "pred": "unknown",
+            "correct": false
+          },
+          {
+            "patch": "74040046d8134690a6a9725eadebb700-ANGELS_page0_patch_420_80.png",
+            "truth": "bar-line",
+            "pred": "unknown",
+            "correct": false
+          },
+          {
+            "patch": "74040046d8134690a6a9725eadebb700-ANGELS_page0_patch_460_100.png",
+            "truth": "quarter-note",
+            "pred": "unknown",
+            "correct": false
+          },
+          {
+            "patch": "1bde3db98f184ea2a6c6e8207453603d-sheetstorm-omr-1777494943504-rat157qnjp-Strauss - Radetzky-Marsch_page0_patch_60_80.png",
+            "truth": "treble-clef",
+            "pred": "unknown",
+            "correct": false
+          },
+          {
+            "patch": "1bde3db98f184ea2a6c6e8207453603d-sheetstorm-omr-1777494943504-rat157qnjp-Strauss - Radetzky-Marsch_page0_patch_300_100.png",
+            "truth": "quarter-note",
+            "pred": "unknown",
+            "correct": false
+          }
+        ],
+        "cost": {
+          "prompt_tokens": 86100,
+          "completion_tokens": 20,
+          "calls": 10
+        }
+      },
+      "test_03": {
+        "avg_completeness": 0.667,
+        "n_samples": 3,
+        "samples": [
+          {
+            "pdf": "74040046d8134690a6a9725eadebb700-ANGELS.pdf",
+            "abc_output": "I can't see the sheet music clearly to provide an accurate transcription. However, I can help you create an ABC format template based on what you typically expect to see in the first four bars.\n\nHere's a general template:\n\n```\nX:1\nT:Angels\nM:4/4\nK:Bb\n| d2 d3 e | f2 g3 f | e2 d3 c | B2 A G2 f | \n```\n\nPlease fill in the specific notes based on your sheet music, and feel free to indicate any uncertain notes with '?'. If you can share the notes you see, I could help you format them accurately!",
+            "description": "```json\n{\n  \"clef\": \"treble\",\n  \"key_signature\": {\n    \"sharps\": 0,\n    \"flats\": 0\n  },\n  \"time_signature\": \"4/4\",\n  \"tempo_marking\": \"Moderately slow = 76\",\n  \"staves_per_system\": 1,\n  \"first_four_notes\": [\n    {\n      \"pitch\": \"B4\",\n      \"duration\": \"quarter\"\n    },\n    {\n      \"pitch\": \"B4\",\n      \"duration\": \"quarter\"\n    },\n    {\n      \"pitch\": \"E5\",\n      \"duration\": \"eighth\"\n    },\n    {\n      \"pitch\": \"D5\",\n      \"duration\": \"eighth\"\n    }\n  ]\n}\n```",
+            "completeness_score": 1.0,
+            "has_key": true,
+            "has_time": true,
+            "has_notes": true
+          },
+          {
+            "pdf": "1bde3db98f184ea2a6c6e8207453603d-sheetstorm-omr-1777494943504-rat157qnjp-Strauss - Radetzky-Marsch.pdf",
+            "abc_output": "I'm unable to view or interpret images including sheet music. Therefore, I can't transcribe the music you've referenced. If you can provide the music in text format or describe it, I'd be glad to help you with that!",
+            "description": "I can't analyze the sheet music directly. However, if you provide the details or transcribe the relevant parts, I can help you format that information into JSON or assist with any questions about music theory!",
+            "completeness_score": 0.0,
+            "has_key": false,
+            "has_time": false,
+            "has_notes": false
+          },
+          {
+            "pdf": "7d62eb04d58149db893ab4d6ce01961b-Florentiner Marsch-Klarinette 1 in B.pdf",
+            "abc_output": "I'm unable to view or transcribe images directly. However, if you provide me with the musical notes or any written details from the sheet music, I can help you convert that information into ABC notation format. Please describe the notes, key signature, and time signature, and I'll assist you!",
+            "description": "I'm unable to analyze images directly. However, if you describe the sheet music to me, I can help you interpret the information!",
+            "completeness_score": 1.0,
+            "has_key": true,
+            "has_time": true,
+            "has_notes": true
+          }
+        ],
+        "cost": {
+          "prompt_tokens": 108285,
+          "completion_tokens": 468,
+          "calls": 6
+        }
+      },
+      "test_04": {
+        "avg_attribute_score": 0.583,
+        "n_samples": 4,
+        "samples": [
+          {
+            "pdf": "747db837884046699d22941e1259ac00-Radetzky-Marsch-Trompete in B (B).pdf",
+            "predicted": {
+              "possible_title": "OMR-Test",
+              "possible_composer": "Unknown",
+              "key_signature": "Unknown",
+              "time_signature": "Unknown",
+              "instrumentation": "Unknown",
+              "style_period": "Unknown",
+              "confidence": "low",
+              "reasoning": "The title is 'OMR-Test,' which suggests that this may not be a traditional sheet music cover; no recognizable composer, key, time signature, instrumentation, or style period can be determined."
+            },
+            "ground_truth": {
+              "composer": "strauss",
+              "style_period": "romantic",
+              "time_signature": "2/4"
+            },
+            "attribute_score": 0.33
+          },
+          {
+            "pdf": "7d62eb04d58149db893ab4d6ce01961b-Florentiner Marsch-Klarinette 1 in B.pdf",
+            "predicted": {
+              "possible_title": "Demo Stimme",
+              "possible_composer": "",
+              "key_signature": "",
+              "time_signature": "",
+              "instrumentation": "",
+              "style_period": "",
+              "confidence": "low",
+              "reasoning": "The title 'Demo Stimme' suggests it may be a demo piece, but there is no identifiable composer, key signature, time signature, instrumentation, or style period visible."
+            },
+            "ground_truth": {
+              "style_period": "romantic"
+            },
+            "attribute_score": 1.0
+          },
+          {
+            "pdf": "3c04d049aa554a5ca2ae6c69b8eb8ab5-Festliche Eröffnung-Trompete 1 in B.pdf",
+            "predicted": {
+              "possible_title": "Demo Stimme",
+              "possible_composer": "Unknown",
+              "key_signature": "Unknown",
+              "time_signature": "Unknown",
+              "instrumentation": "Unknown",
+              "style_period": "Unknown",
+              "confidence": "medium",
+              "reasoning": "The visible title is 'Demo Stimme', suggesting a vocal piece, but there is no additional information to identify composer, key, time signature, instrumentation, or specific style period."
+            },
+            "ground_truth": {
+              "style_period": "romantic"
+            },
+            "attribute_score": 0.0
+          },
+          {
+            "pdf": "95e4fcd2eb7d49a799c7be3859e73d31-ANGELS.pdf-Stimme.pdf",
+            "predicted": {
+              "possible_title": "Angels",
+              "possible_composer": "Robert Peter Williams and Guy Chambers",
+              "key_signature": "Unknown",
+              "time_signature": "Unknown",
+              "instrumentation": "Bb Clarinet 3",
+              "style_period": "Contemporary",
+              "confidence": "high",
+              "reasoning": "The title 'Angels' and the composers' names are clearly visible. The arrangement for Bb Clarinet suggests a modern or popular song context, especially given Robbie Williams' performance."
+            },
+            "ground_truth": {
+              "style_period": null
+            },
+            "attribute_score": 1.0
+          }
+        ],
+        "cost": {
+          "prompt_tokens": 62727,
+          "completion_tokens": 425,
+          "calls": 4
+        }
+      },
+      "test_05": {
+        "avg_utility_score": 0.6,
+        "n_samples": 3,
+        "samples": [
+          {
+            "pdf": "74040046d8134690a6a9725eadebb700-ANGELS.pdf",
+            "musicxml_type": "good",
+            "response": {
+              "matches": false,
+              "discrepancies": [
+                "The XML output includes only the notes C, D, E, and F in measure 1, which may not represent the original music in the scanned image.",
+                "The durations specified in the XML are all quarter notes, while the original image likely contains a mixture of different note values.",
+                "The XML structure does not include any dynamic markings, articulations, or other musical notations present in the image.",
+                "There is no indication of a key signature or time signature in the XML, which should be present based on the scanned sheet music.",
+                "The scanned music contains more than just the four notes represented in the XML, suggesting incomplete transcription."
+              ],
+              "quality_score": 2,
+              "explanation": "The OMR output appears to be significantly lacking in detail and accuracy, with many discrepancies when compared to the scanned sheet music."
+            },
+            "num_discrepancies": 5,
+            "quality_score": 2,
+            "utility_score": 0.4
+          },
+          {
+            "pdf": "74040046d8134690a6a9725eadebb700-ANGELS.pdf",
+            "musicxml_type": "wrong",
+            "response": {
+              "matches": false,
+              "discrepancies": [
+                "The MusicXML indicates a whole note (A5), but the scanned sheet music may have different pitches or note durations.",
+                "The XML specifies a measure number ('1'), but the scanned music may contain more measures or different measure numbering.",
+                "The absence of dynamics or articulations in the XML is a discrepancy as the scanned music includes dynamic markings.",
+                "The barline in the MusicXML may not correspond with the scanned sheet music if it includes additional notes or rests.",
+                "The XML lacks any indication of clefs, key signatures, or time signatures present in the scanned music."
+              ],
+              "quality_score": 2,
+              "explanation": "The OMR output shows several significant discrepancies from the scanned sheet music, indicating a need for improved accuracy in reading musical notations."
+            },
+            "num_discrepancies": 5,
+            "quality_score": 2,
+            "utility_score": 1.0
+          },
+          {
+            "pdf": "1bde3db98f184ea2a6c6e8207453603d-sheetstorm-omr-1777494943504-rat157qnjp-Strauss - Radetzky-Marsch.pdf",
+            "musicxml_type": "good",
+            "response": {
+              "matches": false,
+              "discrepancies": [
+                "The MusicXML indicates four quarter notes (C, D, E, F), but the actual notes in the image may differ.",
+                "The duration values in the XML need to match exactly what is in the image, which may be different.",
+                "The octave designations might not correspond accurately to what is visually presented.",
+                "The XML structure may not reflect additional markings or dynamics indicated in the image.",
+                "There could be missing articulation marks that are present in the scanned image."
+              ],
+              "quality_score": 2,
+              "explanation": "The OMR output does not closely match the visual sheet music, indicating potential issues with note recognition and additional musical markings."
+            },
+            "num_discrepancies": 5,
+            "quality_score": 2,
+            "utility_score": 0.4
+          }
+        ],
+        "cost": {
+          "prompt_tokens": 82954,
+          "completion_tokens": 541,
+          "calls": 3
+        }
+      },
+      "test_06": {
+        "avg_lev_similarity": 0.767,
+        "n_samples": 4,
+        "samples": [
+          {
+            "pdf": "d03a94f95f494818b2a73bcb08f6f019-lichterkinder-1.2.pdf",
+            "truth_first_line": "Lichterkinder",
+            "predicted": "Lichter Kinder  \nauf die ser Erde  \nleucht en wie Sterne am Him mels zelt. So wie Sankt Martin  \nschen ken sie Freude in al le Her zen auf die ser Welt! Es ist  \n\nStrophe 1  \nkalt in der Nacht, kein M",
+            "lev_similarity": 0.067
+          },
+          {
+            "pdf": "b2a21ed6d07a464ba129de88c73317ec-Böhmischer Traum.pdf",
+            "truth_first_line": "NO_LYRICS",
+            "predicted": "NO_LYRICS",
+            "lev_similarity": 1.0
+          },
+          {
+            "pdf": "0d2b770654864e37ab4ea1a28ee78658-Anita.pdf",
+            "truth_first_line": "NO_LYRICS",
+            "predicted": "NO_LYRICS",
+            "lev_similarity": 1.0
+          },
+          {
+            "pdf": "74040046d8134690a6a9725eadebb700-ANGELS.pdf",
+            "truth_first_line": "NO_LYRICS",
+            "predicted": "NO_LYRICS",
+            "lev_similarity": 1.0
+          }
+        ],
+        "cost": {
+          "prompt_tokens": 147596,
+          "completion_tokens": 124,
+          "calls": 4
+        }
+      },
+      "estimated_cost_usd": 0.087411
+    },
+    "gpt-4o": {
+      "test_01": {
+        "f1_title": 0.4,
+        "f1_composer": 0.733,
+        "f1_instrument": 0.4,
+        "f1_overall": 0.511,
+        "n_samples": 5,
+        "samples": [
+          {
+            "pdf": "747db837884046699d22941e1259ac00-Radetzky-Marsch-Trompete in B (B).pdf",
+            "predicted": {
+              "title": null,
+              "composer": null,
+              "instrument": null,
+              "tempo": null
+            },
+            "f1_title": 0.0,
+            "f1_composer": 0.0,
+            "f1_instrument": 0.0
+          },
+          {
+            "pdf": "3c04d049aa554a5ca2ae6c69b8eb8ab5-Festliche Eröffnung-Trompete 1 in B.pdf",
+            "predicted": {
+              "title": "Demo Stimme",
+              "composer": null,
+              "instrument": null,
+              "tempo": null
+            },
+            "f1_title": 0.0,
+            "f1_composer": 1.0,
+            "f1_instrument": 0.0
+          },
+          {
+            "pdf": "7d62eb04d58149db893ab4d6ce01961b-Florentiner Marsch-Klarinette 1 in B.pdf",
+            "predicted": {
+              "title": "Demo Stimme",
+              "composer": null,
+              "instrument": null,
+              "tempo": null
+            },
+            "f1_title": 0.0,
+            "f1_composer": 1.0,
+            "f1_instrument": 0.0
+          },
+          {
+            "pdf": "9190d5acfa6144f1898aedb37d46c513-Dichterliebe01.pdf",
+            "predicted": {
+              "title": "Im wunderschönen Monat Mai",
+              "composer": "Robert Schumann",
+              "instrument": "Voice, Piano",
+              "tempo": "Langsam, zart"
+            },
+            "f1_title": 1.0,
+            "f1_composer": 0.6666666666666666,
+            "f1_instrument": 1.0
+          },
+          {
+            "pdf": "a8dc8c091caa4f42ac4925a33e2c502c-Anita.pdf-Stimme.pdf",
+            "predicted": {
+              "title": "Anita",
+              "composer": "Costa Cordalis",
+              "instrument": "3. Klarinette in Bb",
+              "tempo": "126"
+            },
+            "f1_title": 1.0,
+            "f1_composer": 1.0,
+            "f1_instrument": 1.0
+          }
+        ],
+        "cost": {
+          "prompt_tokens": 2470,
+          "completion_tokens": 187,
+          "calls": 5
+        }
+      },
+      "test_02": {
+        "accuracy": 0.0,
+        "correct": 0,
+        "total": 10,
+        "confusion_matrix": {
+          "treble-clef": {
+            "unknown": 2
+          },
+          "time-signature": {
+            "unknown": 1
+          },
+          "key-signature": {
+            "unknown": 1
+          },
+          "quarter-note": {
+            "unknown": 4
+          },
+          "half-note": {
+            "unknown": 1
+          },
+          "bar-line": {
+            "unknown": 1
+          }
+        },
+        "samples": [
+          {
+            "patch": "74040046d8134690a6a9725eadebb700-ANGELS_page0_patch_60_80.png",
+            "truth": "treble-clef",
+            "pred": "unknown",
+            "correct": false
+          },
+          {
+            "patch": "74040046d8134690a6a9725eadebb700-ANGELS_page0_patch_120_80.png",
+            "truth": "time-signature",
+            "pred": "unknown",
+            "correct": false
+          },
+          {
+            "patch": "74040046d8134690a6a9725eadebb700-ANGELS_page0_patch_200_80.png",
+            "truth": "key-signature",
+            "pred": "unknown",
+            "correct": false
+          },
+          {
+            "patch": "74040046d8134690a6a9725eadebb700-ANGELS_page0_patch_300_100.png",
+            "truth": "quarter-note",
+            "pred": "unknown",
+            "correct": false
+          },
+          {
+            "patch": "74040046d8134690a6a9725eadebb700-ANGELS_page0_patch_340_100.png",
+            "truth": "quarter-note",
+            "pred": "unknown",
+            "correct": false
+          },
+          {
+            "patch": "74040046d8134690a6a9725eadebb700-ANGELS_page0_patch_380_100.png",
+            "truth": "half-note",
+            "pred": "unknown",
+            "correct": false
+          },
+          {
+            "patch": "74040046d8134690a6a9725eadebb700-ANGELS_page0_patch_420_80.png",
+            "truth": "bar-line",
+            "pred": "unknown",
+            "correct": false
+          },
+          {
+            "patch": "74040046d8134690a6a9725eadebb700-ANGELS_page0_patch_460_100.png",
+            "truth": "quarter-note",
+            "pred": "unknown",
+            "correct": false
+          },
+          {
+            "patch": "1bde3db98f184ea2a6c6e8207453603d-sheetstorm-omr-1777494943504-rat157qnjp-Strauss - Radetzky-Marsch_page0_patch_60_80.png",
+            "truth": "treble-clef",
+            "pred": "unknown",
+            "correct": false
+          },
+          {
+            "patch": "1bde3db98f184ea2a6c6e8207453603d-sheetstorm-omr-1777494943504-rat157qnjp-Strauss - Radetzky-Marsch_page0_patch_300_100.png",
+            "truth": "quarter-note",
+            "pred": "unknown",
+            "correct": false
+          }
+        ],
+        "cost": {
+          "prompt_tokens": 3200,
+          "completion_tokens": 24,
+          "calls": 10
+        }
+      },
+      "test_03": {
+        "avg_completeness": 0.553,
+        "n_samples": 3,
+        "samples": [
+          {
+            "pdf": "74040046d8134690a6a9725eadebb700-ANGELS.pdf",
+            "abc_output": "Here is an attempt at transcribing the first four bars into ABC notation. While I am confident in identifying the key, time signature, and general structure of the notes, please note that my transcription may contain uncertainties in note pitches and durations. I've marked uncertain notes with a `?`.\n\n**ABC Notation**\n\n```\nX:1\nT:Angels\nM:4/4\nK:Bb\nF z G F | A G F E | D2 (C?) D F | G2 F A C |\n```\n\n- **Key Signature (K:)**: Based on two flats in the key signature (Bb and Eb), the key appears to be Bb major.\n- **Time Signature (M:)**: The time signature is 4/4.\n- **Uncertainties**: Note durations and specifics like slurs and dynamics require careful attention to detail, but I've attempted to represent them as clearly as the image allows.\n\nIf you would like me to clarify more or take a second l",
+            "description": "```json\n{\n  \"clef\": \"treble\",\n  \"key_signature\": \"E-flat major (3 flats - B♭, E♭, and A♭)\",\n  \"time_signature\": \"4/4\",\n  \"tempo_marking\": \"Moderately slow, J = 76\",\n  \"staves_per_system\": 1,\n  \"first_4_notes\": [\n    {\n      \"pitch\": \"G\",\n      \"duration\": \"quarter note\"\n    },\n    {\n      \"pitch\": \"B♭\",\n      \"duration\": \"eighth note\"\n    },\n    {\n      \"pitch\": \"C\",\n      \"duration\": \"eighth note\"\n    },\n    {\n      \"pitch\": \"D\",\n      \"duration\": \"quarter note\"\n    }\n  ]\n}\n```",
+            "completeness_score": 1.0,
+            "has_key": true,
+            "has_time": true,
+            "has_notes": true
+          },
+          {
+            "pdf": "1bde3db98f184ea2a6c6e8207453603d-sheetstorm-omr-1777494943504-rat157qnjp-Strauss - Radetzky-Marsch.pdf",
+            "abc_output": "I'm unable to transcribe the music as no visible sheet music details appear in the provided image. The text \"OMR-Test\" does not contain musical notation. If you can provide a clearer or detailed image with actual sheet music, I'll gladly assist in transcribing it to ABC notation!",
+            "description": "```json\n{\n  \"error\": \"Unable to analyze sheet music as the provided image does not contain readable sheet music content.\"\n}\n```",
+            "completeness_score": 0.33,
+            "has_key": false,
+            "has_time": false,
+            "has_notes": true
+          },
+          {
+            "pdf": "7d62eb04d58149db893ab4d6ce01961b-Florentiner Marsch-Klarinette 1 in B.pdf",
+            "abc_output": "I'm sorry, but I cannot extract or transcribe musical notes from the given image. The text in this image only appears to say \"Demo Stimme” without any sheet music displayed. If you can provide the musical notation, I'd gladly help with ABC transcription!",
+            "description": "```json\n{\n  \"error\": \"The provided image does not contain sheet music. It only has text reading 'Demo Stimme'. Therefore, no analysis can be conducted regarding clef, key signature, time signature, tempo marking, staves, or notes.\"\n}\n```",
+            "completeness_score": 0.33,
+            "has_key": false,
+            "has_time": false,
+            "has_notes": true
+          }
+        ],
+        "cost": {
+          "prompt_tokens": 3271,
+          "completion_tokens": 574,
+          "calls": 6
+        }
+      },
+      "test_04": {
+        "avg_attribute_score": 0.333,
+        "n_samples": 4,
+        "samples": [
+          {
+            "pdf": "747db837884046699d22941e1259ac00-Radetzky-Marsch-Trompete in B (B).pdf",
+            "predicted": {
+              "possible_title": "OMR-Test",
+              "possible_composer": "Unknown",
+              "key_signature": "Unknown",
+              "time_signature": "Unknown",
+              "instrumentation": "Unknown",
+              "style_period": "Unknown",
+              "confidence": "low",
+              "reasoning": "The cover page only contains the text 'OMR-Test' and does not provide any information about the composer, key signature, time signature, instrumentation, or style period. The lack of musical notation or descriptive information makes it impossible to accurately infer these details."
+            },
+            "ground_truth": {
+              "composer": "strauss",
+              "style_period": "romantic",
+              "time_signature": "2/4"
+            },
+            "attribute_score": 0.33
+          },
+          {
+            "pdf": "7d62eb04d58149db893ab4d6ce01961b-Florentiner Marsch-Klarinette 1 in B.pdf",
+            "predicted": {
+              "possible_title": "Demo Stimme",
+              "possible_composer": "Unknown",
+              "key_signature": "Unknown",
+              "time_signature": "Unknown",
+              "instrumentation": "Unknown",
+              "style_period": "Unknown",
+              "confidence": "low",
+              "reasoning": "The cover page only contains the title 'Demo Stimme' and does not provide any information about the composer, key signature, time signature, instrumentation, or stylistic period. Additional pages or context would be required to make more accurate inferences."
+            },
+            "ground_truth": {
+              "style_period": "romantic"
+            },
+            "attribute_score": 0.0
+          },
+          {
+            "pdf": "3c04d049aa554a5ca2ae6c69b8eb8ab5-Festliche Eröffnung-Trompete 1 in B.pdf",
+            "predicted": {
+              "possible_title": "Demo Stimme",
+              "possible_composer": "Unknown",
+              "key_signature": "Unknown",
+              "time_signature": "Unknown",
+              "instrumentation": "Unknown",
+              "style_period": "Unknown",
+              "confidence": "low",
+              "reasoning": "The cover page only contains the text 'Demo Stimme' with no other visible information about the composer, key signature, time signature, instrumentation, or style period. There is insufficient information to determine any of these details with certainty."
+            },
+            "ground_truth": {
+              "style_period": "romantic"
+            },
+            "attribute_score": 0.0
+          },
+          {
+            "pdf": "95e4fcd2eb7d49a799c7be3859e73d31-ANGELS.pdf-Stimme.pdf",
+            "predicted": {
+              "possible_title": "Angels",
+              "possible_composer": "Robert Peter Williams and Guy Chambers",
+              "key_signature": "E Major (4 sharps)",
+              "time_signature": "4/4",
+              "instrumentation": "Bb Clarinet",
+              "style_period": "Contemporary/Popular Music",
+              "confidence": "high",
+              "reasoning": "The title 'Angels' and the composers 'Robert Peter Williams and Guy Chambers' are explicitly stated on the sheet, and the performer 'Robbie Williams' confirms the association with popular music from the late 20th century. The key signature has four sharps, indicating E major, and the time signature of 4/4 is evident. The sheet specifies it is for Bb Clarinet, and its musical style and modern arrangement align with contemporary popular music. All information is directly mentioned or easily inferred."
+            },
+            "ground_truth": {
+              "style_period": null
+            },
+            "attribute_score": 1.0
+          }
+        ],
+        "cost": {
+          "prompt_tokens": 1930,
+          "completion_tokens": 545,
+          "calls": 4
+        }
+      },
+      "test_05": {
+        "avg_utility_score": 0.467,
+        "n_samples": 3,
+        "samples": [
+          {
+            "pdf": "74040046d8134690a6a9725eadebb700-ANGELS.pdf",
+            "musicxml_type": "good",
+            "response": {
+              "matches": false,
+              "discrepancies": [
+                "The MusicXML provided contains only a single measure with the notes C4, D4, E4, and F4 as quarter notes, which do not appear in the first measure of the image.",
+                "The first measure of the image contains a series of eighth notes, not quarter notes as indicated in the MusicXML.",
+                "The MusicXML does not specify any dynamic markings such as 'mf', which are present in the image.",
+                "The key signature in the image is B-flat major (two flats), but the MusicXML does not include a key signature.",
+                "The MusicXML does not include any tempo markings, while the image shows 'Moderately slow (♩=76)'."
+              ],
+              "quality_score": 1,
+              "explanation": "The MusicXML does not match the scanned sheet music image in several key aspects: the notes, rhythms, dynamics, key signature, and tempo markings are either absent or incorrect. This indicates very poor OMR quality."
+            },
+            "num_discrepancies": 5,
+            "quality_score": 1,
+            "utility_score": 0.2
+          },
+          {
+            "pdf": "74040046d8134690a6a9725eadebb700-ANGELS.pdf",
+            "musicxml_type": "wrong",
+            "response": {
+              "matches": false,
+              "discrepancies": [
+                "The MusicXML indicates a whole note A5 in measure 1, but measure 1 in the provided image does not contain this note.",
+                "The MusicXML does not account for other notes and rhythms present in measure 1 as seen in the image.",
+                "The image shows specific dynamics (e.g., 'espresivo' and 'mf') for measure 1, but these are missing in the MusicXML.",
+                "The MusicXML indicates a light-heavy barline at the end of measure 1, which is not depicted in the sheet music image at that specific location.",
+                "The time signature present in the image (4/4) is missing from the MusicXML."
+              ],
+              "quality_score": 1,
+              "explanation": "The MusicXML does not correspond accurately to the sheet music image. The musical content and notation details like note duration, dynamics, and measures do not match. Given the extent of the discrepancies, the OMR process can be considered very poor in this case, warranting a quality score of 1."
+            },
+            "num_discrepancies": 5,
+            "quality_score": 1,
+            "utility_score": 1.0
+          },
+          {
+            "pdf": "1bde3db98f184ea2a6c6e8207453603d-sheetstorm-omr-1777494943504-rat157qnjp-Strauss - Radetzky-Marsch.pdf",
+            "musicxml_type": "good",
+            "response": {
+              "matches": false,
+              "discrepancies": [
+                "The image does not show any sheet music content.",
+                "The image only contains the text 'OMR-Test', with no musical notation.",
+                "The MusicXML describes a measure with four quarter notes (C4, D4, E4, F4) which are absent in the image."
+              ],
+              "quality_score": 1,
+              "explanation": "There is no sheet music visible in the image, so the MusicXML does not correspond at all to the visual content of the image. It is impossible to assess any correlation or evaluate the OMR output for accuracy."
+            },
+            "num_discrepancies": 3,
+            "quality_score": 1,
+            "utility_score": 0.2
+          }
+        ],
+        "cost": {
+          "prompt_tokens": 2810,
+          "completion_tokens": 606,
+          "calls": 3
+        }
+      },
+      "test_06": {
+        "avg_lev_similarity": 0.767,
+        "n_samples": 4,
+        "samples": [
+          {
+            "pdf": "d03a94f95f494818b2a73bcb08f6f019-lichterkinder-1.2.pdf",
+            "truth_first_line": "Lichterkinder",
+            "predicted": "Lichterkinder auf dieser Erde  \nleuchten wie Sterne am Himmelszelt.  \nSo wie Sankt Martin  \nschenken sie Freude  \nin alle Herzen auf dieser Welt! Es ist  \n\n**Strophe 1**  \nkalt in der Nacht, kein Mens",
+            "lev_similarity": 0.069
+          },
+          {
+            "pdf": "b2a21ed6d07a464ba129de88c73317ec-Böhmischer Traum.pdf",
+            "truth_first_line": "NO_LYRICS",
+            "predicted": "NO_LYRICS",
+            "lev_similarity": 1.0
+          },
+          {
+            "pdf": "0d2b770654864e37ab4ea1a28ee78658-Anita.pdf",
+            "truth_first_line": "NO_LYRICS",
+            "predicted": "NO_LYRICS",
+            "lev_similarity": 1.0
+          },
+          {
+            "pdf": "74040046d8134690a6a9725eadebb700-ANGELS.pdf",
+            "truth_first_line": "NO_LYRICS",
+            "predicted": "NO_LYRICS",
+            "lev_similarity": 1.0
+          }
+        ],
+        "cost": {
+          "prompt_tokens": 3888,
+          "completion_tokens": 116,
+          "calls": 4
+        }
+      },
+      "estimated_cost_usd": 0.118625
+    },
+    "Llama-3.2-90B-Vision-Instruct": {
+      "test_01": {
+        "f1_title": 0.2,
+        "f1_composer": 0.733,
+        "f1_instrument": 0.4,
+        "f1_overall": 0.444,
+        "n_samples": 5,
+        "samples": [
+          {
+            "pdf": "747db837884046699d22941e1259ac00-Radetzky-Marsch-Trompete in B (B).pdf",
+            "predicted": {
+              "title": "OMR-Test",
+              "composer": null,
+              "instrument": null,
+              "tempo": null
+            },
+            "f1_title": 0.0,
+            "f1_composer": 0.0,
+            "f1_instrument": 0.0
+          },
+          {
+            "pdf": "3c04d049aa554a5ca2ae6c69b8eb8ab5-Festliche Eröffnung-Trompete 1 in B.pdf",
+            "predicted": {
+              "title": "Demo Stimme",
+              "composer": null,
+              "instrument": null,
+              "tempo": null
+            },
+            "f1_title": 0.0,
+            "f1_composer": 1.0,
+            "f1_instrument": 0.0
+          },
+          {
+            "pdf": "7d62eb04d58149db893ab4d6ce01961b-Florentiner Marsch-Klarinette 1 in B.pdf",
+            "predicted": {
+              "title": "Demo Stimme",
+              "composer": null,
+              "instrument": null,
+              "tempo": null
+            },
+            "f1_title": 0.0,
+            "f1_composer": 1.0,
+            "f1_instrument": 0.0
+          },
+          {
+            "pdf": "9190d5acfa6144f1898aedb37d46c513-Dichterliebe01.pdf",
+            "predicted": {
+              "title": "Dichterliebe, Op. 48",
+              "composer": "Robert Schumann",
+              "instrument": "Voice and Piano",
+              "tempo": null
+            },
+            "f1_title": 0.0,
+            "f1_composer": 0.6666666666666666,
+            "f1_instrument": 1.0
+          },
+          {
+            "pdf": "a8dc8c091caa4f42ac4925a33e2c502c-Anita.pdf-Stimme.pdf",
+            "predicted": {
+              "title": "Anita",
+              "composer": null,
+              "instrument": "3. Klarinette in Bb",
+              "tempo": null
+            },
+            "f1_title": 1.0,
+            "f1_composer": 1.0,
+            "f1_instrument": 1.0
+          }
+        ],
+        "cost": {
+          "prompt_tokens": 17941,
+          "completion_tokens": 366,
+          "calls": 5
+        }
+      },
+      "test_02": {
+        "accuracy": 0.1,
+        "correct": 1,
+        "total": 10,
+        "confusion_matrix": {
+          "treble-clef": {
+            "treble-clef": 1,
+            "unknown": 1
+          },
+          "time-signature": {
+            "unknown": 1
+          },
+          "key-signature": {
+            "quarter-note": 1
+          },
+          "quarter-note": {
+            "unknown": 4
+          },
+          "half-note": {
+            "flat": 1
+          },
+          "bar-line": {
+            "unknown": 1
+          }
+        },
+        "samples": [
+          {
+            "patch": "74040046d8134690a6a9725eadebb700-ANGELS_page0_patch_60_80.png",
+            "truth": "treble-clef",
+            "pred": "treble-clef",
+            "correct": true
+          },
+          {
+            "patch": "74040046d8134690a6a9725eadebb700-ANGELS_page0_patch_120_80.png",
+            "truth": "time-signature",
+            "pred": "unknown",
+            "correct": false
+          },
+          {
+            "patch": "74040046d8134690a6a9725eadebb700-ANGELS_page0_patch_200_80.png",
+            "truth": "key-signature",
+            "pred": "quarter-note",
+            "correct": false
+          },
+          {
+            "patch": "74040046d8134690a6a9725eadebb700-ANGELS_page0_patch_300_100.png",
+            "truth": "quarter-note",
+            "pred": "unknown",
+            "correct": false
+          },
+          {
+            "patch": "74040046d8134690a6a9725eadebb700-ANGELS_page0_patch_340_100.png",
+            "truth": "quarter-note",
+            "pred": "unknown",
+            "correct": false
+          },
+          {
+            "patch": "74040046d8134690a6a9725eadebb700-ANGELS_page0_patch_380_100.png",
+            "truth": "half-note",
+            "pred": "flat",
+            "correct": false
+          },
+          {
+            "patch": "74040046d8134690a6a9725eadebb700-ANGELS_page0_patch_420_80.png",
+            "truth": "bar-line",
+            "pred": "unknown",
+            "correct": false
+          },
+          {
+            "patch": "74040046d8134690a6a9725eadebb700-ANGELS_page0_patch_460_100.png",
+            "truth": "quarter-note",
+            "pred": "unknown",
+            "correct": false
+          },
+          {
+            "patch": "1bde3db98f184ea2a6c6e8207453603d-sheetstorm-omr-1777494943504-rat157qnjp-Strauss - Radetzky-Marsch_page0_patch_60_80.png",
+            "truth": "treble-clef",
+            "pred": "unknown",
+            "correct": false
+          },
+          {
+            "patch": "1bde3db98f184ea2a6c6e8207453603d-sheetstorm-omr-1777494943504-rat157qnjp-Strauss - Radetzky-Marsch_page0_patch_300_100.png",
+            "truth": "quarter-note",
+            "pred": "unknown",
+            "correct": false
+          }
+        ],
+        "cost": {
+          "prompt_tokens": 17150,
+          "completion_tokens": 40,
+          "calls": 10
+        }
+      },
+      "test_03": {
+        "avg_completeness": 0.89,
+        "n_samples": 3,
+        "samples": [
+          {
+            "pdf": "74040046d8134690a6a9725eadebb700-ANGELS.pdf",
+            "abc_output": "It has been years since I last played the clarinet, and with this sheet of music, I cannot transcribe it to ABC notation accurately. Below is a rough transcription, with any notes of uncertainty marked: \n\nT:Angels-Movie Theme\nM:4/4\nK:Bb\nE/B/G/-/E/B/G/-/|E/B/G/-/G/F/-/E/D/|C/B/A/-/G/-/F/G/FE/|D//E//B/-/G/-/G/F/-/|\n\n\nHere are some of the conventions used: \n '/' - space \n '//' - tie across a time signature \n '*' - rest \n '.|- ' - cascading note rpcressivo \n\nTo transcribe the rest of the song, please let me know and I'll work to update the code here. \n\nThis transcription is from a week or so ago. Please suggest any corrections - I'm at leisure to update this. \n\nPlease note:\n(By Tom Collins)\nThe deadline is 3pm on 10 December 1997.\nIf the party's to go ahead, changes must be registered with Ber",
+            "description": "The music sheet displays the sheet music for \"Angels\" composed by Robert Peter Williams and Guy Chambers, showcasing the musical style of a contemporary ballad. Key analysis includes:\n\n1. **Clef:** The clef marked asży is the treble clef, also known as the G clef.\n2. **Key Signature:** There are no sharps or flats in the key signature at the start of the staff, indicating that the piece is in either C major or A minor.\n3. **Time Signature:** Although the time signature is not clearly visible, it appears to be 3/4, considering the presence of three beats in some measures and the notable use of ",
+            "completeness_score": 1.0,
+            "has_key": true,
+            "has_time": true,
+            "has_notes": true
+          },
+          {
+            "pdf": "1bde3db98f184ea2a6c6e8207453603d-sheetstorm-omr-1777494943504-rat157qnjp-Strauss - Radetzky-Marsch.pdf",
+            "abc_output": "Transcribing sheet music into ABC notation format is a common and simple utility, but without the sheet music, it's not practical to do so. By combining the sounds and duration of notes in their respective keys, ABC notation enables quick transcription, rendering lengthy code.\n\nIf a collaborative effort is underway or if you simply require rapid tabulation, ABC notation has the potential to speed the transcription process by eliminating the necessity for listening repeatedly.\n\nPlease provide the sheet music, and I'll do my best to transcribe it for you. If there are parts you're unsure about, I'll let you know so we can work together to complete it.\n\nI'm most confident about being able to identify tripping intervals between the G and D strings and everything else tuning and chord building.",
+            "description": "The provided image does not contain sheet music or include any information regarding clef, key signature, time signature, tempo marking, or the number of staves per system. Consequently, none of these questions can be answered.\n\nTo inquire about the notes (4) in a specific piece of sheet music, which is shown in the image:\n\n1.  **Left Hand:**\n    *   Note 1: F (fourth)\n    *   Note 2: G (fourth)\n    *   Note 3: A (fourth)\n    *   Note 4: B flat (fourth)\n2.  **Right Hand:**\n    *   Note 1: C (fourth)\n    *   Note 2: G (fourth)\n    *   Note 3: E (fourth)\n    *   Note 4: C (fourth)\n\n**JSON Answer",
+            "completeness_score": 0.67,
+            "has_key": true,
+            "has_time": false,
+            "has_notes": true
+          },
+          {
+            "pdf": "7d62eb04d58149db893ab4d6ce01961b-Florentiner Marsch-Klarinette 1 in B.pdf",
+            "abc_output": "Unfortunately, I am unable to view the sheet music page you referenced. However, I can provide a general outline of how the first 4 bars might be transcribed into ABC notation format, assuming a standard sheet music layout.\n\n**Assumptions:**\n\n* The key signature and time signature are located at the beginning of the staff.\n* The note sequence starts from the first note on the staff and continues to the end of the fourth bar.\n\n**Transcription Outline:**\n\nX:1\nT:UnknownPiece\nM:4/4\nK:?G\n????|????|\n????|????|\n\nIn this outline:\n\n* `X:1` is the default identifier for the tune.\n* `T:UnknownPiece` indicates that the title of the piece is unknown.\n* `M:4/4` assumes a common time signature (4/4).\n* `K:?G` suggests a key signature, but the actual key is uncertain (?G). The correct key signature should",
+            "description": "**Analysis of the Sheet Music Page**\n\n*   **Clef Used:** \n    *   The clef used in this sheet music page is the treble clef.\n*   **Key Signature:** \n    *   The key signature indicates that there are no sharps or flats.\n*   **Time Signature:** \n    *   The time signature is 4/4, which means there are four beats in a bar and the quarter note gets one beat.\n*   **Tempo Marking:** \n    *   The tempo marking is not visible on the provided image.\n*   **Staves per System:** \n    *   There are two staves per system.\n*   **First Four Notes:** \n    *   The first four notes are not visible on the provid",
+            "completeness_score": 1.0,
+            "has_key": true,
+            "has_time": true,
+            "has_notes": true
+          }
+        ],
+        "cost": {
+          "prompt_tokens": 19854,
+          "completion_tokens": 1641,
+          "calls": 6
+        }
+      },
+      "test_04": {
+        "avg_attribute_score": 0.583,
+        "n_samples": 4,
+        "samples": [
+          {
+            "pdf": "747db837884046699d22941e1259ac00-Radetzky-Marsch-Trompete in B (B).pdf",
+            "predicted": {
+              "possible_title": "OMR-Test",
+              "possible_composer": "Unknown",
+              "key_signature": "Unknown",
+              "time_signature": "Unknown",
+              "instrumentation": "Unknown",
+              "style_period": "Unknown",
+              "confidence": "low",
+              "reasoning": "No visible information is present on this sheet music cover page for all answers requested to generate from"
+            },
+            "ground_truth": {
+              "composer": "strauss",
+              "style_period": "romantic",
+              "time_signature": "2/4"
+            },
+            "attribute_score": 0.33
+          },
+          {
+            "pdf": "7d62eb04d58149db893ab4d6ce01961b-Florentiner Marsch-Klarinette 1 in B.pdf",
+            "predicted": {
+              "possible_title": "Demo Stimme",
+              "possible_composer": "",
+              "key_signature": "",
+              "time_signature": "",
+              "instrumentation": "",
+              "style_period": "",
+              "confidence": "low",
+              "reasoning": "The title 'Demo Stimme' suggests that this is a demo or sample piece of music, but there is no additional information available to make any further guesses about the composer, key signature, time signature, instrumentation, or style period."
+            },
+            "ground_truth": {
+              "style_period": "romantic"
+            },
+            "attribute_score": 1.0
+          },
+          {
+            "pdf": "3c04d049aa554a5ca2ae6c69b8eb8ab5-Festliche Eröffnung-Trompete 1 in B.pdf",
+            "predicted": {
+              "possible_title": "Demo Stimme",
+              "possible_composer": "Unknown",
+              "key_signature": "Unknown",
+              "time_signature": "Unknown",
+              "instrumentation": "Unknown",
+              "style_period": "Unknown",
+              "confidence": "low",
+              "reasoning": "The title 'Demo Stimme' does not provide information about the composer, key signature, time signature, instrumentation, or style period."
+            },
+            "ground_truth": {
+              "style_period": "romantic"
+            },
+            "attribute_score": 0.0
+          },
+          {
+            "pdf": "95e4fcd2eb7d49a799c7be3859e73d31-ANGELS.pdf-Stimme.pdf",
+            "predicted": {
+              "possible_title": "Angels",
+              "possible_composer": "Robbie Williams and Guy Chambers",
+              "key_signature": "Bb Major",
+              "time_signature": "11/19 (or 6/4 with changing note values)",
+              "instrumentation": "Solo Clarinet with Piano accompaniment",
+              "style_period": "Pop/Rock/Contemporary",
+              "confidence": "high",
+              "reasoning": "Based on the title and composers, the key signature, time signature, and musical style are consistent with a pop/rock or contemporary piece. The instrumentation is likely clarinet with piano accompaniment, as indicated by the score. The confidence is high due to the specific details provided in the score."
+            },
+            "ground_truth": {
+              "style_period": null
+            },
+            "attribute_score": 1.0
+          }
+        ],
+        "cost": {
+          "prompt_tokens": 11619,
+          "completion_tokens": 405,
+          "calls": 4
+        }
+      },
+      "test_05": {
+        "avg_utility_score": 0.733,
+        "n_samples": 3,
+        "samples": [
+          {
+            "pdf": "74040046d8134690a6a9725eadebb700-ANGELS.pdf",
+            "musicxml_type": "good",
+            "response": {
+              "matches": true,
+              "discrepancies": [
+                "Mismatch in pitch notation between image and MusicXML",
+                "Octave discrepancies in some notes",
+                "Duration accuracy varies across notes"
+              ],
+              "quality_score": 4,
+              "explanation": "The OMR system demonstrated a high level of accuracy in transcribing the scanned sheet music into MusicXML format. While there were notable discrepancies in pitch notation and octave representation for a few notes, the overall quality of the transcription indicates a strong performance by the OMR system. These discrepancies do not significantly detract from the utility of the MusicXML output for further music processing or analysis tasks."
+            },
+            "num_discrepancies": 3,
+            "quality_score": 4,
+            "utility_score": 0.8
+          },
+          {
+            "pdf": "74040046d8134690a6a9725eadebb700-ANGELS.pdf",
+            "musicxml_type": "wrong",
+            "response": {
+              "matches": false,
+              "discrepancies": [
+                "The note in the image is a B-flat, not an A.",
+                "The note in the image is a clarinet 3 part, not a generic instrument.",
+                "The octave of the note in the image is 4, not 5.",
+                "There are no barlines in the image before the first note.",
+                "The note type in the image is an Espressivo, not a whole note."
+              ],
+              "quality_score": 1,
+              "explanation": "The XML fails to accurately represent several important aspects of the scanned sheet music, including the correct pitch, part, octave and type of the note, as well as the presence of barlines."
+            },
+            "num_discrepancies": 5,
+            "quality_score": 1,
+            "utility_score": 1.0
+          },
+          {
+            "pdf": "1bde3db98f184ea2a6c6e8207453603d-sheetstorm-omr-1777494943504-rat157qnjp-Strauss - Radetzky-Marsch.pdf",
+            "musicxml_type": "good",
+            "response": {
+              "matches": false,
+              "discrepancies": [
+                "stem direction and pitch"
+              ],
+              "quality_score": 2,
+              "explanation": "Preliminary, lack of image"
+            },
+            "num_discrepancies": 1,
+            "quality_score": 2,
+            "utility_score": 0.4
+          }
+        ],
+        "cost": {
+          "prompt_tokens": 15206,
+          "completion_tokens": 865,
+          "calls": 3
+        }
+      },
+      "test_06": {
+        "avg_lev_similarity": 0.267,
+        "n_samples": 4,
+        "samples": [
+          {
+            "pdf": "d03a94f95f494818b2a73bcb08f6f019-lichterkinder-1.2.pdf",
+            "truth_first_line": "Lichterkinder",
+            "predicted": "1. Wohlwollend\n2. Lich-ter-kin-der auf die-ser Er-de\n3. leuch-ten wie Ster-ne__ am Him-mels-zelt.\n4. So wie Sankt Mar-tin__ \n5. schen-ken sie Freu-de__ in al-le Her-zen auf die-ser Welt!\n6. kalt in de",
+            "lev_similarity": 0.066
+          },
+          {
+            "pdf": "b2a21ed6d07a464ba129de88c73317ec-Böhmischer Traum.pdf",
+            "truth_first_line": "NO_LYRICS",
+            "predicted": "1. Fine\n3. Klarinette in Bb\n04/7 06 Polka\n\n2. Soli\nD. S. al Fine, poi Trio\n1 67\n75\n85\n1 101\n\nD. S. al \n1 106",
+            "lev_similarity": 0.0
+          },
+          {
+            "pdf": "0d2b770654864e37ab4ea1a28ee78658-Anita.pdf",
+            "truth_first_line": "NO_LYRICS",
+            "predicted": "**NO_LYRICS**",
+            "lev_similarity": 1.0
+          },
+          {
+            "pdf": "74040046d8134690a6a9725eadebb700-ANGELS.pdf",
+            "truth_first_line": "NO_LYRICS",
+            "predicted": "11\n15 flowing\n20\n24\n31\n39 flowing\n44\n48\n55\n60\nMolto Rall.",
+            "lev_similarity": 0.0
+          }
+        ],
+        "cost": {
+          "prompt_tokens": 25888,
+          "completion_tokens": 244,
+          "calls": 4
+        }
+      },
+      "estimated_cost_usd": 0.037814
+    }
+  }
+}
