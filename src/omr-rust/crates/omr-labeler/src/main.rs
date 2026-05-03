@@ -6,7 +6,7 @@
 
 use clap::Parser;
 use omr_labeler::active_learning::{LabelingQueue, Level, QueueItem};
-use omr_labeler::api::{default_class_top_k, router, AppState};
+use omr_labeler::api::{router, top_k_for_class_item, AppState};
 use omr_labeler::persistence::LabelDb;
 use omr_labeler::pipeline::PipelineState;
 use omr_labeler::synthetic_warmup::{load_synthetic_corpus, seed_queue_with_synthetic};
@@ -173,6 +173,7 @@ async fn main() -> anyhow::Result<()> {
                 }
                 // Backfill: yes-Elemente ohne Class-Label bekommen ein Class-Item.
                 if yes_elements.contains(&elt.id) && !class_done.contains(&elt.id) {
+                    let top_k = top_k_for_class_item(state_bg.as_ref());
                     q_owned.push_item(QueueItem {
                         id: 0,
                         level: Level::Class,
@@ -180,7 +181,7 @@ async fn main() -> anyhow::Result<()> {
                         system_id: elt.system_id.clone(),
                         element_id: Some(elt.id.clone()),
                         suggested_class: None,
-                        top_k: default_class_top_k(),
+                        top_k,
                     });
                     class_pushed += 1;
                 }

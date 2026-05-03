@@ -158,6 +158,40 @@ impl LabelDb {
         Ok(count.max(0) as u64)
     }
 
+    /// Liefert die meistgenutzten Class-Decisions aus der DB, sortiert nach
+    /// Anzahl (desc) und letzter Nutzung (desc). Format: `(class_id, count)`,
+    /// ohne `class:`-Praefix. Damit kann der Labeler Top-K-Vorschlaege auf
+    /// echte User-Praeferenzen (inkl. Custom-Klassen) stuetzen.
+    pub fn recent_class_decisions(&self, limit: u32) -> Result<Vec<(String, u64)>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT decision, COUNT(*) as cnt, MAX(created_at) as last
+             FROM labels
+             WHERE level = 'class' AND decision LIKE 'class:%'
+             GROUP BY decision
+             ORDER BY cnt DESC, last DESC
+             LIMIT ?1",
+        )?;
+        let rows = stmt.query_map(params![limit as i64], |row| {
+            let decision: String = row.get(0)?;
+            let count: i64 = row.get(1)?;
+            Ok((decision, count))
+        })?;
+        let mut out = Vec::new();
+        for r in rows {
+            let (decision, count) = r?;
+            // "class:foo" → "foo"
+            let class_id = decision
+                .strip_prefix("class:")
+                .unwrap_or(&decision)
+                .to_string();
+            if class_id.is_empty() {
+                continue;
+            }
+            out.push((class_id, count.max(0) as u64));
+        }
+        Ok(out)
+    }
+
     /// Liefert alle Labels (sortiert nach ID).
     pub fn get_all_labels(&self) -> Result<Vec<Label>> {
         let mut stmt = self.conn.prepare(
@@ -235,5 +269,40 @@ mod tests {
         let popped = db.pop_last_label().unwrap().unwrap();
         assert_eq!(popped.item_ref, "elt-1");
         assert_eq!(db.count_labels("").unwrap(), 1);
+    }
+
+    #[test]
+    fn recent_class_decisions_sorted_by_count() {
+        let db = LabelDb::open_in_memory().unwrap();
+        // Drei verschiedene Klassen mit unterschiedlichen Counts.
+        for _ in 0..5 {
+            db.save_label(&Label::new("class", "class:Gitarrenakkord", "elt-x"))
+                .unwrap();
+        }
+        for _ in 0..2 {
+            db.save_label(&Label::new("class", "class:Taktnummer", "elt-y"))
+                .unwrap();
+        }
+        db.save_label(&Label::new("class", "class:atom/clef_treble", "elt-z"))
+            .unwrap();
+        // Non-class-Label darf nicht auftauchen.
+        db.save_label(&Label::new("element", "yes", "elt-w")).unwrap();
+
+        let recent = db.recent_class_decisions(10).unwrap();
+        assert_eq!(recent.len(), 3);
+        assert_eq!(recent[0], ("Gitarrenakkord".to_string(), 5));
+        assert_eq!(recent[1], ("Taktnummer".to_string(), 2));
+        assert_eq!(recent[2], ("atom/clef_treble".to_string(), 1));
+    }
+
+    #[test]
+    fn recent_class_decisions_respects_limit() {
+        let db = LabelDb::open_in_memory().unwrap();
+        for i in 0..6 {
+            db.save_label(&Label::new("class", &format!("class:cls{}", i), "elt"))
+                .unwrap();
+        }
+        let recent = db.recent_class_decisions(3).unwrap();
+        assert_eq!(recent.len(), 3);
     }
 }

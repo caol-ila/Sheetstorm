@@ -124,6 +124,7 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/api/status", get(api_status))
         .route("/api/classes", get(api_classes))
         .route("/api/classes/drilldown/:group_id", get(api_classes_drilldown))
+        .route("/api/classes/recent", get(api_classes_recent))
         .route("/api/queue/next", get(api_queue_next))
         .route("/api/queue/answer", post(api_queue_answer))
         .route("/api/queue/skip", post(api_queue_skip))
@@ -211,6 +212,61 @@ async fn api_classes_drilldown(
     AxumPath(group_id): AxumPath<String>,
 ) -> Json<Vec<crate::classes::ClassEntry>> {
     Json(crate::classes::drill_down(&group_id))
+}
+
+/// Eintrag in der Recent-Klassen-Liste: ein User-Label mit Count.
+#[derive(Serialize)]
+pub struct RecentClass {
+    pub id: String,
+    pub display_name: String,
+    pub count: u64,
+    /// `true` wenn die Klasse vom User selbst eingegeben wurde
+    /// (d.h. nicht in der eingebauten Hierarchie steht).
+    pub custom: bool,
+}
+
+#[derive(Deserialize)]
+pub struct RecentQuery {
+    #[serde(default)]
+    pub limit: Option<u32>,
+}
+
+/// Liefert die meistgenutzten Class-Labels aus der DB inkl. eigener
+/// User-Klassen. Wird vom Frontend genutzt, um die Top-5-Vorschlaege
+/// und die Suchliste mit Custom-Klassen anzureichern.
+async fn api_classes_recent(
+    State(state): State<Arc<AppState>>,
+    Query(q): Query<RecentQuery>,
+) -> Result<Json<Vec<RecentClass>>, (StatusCode, String)> {
+    let limit = q.limit.unwrap_or(20).min(200);
+    let recent = {
+        let guard = state.db.lock().expect("db mutex poisoned");
+        match guard.as_ref() {
+            Some(db) => db.recent_class_decisions(limit).map_err(internal)?,
+            None => Vec::new(),
+        }
+    };
+    // Built-in-Klassen-Map fuer Custom-Detection + display_name.
+    let known: HashMap<String, String> = crate::classes::all_classes()
+        .into_iter()
+        .map(|c| (c.id, c.display_name))
+        .collect();
+    let out: Vec<RecentClass> = recent
+        .into_iter()
+        .map(|(id, count)| {
+            let (display_name, custom) = match known.get(&id) {
+                Some(name) => (name.clone(), false),
+                None => (id.clone(), true),
+            };
+            RecentClass {
+                id,
+                display_name,
+                count,
+                custom,
+            }
+        })
+        .collect();
+    Ok(Json(out))
 }
 
 async fn api_queue_next(
@@ -314,11 +370,16 @@ async fn api_queue_answer(
     // schieben wir automatisch ein Class-Level-Item hinterher, damit der
     // naechste Klick sofort die Klassifikations-Frage stellt. Dadurch
     // bleibt der Workflow ohne Pause: Element=Yes -> "Was ist es?".
+    //
+    // Top-K kommt dabei aus den haeufig genutzten User-Klassen (inkl.
+    // Custom-Klassen wie "Gitarrenakkord"). Faellt zurueck auf
+    // Blasmusik-Default, wenn der User noch keine Klassen gelabelt hat.
     if let Some(item) = original_item.as_ref() {
         if item.level == Level::Element
             && matches!(dec, Decision::Yes)
             && item.element_id.is_some()
         {
+            let top_k = top_k_for_class_item(state.as_ref());
             let mut queue = state.queue.write().await;
             queue.push_item(QueueItem {
                 id: 0,
@@ -327,7 +388,7 @@ async fn api_queue_answer(
                 system_id: item.system_id.clone(),
                 element_id: item.element_id.clone(),
                 suggested_class: None,
-                top_k: default_class_top_k(),
+                top_k,
             });
         }
     }
@@ -335,9 +396,37 @@ async fn api_queue_answer(
     Ok(Json(serde_json::json!({ "ok": true })))
 }
 
-/// Default-Top-5 fuer Class-Items ohne trainierten Classifier:
-/// die haeufigsten Blasmusik-Group-Klassen. Wird ersetzt, sobald
-/// ein Embedding-Index vorliegt.
+/// Liefert die Top-5 fuer ein neues Class-Item.
+///
+/// Strategie:
+/// 1. Falls in der DB schon Class-Labels existieren -> die haeufigsten
+///    User-Klassen (mit Custom-Klassen wie "Gitarrenakkord") nehmen.
+/// 2. Andernfalls die statischen Blasmusik-Defaults
+///    (`default_class_top_k`).
+///
+/// Synchron, blockiert kurz auf der DB-Mutex (keine `await`-Punkte).
+pub fn top_k_for_class_item(state: &AppState) -> Vec<(String, f32)> {
+    let recent: Vec<(String, u64)> = {
+        let guard = state.db.lock().expect("db mutex poisoned");
+        match guard.as_ref() {
+            Some(db) => db.recent_class_decisions(5).unwrap_or_default(),
+            None => Vec::new(),
+        }
+    };
+    if recent.is_empty() {
+        return default_class_top_k();
+    }
+    // Score = Anteil an Gesamt-Labels (0..1), nur als Anzeigewert.
+    let total: u64 = recent.iter().map(|(_, c)| *c).sum::<u64>().max(1);
+    recent
+        .into_iter()
+        .map(|(id, count)| (id, count as f32 / total as f32))
+        .collect()
+}
+
+/// Default-Top-5 fuer Class-Items ohne trainierten Classifier und ohne
+/// User-Historie: die haeufigsten Blasmusik-Group-Klassen. Wird ersetzt,
+/// sobald der User Klassen gelabelt hat oder ein Embedding-Index vorliegt.
 pub fn default_class_top_k() -> Vec<(String, f32)> {
     vec![
         ("group/single_note_quarter".to_string(), 0.0),

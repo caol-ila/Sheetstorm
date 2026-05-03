@@ -17,6 +17,9 @@
     currentItem: null,
     contextSystems: [],
     classes: [],
+    /// Custom + haeufig genutzte Klassen aus der DB ({id, display_name, count, custom}).
+    /// Werden zu state.classes gemerged und priorisieren Top-5.
+    recentClasses: [],
   };
 
   // ---------- Utility ---------------------------------------------------
@@ -190,25 +193,62 @@
     }
     wrap.classList.remove("hidden");
 
-    // Top-5 (Hotkey 1-5) — eingebaute Vorschlaege oder erste 5 aus Klassen-Liste.
-    const topK = (item.top_k && item.top_k.length > 0)
-      ? item.top_k.slice(0, 5).map((e) => ({ id: e[0], score: e[1], display: e[0] }))
-      : (state.classes.slice(0, 5).map((c) => ({ id: c.id, score: 0, display: c.display_name })));
+    // Display-Name fuer eine Klassen-ID nachschlagen.
+    const displayFor = (id) => {
+      const recent = state.recentClasses.find((c) => c.id === id);
+      if (recent) return recent.display_name;
+      const cls = state.classes.find((c) => c.id === id);
+      if (cls) return cls.display_name;
+      return id;
+    };
+
+    // Top-5 (Hotkey 1-5) — bevorzuge Recent-Klassen aus der DB
+    // (User-Praeferenz, inkl. Custom). Fallback: server-seitiges top_k oder
+    // erste 5 aus state.classes.
+    let topK;
+    if (state.recentClasses.length >= 5) {
+      topK = state.recentClasses.slice(0, 5).map((c) => ({
+        id: c.id,
+        score: 0,
+        display: c.display_name,
+        count: c.count,
+      }));
+    } else if (item.top_k && item.top_k.length > 0) {
+      topK = item.top_k.slice(0, 5).map((e) => ({
+        id: e[0],
+        score: e[1],
+        display: displayFor(e[0]),
+      }));
+    } else {
+      topK = state.classes.slice(0, 5).map((c) => ({
+        id: c.id,
+        score: 0,
+        display: c.display_name,
+      }));
+    }
     const topWrap = document.createElement("div");
     topWrap.className = "class-top5";
-    topWrap.innerHTML = "<h3>Top 5 (Hotkey 1–5)</h3>";
+    const usingRecent = state.recentClasses.length >= 5;
+    topWrap.innerHTML = "<h3>" +
+      (usingRecent ? "Häufig verwendet" : "Top 5") +
+      " (Hotkey 1–5)</h3>";
     topK.forEach((entry, idx) => {
       const btn = document.createElement("button");
       btn.className = "btn btn-top";
-      const pct = entry.score > 0 ? " (" + (entry.score * 100).toFixed(0) + "%)" : "";
-      btn.textContent = (idx + 1) + ". " + entry.display + pct;
+      let suffix = "";
+      if (entry.count) {
+        suffix = " (" + entry.count + "×)";
+      } else if (entry.score > 0) {
+        suffix = " (" + (entry.score * 100).toFixed(0) + "%)";
+      }
+      btn.textContent = (idx + 1) + ". " + entry.display + suffix;
       btn.dataset.action = "class";
       btn.dataset.value = entry.id;
       topWrap.appendChild(btn);
     });
     wrap.appendChild(topWrap);
 
-    // Suche-Filter mit Live-Filter
+    // Suche-Filter mit Live-Filter (durchsucht built-in + custom)
     const searchWrap = document.createElement("div");
     searchWrap.className = "class-search";
     searchWrap.innerHTML = '<h3>Alle Klassen (<kbd>/</kbd>)</h3>' +
@@ -227,7 +267,8 @@
         }).slice(0, 30);
         matches.forEach((c) => {
           const li = document.createElement("li");
-          li.textContent = c.display_name + " — " + c.id;
+          const tag = c.level === "custom" ? " [eigene]" : "";
+          li.textContent = c.display_name + " — " + c.id + tag;
           li.dataset.action = "class";
           li.dataset.value = c.id;
           list.appendChild(li);
@@ -272,11 +313,64 @@
 
   async function fetchClasses() {
     try {
-      state.classes = await jsonGet("/api/classes?include_atoms=1&include_phrases=0");
+      const builtin = await jsonGet("/api/classes?include_atoms=1&include_phrases=0");
+      // Recent / custom classes vom Server (inkl. User-Eingaben).
+      let recent = [];
+      try {
+        recent = await jsonGet("/api/classes/recent?limit=20");
+      } catch (re) {
+        console.warn("recent classes fetch failed", re);
+      }
+      state.recentClasses = recent || [];
+
+      // Merge: zuerst built-in. Custom-Klassen (id nicht in built-in) als
+      // ClassEntry-aehnliche Objekte appenden, damit sie in der Suche
+      // auftauchen.
+      const seen = new Set(builtin.map((c) => c.id));
+      const customEntries = state.recentClasses
+        .filter((rc) => rc.custom && !seen.has(rc.id))
+        .map((rc) => ({
+          id: rc.id,
+          display_name: rc.display_name + " (eigene)",
+          level: "custom",
+          atoms: [],
+        }));
+      state.classes = customEntries.concat(builtin);
     } catch (e) {
       console.error("fetchClasses failed", e);
       state.classes = [];
     }
+  }
+
+  /// Lokale Aktualisierung nach einer User-Antwort: wenn der User eine
+  /// Custom-Klasse eingegeben hat, fuegen wir sie sofort zu state.classes
+  /// + state.recentClasses hinzu, damit sie beim naechsten Item bereits
+  /// in der Suche und in den Top-5 sichtbar ist (ohne Roundtrip).
+  function rememberClass(classId) {
+    if (!classId) return;
+    const existsInClasses = state.classes.some((c) => c.id === classId);
+    const known = state.classes.find((c) => c.id === classId);
+    const isBuiltin = known && (known.level === "atom" || known.level === "group" || known.level === "phrase");
+    if (!existsInClasses) {
+      state.classes.unshift({
+        id: classId,
+        display_name: classId + " (eigene)",
+        level: "custom",
+        atoms: [],
+      });
+    }
+    const idx = state.recentClasses.findIndex((rc) => rc.id === classId);
+    if (idx >= 0) {
+      state.recentClasses[idx].count += 1;
+    } else {
+      state.recentClasses.unshift({
+        id: classId,
+        display_name: isBuiltin ? known.display_name : classId,
+        count: 1,
+        custom: !isBuiltin,
+      });
+    }
+    state.recentClasses.sort((a, b) => b.count - a.count);
   }
 
   async function showDrillDown(groupId) {
@@ -326,6 +420,11 @@
         decision: decision,
         value: value || null,
       });
+      // Optimistic update: Custom-Klasse merken, damit sie sofort
+      // in der Suche und in den Top-5 auftaucht — ohne Roundtrip.
+      if (decision === "class" && value) {
+        rememberClass(value);
+      }
     } catch (e) {
       console.error("answer failed", e);
     }
