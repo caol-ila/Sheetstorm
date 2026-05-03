@@ -16,6 +16,7 @@
   const state = {
     currentItem: null,
     contextSystems: [],
+    classes: [],
   };
 
   // ---------- Utility ---------------------------------------------------
@@ -140,20 +141,135 @@
     const wrap = $("class-buttons");
     if (!wrap) return;
     wrap.innerHTML = "";
-    if (item.level !== "class" || !item.top_k || item.top_k.length === 0) {
+    if (item.level !== "class") {
       wrap.classList.add("hidden");
       return;
     }
     wrap.classList.remove("hidden");
-    item.top_k.slice(0, 5).forEach((entry, idx) => {
+
+    // Top-5 (Hotkey 1-5) — eingebaute Vorschlaege oder erste 5 aus Klassen-Liste.
+    const topK = (item.top_k && item.top_k.length > 0)
+      ? item.top_k.slice(0, 5).map((e) => ({ id: e[0], score: e[1], display: e[0] }))
+      : (state.classes.slice(0, 5).map((c) => ({ id: c.id, score: 0, display: c.display_name })));
+    const topWrap = document.createElement("div");
+    topWrap.className = "class-top5";
+    topWrap.innerHTML = "<h3>Top 5 (Hotkey 1–5)</h3>";
+    topK.forEach((entry, idx) => {
       const btn = document.createElement("button");
-      btn.className = "btn";
-      btn.textContent = (idx + 1) + ". " + entry[0];
+      btn.className = "btn btn-top";
+      const pct = entry.score > 0 ? " (" + (entry.score * 100).toFixed(0) + "%)" : "";
+      btn.textContent = (idx + 1) + ". " + entry.display + pct;
       btn.dataset.action = "class";
-      btn.dataset.value = entry[0];
-      wrap.appendChild(btn);
+      btn.dataset.value = entry.id;
+      topWrap.appendChild(btn);
     });
+    wrap.appendChild(topWrap);
+
+    // Suche-Filter mit Live-Filter
+    const searchWrap = document.createElement("div");
+    searchWrap.className = "class-search";
+    searchWrap.innerHTML = '<h3>Alle Klassen (<kbd>/</kbd>)</h3>' +
+      '<input id="class-filter-input" type="text" placeholder="Tippen filtert..." autocomplete="off" />' +
+      '<ul id="class-filter-list"></ul>';
+    wrap.appendChild(searchWrap);
+    const input = $("class-filter-input");
+    const list = $("class-filter-list");
+    if (input && list) {
+      const renderList = (q) => {
+        list.innerHTML = "";
+        const ql = (q || "").toLowerCase();
+        const matches = state.classes.filter((c) => {
+          if (!ql) return true;
+          return c.id.toLowerCase().includes(ql) || c.display_name.toLowerCase().includes(ql);
+        }).slice(0, 30);
+        matches.forEach((c) => {
+          const li = document.createElement("li");
+          li.textContent = c.display_name + " — " + c.id;
+          li.dataset.action = "class";
+          li.dataset.value = c.id;
+          list.appendChild(li);
+        });
+      };
+      renderList("");
+      input.addEventListener("input", () => renderList(input.value));
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          const first = list.querySelector("li");
+          if (first) {
+            sendAnswer("class", first.dataset.value || "");
+          }
+        }
+        if (e.key === "Escape") {
+          input.value = "";
+          input.blur();
+          renderList("");
+        }
+      });
+    }
+
+    // Drill-Down-Hinweis fuer Group-Klassen
+    if (item.suggested_class && item.suggested_class.startsWith("group/")) {
+      const drillBtn = document.createElement("button");
+      drillBtn.className = "btn btn-drill";
+      drillBtn.textContent = "[d] Drill-Down zu Atomen von " + item.suggested_class;
+      drillBtn.dataset.action = "drill";
+      drillBtn.dataset.value = item.suggested_class;
+      wrap.appendChild(drillBtn);
+    }
+
+    // Spezial-Aktionen
+    const special = document.createElement("div");
+    special.className = "class-special";
+    special.innerHTML =
+      '<button class="btn" data-action="answer-no">[n] None of these</button>' +
+      '<button class="btn" data-action="edit">[e] Eigene Klasse</button>' +
+      '<button class="btn" data-action="skip">[Space] Skip</button>';
+    wrap.appendChild(special);
   }
+
+  async function fetchClasses() {
+    try {
+      state.classes = await jsonGet("/api/classes?include_atoms=1&include_phrases=0");
+    } catch (e) {
+      console.error("fetchClasses failed", e);
+      state.classes = [];
+    }
+  }
+
+  async function showDrillDown(groupId) {
+    try {
+      const atoms = await jsonGet("/api/classes/drilldown/" + encodeURIComponent(groupId));
+      if (atoms.length === 0) {
+        alert("Keine Atome bekannt fuer " + groupId);
+        return;
+      }
+      // Zeige Atom-Liste in einem temporaeren Overlay
+      const wrap = $("class-buttons");
+      if (!wrap) return;
+      wrap.innerHTML = "";
+      const h = document.createElement("h3");
+      h.textContent = "Drill-Down: " + groupId;
+      wrap.appendChild(h);
+      atoms.forEach((c, idx) => {
+        const btn = document.createElement("button");
+        btn.className = "btn";
+        btn.textContent = (idx + 1) + ". " + c.display_name;
+        btn.dataset.action = "class";
+        btn.dataset.value = c.id;
+        wrap.appendChild(btn);
+      });
+      const back = document.createElement("button");
+      back.className = "btn";
+      back.textContent = "[Esc] zurueck";
+      back.addEventListener("click", () => {
+        if (state.currentItem) renderClassButtons(state.currentItem);
+      });
+      wrap.appendChild(back);
+    } catch (e) {
+      console.error("drilldown failed", e);
+    }
+  }
+
 
   // ---------- Sending ---------------------------------------------------
 
@@ -206,11 +322,25 @@
 
   function handleKeypress(e) {
     if (e.target && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA")) {
+      // Im Sucheingabe-Feld: nur Esc abfangen
+      if (e.key === "Escape") {
+        e.target.blur();
+      }
       return;
     }
     const k = e.key.toLowerCase();
     if (k === "y") return sendAnswer("yes");
-    if (k === "n") return sendAnswer("no");
+    if (k === "n") {
+      // Im class-Level: "n" = none of these (geht zu manueller Eingabe)
+      if (state.currentItem && state.currentItem.level === "class") {
+        const cls = prompt("Klasse manuell eingeben (oder leer fuer Skip):");
+        if (cls && cls.trim().length > 0) {
+          sendAnswer("class", cls.trim());
+        }
+        return;
+      }
+      return sendAnswer("no");
+    }
     if (k === " " || k === "spacebar") {
       e.preventDefault();
       return sendSkip();
@@ -223,11 +353,33 @@
       }
       return;
     }
+    if (k === "/") {
+      e.preventDefault();
+      const input = $("class-filter-input");
+      if (input) {
+        input.focus();
+        input.select();
+      }
+      return;
+    }
+    if (k === "d") {
+      // Drill-Down zur aktuellen group-Klasse
+      const item = state.currentItem;
+      if (item && item.suggested_class && item.suggested_class.startsWith("group/")) {
+        return showDrillDown(item.suggested_class);
+      }
+      return;
+    }
     if (/^[1-5]$/.test(k)) {
       const idx = parseInt(k, 10) - 1;
       const item = state.currentItem;
-      if (item && item.top_k && item.top_k[idx]) {
+      if (!item) return;
+      // Top-K aus Suggestions, fallback auf state.classes
+      if (item.top_k && item.top_k[idx]) {
         return sendAnswer("class", item.top_k[idx][0]);
+      }
+      if (state.classes && state.classes[idx]) {
+        return sendAnswer("class", state.classes[idx].id);
       }
     }
   }
@@ -242,8 +394,19 @@
       if (!action) return;
       if (action === "yes") return sendAnswer("yes");
       if (action === "no") return sendAnswer("no");
+      if (action === "answer-no") {
+        const cls = prompt("Klasse manuell eingeben (oder Abbruch fuer Skip):");
+        if (cls && cls.trim().length > 0) sendAnswer("class", cls.trim());
+        return;
+      }
       if (action === "skip") return sendSkip();
       if (action === "undo") return sendUndo();
+      if (action === "edit") {
+        const cls = prompt("Klasse eingeben:");
+        if (cls && cls.trim().length > 0) sendAnswer("class", cls.trim());
+        return;
+      }
+      if (action === "drill") return showDrillDown(t.dataset.value || "");
       if (action === "class") return sendAnswer("class", t.dataset.value || "");
     });
   }
@@ -251,7 +414,7 @@
   function init() {
     bindButtons();
     window.addEventListener("keydown", handleKeypress);
-    refreshAll();
+    fetchClasses().then(() => refreshAll());
     setInterval(updateStatus, 5000);
     setInterval(() => {
       if (!state.currentItem) fetchQueue();

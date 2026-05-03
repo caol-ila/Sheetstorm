@@ -117,6 +117,8 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/app.js", get(app_js))
         .route("/style.css", get(style_css))
         .route("/api/status", get(api_status))
+        .route("/api/classes", get(api_classes))
+        .route("/api/classes/drilldown/:group_id", get(api_classes_drilldown))
         .route("/api/queue/next", get(api_queue_next))
         .route("/api/queue/answer", post(api_queue_answer))
         .route("/api/queue/skip", post(api_queue_skip))
@@ -169,6 +171,39 @@ async fn api_status(State(state): State<Arc<AppState>>) -> Json<StatusResponse> 
         elements: pipeline.elements.len(),
         labels,
     })
+}
+
+/// Liefert die hierarchische Klassen-Liste fuer das Klassifikations-Dropdown.
+/// Default: nur Top-Level (`group/...`) — die direkt waehlbaren Klassen.
+/// `?include_atoms=1` liefert zusaetzlich die atomaren Klassen.
+#[derive(Deserialize)]
+pub struct ClassesQuery {
+    #[serde(default)]
+    pub include_atoms: Option<u8>,
+    #[serde(default)]
+    pub include_phrases: Option<u8>,
+}
+
+async fn api_classes(Query(q): Query<ClassesQuery>) -> Json<Vec<crate::classes::ClassEntry>> {
+    use crate::classes::{all_classes, ClassLevel};
+    let include_atoms = q.include_atoms.unwrap_or(0) != 0;
+    let include_phrases = q.include_phrases.unwrap_or(0) != 0;
+    let classes: Vec<_> = all_classes()
+        .into_iter()
+        .filter(|c| match c.level {
+            ClassLevel::Group => true,
+            ClassLevel::Atom => include_atoms,
+            ClassLevel::Phrase => include_phrases,
+        })
+        .collect();
+    Json(classes)
+}
+
+/// Drill-Down einer Group-Klasse zu ihren atomaren Sub-Klassen.
+async fn api_classes_drilldown(
+    AxumPath(group_id): AxumPath<String>,
+) -> Json<Vec<crate::classes::ClassEntry>> {
+    Json(crate::classes::drill_down(&group_id))
 }
 
 async fn api_queue_next(
