@@ -20,6 +20,13 @@
     /// Custom + haeufig genutzte Klassen aus der DB ({id, display_name, count, custom}).
     /// Werden zu state.classes gemerged und priorisieren Top-5.
     recentClasses: [],
+    /// Stabile Hotkey-Belegung (Hotkey 1-5 -> {id, display, count}).
+    /// Bleibt zwischen Class-Items konstant, damit Hotkey 1 immer dieselbe
+    /// Klasse aufruft. Aenderungen werden dem User als Banner angekuendigt.
+    lockedTopK: null,
+    /// Pending Update-Vorschlag fuer lockedTopK (wenn neue Klassen
+    /// haeufiger werden) — wird im Banner angezeigt, User kann anwenden.
+    pendingTopK: null,
   };
 
   // ---------- Utility ---------------------------------------------------
@@ -178,7 +185,34 @@
         (item.suggested_class ? " · suggested " + item.suggested_class : ""),
     );
 
+    // Element-Info (bbox-Groesse) async holen und anzeigen — hilft dabei
+    // unrealistisch grosse Detektionen zu erkennen.
+    if (item.level !== "line" && item.element_id) {
+      fetchElementInfo(item.element_id);
+    } else {
+      setText("element-info", "");
+    }
+
     renderClassButtons(item);
+  }
+
+  async function fetchElementInfo(eid) {
+    try {
+      const info = await jsonGet("/api/element/" + encodeURIComponent(eid) + "/info");
+      const b = info.bbox;
+      const sys = info.system_size;
+      let warn = "";
+      if (b && sys && (b[2] > sys[0] * 0.85 || b[3] > sys[1] * 1.5)) {
+        warn = " ⚠ verdächtig groß";
+      }
+      setText(
+        "element-info",
+        "Bbox " + (b ? b[2] + "×" + b[3] + "px @ (" + b[0] + "," + b[1] + ")" : "?") +
+          " · System " + (sys ? sys[0] + "×" + sys[1] : "?") + warn,
+      );
+    } catch (e) {
+      setText("element-info", "");
+    }
   }
 
   // (renderContextImages entfernt — Kontext kommt jetzt direkt vom Server)
@@ -202,45 +236,93 @@
       return id;
     };
 
-    // Top-5 (Hotkey 1-5) — bevorzuge Recent-Klassen aus der DB
-    // (User-Praeferenz, inkl. Custom). Fallback: server-seitiges top_k oder
-    // erste 5 aus state.classes.
-    let topK;
-    if (state.recentClasses.length >= 5) {
-      topK = state.recentClasses.slice(0, 5).map((c) => ({
+    // -- Stabile Hotkey-Belegung --------------------------------------
+    //
+    // 1 sollte zwischen aufeinanderfolgenden Class-Items dieselbe Klasse
+    // aufrufen. Wir frieren daher state.lockedTopK ein und aktualisieren
+    // ihn NUR auf User-Wunsch (oder beim allerersten Class-Item).
+    //
+    // Wenn der DB-State sich aendert (z.B. eine neue Klasse wird haeufig
+    // verwendet), faellt das in pendingTopK und wird via Banner angezeigt.
+    const computeServerTopK = () => {
+      if (state.recentClasses.length >= 5) {
+        return state.recentClasses.slice(0, 5).map((c) => ({
+          id: c.id,
+          display: c.display_name,
+          count: c.count,
+        }));
+      }
+      if (item.top_k && item.top_k.length > 0) {
+        return item.top_k.slice(0, 5).map((e) => ({
+          id: e[0],
+          display: displayFor(e[0]),
+          count: 0,
+        }));
+      }
+      return state.classes.slice(0, 5).map((c) => ({
         id: c.id,
-        score: 0,
         display: c.display_name,
-        count: c.count,
+        count: 0,
       }));
-    } else if (item.top_k && item.top_k.length > 0) {
-      topK = item.top_k.slice(0, 5).map((e) => ({
-        id: e[0],
-        score: e[1],
-        display: displayFor(e[0]),
-      }));
+    };
+
+    const serverTopK = computeServerTopK();
+
+    if (!state.lockedTopK || state.lockedTopK.length === 0) {
+      // Erstes Class-Item: locken
+      state.lockedTopK = serverTopK;
+      state.pendingTopK = null;
     } else {
-      topK = state.classes.slice(0, 5).map((c) => ({
-        id: c.id,
-        score: 0,
-        display: c.display_name,
-      }));
+      // Pruefen ob sich die SET der IDs geaendert hat (neue rein / alte raus)
+      const lockedIds = new Set(state.lockedTopK.map((e) => e.id));
+      const serverIds = new Set(serverTopK.map((e) => e.id));
+      const newComers = serverTopK.filter((e) => !lockedIds.has(e.id));
+      const droppedOut = state.lockedTopK.filter((e) => !serverIds.has(e.id));
+      if (newComers.length > 0 || droppedOut.length > 0) {
+        state.pendingTopK = serverTopK;
+      } else {
+        state.pendingTopK = null;
+        // Counts aktualisieren, Reihenfolge bleibt stabil.
+        state.lockedTopK = state.lockedTopK.map((e) => {
+          const fresh = serverTopK.find((s) => s.id === e.id);
+          return fresh ? { ...e, count: fresh.count } : e;
+        });
+      }
     }
+
+    // Banner mit Diff-Info (nur wenn pending Update vorliegt)
+    if (state.pendingTopK) {
+      const newComers = state.pendingTopK.filter(
+        (e) => !state.lockedTopK.some((l) => l.id === e.id),
+      );
+      const droppedOut = state.lockedTopK.filter(
+        (l) => !state.pendingTopK.some((e) => e.id === l.id),
+      );
+      const banner = document.createElement("div");
+      banner.className = "topk-banner";
+      const newList = newComers
+        .map((e) => `<strong>${e.display}</strong> (${e.count}×)`)
+        .join(", ");
+      const dropList = droppedOut.map((e) => `${e.display}`).join(", ");
+      banner.innerHTML =
+        '<span class="topk-banner-title">⚡ Neue häufige Klasse:</span> ' +
+        (newList || "—") +
+        (dropList ? ` &nbsp;·&nbsp; rausfallen: ${dropList}` : "") +
+        ' <button class="btn btn-small" data-action="apply-topk">[t] Übernehmen</button>' +
+        ' <button class="btn btn-small" data-action="dismiss-topk">Behalten</button>';
+      wrap.appendChild(banner);
+    }
+
+    const topK = state.lockedTopK;
+
     const topWrap = document.createElement("div");
     topWrap.className = "class-top5";
-    const usingRecent = state.recentClasses.length >= 5;
-    topWrap.innerHTML = "<h3>" +
-      (usingRecent ? "Häufig verwendet" : "Top 5") +
-      " (Hotkey 1–5)</h3>";
+    topWrap.innerHTML =
+      "<h3>Häufig verwendet (Hotkey 1–5) <span class='hint'>· stabile Reihenfolge</span></h3>";
     topK.forEach((entry, idx) => {
       const btn = document.createElement("button");
       btn.className = "btn btn-top";
-      let suffix = "";
-      if (entry.count) {
-        suffix = " (" + entry.count + "×)";
-      } else if (entry.score > 0) {
-        suffix = " (" + (entry.score * 100).toFixed(0) + "%)";
-      }
+      const suffix = entry.count > 0 ? " (" + entry.count + "×)" : "";
       btn.textContent = (idx + 1) + ". " + entry.display + suffix;
       btn.dataset.action = "class";
       btn.dataset.value = entry.id;
@@ -309,6 +391,18 @@
       '<button class="btn" data-action="edit">[e] Eigene Klasse</button>' +
       '<button class="btn" data-action="skip">[Space] Skip</button>';
     wrap.appendChild(special);
+  }
+
+  /// Wendet pendingTopK an und macht ihn zur neuen lockedTopK-Belegung.
+  function applyPendingTopK() {
+    if (!state.pendingTopK) return;
+    state.lockedTopK = state.pendingTopK;
+    state.pendingTopK = null;
+    if (state.currentItem) renderClassButtons(state.currentItem);
+  }
+  function dismissPendingTopK() {
+    state.pendingTopK = null;
+    if (state.currentItem) renderClassButtons(state.currentItem);
   }
 
   async function fetchClasses() {
@@ -516,13 +610,22 @@
       const idx = parseInt(k, 10) - 1;
       const item = state.currentItem;
       if (!item) return;
-      // Top-K aus Suggestions, fallback auf state.classes
+      // Stabile Hotkey-Belegung: zuerst lockedTopK (wenn class-Level),
+      // dann server-Top-K, dann state.classes.
+      if (item.level === "class" && state.lockedTopK && state.lockedTopK[idx]) {
+        return sendAnswer("class", state.lockedTopK[idx].id);
+      }
       if (item.top_k && item.top_k[idx]) {
         return sendAnswer("class", item.top_k[idx][0]);
       }
       if (state.classes && state.classes[idx]) {
         return sendAnswer("class", state.classes[idx].id);
       }
+    }
+    if (k === "t" && state.pendingTopK) {
+      // Top-5 Update anwenden
+      applyPendingTopK();
+      return;
     }
   }
 
@@ -548,6 +651,8 @@
         if (cls && cls.trim().length > 0) sendAnswer("class", cls.trim());
         return;
       }
+      if (action === "apply-topk") return applyPendingTopK();
+      if (action === "dismiss-topk") return dismissPendingTopK();
       if (action === "drill") return showDrillDown(t.dataset.value || "");
       if (action === "class") return sendAnswer("class", t.dataset.value || "");
     });

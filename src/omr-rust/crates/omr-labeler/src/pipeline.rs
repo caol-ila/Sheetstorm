@@ -173,6 +173,15 @@ impl PipelineState {
                 // 3. Standalone CC-Rects die NICHT von einer Group abgedeckt
                 //    sind (Clefs, KeySigs, TimeSigs, isolierte Symbole)
                 //    — gemerged via merge_close_rects (4/4-Taktangabe!)
+                //
+                // SANITY-CHECK fuer logical_groups:
+                // Manche Detektoren liefern absurd grosse Bboxes (z.B. h=2153px
+                // statt 60px). Solche Groups schluck en alle Noten in einen
+                // einzigen Riesen-Block und kosten dem User damit jegliche
+                // Granularitaet beim Labeln. Wir verwerfen sie hart und
+                // greifen stattdessen auf Standalone-CC-Rects zurueck.
+                let max_group_h = (system.line_spacing * 8.0).max(80.0) as u32; // ~ Note + Stem + Beam + Akzent + Schrift
+                let max_group_w = (system.line_spacing * 50.0).max(800.0) as u32; // bis zu lange Beam-Phrasen
                 let mut primary_elements: Vec<(Rect, Option<String>)> = Vec::new();
 
                 // Step A: Logical groups, mit Slur-Erweiterung wenn vorhanden
@@ -181,6 +190,23 @@ impl PipelineState {
 
                 for (gi, g) in logical_groups.iter().enumerate() {
                     if logical_used[gi] {
+                        continue;
+                    }
+                    // Sanity-Check: Grotesk grosse Groups (z.B. h=2153px in einem
+                    // 141px-System) entstehen wenn der Detector Beam-Bboxes oder
+                    // Notehead-Bboxes nicht korrekt aggregiert. Solche Groups
+                    // verschlucken die ganze Zeile in einen Riesen-Block und sind
+                    // nutzlos zum Labeln — verwerfen.
+                    if g.bbox.w > max_group_w || g.bbox.h > max_group_h {
+                        tracing::warn!(
+                            "{}: logical_group bbox out-of-bounds {}x{} (max {}x{}) — verwerfe",
+                            id,
+                            g.bbox.w,
+                            g.bbox.h,
+                            max_group_w,
+                            max_group_h
+                        );
+                        logical_used[gi] = true;
                         continue;
                     }
                     logical_used[gi] = true;
@@ -650,12 +676,16 @@ fn rect_iou_or_inside(r: &Rect, target: &Rect) -> f32 {
 /// Merget eng beieinander liegende Bboxes zu Element-Gruppen.
 ///
 /// Zwei Bboxes werden gemerged wenn:
-/// - vertikal überlappend ODER fast überlappend (Lücke ≤ 0.5 × line_spacing)
-/// - horizontal nahe (Lücke ≤ 0.6 × line_spacing)
+/// - vertikal überlappend ODER fast überlappend (Lücke ≤ 0.4 × line_spacing)
+/// - horizontal nahe (Lücke ≤ 0.35 × line_spacing)
 ///
 /// Das löst u.a. das 4/4-Taktangabe-Problem: die zwei Ziffern sind getrennte
-/// Pixelinseln aber gehören als ein Element zusammen. Auch Akkorde werden
-/// dadurch zu einer Element-Bbox.
+/// Pixelinseln aber gehören als ein Element zusammen. Akkord-Köpfe werden
+/// dadurch vertikal zu einer Bbox vereint.
+///
+/// Die Schwellen sind bewusst klein gehalten, damit zwei *benachbarte*
+/// Noten / Akkorde / Beam-Gruppen NICHT mergen — sonst verlieren wir
+/// jegliche Note-Granularitaet beim Labeln.
 ///
 /// Iteration: Union-Find — repeat bis stabiler Zustand.
 fn merge_close_rects(rects: &[Rect], line_spacing: f32) -> Vec<Rect> {
@@ -680,8 +710,8 @@ fn merge_close_rects(rects: &[Rect], line_spacing: f32) -> Vec<Rect> {
         }
     }
 
-    let gap_x = (line_spacing * 0.6).max(3.0) as i32;
-    let gap_y = (line_spacing * 0.5).max(3.0) as i32;
+    let gap_x = (line_spacing * 0.35).max(2.0) as i32;
+    let gap_y = (line_spacing * 0.4).max(2.0) as i32;
     for i in 0..n {
         for j in (i + 1)..n {
             let a = &rects[i];
