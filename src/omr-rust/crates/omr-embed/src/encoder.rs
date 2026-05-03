@@ -202,6 +202,22 @@ fn block_normalize(cells: &[f32]) -> Vec<f32> {
 }
 
 // ── OnnxCnnEncoder (optional) ─────────────────────────────────────────────────
+//
+// Wraps a trained MobileNetV3-Small ONNX model produced by
+// tools/training/train_embedding.py.
+//
+// Input:  [1, 3, 64, 64] float32 (RGB, ImageNet-normalised)
+// Output: [1, 256] float32 (L2-normalised embedding)
+//
+// The encoder converts incoming GrayImage patches to 3-channel RGB by
+// replicating the grayscale channel, then applies ImageNet normalisation.
+
+/// ImageNet channel mean (R, G, B) — used by `OnnxCnnEncoder`.
+#[cfg(feature = "cnn")]
+const IMAGENET_MEAN: [f32; 3] = [0.485, 0.456, 0.406];
+/// ImageNet channel std (R, G, B) — used by `OnnxCnnEncoder`.
+#[cfg(feature = "cnn")]
+const IMAGENET_STD: [f32; 3] = [0.229, 0.224, 0.225];
 
 #[cfg(feature = "cnn")]
 pub struct OnnxCnnEncoder {
@@ -218,12 +234,16 @@ pub struct OnnxCnnEncoder {
 
 #[cfg(feature = "cnn")]
 impl OnnxCnnEncoder {
+    /// Load an ONNX model from a file path.
+    ///
+    /// The model must accept `[1, 3, 64, 64]` float32 input (RGB, ImageNet-normalised)
+    /// and produce `[1, dim]` float32 output (L2-normalised embeddings).
     pub fn from_path(model_path: &std::path::Path) -> Result<Self, EncoderError> {
         use tract_onnx::prelude::*;
         let model = tract_onnx::onnx()
             .model_for_path(model_path)
             .map_err(|e| EncoderError::OnnxLoad(e.to_string()))?
-            .with_input_fact(0, f32::fact([1, 1, 64, 64]).into())
+            .with_input_fact(0, f32::fact([1, 3, 64, 64]).into())
             .map_err(|e| EncoderError::OnnxLoad(e.to_string()))?
             .into_optimized()
             .map_err(|e| EncoderError::OnnxLoad(e.to_string()))?
@@ -232,12 +252,13 @@ impl OnnxCnnEncoder {
         Ok(Self { model, dim: 256 })
     }
 
+    /// Load an ONNX model from raw bytes (e.g. via `include_bytes!`).
     pub fn from_bytes(model_bytes: &[u8]) -> Result<Self, EncoderError> {
         use tract_onnx::prelude::*;
         let model = tract_onnx::onnx()
             .model_for_read(&mut std::io::Cursor::new(model_bytes))
             .map_err(|e| EncoderError::OnnxLoad(e.to_string()))?
-            .with_input_fact(0, f32::fact([1, 1, 64, 64]).into())
+            .with_input_fact(0, f32::fact([1, 3, 64, 64]).into())
             .map_err(|e| EncoderError::OnnxLoad(e.to_string()))?
             .into_optimized()
             .map_err(|e| EncoderError::OnnxLoad(e.to_string()))?
@@ -245,28 +266,72 @@ impl OnnxCnnEncoder {
             .map_err(|e| EncoderError::OnnxLoad(e.to_string()))?;
         Ok(Self { model, dim: 256 })
     }
+
+    /// Load the pre-trained symbol encoder bundled in the crate assets.
+    ///
+    /// The ONNX file is embedded at compile time via `include_bytes!` when
+    /// `assets/symbol_encoder_v1.onnx` is present (detected by `build.rs`).
+    ///
+    /// To generate the model:
+    /// ```text
+    /// cd tools/training
+    /// python train_embedding.py --corpus data/synthetic_corpus_v1/single
+    /// cp models/symbol_encoder_v1.onnx \
+    ///    src/omr-rust/crates/omr-embed/assets/symbol_encoder_v1.onnx
+    /// ```
+    #[cfg(has_embedded_model)]
+    pub fn embedded() -> Result<Self, EncoderError> {
+        const MODEL_BYTES: &[u8] =
+            include_bytes!("../assets/symbol_encoder_v1.onnx");
+        Self::from_bytes(MODEL_BYTES)
+    }
+
+    /// Placeholder returned when the embedded model was not compiled in.
+    #[cfg(not(has_embedded_model))]
+    pub fn embedded() -> Result<Self, EncoderError> {
+        Err(EncoderError::OnnxLoad(
+            "Embedded model not compiled in. \
+             Generate it with: python tools/training/train_embedding.py \
+             and copy models/symbol_encoder_v1.onnx to \
+             src/omr-rust/crates/omr-embed/assets/symbol_encoder_v1.onnx, \
+             then rebuild.".into(),
+        ))
+    }
 }
 
 #[cfg(feature = "cnn")]
 impl Encoder for OnnxCnnEncoder {
+    /// Embed a 64×64 grayscale patch.
+    ///
+    /// The grayscale channel is replicated to RGB, then ImageNet-normalised
+    /// before inference, matching the Python training pipeline.
     fn embed(&self, patch: &GrayImage) -> Result<Embedding, EncoderError> {
         use tract_onnx::prelude::*;
-        let resized = {
-            use crate::encoder::resize_nn;
-            resize_nn(patch, PATCH_SIZE, PATCH_SIZE)
-        };
-        let input: Tensor = tract_ndarray::Array4::from_shape_fn((1, 1, 64, 64), |(_, _, y, x)| {
-            resized.get_pixel(x as u32, y as u32)[0] as f32 / 255.0
-        })
+        let resized = resize_nn(patch, PATCH_SIZE, PATCH_SIZE);
+
+        // Convert grayscale → 3-channel RGB with ImageNet normalisation.
+        let input: Tensor = tract_ndarray::Array4::from_shape_fn(
+            (1, 3, PATCH_SIZE as usize, PATCH_SIZE as usize),
+            |(_, c, y, x)| {
+                let gray = resized.get_pixel(x as u32, y as u32)[0] as f32 / 255.0;
+                (gray - IMAGENET_MEAN[c]) / IMAGENET_STD[c]
+            },
+        )
         .into();
-        let outputs = self.model.run(tvec![input.into()])
+
+        let outputs = self
+            .model
+            .run(tvec![input.into()])
             .map_err(|e| EncoderError::OnnxInference(e.to_string()))?;
         let arr = outputs[0]
             .to_array_view::<f32>()
             .map_err(|e| EncoderError::OnnxInference(e.to_string()))?;
         let vec: Vec<f32> = arr.iter().copied().collect();
         if vec.len() != self.dim {
-            return Err(EncoderError::OutputShape { expected: self.dim, got: vec.len() });
+            return Err(EncoderError::OutputShape {
+                expected: self.dim,
+                got: vec.len(),
+            });
         }
         Ok(Embedding { vec, version: self.version().to_string() })
     }
