@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>OMR Labeler</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h1>OMR Labeler</h1>
+    <div class="status" id="status-bar">
+      <span id="stat-pdfs">PDFs: …</span>
+      <span id="stat-systems">Systems: …</span>
+      <span id="stat-elements">Elements: …</span>
+      <span id="stat-labels">Labels: …</span>
+    </div>
+  </header>
+  <main class="layout">
+    <section class="main-panel">
+      <div id="context-prev" class="context-strip"></div>
+      <div id="main-image" class="main-image">
+        <p class="empty">Loading next item…</p>
+      </div>
+      <div id="context-next" class="context-strip"></div>
+      <div id="action-bar" class="action-bar">
+        <button data-action="yes" class="btn yes">Yes (Y)</button>
+        <button data-action="no" class="btn no">No (N)</button>
+        <button data-action="skip" class="btn">Skip (Space)</button>
+        <button data-action="undo" class="btn">Undo (U)</button>
+      </div>
+      <div id="class-buttons" class="class-buttons hidden"></div>
+    </section>
+    <aside class="sidebar">
+      <h2>Hotkeys</h2>
+      <ul class="hotkey-list">
+        <li><kbd>Y</kbd> Yes</li>
+        <li><kbd>N</kbd> No</li>
+        <li><kbd>Space</kbd> Skip</li>
+        <li><kbd>U</kbd> Undo</li>
+        <li><kbd>1</kbd>–<kbd>5</kbd> Class shortcut</li>
+        <li><kbd>E</kbd> Edit class…</li>
+      </ul>
+      <h2>Progress</h2>
+      <div class="progress">
+        <div id="progress-bar" class="progress-bar"></div>
+      </div>
+      <p id="progress-text">0 / 0</p>
+      <h2>Current</h2>
+      <p id="current-info">—</p>
+    </aside>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>
