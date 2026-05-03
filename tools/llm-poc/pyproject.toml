@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "llm-omr-poc"
+version = "0.1.0"
+description = "GitHub Models / Azure AI Foundry Vision OMR evaluation POC"
+requires-python = ">=3.11"
+dependencies = [
+    "openai>=1.40.0",
+    "pymupdf>=1.24.0",
+    "Pillow>=10.0.0",
+    "python-Levenshtein>=0.25.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["poc/tests"]
+asyncio_mode = "auto"
+markers = [
+    "slow: marks tests as slow (deselect with '-m not slow')",
+    "requires_token: marks tests that require GITHUB_TOKEN",
+]

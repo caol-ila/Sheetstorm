@@ -1,0 +1,8 @@
+# Generated PNG renders of PDF pages (created by eval pipeline)
+# These are large binary files; regenerated automatically on each run
+src/.filestore/**/*.png
+
+# Python cache
+**/__pycache__/
+*.pyc
+*.pyo
