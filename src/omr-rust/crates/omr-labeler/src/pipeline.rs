@@ -8,7 +8,7 @@
 
 use anyhow::Result;
 use image::{DynamicImage, GrayImage, ImageBuffer, Luma};
-use omr_core::{Binary, Rect, StaffSystem};
+use omr_core::{Binary, Rect, StaffLine, StaffSystem};
 use omr_embed::{Encoder, HogEncoder};
 use std::path::{Path, PathBuf};
 
@@ -117,6 +117,18 @@ impl PipelineState {
                 );
                 let rects = detect_elements(&cropped_removed, system, top);
 
+                // Detect logical groups for suggested class labels.
+                let noteheads = omr_symbols::detect_noteheads(&staff_removed, std::slice::from_ref(system));
+                let stems = omr_symbols::stems::detect_stems(&staff_removed, &noteheads, system.line_spacing);
+                let beams = omr_symbols::detect_beams(&staff_removed, system.line_spacing);
+                let adjusted_system = adjust_system_to_crop(system, top);
+                let logical_groups = omr_symbols::detect_logical_groups(
+                    &noteheads,
+                    &stems,
+                    &beams,
+                    adjusted_system.line_spacing,
+                );
+
                 for (elt_idx, r) in rects.iter().enumerate() {
                     let patch = extract_patch(&cropped, r, 64);
                     let emb = encoder
@@ -124,12 +136,16 @@ impl PipelineState {
                         .map(|e| e.vec)
                         .unwrap_or_default();
                     let elt_id = format!("{}#e{}", id, elt_idx);
+                    let suggested_class = logical_groups.iter().find(|g| {
+                        let b = &g.bbox;
+                        r.x < b.x + b.w && r.x + r.w > b.x && r.y < b.y + b.h && r.y + r.h > b.y
+                    }).map(|g| g.class_id.clone());
                     self.elements.push(DetectedElement {
                         id: elt_id,
                         system_id: id.clone(),
                         bbox: *r,
                         patch,
-                        suggested_class: None,
+                        suggested_class,
                         hog_embedding: emb,
                     });
                 }
@@ -351,6 +367,25 @@ pub fn encode_png(img: &GrayImage) -> Result<Vec<u8>> {
     Ok(buf)
 }
 
+/// Passt ein StaffSystem an einen Y-Crop an: verschiebt alle y_per_x-Werte
+/// um `top_offset` nach oben (crop-relativ).
+fn adjust_system_to_crop(system: &StaffSystem, top_offset: u32) -> StaffSystem {
+    StaffSystem {
+        lines: system
+            .lines
+            .iter()
+            .map(|l| StaffLine {
+                y_per_x: l
+                    .y_per_x
+                    .iter()
+                    .map(|&y| y.saturating_sub(top_offset))
+                    .collect(),
+            })
+            .collect(),
+        line_spacing: system.line_spacing,
+        line_thickness: system.line_thickness,
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;

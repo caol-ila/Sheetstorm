@@ -450,6 +450,7 @@ pub struct PipelineOptions {
     /// Beams, Bars) und gibt sie im `PipelineResult.detections` zurück.
     /// Nötig für das Annotation-/Training-Tool. Default: true.
     pub collect_detections: bool,
+    pub rectify_systems: bool,
 }
 
 impl Default for PipelineOptions {
@@ -459,6 +460,7 @@ impl Default for PipelineOptions {
             trace_only: false,
             unet_model_path: None,
             collect_detections: true,
+            rectify_systems: false,
         }
     }
 }
