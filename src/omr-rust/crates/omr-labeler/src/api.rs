@@ -16,6 +16,7 @@
 //! - `GET  /api/export/corpus         ` → JSON-Export aller Labels
 
 use crate::active_learning::{Decision, LabelingQueue, Level, QueueItem};
+use crate::embedding_corpus::EmbeddingState;
 use crate::frontend::{APP_JS, INDEX_HTML, STYLE_CSS};
 use crate::persistence::{Label, LabelDb};
 use crate::pipeline::{encode_png, PipelineState};
@@ -42,11 +43,16 @@ use tower_http::cors::CorsLayer;
 ///   verwenden wir `std::sync::Mutex`, das `Sync` bereitstellt für
 ///   `T: Send`. Die Datenbankoperationen sind kurz und blockierend,
 ///   sodass das Halten des Mutex über `await`-Punkte vermieden wird.
+/// - `embedding` hält den Embedding-Zustand (Corpus + Index). Mutable
+///   Zugriffe (add_user_label, rebuild) benötigen exklusiven Zugriff
+///   via `tokio::sync::Mutex`.
 #[derive(Default)]
 pub struct AppState {
     pub pipeline: RwLock<PipelineState>,
     pub queue: RwLock<LabelingQueue>,
     pub db: Mutex<Option<LabelDb>>,
+    /// Embedding-Zustand für Active-Learning (optional; None = ohne Korpus).
+    pub embedding: Option<Arc<tokio::sync::Mutex<EmbeddingState>>>,
 }
 
 impl AppState {
@@ -59,7 +65,20 @@ impl AppState {
             pipeline: RwLock::new(PipelineState::new()),
             queue: RwLock::new(LabelingQueue::new()),
             db: Mutex::new(Some(db)),
+            embedding: None,
         }
+    }
+
+    /// Setzt den Embedding-State und verknüpft ihn mit der Queue.
+    pub async fn set_embedding(&self, emb: EmbeddingState) {
+        let arc = Arc::new(tokio::sync::Mutex::new(emb));
+        let mut queue = self.queue.write().await;
+        queue.embedding_state = Some(arc);
+    }
+
+    /// Liefert den Embedding-Arc aus der Queue (oder None).
+    pub async fn embedding_arc(&self) -> Option<Arc<tokio::sync::Mutex<EmbeddingState>>> {
+        self.queue.read().await.embedding_state.clone()
     }
 }
 
@@ -92,6 +111,9 @@ pub struct AnswerRequest {
     pub decision: String,
     #[serde(default)]
     pub value: Option<String>,
+    /// Optional: PNG-Bytes des Patches (base64-kodiert) für Embedding.
+    #[serde(default)]
+    pub patch_png: Option<Vec<u8>>,
 }
 
 #[derive(Deserialize)]
@@ -127,6 +149,9 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/api/element/:id/image", get(api_element_image))
         .route("/api/stats", get(api_stats))
         .route("/api/export/corpus", get(api_export_corpus))
+        .route("/api/labels/import", post(api_labels_import))
+        .route("/api/labels/export", post(api_labels_export))
+        .route("/api/embedding/stats", get(api_embedding_stats))
         .with_state(state)
         .layer(CorsLayer::permissive())
 }
@@ -267,27 +292,37 @@ async fn api_queue_answer(
         }
     };
 
-    // Item-Ref ermitteln (system_id oder element_id) bevor die Queue
-    // den Eintrag entfernt.
-    let item_ref = {
+    // Item-Ref und gecachten Patch ermitteln bevor die Queue den Eintrag entfernt.
+    let (item_ref, patch_png_opt) = {
         let queue = state.queue.read().await;
-        queue
-            .items
-            .iter()
-            .find(|it| it.id == req.item_id)
-            .map(|it| {
-                it.element_id
-                    .clone()
-                    .unwrap_or_else(|| it.system_id.clone())
-            })
-            .unwrap_or_else(|| format!("item-{}", req.item_id))
+        let item = queue.items.iter().find(|it| it.id == req.item_id);
+        let item_ref = item
+            .map(|it| it.element_id.clone().unwrap_or_else(|| it.system_id.clone()))
+            .unwrap_or_else(|| format!("item-{}", req.item_id));
+        let patch_png = item.and_then(|it| it.patch_png.clone());
+        (item_ref, patch_png)
     };
+
+    // Bei class-Entscheidung: Patch zum Embedding-Corpus hinzufügen.
+    if let Decision::Class(ref label) = dec {
+        let png_to_add = patch_png_opt.as_deref().or(req.patch_png.as_deref());
+        if let Some(png) = png_to_add {
+            if let Some(emb_arc) = state.embedding_arc().await {
+                let mut emb = emb_arc.lock().await;
+                if let Err(e) = emb.add_user_label(png, label).await {
+                    tracing::warn!("Embedding add_user_label fehlgeschlagen: {}", e);
+                }
+            }
+        }
+    }
 
     {
         let mut queue = state.queue.write().await;
         queue.answer(req.item_id, dec.clone());
         if queue.labeled_count % 10 == 0 {
-            queue.re_prioritize();
+            // Re-prioritize asynchronously — spawn so we don't block the handler.
+            // This is best-effort; errors are logged but not propagated.
+            let _ = queue.re_prioritize_with_embeddings().await;
         }
     }
 

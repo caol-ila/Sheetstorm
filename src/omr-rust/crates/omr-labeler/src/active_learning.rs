@@ -9,8 +9,11 @@
 //! `HashSet<u64>` der bereits bearbeiteten IDs. Re-Prioritisierung
 //! erfolgt durch Stabil-Sortieren nach Unsicherheit.
 
+use crate::embedding_corpus::EmbeddingState;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashSet, VecDeque};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 /// Welcher Aspekt eines Items wird gerade gelabelt.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Hash)]
@@ -44,6 +47,9 @@ pub struct QueueItem {
     pub element_id: Option<String>,
     pub suggested_class: Option<String>,
     pub top_k: Vec<(String, f32)>,
+    /// Optional gecachter Patch (PNG-Bytes) für Embedding-basierte Klassifikation.
+    #[serde(skip)]
+    pub patch_png: Option<Vec<u8>>,
 }
 
 /// Antwort des Annotators.
@@ -75,6 +81,8 @@ pub struct LabelingQueue {
     pub labeled_count: usize,
     pub last_resort: usize,
     next_id: u64,
+    /// Optional: geteilter Embedding-Zustand für HNSW-basierte Priorisierung.
+    pub embedding_state: Option<Arc<Mutex<EmbeddingState>>>,
 }
 
 impl LabelingQueue {
@@ -102,6 +110,7 @@ impl LabelingQueue {
             element_id,
             suggested_class: None,
             top_k: Vec::new(),
+            patch_png: None,
         });
         id
     }
@@ -169,6 +178,66 @@ impl LabelingQueue {
 
     pub fn is_empty(&self) -> bool {
         self.items.is_empty()
+    }
+
+    /// Re-priorisiert die Queue anhand der Embedding-Entropie.
+    ///
+    /// Falls `embedding_state` vorhanden ist, wird für jedes Element-Item
+    /// mit gecachtem `patch_png` die Shannon-Entropie berechnet und als
+    /// neue `uncertainty` gesetzt. Anschließend wird standard `re_prioritize()`
+    /// aufgerufen. Items ohne Patch werden unverändert gelassen.
+    pub async fn re_prioritize_with_embeddings(&mut self) -> anyhow::Result<()> {
+        let emb_arc = match self.embedding_state.clone() {
+            Some(a) => a,
+            None => {
+                self.re_prioritize();
+                return Ok(());
+            }
+        };
+
+        // Entropien vorab berechnen (Lock halten, Queue nicht mutieren).
+        let mut entropies: Vec<(u64, f32)> = Vec::new();
+        {
+            let mut emb = emb_arc.lock().await;
+            for item in self.items.iter() {
+                if let Some(png) = &item.patch_png {
+                    let ent = emb.entropy(png, 5).await.unwrap_or(item.uncertainty);
+                    entropies.push((item.id, ent));
+                }
+            }
+        }
+
+        // Uncertainties aktualisieren.
+        for (id, ent) in entropies {
+            if let Some(item) = self.items.iter_mut().find(|it| it.id == id) {
+                item.uncertainty = ent;
+            }
+        }
+
+        self.re_prioritize();
+        Ok(())
+    }
+
+    /// Berechnet Top-K-Vorschläge für ein Item via HNSW und speichert sie in `top_k`.
+    ///
+    /// `patch_png` muss der PNG-Bytes des Patches sein. Nach dem Aufruf hat das
+    /// Item `top_k` mit bis zu 5 Einträgen `(label, confidence)`.
+    pub async fn enrich_with_top_k(&mut self, item_id: u64, patch_png: &[u8]) -> anyhow::Result<()> {
+        let emb_arc = match self.embedding_state.clone() {
+            Some(a) => a,
+            None => return Ok(()),
+        };
+
+        let top_k = {
+            let mut emb = emb_arc.lock().await;
+            emb.knn_classify(patch_png, 5).await?
+        };
+
+        if let Some(item) = self.items.iter_mut().find(|it| it.id == item_id) {
+            item.top_k = top_k;
+            item.patch_png = Some(patch_png.to_vec());
+        }
+        Ok(())
     }
 }
 
