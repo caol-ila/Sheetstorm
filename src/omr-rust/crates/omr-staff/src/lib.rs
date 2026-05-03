@@ -18,8 +18,10 @@ use omr_core::{Binary, StaffLine, StaffSystem};
 use rayon::prelude::*;
 use tracing::{debug, info};
 
+pub mod rectify;
 pub mod removal;
 pub mod unet;
+pub use rectify::{rectify_all_systems, rectify_system, RectifiedSystem, NORMALIZED_SPACING};
 pub use removal::remove_staff;
 pub use unet::{try_remove_staff_unet, UnetStaffRemover};
 

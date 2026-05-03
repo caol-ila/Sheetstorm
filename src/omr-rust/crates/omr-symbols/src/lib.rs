@@ -44,6 +44,8 @@ pub use reader::{read_page_sequentially, read_system_sequentially, PageReadingSt
 pub use rests::{detect_rests, Rest, RestKind};
 pub use slurs::{detect_slurs, Slur};
 pub use template::{detect_noteheads_template_v2, detect_wholes_template, rerank_with_template};
+pub mod logical_groups;
+pub use logical_groups::{detect_logical_groups, class_id_for_group, LogicalGroup, LogicalGroupKind};
 
 /// Hauptfunktion: detektiere Noteheads in einem staff-line-removed Binary.
 /// `bin_original` wird genutzt um den Schlüssel/Vorzeichen-Bereich zu finden,

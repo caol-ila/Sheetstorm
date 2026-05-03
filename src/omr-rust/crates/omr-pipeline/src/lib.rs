@@ -84,6 +84,7 @@ pub struct PipelineResult {
     /// Optional: Detection-Bboxes für UI/Annotation. Nur gefüllt wenn
     /// `PipelineOptions.collect_detections == true`.
     pub detections: Option<detections::DetectionsResult>,
+    pub rectified_systems: Option<Vec<omr_staff::rectify::RectifiedSystem>>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -345,6 +346,7 @@ fn merge_two_results(left: PipelineResult, right: PipelineResult) -> PipelineRes
         timings,
         stats,
         detections,
+        rectified_systems: None,
     }
 }
 
@@ -388,10 +390,17 @@ fn process_gray_single(gray: GrayImage, opts: &PipelineOptions) -> Result<Pipeli
             timings: Timings { preprocessing_ms, staff_detection_ms, total_ms: total_t.elapsed().as_millis(), ..Default::default() },
             stats: Stats { deskew_angle_deg: deskew_angle, ..Default::default() },
             detections: None,
+            rectified_systems: None,
         });
     }
 
     let line_spacing = systems[0].line_spacing;
+    // 2b) Optional rectification.
+    let rectified = if opts.rectify_systems {
+        Some(omr_staff::rectify_all_systems(&gray, &systems))
+    } else {
+        None
+    };
     let line_thickness = systems[0].line_thickness;
 
     // 2b) Document-Type-Detection: gedruckt vs handschrift.
@@ -988,6 +997,7 @@ fn process_gray_single(gray: GrayImage, opts: &PipelineOptions) -> Result<Pipeli
             doc_nh_size_cv: nh_size_cv(&noteheads),
         },
         detections: detections_dump,
+        rectified_systems: rectified,
     })
 }
 
@@ -1262,6 +1272,7 @@ pub fn process_pdf(path: &Path, opts: &PipelineOptions) -> Result<PipelineResult
         timings: merged_timings,
         stats: merged_stats,
         detections: detections_dump,
+        rectified_systems: None,
     })
 }
 
