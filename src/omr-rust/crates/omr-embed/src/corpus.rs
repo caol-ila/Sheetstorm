@@ -295,7 +295,7 @@ fn bytes_to_f32s(b: &[u8]) -> Vec<f32> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::encoder::{Encoder, HogEncoder, FEATURE_LEN};
+    use crate::encoder::{Encoder, HogEncoder};
     use image::{GrayImage, Luma};
 
     fn dummy_patch(label: &str, source: PatchSource, embedding: Option<Embedding>) -> LabeledPatch {

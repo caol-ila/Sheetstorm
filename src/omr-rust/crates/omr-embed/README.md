@@ -18,19 +18,20 @@ GrayImage (64×64)
     │  Embedding { vec, version }
     ▼
 ┌─────────────────────────────┐
-│  EmbeddingIndex (HNSW)      │  instant-distance
-│  add() → build() → knn()    │
+│  EmbeddingIndex             │  linear scan (default)
+│  add() → build() → knn()    │  or HNSW via `hnsw` feature†
 │  knn_distribution()         │  → Distribution<ClassLabel>
 └─────────────────────────────┘
     ▲
 ┌─────────────────────────────┐
-│  Corpus (SQLite)            │  rusqlite + bundled SQLite
+│  Corpus (SQLite)            │  rusqlite + system SQLite
 │  add_patch / iter / count   │
 │  into_index(version)        │  → EmbeddingIndex
 └─────────────────────────────┘
 ```
 
-\* requires `--features cnn`
+\* requires `--features cnn`  
+† requires `--features hnsw` + MinGW toolchain with dlltool
 
 ## Quick Start
 
@@ -82,6 +83,7 @@ When migrating encoder versions, create a new corpus column and re-encode.
 
 | Flag | Effect |
 |------|--------|
+| `hnsw` | Enables `instant-distance` HNSW backend (requires MinGW `dlltool` on Windows GNU) |
 | `cnn` | Enables `OnnxCnnEncoder` (requires tract-onnx, ~50 MB) |
 
 ## HoG Descriptor Details
