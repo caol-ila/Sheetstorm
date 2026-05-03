@@ -1,0 +1,51 @@
+[package]
+name = "omr-labeler"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+# Standalone Active-Learning-Labeling-Tool für OMR.
+#
+# Dieses Crate enthält:
+# - Eine HTTP-API (axum) zum Bedienen der Labeling-Queue.
+# - Eingebettete Web-Frontend-Assets (HTML/CSS/JS).
+# - SQLite-basierte Persistenz (rusqlite, dynamisch gegen winsqlite3 wie
+#   im Workspace üblich — siehe `.cargo/config.toml`).
+# - Eine Pipeline-Hülle, die PDFs einliest, StaffSysteme erkennt und
+#   pro System Symbol-Patches (Connected Components) extrahiert.
+#
+# Das Tool ist bewusst self-contained gehalten: ein einziger Prozess
+# liefert Frontend + API, sodass der Annotator nur einen Befehl
+# ausführen muss.
+
+[[bin]]
+name = "omr-labeler"
+path = "src/main.rs"
+
+[dependencies]
+omr-core.workspace = true
+omr-staff.workspace = true
+omr-symbols.workspace = true
+omr-pipeline.workspace = true
+omr-sig.workspace = true
+omr-sig-store.workspace = true
+omr-embed.workspace = true
+axum.workspace = true
+tokio.workspace = true
+tower.workspace = true
+tower-http.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+image.workspace = true
+clap = { workspace = true }
+# rusqlite ohne `bundled`, um mit dem Workspace-Setup
+# (winsqlite3.dll, siehe `.cargo/config.toml`) konsistent zu bleiben.
+# omr-sig-store nutzt dieselbe Konfiguration.
+rusqlite = { version = "0.32", features = [] }
+pdfium-render.workspace = true
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full", "test-util"] }

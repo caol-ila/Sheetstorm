@@ -1,0 +1,198 @@
+/* OMR Labeler — Dark Mode, minimalist. */
+
+:root {
+  --bg: #111418;
+  --fg: #e8eaed;
+  --muted: #8a929b;
+  --accent: #4ea3ff;
+  --good: #34c759;
+  --bad: #ff453a;
+  --panel: #1a1d22;
+  --panel-light: #232830;
+  --border: #2a2f37;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif;
+  height: 100%;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+
+.topbar h1 {
+  margin: 0;
+  font-size: 1.05rem;
+  letter-spacing: 0.04em;
+}
+
+.status {
+  display: flex;
+  gap: 1rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  height: calc(100% - 56px);
+}
+
+.main-panel {
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  overflow: hidden;
+}
+
+.context-strip {
+  display: flex;
+  gap: 0.5rem;
+  height: 80px;
+  opacity: 0.4;
+  overflow-x: auto;
+}
+
+.context-strip img {
+  height: 100%;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
+.main-image {
+  flex: 1;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+}
+
+.main-image img {
+  max-width: 100%;
+  max-height: 100%;
+  image-rendering: pixelated;
+}
+
+.main-image .empty {
+  color: var(--muted);
+}
+
+.action-bar {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+.btn {
+  background: var(--panel-light);
+  border: 1px solid var(--border);
+  color: var(--fg);
+  padding: 0.6rem 1.2rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 600;
+  transition: background 0.1s ease;
+}
+
+.btn:hover {
+  background: #2c333d;
+}
+
+.btn.yes {
+  border-color: var(--good);
+}
+
+.btn.no {
+  border-color: var(--bad);
+}
+
+.class-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  justify-content: center;
+}
+
+.class-buttons.hidden {
+  display: none;
+}
+
+.sidebar {
+  background: var(--panel);
+  border-left: 1px solid var(--border);
+  padding: 1rem;
+  font-size: 0.9rem;
+  overflow-y: auto;
+}
+
+.sidebar h2 {
+  margin: 1rem 0 0.5rem 0;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.hotkey-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.hotkey-list li {
+  padding: 0.3rem 0;
+}
+
+kbd {
+  background: var(--panel-light);
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 0.1rem 0.4rem;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 0.8rem;
+  margin-right: 0.4rem;
+}
+
+.progress {
+  background: var(--panel-light);
+  border-radius: 6px;
+  overflow: hidden;
+  height: 10px;
+}
+
+.progress-bar {
+  background: var(--accent);
+  height: 100%;
+  width: 0;
+  transition: width 0.3s ease;
+}
+
+#progress-text {
+  margin: 0.4rem 0 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+#current-info {
+  color: var(--muted);
+  word-break: break-all;
+}
