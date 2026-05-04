@@ -74,6 +74,10 @@ impl PipelineState {
         // Dedupe-Map: `clean_name + size_kb` -> erster Pfad mit diesem Schluessel.
         let mut seen: std::collections::HashMap<String, PathBuf> =
             std::collections::HashMap::new();
+        // Subdir-Namen die wir komplett ueberspringen.
+        // _unerkannt: Junk-Scans aus dem User-Workflow.
+        // sheetstorm-output: bereits verarbeitete Output-Artefakte.
+        let skip_subdirs: &[&str] = &["_unerkannt", "sheetstorm-output"];
         while let Some(d) = stack.pop() {
             let entries = match std::fs::read_dir(&d) {
                 Ok(e) => e,
@@ -82,6 +86,14 @@ impl PipelineState {
             for entry in entries.flatten() {
                 let p = entry.path();
                 if p.is_dir() {
+                    let name = p
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .unwrap_or("");
+                    if skip_subdirs.iter().any(|s| s.eq_ignore_ascii_case(name)) {
+                        tracing::debug!("Skip-Subdir: {}", p.display());
+                        continue;
+                    }
                     stack.push(p);
                 } else if let Some(ext) = p.extension().and_then(|s| s.to_str()) {
                     if !ext.eq_ignore_ascii_case("pdf") {
