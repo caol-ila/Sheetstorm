@@ -52,6 +52,41 @@ impl Label {
     }
 }
 
+/// Eine vom User manuell gezogene Bounding-Box-Annotation.
+///
+/// Im Gegensatz zu `Label` (Y/N-Antworten zu vorhandenen Items) speichert
+/// `Annotation` die User-eigene Box-Position als Gold-Standard fuer
+/// Detector-Training. Koordinaten sind im *gerenderten Crop-Bild* des Systems
+/// (gleiche Skalierung wie /api/system/{id}/image).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Annotation {
+    pub id: Option<i64>,
+    pub system_id: String,
+    pub x: i32,
+    pub y: i32,
+    pub w: i32,
+    pub h: i32,
+    pub class_id: String,
+    pub created_at: String,
+    pub user_session: Option<String>,
+}
+
+impl Annotation {
+    pub fn new(system_id: impl Into<String>, x: i32, y: i32, w: i32, h: i32, class_id: impl Into<String>) -> Self {
+        Self {
+            id: None,
+            system_id: system_id.into(),
+            x,
+            y,
+            w,
+            h,
+            class_id: class_id.into(),
+            created_at: now_iso8601(),
+            user_session: None,
+        }
+    }
+}
+
 fn now_iso8601() -> String {
     // Vermeidet die `chrono`-Abhängigkeit. Nutzt SystemTime und
     // formatiert "YYYY-MM-DDTHH:MM:SSZ" via `humantime`-freier Variante.
@@ -121,6 +156,20 @@ impl LabelDb {
             );
             CREATE INDEX IF NOT EXISTS idx_labels_level ON labels(level);
             CREATE INDEX IF NOT EXISTS idx_labels_item_ref ON labels(item_ref);
+
+            CREATE TABLE IF NOT EXISTS annotations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                system_id TEXT NOT NULL,
+                x INTEGER NOT NULL,
+                y INTEGER NOT NULL,
+                w INTEGER NOT NULL,
+                h INTEGER NOT NULL,
+                class_id TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                user_session TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_annotations_system_id ON annotations(system_id);
+            CREATE INDEX IF NOT EXISTS idx_annotations_class_id ON annotations(class_id);
             "#,
         )?;
         Ok(())
@@ -245,6 +294,120 @@ impl LabelDb {
         }
         Ok(row)
     }
+
+    // ---- Annotation-CRUD ---------------------------------------------------
+
+    /// Speichert eine User-gezogene Annotation.
+    pub fn save_annotation(&self, ann: &Annotation) -> Result<i64> {
+        self.conn.execute(
+            "INSERT INTO annotations (system_id, x, y, w, h, class_id, created_at, user_session)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![
+                ann.system_id,
+                ann.x,
+                ann.y,
+                ann.w,
+                ann.h,
+                ann.class_id,
+                ann.created_at,
+                ann.user_session,
+            ],
+        )?;
+        Ok(self.conn.last_insert_rowid())
+    }
+
+    /// Aktualisiert die Klasse einer bestehenden Annotation (Reclassify).
+    pub fn update_annotation_class(&self, id: i64, class_id: &str) -> Result<()> {
+        self.conn.execute(
+            "UPDATE annotations SET class_id = ?1 WHERE id = ?2",
+            params![class_id, id],
+        )?;
+        Ok(())
+    }
+
+    /// Loescht eine Annotation.
+    pub fn delete_annotation(&self, id: i64) -> Result<()> {
+        self.conn
+            .execute("DELETE FROM annotations WHERE id = ?1", params![id])?;
+        Ok(())
+    }
+
+    /// Liefert alle Annotationen fuer ein System.
+    pub fn annotations_for_system(&self, system_id: &str) -> Result<Vec<Annotation>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, system_id, x, y, w, h, class_id, created_at, user_session
+             FROM annotations WHERE system_id = ?1 ORDER BY id ASC",
+        )?;
+        let rows = stmt.query_map(params![system_id], |row| {
+            Ok(Annotation {
+                id: Some(row.get(0)?),
+                system_id: row.get(1)?,
+                x: row.get(2)?,
+                y: row.get(3)?,
+                w: row.get(4)?,
+                h: row.get(5)?,
+                class_id: row.get(6)?,
+                created_at: row.get(7)?,
+                user_session: row.get(8)?,
+            })
+        })?;
+        let mut out = Vec::new();
+        for r in rows {
+            out.push(r?);
+        }
+        Ok(out)
+    }
+
+    /// Liefert pro System die Anzahl der Annotationen (fuer die System-Liste).
+    pub fn annotation_counts_per_system(&self) -> Result<Vec<(String, u64)>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT system_id, COUNT(*) FROM annotations GROUP BY system_id ORDER BY system_id",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            let sys: String = row.get(0)?;
+            let cnt: i64 = row.get(1)?;
+            Ok((sys, cnt.max(0) as u64))
+        })?;
+        let mut out = Vec::new();
+        for r in rows {
+            out.push(r?);
+        }
+        Ok(out)
+    }
+
+    /// Anzahl Annotationen insgesamt.
+    pub fn count_annotations(&self) -> Result<u64> {
+        let count: i64 = self
+            .conn
+            .query_row("SELECT COUNT(*) FROM annotations", [], |row| row.get(0))?;
+        Ok(count.max(0) as u64)
+    }
+
+    /// Liefert alle Annotationen (fuer Export).
+    pub fn get_all_annotations(&self) -> Result<Vec<Annotation>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, system_id, x, y, w, h, class_id, created_at, user_session
+             FROM annotations ORDER BY id ASC",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok(Annotation {
+                id: Some(row.get(0)?),
+                system_id: row.get(1)?,
+                x: row.get(2)?,
+                y: row.get(3)?,
+                w: row.get(4)?,
+                h: row.get(5)?,
+                class_id: row.get(6)?,
+                created_at: row.get(7)?,
+                user_session: row.get(8)?,
+            })
+        })?;
+        let mut out = Vec::new();
+        for r in rows {
+            out.push(r?);
+        }
+        Ok(out)
+    }
 }
 
 #[cfg(test)]
@@ -304,5 +467,33 @@ mod tests {
         }
         let recent = db.recent_class_decisions(3).unwrap();
         assert_eq!(recent.len(), 3);
+    }
+
+    #[test]
+    fn save_and_query_annotations() {
+        let db = LabelDb::open_in_memory().unwrap();
+        let id1 = db
+            .save_annotation(&Annotation::new("sys-1", 10, 20, 30, 40, "ton/viertel"))
+            .unwrap();
+        db.save_annotation(&Annotation::new("sys-1", 50, 20, 30, 40, "ton/achtel"))
+            .unwrap();
+        db.save_annotation(&Annotation::new("sys-2", 10, 20, 30, 40, "akkord/2_noten"))
+            .unwrap();
+
+        assert_eq!(db.count_annotations().unwrap(), 3);
+        let s1 = db.annotations_for_system("sys-1").unwrap();
+        assert_eq!(s1.len(), 2);
+        assert_eq!(s1[0].class_id, "ton/viertel");
+
+        db.update_annotation_class(id1, "ton/halbe").unwrap();
+        let s1 = db.annotations_for_system("sys-1").unwrap();
+        let updated = s1.iter().find(|a| a.id == Some(id1)).unwrap();
+        assert_eq!(updated.class_id, "ton/halbe");
+
+        db.delete_annotation(id1).unwrap();
+        assert_eq!(db.count_annotations().unwrap(), 2);
+
+        let counts = db.annotation_counts_per_system().unwrap();
+        assert_eq!(counts.len(), 2);
     }
 }

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OMR Labeler — Annotation</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body class="annotate-mode">
+  <header class="topbar">
+    <h1>🎼 Annotation-Modus</h1>
+    <nav class="topnav">
+      <a href="/">↩ Y/N-Queue</a>
+      <span id="ann-stats" class="muted">—</span>
+    </nav>
+  </header>
+
+  <main class="annotate-layout">
+    <aside id="ann-sidebar">
+      <h2>Notenzeilen</h2>
+      <p class="hint">Sortiert: am wenigsten annotiert zuerst.</p>
+      <input id="ann-filter" type="text" placeholder="Filter Lied/Seite..." />
+      <ul id="ann-system-list"></ul>
+    </aside>
+
+    <section id="ann-editor">
+      <div class="ann-toolbar">
+        <span id="ann-current-info">Wähle eine Notenzeile links</span>
+        <span class="ann-help">
+          <kbd>Click+Drag</kbd> = Box ziehen ·
+          <kbd>Click</kbd> auf graue Box = übernehmen ·
+          <kbd>Click</kbd> auf grüne Box = neu klassifizieren ·
+          <kbd>Del</kbd> oder Rechtsklick = löschen
+        </span>
+        <label class="ann-checkbox">
+          <input type="checkbox" id="ann-show-auto" checked />
+          Auto-Boxen anzeigen
+        </label>
+      </div>
+      <div id="ann-canvas-wrap">
+        <div id="ann-canvas-inner">
+          <img id="ann-system-img" alt="" />
+          <svg id="ann-overlay" xmlns="http://www.w3.org/2000/svg"></svg>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Class-Picker Popup -->
+  <div id="class-picker" class="class-picker hidden">
+    <div class="cp-inner">
+      <h3>Welche Klasse?</h3>
+      <div id="cp-top5" class="cp-top5"></div>
+      <input id="cp-search" type="text" placeholder="Suche oder freie Klasse..." autocomplete="off" />
+      <ul id="cp-results"></ul>
+      <div class="cp-actions">
+        <button id="cp-cancel" class="btn">[Esc] Abbrechen</button>
+        <button id="cp-delete" class="btn btn-danger hidden">[Del] Löschen</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/annotate.js"></script>
+</body>
+</html>

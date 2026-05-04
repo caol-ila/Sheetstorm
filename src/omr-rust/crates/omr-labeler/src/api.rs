@@ -20,8 +20,8 @@
 //! - `GET  /api/export/corpus         ` → JSON-Export aller Labels
 
 use crate::active_learning::{Decision, LabelingQueue, Level, QueueItem};
-use crate::frontend::{APP_JS, INDEX_HTML, STYLE_CSS};
-use crate::persistence::{Label, LabelDb};
+use crate::frontend::{ANNOTATE_HTML, ANNOTATE_JS, APP_JS, INDEX_HTML, STYLE_CSS};
+use crate::persistence::{Annotation, Label, LabelDb};
 use crate::pipeline::{encode_png, encode_png_rgb, PipelineState};
 use axum::{
     body::Body,
@@ -121,6 +121,9 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/index.html", get(index_html))
         .route("/app.js", get(app_js))
         .route("/style.css", get(style_css))
+        .route("/annotate", get(annotate_html))
+        .route("/annotate.html", get(annotate_html))
+        .route("/annotate.js", get(annotate_js))
         .route("/api/status", get(api_status))
         .route("/api/classes", get(api_classes))
         .route("/api/classes/drilldown/:group_id", get(api_classes_drilldown))
@@ -135,6 +138,11 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/api/element/:id/info", get(api_element_info))
         .route("/api/stats", get(api_stats))
         .route("/api/export/corpus", get(api_export_corpus))
+        .route("/api/annotation/systems", get(api_annotation_systems))
+        .route("/api/annotation/system/:id", get(api_annotation_for_system))
+        .route("/api/annotation/box", post(api_annotation_create))
+        .route("/api/annotation/box/:id", axum::routing::patch(api_annotation_update).delete(api_annotation_delete))
+        .route("/api/annotation/export", get(api_annotation_export))
         .with_state(state)
         .layer(CorsLayer::permissive())
 }
@@ -159,6 +167,20 @@ async fn style_css() -> impl IntoResponse {
     Response::builder()
         .header(header::CONTENT_TYPE, "text/css; charset=utf-8")
         .body(Body::from(STYLE_CSS))
+        .unwrap()
+}
+
+async fn annotate_html() -> impl IntoResponse {
+    Response::builder()
+        .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
+        .body(Body::from(ANNOTATE_HTML))
+        .unwrap()
+}
+
+async fn annotate_js() -> impl IntoResponse {
+    Response::builder()
+        .header(header::CONTENT_TYPE, "application/javascript; charset=utf-8")
+        .body(Body::from(ANNOTATE_JS))
         .unwrap()
 }
 
@@ -672,6 +694,196 @@ async fn api_export_corpus(
         }
     };
     Ok(Json(labels))
+}
+
+// ---- Annotation-API (User-gezogene Boxen) -----------------------------------
+
+#[derive(Serialize)]
+pub struct AnnotationSystemInfo {
+    pub system_id: String,
+    pub width: u32,
+    pub height: u32,
+    pub annotation_count: u64,
+    /// Anzahl auto-erkannter Elemente in diesem System (zur Orientierung).
+    pub auto_element_count: u64,
+}
+
+#[derive(Serialize)]
+pub struct AnnotationSystemsResponse {
+    pub systems: Vec<AnnotationSystemInfo>,
+}
+
+/// Liefert eine Liste aller Systeme mit Annotation-Counts. Sortiert nach
+/// `annotation_count` aufsteigend (am wenigsten annotiert zuerst), damit
+/// der User schnell unbearbeitete Systeme findet.
+async fn api_annotation_systems(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<AnnotationSystemsResponse>, (StatusCode, String)> {
+    let counts: HashMap<String, u64> = {
+        let guard = state.db.lock().expect("db mutex poisoned");
+        match guard.as_ref() {
+            Some(db) => db
+                .annotation_counts_per_system()
+                .map_err(internal)?
+                .into_iter()
+                .collect(),
+            None => HashMap::new(),
+        }
+    };
+    let pipeline = state.pipeline.read().await;
+    let mut auto_counts: HashMap<String, u64> = HashMap::new();
+    for elt in &pipeline.elements {
+        *auto_counts.entry(elt.system_id.clone()).or_insert(0) += 1;
+    }
+    let mut systems: Vec<AnnotationSystemInfo> = pipeline
+        .systems
+        .iter()
+        .map(|s| AnnotationSystemInfo {
+            system_id: s.id.clone(),
+            width: s.image.width(),
+            height: s.image.height(),
+            annotation_count: counts.get(&s.id).copied().unwrap_or(0),
+            auto_element_count: auto_counts.get(&s.id).copied().unwrap_or(0),
+        })
+        .collect();
+    // unbearbeitete zuerst, danach nach system_id
+    systems.sort_by(|a, b| {
+        a.annotation_count
+            .cmp(&b.annotation_count)
+            .then_with(|| a.system_id.cmp(&b.system_id))
+    });
+    Ok(Json(AnnotationSystemsResponse { systems }))
+}
+
+#[derive(Serialize)]
+pub struct AnnotationForSystemResponse {
+    pub system_id: String,
+    pub annotations: Vec<Annotation>,
+    /// Auto-Boxen des Systems (Element-Bboxes aus der Pipeline) — koennen
+    /// als Vorschlag fuer die manuelle Annotation verwendet werden.
+    pub auto_boxes: Vec<AutoBox>,
+}
+
+#[derive(Serialize)]
+pub struct AutoBox {
+    pub element_id: String,
+    pub x: u32,
+    pub y: u32,
+    pub w: u32,
+    pub h: u32,
+    pub suggested_class: Option<String>,
+}
+
+async fn api_annotation_for_system(
+    State(state): State<Arc<AppState>>,
+    AxumPath(system_id): AxumPath<String>,
+) -> Result<Json<AnnotationForSystemResponse>, (StatusCode, String)> {
+    let annotations = {
+        let guard = state.db.lock().expect("db mutex poisoned");
+        match guard.as_ref() {
+            Some(db) => db.annotations_for_system(&system_id).map_err(internal)?,
+            None => Vec::new(),
+        }
+    };
+    let pipeline = state.pipeline.read().await;
+    let auto_boxes: Vec<AutoBox> = pipeline
+        .elements
+        .iter()
+        .filter(|e| e.system_id == system_id)
+        .map(|e| AutoBox {
+            element_id: e.id.clone(),
+            x: e.bbox.x,
+            y: e.bbox.y,
+            w: e.bbox.w,
+            h: e.bbox.h,
+            suggested_class: e.suggested_class.clone(),
+        })
+        .collect();
+    Ok(Json(AnnotationForSystemResponse {
+        system_id,
+        annotations,
+        auto_boxes,
+    }))
+}
+
+#[derive(Deserialize)]
+pub struct AnnotationCreateRequest {
+    pub system_id: String,
+    pub x: i32,
+    pub y: i32,
+    pub w: i32,
+    pub h: i32,
+    pub class_id: String,
+}
+
+async fn api_annotation_create(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<AnnotationCreateRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    if req.w <= 0 || req.h <= 0 {
+        return Err((StatusCode::BAD_REQUEST, "w/h must be positive".to_string()));
+    }
+    if req.class_id.trim().is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "class_id required".to_string()));
+    }
+    let id = {
+        let guard = state.db.lock().expect("db mutex poisoned");
+        match guard.as_ref() {
+            Some(db) => {
+                let ann = Annotation::new(
+                    req.system_id.clone(),
+                    req.x,
+                    req.y,
+                    req.w,
+                    req.h,
+                    req.class_id.clone(),
+                );
+                db.save_annotation(&ann).map_err(internal)?
+            }
+            None => 0,
+        }
+    };
+    Ok(Json(serde_json::json!({ "ok": true, "id": id })))
+}
+
+#[derive(Deserialize)]
+pub struct AnnotationUpdateRequest {
+    pub class_id: String,
+}
+
+async fn api_annotation_update(
+    State(state): State<Arc<AppState>>,
+    AxumPath(id): AxumPath<i64>,
+    Json(req): Json<AnnotationUpdateRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let guard = state.db.lock().expect("db mutex poisoned");
+    if let Some(db) = guard.as_ref() {
+        db.update_annotation_class(id, &req.class_id)
+            .map_err(internal)?;
+    }
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+async fn api_annotation_delete(
+    State(state): State<Arc<AppState>>,
+    AxumPath(id): AxumPath<i64>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let guard = state.db.lock().expect("db mutex poisoned");
+    if let Some(db) = guard.as_ref() {
+        db.delete_annotation(id).map_err(internal)?;
+    }
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+async fn api_annotation_export(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<Vec<Annotation>>, (StatusCode, String)> {
+    let guard = state.db.lock().expect("db mutex poisoned");
+    let out = match guard.as_ref() {
+        Some(db) => db.get_all_annotations().map_err(internal)?,
+        None => Vec::new(),
+    };
+    Ok(Json(out))
 }
 
 fn internal<E: std::fmt::Display>(e: E) -> (StatusCode, String) {

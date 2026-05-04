@@ -378,3 +378,57 @@ kbd {
   color: var(--muted);
   margin: 0.3rem 0 0;
 }
+
+/* ====== Annotation-Modus ====== */
+.annotate-mode { background: #0e1116; }
+.topnav { display: flex; gap: 1rem; align-items: center; }
+.topnav a { color: var(--accent); text-decoration: none; padding: 0.3rem 0.6rem; border: 1px solid var(--border); border-radius: 4px; }
+.topnav a:hover { background: var(--panel-light); }
+
+.annotate-layout { display: grid; grid-template-columns: 320px 1fr; height: calc(100vh - 60px); gap: 0; }
+#ann-sidebar { background: var(--panel); border-right: 1px solid var(--border); overflow-y: auto; padding: 0.75rem; }
+#ann-sidebar h2 { margin: 0 0 0.5rem 0; font-size: 1rem; }
+#ann-sidebar .hint { font-size: 0.78rem; color: var(--muted); margin: 0.2rem 0 0.5rem; }
+#ann-filter { width: 100%; padding: 0.4rem; background: var(--panel-light); color: var(--fg); border: 1px solid var(--border); border-radius: 4px; margin-bottom: 0.5rem; }
+#ann-system-list { list-style: none; padding: 0; margin: 0; }
+.ann-sys { padding: 0.4rem 0.5rem; cursor: pointer; border-radius: 4px; display: flex; align-items: center; justify-content: space-between; gap: 0.4rem; font-size: 0.85rem; }
+.ann-sys:hover { background: var(--panel-light); }
+.ann-sys.active { background: #1f3050; color: var(--fg); }
+.ann-sys-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.badge { background: var(--panel-light); color: var(--muted); padding: 0.05rem 0.4rem; border-radius: 10px; font-size: 0.72rem; }
+.badge-done { background: #134f1c; color: #6ee07e; }
+
+#ann-editor { display: flex; flex-direction: column; background: var(--bg); }
+.ann-toolbar { display: flex; gap: 1rem; align-items: center; padding: 0.5rem 1rem; background: var(--panel); border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.ann-help { color: var(--muted); font-size: 0.78rem; }
+.ann-checkbox { color: var(--muted); font-size: 0.85rem; display: flex; align-items: center; gap: 0.3rem; }
+#ann-canvas-wrap { flex: 1; overflow: auto; padding: 1rem; }
+#ann-canvas-inner { position: relative; display: inline-block; }
+#ann-system-img { display: block; max-width: 100%; user-select: none; -webkit-user-drag: none; }
+#ann-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; cursor: crosshair; }
+
+.auto-box { fill: rgba(160, 160, 160, 0.05); stroke: #6a7280; stroke-width: 1.5; stroke-dasharray: 3 2; cursor: pointer; }
+.auto-box:hover { fill: rgba(160, 160, 160, 0.18); stroke: #b9bcc7; }
+.manual-box { fill: rgba(74, 222, 128, 0.13); stroke: #22c55e; stroke-width: 2; cursor: pointer; }
+.manual-box:hover { fill: rgba(74, 222, 128, 0.28); stroke: #4ade80; }
+.pending-box { fill: rgba(74, 163, 255, 0.18); stroke: #4ea3ff; stroke-width: 2; pointer-events: none; }
+.manual-label { fill: #4ade80; font-size: 11px; font-family: ui-monospace, "Cascadia Code", Consolas, monospace; pointer-events: none; }
+
+/* Class-Picker Popup */
+.class-picker { position: fixed; inset: 0; background: rgba(0,0,0,0.55); display: flex; align-items: center; justify-content: center; z-index: 100; }
+.class-picker.hidden { display: none; }
+.cp-inner { width: min(560px, 92vw); max-height: 80vh; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; display: flex; flex-direction: column; gap: 0.5rem; overflow: auto; }
+.cp-inner h3 { margin: 0; }
+.cp-top5 { display: grid; grid-template-columns: 1fr; gap: 0.25rem; }
+.cp-top5 .btn-top { text-align: left; }
+#cp-search { padding: 0.5rem; background: var(--panel-light); color: var(--fg); border: 1px solid var(--border); border-radius: 4px; }
+#cp-results { list-style: none; padding: 0; margin: 0; max-height: 35vh; overflow-y: auto; }
+#cp-results li { padding: 0.3rem 0.5rem; cursor: pointer; border-radius: 4px; font-size: 0.88rem; }
+#cp-results li:hover { background: var(--panel-light); }
+.cp-actions { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 0.5rem; }
+.btn-danger { background: #5a1a1a; color: #ff8c8c; border: 1px solid #842525; }
+.btn-danger:hover { background: #6e2020; }
+.muted { color: var(--muted); }
+
+.topbar-link { color: var(--accent); text-decoration: none; padding: 0.25rem 0.6rem; border: 1px solid var(--accent); border-radius: 4px; font-size: 0.85rem; margin-left: 0.5rem; }
+.topbar-link:hover { background: var(--accent); color: #0e1116; }
