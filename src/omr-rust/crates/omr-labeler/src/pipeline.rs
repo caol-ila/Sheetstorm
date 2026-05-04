@@ -59,6 +59,10 @@ impl PipelineState {
     /// - Bekannte Multi-Staff-Stuecke (Klavier-Begleitung), die kein Blasmusik-
     ///   Material sind (Dichterliebe, Schumann, Klavier).
     /// - Files unter 1 KB (offensichtlich kaputt)
+    /// - **Duplikate**: Der Filestore enthaelt typischerweise mehrere Uploads
+    ///   desselben PDFs mit unterschiedlichen UUID-Praefixen. Wir
+    ///   deduplizieren ueber `clean_filename` + Filegroesse: dasselbe Lied
+    ///   mit derselben Groesse landet nur EINMAL in der Queue.
     ///
     /// Damit landen nur realistische Single-Staff-Blasmusik-Stimmen im Tool.
     pub fn scan_filestore(dir: &Path) -> Vec<PathBuf> {
@@ -67,6 +71,9 @@ impl PipelineState {
             return out;
         }
         let mut stack = vec![dir.to_path_buf()];
+        // Dedupe-Map: `clean_name + size_kb` -> erster Pfad mit diesem Schluessel.
+        let mut seen: std::collections::HashMap<String, PathBuf> =
+            std::collections::HashMap::new();
         while let Some(d) = stack.pop() {
             let entries = match std::fs::read_dir(&d) {
                 Ok(e) => e,
@@ -81,9 +88,23 @@ impl PipelineState {
                         continue;
                     }
                     if !is_realistic_blasmusik_pdf(&p) {
-                        tracing::debug!("Filter: ueberspringe {} (kein Blasmusik-Material)", p.display());
+                        tracing::debug!(
+                            "Filter: ueberspringe {} (kein Blasmusik-Material)",
+                            p.display()
+                        );
                         continue;
                     }
+                    let size = std::fs::metadata(&p).map(|m| m.len()).unwrap_or(0);
+                    let key = dedupe_key(&p, size);
+                    if let Some(existing) = seen.get(&key) {
+                        tracing::debug!(
+                            "Dedupe: ueberspringe {} (Duplikat von {})",
+                            p.display(),
+                            existing.display()
+                        );
+                        continue;
+                    }
+                    seen.insert(key, p.clone());
                     out.push(p);
                 }
             }
@@ -572,6 +593,57 @@ fn is_realistic_blasmusik_pdf(path: &Path) -> bool {
         }
     }
     true
+}
+
+/// Liefert einen Filename ohne UUID-Praefix.
+///
+/// Filestore-Filenames haben die Form `<uuid>-<echter_name>.pdf`, wobei
+/// die UUID entweder als 32 Hex-Zeichen oder im Standard-Format
+/// `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` vorkommt.
+fn clean_filename(name: &str) -> String {
+    let n = name.to_string();
+    let bytes = n.as_bytes();
+    // 32-Hex + Bindestrich
+    if n.len() > 33 && bytes[32] == b'-' && bytes[..32].iter().all(|&b| b.is_ascii_hexdigit()) {
+        return n[33..].to_string();
+    }
+    // 8-4-4-4-12 + Bindestrich
+    if n.len() > 37
+        && bytes[8] == b'-'
+        && bytes[13] == b'-'
+        && bytes[18] == b'-'
+        && bytes[23] == b'-'
+        && bytes[36] == b'-'
+        && bytes[..8].iter().all(|&b| b.is_ascii_hexdigit())
+    {
+        return n[37..].to_string();
+    }
+    n
+}
+
+/// Schluessel fuer die Dedupe-Map: Hash der ersten 8 KB + Filegroesse.
+///
+/// Filenames variieren oft ("-Stimme.pdf" Suffix, doppeltes ".pdf",
+/// unterschiedliche Schreibweise) waehrend der Inhalt identisch ist.
+/// Ein Content-Hash der ersten 8 KB ist ausreichend um Duplikate
+/// zuverlaessig zu erkennen, ohne die ganze Datei zu lesen.
+fn dedupe_key(path: &Path, size: u64) -> String {
+    use std::io::Read;
+    let mut buf = [0u8; 8192];
+    let head = match std::fs::File::open(path) {
+        Ok(mut f) => match f.read(&mut buf) {
+            Ok(n) => &buf[..n],
+            Err(_) => return format!("err|{}", size),
+        },
+        Err(_) => return format!("err|{}", size),
+    };
+    // Einfacher 64-bit FNV-1a Hash — kollisionsfest genug fuer ein paar 100 PDFs.
+    let mut h: u64 = 0xcbf29ce484222325;
+    for &b in head {
+        h ^= b as u64;
+        h = h.wrapping_mul(0x100000001b3);
+    }
+    format!("{:x}|{}", h, size)
 }
 
 /// Erkennt ob eine Page Multi-Staff-Material enthaelt (Klavier-Grand-Staff,
@@ -1087,8 +1159,12 @@ mod tests {
         let p2 = dir.join("sub").join("b.pdf");
         let p3 = dir.join("c.txt");
         std::fs::create_dir_all(dir.join("sub")).unwrap();
-        File::create(&p1).unwrap().write_all(b"x").unwrap();
-        File::create(&p2).unwrap().write_all(b"x").unwrap();
+        // Mindestgroesse 1 KB damit der Filter sie nicht aussperrt.
+        // Unterschiedliche Inhalte damit der Content-Hash sie nicht als Duplikate sieht.
+        let blob_a = vec![1u8; 2048];
+        let blob_b = vec![2u8; 2048];
+        File::create(&p1).unwrap().write_all(&blob_a).unwrap();
+        File::create(&p2).unwrap().write_all(&blob_b).unwrap();
         File::create(&p3).unwrap().write_all(b"x").unwrap();
 
         let found = PipelineState::scan_filestore(&dir);
@@ -1097,6 +1173,57 @@ mod tests {
         assert!(found.iter().any(|p| p.ends_with("b.pdf")));
 
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn scan_filestore_dedupes_by_clean_name_and_size() {
+        let dir = make_test_dir("dedupe");
+        // Drei "Uploads" desselben PDFs mit unterschiedlichen UUID-Praefixen.
+        let p1 = dir.join("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-ANGELS.pdf");
+        let p2 = dir.join("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb-ANGELS.pdf");
+        let p3 = dir
+            .join("cccccccc-cccc-cccc-cccc-cccccccccccc-ANGELS.pdf");
+        // Eines davon mit anderem Inhalt (echte andere Stimme).
+        let p4 = dir.join("dddddddddddddddddddddddddddddddd-Boehmischer-Traum.pdf");
+        let blob_a = vec![1u8; 2048];
+        let blob_b = vec![2u8; 4096];
+        File::create(&p1).unwrap().write_all(&blob_a).unwrap();
+        File::create(&p2).unwrap().write_all(&blob_a).unwrap();
+        File::create(&p3).unwrap().write_all(&blob_a).unwrap();
+        File::create(&p4).unwrap().write_all(&blob_b).unwrap();
+
+        let found = PipelineState::scan_filestore(&dir);
+        // ANGELS hat 3 Kopien mit gleicher Groesse -> 1 Eintrag.
+        // Boehmischer Traum hat eigenen Eintrag.
+        assert_eq!(found.len(), 2, "Erwartet 2 Eintraege, gefunden: {:?}", found);
+        assert_eq!(
+            found.iter().filter(|p| {
+                p.file_name()
+                    .and_then(|n| n.to_str())
+                    .map(|n| n.contains("ANGELS"))
+                    .unwrap_or(false)
+            }).count(),
+            1,
+            "ANGELS sollte nur einmal vorkommen"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn clean_filename_strips_uuid_prefix() {
+        // 32-Hex-Format
+        assert_eq!(
+            clean_filename("0e50bc8b811e4720a86e3834001b7a81-ANGELS.pdf"),
+            "ANGELS.pdf"
+        );
+        // 8-4-4-4-12-Format
+        assert_eq!(
+            clean_filename("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee-Strauss-Marsch.pdf"),
+            "Strauss-Marsch.pdf"
+        );
+        // Kein UUID-Praefix -> unveraendert
+        assert_eq!(clean_filename("plainname.pdf"), "plainname.pdf");
     }
 
     #[test]
