@@ -38,52 +38,53 @@ pub enum ClassLevel {
 
 /// Liefert die komplette Klassen-Hierarchie. Wird in der Frontend-API
 /// als `/api/classes` ausgeliefert.
+///
+/// **Konzept (User-Vorgabe 2026-05-04):**
+/// Ein TON-EREIGNIS = eine Note + ALLES was dazugehoert (Akzidenz,
+/// Stakkato, Akzent, Pralltriller, Punkt, Bindebogen-Anker, Fermate ...).
+/// Der User labelt auf diesem aggregierten Level. Atome sind nur
+/// Drill-Down-Hilfen.
+///
+/// **Ausnahmen** (kein Ton-Ereignis, eigenes Element):
+/// Crescendo/Decrescendo-Gabel, Taktnummer, Texte (Tempo, Ausdruck,
+/// Lyrics, Akkordsymbol, Sprungmarken), Probenzeichen, Segno, Coda,
+/// Voltenklammern.
 pub fn all_classes() -> Vec<ClassEntry> {
     let mut out = Vec::new();
 
-    // ── Atome — was im "Drill-Down" einzeln klassifizierbar ist ─────────
+    // ── ATOME (nur Drill-Down) ────────────────────────────────────────
     for (id, name) in [
-        ("atom/notehead_filled", "Notenkopf gefuellt (Viertel/8tel/16tel/...)"),
-        ("atom/notehead_open", "Notenkopf offen (Halbe)"),
-        ("atom/notehead_whole", "Ganze Note"),
-        ("atom/notehead_x", "X-Notenkopf (Schlagzeug)"),
-        ("atom/notehead_diamond", "Rauten-Notenkopf"),
-        ("atom/stem_up", "Stem nach oben"),
-        ("atom/stem_down", "Stem nach unten"),
-        ("atom/beam_1", "Balken (Achtel-Verbindung, 1 Linie)"),
-        ("atom/beam_2", "Balken (Sechzehntel, 2 Linien)"),
-        ("atom/beam_3", "Balken (32stel, 3 Linien)"),
-        ("atom/flag_eighth_up", "Faehnchen Achtel (Stem hoch)"),
-        ("atom/flag_eighth_down", "Faehnchen Achtel (Stem runter)"),
-        ("atom/flag_sixteenth_up", "Faehnchen 16tel (Stem hoch)"),
-        ("atom/flag_sixteenth_down", "Faehnchen 16tel (Stem runter)"),
-        ("atom/aug_dot_one", "Punktierung (1 Punkt)"),
-        ("atom/aug_dot_two", "Doppelpunktierung"),
-        ("atom/accidental_sharp", "Vorzeichen ♯ Kreuz"),
-        ("atom/accidental_flat", "Vorzeichen ♭ Be"),
-        ("atom/accidental_natural", "Aufloesungszeichen ♮"),
-        ("atom/accidental_double_sharp", "Doppelkreuz 𝄪"),
-        ("atom/accidental_double_flat", "Doppel-Be 𝄫"),
-        ("atom/rest_whole", "Ganze Pause"),
-        ("atom/rest_half", "Halbe Pause"),
-        ("atom/rest_quarter", "Viertelpause"),
-        ("atom/rest_eighth", "Achtelpause"),
-        ("atom/rest_sixteenth", "Sechzehntelpause"),
-        ("atom/clef_treble", "Violinschluessel"),
-        ("atom/clef_bass", "Bassschluessel"),
-        ("atom/clef_alto", "Altschluessel"),
-        ("atom/clef_tenor", "Tenorschluessel"),
-        ("atom/clef_percussion", "Percussion-Schluessel"),
-        ("atom/bar_single", "Taktstrich"),
-        ("atom/bar_double", "Doppelstrich"),
-        ("atom/bar_final", "Schlussstrich"),
-        ("atom/bar_repeat_start", "Wiederholungsanfang ‖:"),
-        ("atom/bar_repeat_end", "Wiederholungsende :‖"),
-        ("atom/articulation_staccato", "Staccato"),
-        ("atom/articulation_accent", "Akzent"),
-        ("atom/articulation_tenuto", "Tenuto"),
-        ("atom/articulation_marcato", "Marcato"),
-        ("atom/articulation_fermata", "Fermate"),
+        ("atom/notenkopf_gefuellt", "Notenkopf gefuellt (Viertel/Achtel/16tel/...)"),
+        ("atom/notenkopf_offen", "Notenkopf offen (Halbe)"),
+        ("atom/notenkopf_ganze", "Ganze Note (Notenkopf)"),
+        ("atom/notenkopf_x", "X-Notenkopf (Schlagzeug)"),
+        ("atom/notenkopf_raute", "Rauten-Notenkopf"),
+        ("atom/hals_oben", "Notenhals nach oben"),
+        ("atom/hals_unten", "Notenhals nach unten"),
+        ("atom/balken_1", "Balken (Achtel, 1 Linie)"),
+        ("atom/balken_2", "Balken (Sechzehntel, 2 Linien)"),
+        ("atom/balken_3", "Balken (32tel, 3 Linien)"),
+        ("atom/faehnchen_achtel", "Faehnchen Achtel"),
+        ("atom/faehnchen_sechzehntel", "Faehnchen Sechzehntel"),
+        ("atom/punktierung", "Punktierung (Aug.-Punkt)"),
+        ("atom/akzidenz_kreuz", "Vorzeichen ♯"),
+        ("atom/akzidenz_be", "Vorzeichen ♭"),
+        ("atom/akzidenz_aufloesen", "Aufloesungszeichen ♮"),
+        ("atom/akzidenz_doppelkreuz", "Doppelkreuz 𝄪"),
+        ("atom/akzidenz_doppelbe", "Doppel-Be 𝄫"),
+        ("atom/artikulation_staccato", "Staccato (Punkt)"),
+        ("atom/artikulation_staccatissimo", "Staccatissimo (Spitze)"),
+        ("atom/artikulation_tenuto", "Tenuto (Strich)"),
+        ("atom/artikulation_akzent", "Akzent ( > )"),
+        ("atom/artikulation_marcato", "Marcato ( ^ )"),
+        ("atom/artikulation_fermate", "Fermate"),
+        ("atom/verzierung_pralltriller", "Pralltriller"),
+        ("atom/verzierung_mordent", "Mordent"),
+        ("atom/verzierung_triller", "Triller (tr)"),
+        ("atom/verzierung_doppelschlag", "Doppelschlag"),
+        ("atom/verzierung_arpeggio", "Arpeggio"),
+        ("atom/verzierung_glissando", "Glissando"),
+        ("atom/hilfslinie", "Hilfslinie"),
     ] {
         out.push(ClassEntry {
             id: id.to_string(),
@@ -93,30 +94,31 @@ pub fn all_classes() -> Vec<ClassEntry> {
         });
     }
 
-    // ── Gruppen — primaere Labeling-Ebene ────────────────────────────────
+    // ── TON-EREIGNISSE (primaere Labeling-Ebene) ──────────────────────
+    //
+    // Note + alles was dranhängt = 1 Element.
     for (id, name, atoms) in [
-        ("group/single_note_eighth", "Einzel-Achtel", vec!["atom/notehead_filled", "atom/stem_up", "atom/flag_eighth_up"]),
-        ("group/single_note_quarter", "Einzel-Viertel", vec!["atom/notehead_filled", "atom/stem_up"]),
-        ("group/single_note_half", "Einzel-Halbe", vec!["atom/notehead_open", "atom/stem_up"]),
-        ("group/single_note_whole", "Einzel-Ganze", vec!["atom/notehead_whole"]),
-        ("group/beamed_group_2_eighths", "Zwei Achtel mit Balken", vec!["atom/notehead_filled", "atom/notehead_filled", "atom/stem_up", "atom/stem_up", "atom/beam_1"]),
-        ("group/beamed_group_3_eighths", "Drei Achtel mit Balken", vec![]),
-        ("group/beamed_group_4_eighths", "Vier Achtel mit Balken", vec![]),
-        ("group/beamed_group_4_sixteenths", "Vier Sechzehntel mit Doppelbalken", vec!["atom/notehead_filled", "atom/notehead_filled", "atom/notehead_filled", "atom/notehead_filled", "atom/beam_2"]),
-        ("group/beamed_group_8_sixteenths", "Acht Sechzehntel mit Doppelbalken", vec![]),
-        ("group/beamed_group_mixed_8_16", "Gemischte 8tel + 16tel mit Balken", vec![]),
-        ("group/chord_2_notes", "Akkord (2 Noten)", vec!["atom/notehead_filled", "atom/notehead_filled", "atom/stem_up"]),
-        ("group/chord_3_notes", "Akkord (3 Noten)", vec![]),
-        ("group/chord_4_notes", "Akkord (4 Noten)", vec![]),
-        ("group/chord_5_notes", "Akkord (5 Noten)", vec![]),
-        ("group/tied_pair", "Zwei Noten mit Bindebogen", vec![]),
-        ("group/tied_triple", "Drei Noten mit Bindebogen", vec![]),
-        ("group/triplet", "Triole", vec!["atom/notehead_filled", "atom/notehead_filled", "atom/notehead_filled", "atom/beam_1"]),
-        ("group/grace_before", "Vorschlagsnote", vec![]),
-        ("group/mordent", "Mordent (Triller-Schnoerkel)", vec![]),
-        ("group/trill", "Triller", vec![]),
-        ("group/clef_with_keysig", "Schluessel + Tonart-Vorzeichen", vec![]),
-        ("group/keysig_with_timesig", "Tonart + Taktangabe", vec![]),
+        ("ton/ganze", "Ganze Note (mit Drumrum)", vec!["atom/notenkopf_ganze"]),
+        ("ton/halbe", "Halbe Note", vec!["atom/notenkopf_offen", "atom/hals_oben"]),
+        ("ton/viertel", "Viertelnote", vec!["atom/notenkopf_gefuellt", "atom/hals_oben"]),
+        ("ton/achtel", "Achtelnote (mit Faehnchen)", vec!["atom/notenkopf_gefuellt", "atom/hals_oben", "atom/faehnchen_achtel"]),
+        ("ton/sechzehntel", "Sechzehntelnote (mit Faehnchen)", vec!["atom/notenkopf_gefuellt", "atom/hals_oben", "atom/faehnchen_sechzehntel"]),
+        ("ton/punktiert_halbe", "Punktierte Halbe", vec![]),
+        ("ton/punktiert_viertel", "Punktierte Viertel", vec![]),
+        ("ton/punktiert_achtel", "Punktierte Achtel", vec![]),
+        ("ton/vorschlag", "Vorschlagsnote (Acciaccatura)", vec![]),
+        ("akkord/2_noten", "Akkord (2 Noten, gleicher Hals)", vec!["atom/notenkopf_gefuellt", "atom/notenkopf_gefuellt", "atom/hals_oben"]),
+        ("akkord/3_noten", "Akkord (3 Noten)", vec![]),
+        ("akkord/4_noten", "Akkord (4 Noten)", vec![]),
+        ("akkord/5_noten_plus", "Akkord (5+ Noten)", vec![]),
+        ("balken/2_noten", "Beam-Gruppe (2 Noten)", vec![]),
+        ("balken/3_noten", "Beam-Gruppe (3 Noten / Triole)", vec![]),
+        ("balken/4_noten", "Beam-Gruppe (4 Noten)", vec![]),
+        ("balken/5_plus_noten", "Beam-Gruppe (5+ Noten)", vec![]),
+        ("balken/gemischt", "Beam-Gruppe gemischte Werte (8tel+16tel)", vec![]),
+        ("triole/freistehend", "Triole ohne Balken (3-er-Klammer)", vec![]),
+        ("bindebogen/phrase", "Phrase mit Bindebogen (Legato)", vec![]),
+        ("haltebogen/paar", "Haltebogen (zwei gleiche Noten)", vec![]),
     ] {
         out.push(ClassEntry {
             id: id.to_string(),
@@ -126,17 +128,193 @@ pub fn all_classes() -> Vec<ClassEntry> {
         });
     }
 
-    // ── Phrasen-Patterns (selten gelabelt, fuer fortgeschrittene UX) ─────
+    // ── PAUSEN ─────────────────────────────────────────────────────────
     for (id, name) in [
-        ("phrase/cadence_v_i", "Kadenz V-I"),
-        ("phrase/marcia_pattern", "Marsch-Pattern"),
-        ("phrase/polka_pattern", "Polka-Pattern"),
-        ("phrase/walzer_pattern", "Walzer-Pattern"),
+        ("pause/ganze", "Ganze Pause"),
+        ("pause/halbe", "Halbe Pause"),
+        ("pause/viertel", "Viertelpause"),
+        ("pause/achtel", "Achtelpause"),
+        ("pause/sechzehntel", "Sechzehntelpause"),
+        ("pause/zweiunddreissigstel", "32tel-Pause"),
+        ("pause/mehrtakt", "Mehrtaktpause (1 Strich + Zahl)"),
     ] {
         out.push(ClassEntry {
             id: id.to_string(),
             display_name: name.to_string(),
-            level: ClassLevel::Phrase,
+            level: ClassLevel::Group,
+            atoms: Vec::new(),
+        });
+    }
+
+    // ── SCHLUESSEL ─────────────────────────────────────────────────────
+    for (id, name) in [
+        ("schluessel/violin", "Violinschluessel (G)"),
+        ("schluessel/bass", "Bassschluessel (F)"),
+        ("schluessel/alt", "Altschluessel (C)"),
+        ("schluessel/tenor", "Tenorschluessel (C)"),
+        ("schluessel/percussion", "Percussion-Schluessel"),
+        ("schluessel/oktavierend_8va", "Oktavierender Schluessel (8va)"),
+    ] {
+        out.push(ClassEntry {
+            id: id.to_string(),
+            display_name: name.to_string(),
+            level: ClassLevel::Group,
+            atoms: Vec::new(),
+        });
+    }
+
+    // ── TAKTSTRICHE ────────────────────────────────────────────────────
+    for (id, name) in [
+        ("takt/normal", "Taktstrich (einfach)"),
+        ("takt/doppel", "Doppelstrich"),
+        ("takt/schluss", "Schlussstrich"),
+        ("takt/wdh_anfang", "Wiederholungsanfang ‖:"),
+        ("takt/wdh_ende", "Wiederholungsende :‖"),
+        ("takt/wdh_doppel", "Wiederholungsende+anfang :‖:"),
+        ("takt/gestrichelt", "Gestrichelter Taktstrich"),
+    ] {
+        out.push(ClassEntry {
+            id: id.to_string(),
+            display_name: name.to_string(),
+            level: ClassLevel::Group,
+            atoms: Vec::new(),
+        });
+    }
+
+    // ── TONART (Vorzeichen am Schluessel) ─────────────────────────────
+    for (id, name) in [
+        ("tonart/1_kreuz", "1 Kreuz (G-Dur / e-moll)"),
+        ("tonart/2_kreuze", "2 Kreuze (D-Dur / h-moll)"),
+        ("tonart/3_kreuze", "3 Kreuze (A-Dur)"),
+        ("tonart/4_kreuze", "4 Kreuze (E-Dur)"),
+        ("tonart/5_kreuze", "5 Kreuze (H-Dur)"),
+        ("tonart/1_be", "1 ♭ (F-Dur / d-moll)"),
+        ("tonart/2_be", "2 ♭ (B-Dur)"),
+        ("tonart/3_be", "3 ♭ (Es-Dur)"),
+        ("tonart/4_be", "4 ♭ (As-Dur)"),
+        ("tonart/5_be", "5 ♭ (Des-Dur)"),
+        ("tonart/keine", "Keine Vorzeichen (C-Dur)"),
+    ] {
+        out.push(ClassEntry {
+            id: id.to_string(),
+            display_name: name.to_string(),
+            level: ClassLevel::Group,
+            atoms: Vec::new(),
+        });
+    }
+
+    // ── TAKTART ────────────────────────────────────────────────────────
+    for (id, name) in [
+        ("taktart/2_4", "2/4-Takt"),
+        ("taktart/3_4", "3/4-Takt"),
+        ("taktart/4_4", "4/4-Takt"),
+        ("taktart/3_8", "3/8-Takt"),
+        ("taktart/6_8", "6/8-Takt"),
+        ("taktart/9_8", "9/8-Takt"),
+        ("taktart/12_8", "12/8-Takt"),
+        ("taktart/c_takt", "C (4/4)"),
+        ("taktart/alla_breve", "Alla breve ¢ (2/2)"),
+        ("taktart/anders", "Andere Taktart"),
+    ] {
+        out.push(ClassEntry {
+            id: id.to_string(),
+            display_name: name.to_string(),
+            level: ClassLevel::Group,
+            atoms: Vec::new(),
+        });
+    }
+
+    // ── DYNAMIK (Buchstaben — eigenes Element pro Position) ───────────
+    for (id, name) in [
+        ("dyn/p", "p (piano)"),
+        ("dyn/pp", "pp (pianissimo)"),
+        ("dyn/ppp", "ppp"),
+        ("dyn/mp", "mp (mezzopiano)"),
+        ("dyn/mf", "mf (mezzoforte)"),
+        ("dyn/f", "f (forte)"),
+        ("dyn/ff", "ff (fortissimo)"),
+        ("dyn/fff", "fff"),
+        ("dyn/sfz", "sfz (sforzando)"),
+        ("dyn/sf", "sf"),
+        ("dyn/fp", "fp"),
+        ("dyn/cresc_text", "cresc. (Text)"),
+        ("dyn/decresc_text", "decresc. / dim. (Text)"),
+    ] {
+        out.push(ClassEntry {
+            id: id.to_string(),
+            display_name: name.to_string(),
+            level: ClassLevel::Group,
+            atoms: Vec::new(),
+        });
+    }
+
+    // ── DYNAMIK-GABELN (Hairpins — eigenes Element, AUSNAHME) ────────
+    for (id, name) in [
+        ("hairpin/crescendo", "Crescendo-Gabel <"),
+        ("hairpin/decrescendo", "Decrescendo-Gabel >"),
+    ] {
+        out.push(ClassEntry {
+            id: id.to_string(),
+            display_name: name.to_string(),
+            level: ClassLevel::Group,
+            atoms: Vec::new(),
+        });
+    }
+
+    // ── TEXT (eigene Elemente, AUSNAHME) ───────────────────────────────
+    for (id, name) in [
+        ("text/tempo", "Tempoangabe (Allegro, ♩=120)"),
+        ("text/ausdruck", "Ausdruck (espressivo, dolce)"),
+        ("text/taktnummer", "Taktnummer / Bar Number"),
+        ("text/sprungmarke", "Sprungmarke (D.C., D.S., Fine, al Coda)"),
+        ("text/probenzeichen", "Probenzeichen (A, B, C in Box)"),
+        ("text/instrument", "Instrumentenname"),
+        ("text/akkordsymbol", "Gitarrenakkord (C7, Am, ...)"),
+        ("text/liedtext", "Liedtext / Lyric"),
+        ("text/anweisung", "Spielanweisung (mit Daempfer, pizz., ...)"),
+        ("text/sonstiges", "Sonstiger Text"),
+    ] {
+        out.push(ClassEntry {
+            id: id.to_string(),
+            display_name: name.to_string(),
+            level: ClassLevel::Group,
+            atoms: Vec::new(),
+        });
+    }
+
+    // ── MARKEN / ZEICHEN ──────────────────────────────────────────────
+    for (id, name) in [
+        ("marke/segno", "Segno (𝄋)"),
+        ("marke/coda", "Coda (𝄌)"),
+        ("marke/atem", "Atemzeichen (')"),
+        ("marke/cesur", "Cesur ( // )"),
+        ("marke/voltenklammer_1", "Voltenklammer 1 (1.|—)"),
+        ("marke/voltenklammer_2", "Voltenklammer 2 (2.|—)"),
+        ("marke/oktava_oben", "Oktava 8va (eine Oktave hoeher)"),
+        ("marke/oktava_unten", "Oktava 8vb (eine Oktave tiefer)"),
+        ("marke/pedal_ab", "Ped (Pedal druecken)"),
+        ("marke/pedal_auf", "* (Pedal loslassen)"),
+        ("marke/akkolade", "Akkolade (geschweifte Klammer)"),
+    ] {
+        out.push(ClassEntry {
+            id: id.to_string(),
+            display_name: name.to_string(),
+            level: ClassLevel::Group,
+            atoms: Vec::new(),
+        });
+    }
+
+    // ── SPEZIAL (Meta-Antworten) ──────────────────────────────────────
+    for (id, name) in [
+        ("spezial/kein_element", "Kein gueltiges Element (Rauschen / kaputter bbox)"),
+        ("spezial/unklar", "Unklar — kann nicht zuordnen"),
+        ("spezial/teil_eines_elements", "Nur Teil eines Elements (zu klein gefasst)"),
+        ("spezial/mehrere_elemente", "Mehrere Elemente in einer Box (zu gross gefasst)"),
+    ] {
+        out.push(ClassEntry {
+            id: id.to_string(),
+            display_name: name.to_string(),
+            level: ClassLevel::Group,
             atoms: Vec::new(),
         });
     }
@@ -178,22 +356,22 @@ mod tests {
         let cs = all_classes();
         let group = cs
             .iter()
-            .find(|c| c.id == "group/beamed_group_4_sixteenths")
-            .expect("4 sixteenths Gruppe vorhanden");
+            .find(|c| c.id == "ton/viertel")
+            .expect("Viertelnote-Gruppe vorhanden");
         assert_eq!(group.level, ClassLevel::Group);
         assert!(!group.atoms.is_empty());
     }
 
     #[test]
     fn drill_down_returns_atoms() {
-        let drilled = drill_down("group/single_note_quarter");
+        let drilled = drill_down("ton/viertel");
         assert!(!drilled.is_empty());
         assert!(drilled.iter().all(|c| c.level == ClassLevel::Atom));
     }
 
     #[test]
     fn drill_down_unknown_group_is_empty() {
-        let drilled = drill_down("group/does_not_exist");
+        let drilled = drill_down("ton/does_not_exist");
         assert!(drilled.is_empty());
     }
 
@@ -201,8 +379,8 @@ mod tests {
     fn classes_of_level_filters() {
         let atoms = classes_of_level(ClassLevel::Atom);
         let groups = classes_of_level(ClassLevel::Group);
-        assert!(atoms.len() > 30);
-        assert!(groups.len() > 15);
+        assert!(atoms.len() > 20);
+        assert!(groups.len() > 40);
         assert!(atoms.iter().all(|c| c.level == ClassLevel::Atom));
         assert!(groups.iter().all(|c| c.level == ClassLevel::Group));
     }

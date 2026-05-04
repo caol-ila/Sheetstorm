@@ -230,9 +230,9 @@ impl PipelineState {
                                 || class_id.as_deref() == Some("group/single_note_quarter")
                             {
                                 class_id = Some(if s.is_tie {
-                                    "group/tied_pair".to_string()
+                                    "haltebogen/paar".to_string()
                                 } else {
-                                    "group/slurred_phrase".to_string()
+                                    "bindebogen/phrase".to_string()
                                 });
                             }
                             // Auch andere Logical Groups die unter dem Slur liegen mergen
@@ -245,7 +245,7 @@ impl PipelineState {
                                     let g2_crop = rect_to_crop(&g2.bbox, top);
                                     bbox = union_rect(bbox, g2_crop);
                                     if !s.is_tie {
-                                        class_id = Some("group/slurred_phrase".to_string());
+                                        class_id = Some("bindebogen/phrase".to_string());
                                     }
                                 }
                             }
@@ -261,15 +261,20 @@ impl PipelineState {
                     }
                     let bbox = rect_to_crop(&s.bbox, top);
                     let class_id = if s.is_tie {
-                        "group/tied_pair".to_string()
+                        "haltebogen/paar".to_string()
                     } else {
-                        "group/slurred_phrase".to_string()
+                        "bindebogen/phrase".to_string()
                     };
                     primary_elements.push((bbox, Some(class_id)));
                 }
 
                 // Step C: CC-Rects die NICHT in einem Logical-Group/Slur liegen
-                // werden gemerged + als standalone-Elements aufgenommen.
+                // werden zu Ton-Ereignissen gruppiert.
+                //
+                // Konzept (User-Vorgabe 2026-05-04):
+                // * "Was uebereinander steht, gehoert zusammen" — Spalten-Grouping
+                // * Ausnahmen: Crescendo/Decrescendo-Gabeln, Texte (Taktnummer,
+                //   Tempoangabe, Sprungmarke, ...) — diese stehen STANDALONE.
                 let standalone_rects: Vec<Rect> = rects_raw
                     .iter()
                     .filter(|r| {
@@ -277,9 +282,17 @@ impl PipelineState {
                     })
                     .copied()
                     .collect();
-                let standalone_merged = merge_close_rects(&standalone_rects, system.line_spacing);
-                for r in standalone_merged {
-                    primary_elements.push((r, None));
+                // Staff-Y-Range im Crop-Koordinatensystem berechnen.
+                let staff_top_in_crop = staff_top_in_crop_for(system, top);
+                let staff_bot_in_crop = staff_bottom_in_crop_for(system, top);
+                let tone_events = group_tone_events(
+                    &standalone_rects,
+                    system.line_spacing,
+                    staff_top_in_crop,
+                    staff_bot_in_crop,
+                );
+                for (r, class_id) in tone_events {
+                    primary_elements.push((r, class_id));
                 }
 
                 // X-sortieren fuer stabiles Labeling-Ordering.
@@ -774,6 +787,238 @@ fn merge_close_rects(rects: &[Rect], line_spacing: f32) -> Vec<Rect> {
         }
     }
     // Sort by x for stable ordering
+    out.sort_by_key(|r| (r.x, r.y));
+    out
+}
+
+/// Staff-Top im Crop-Koordinatensystem.
+fn staff_top_in_crop_for(system: &StaffSystem, top: u32) -> u32 {
+    if let Some(line) = system.lines.first() {
+        let y = line.mean_y().round() as i64;
+        (y - top as i64).max(0) as u32
+    } else {
+        0
+    }
+}
+
+/// Staff-Bottom im Crop-Koordinatensystem.
+fn staff_bottom_in_crop_for(system: &StaffSystem, top: u32) -> u32 {
+    if let Some(line) = system.lines.last() {
+        let y = line.mean_y().round() as i64;
+        (y - top as i64).max(0) as u32
+    } else {
+        0
+    }
+}
+
+/// Klassifiziert eine bbox vorab in eine RectKind.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RectKind {
+    /// Ton-Kern: Notenkopf, Stem, Faehnchen, Akzidenz, Artikulation,
+    /// Verzierung — alles was zu einer Note gehoert.
+    /// Diese werden spalten-weise gegruppiert.
+    ToneCore,
+    /// Hairpin (Crescendo / Decrescendo): sehr breit + sehr flach.
+    /// Standalone, kein Merge mit Tonen.
+    Hairpin,
+    /// Text / Zahl / Anweisung weit ueber/unter dem Staff: Taktnummer,
+    /// Tempoangabe, Dynamik-Buchstaben, Sprungmarke, Liedtext.
+    /// Werden horizontal zu Wort-Bloecken gemerged, kein Merge mit Tonen.
+    TextOrFar,
+}
+
+fn classify_rect(r: &Rect, line_spacing: f32, staff_top: u32, staff_bottom: u32) -> RectKind {
+    // Hairpin: > 5 line_spacings breit UND <= 1 line_spacing hoch
+    let ls = line_spacing.max(4.0);
+    if (r.w as f32) >= ls * 5.0 && (r.h as f32) <= ls * 1.1 {
+        return RectKind::Hairpin;
+    }
+    // Far-from-staff: bbox liegt vollstaendig ausserhalb Staff +/- 2.5 ls
+    let band = (ls * 2.5) as u32;
+    let band_top = staff_top.saturating_sub(band);
+    let band_bot = staff_bottom.saturating_add(band);
+    let r_bot = r.y + r.h;
+    if r_bot <= band_top || r.y >= band_bot {
+        return RectKind::TextOrFar;
+    }
+    RectKind::ToneCore
+}
+
+/// Gruppiert CC-Rects nach User-Vorgabe in Ton-Ereignisse.
+///
+/// Regeln:
+/// 1. ToneCore-Rects (Note + Drumrum) werden spaltenweise zu einem
+///    Element gemerged (alles uebereinander = ein Ton-Ereignis).
+/// 2. Hairpins (Cresc./Decresc.-Gabeln) bleiben standalone.
+/// 3. TextOrFar-Rects werden horizontal in Wort-Bloecke gemerged und
+///    bleiben standalone.
+fn group_tone_events(
+    rects: &[Rect],
+    line_spacing: f32,
+    staff_top: u32,
+    staff_bottom: u32,
+) -> Vec<(Rect, Option<String>)> {
+    if rects.is_empty() {
+        return Vec::new();
+    }
+    let kinds: Vec<RectKind> = rects
+        .iter()
+        .map(|r| classify_rect(r, line_spacing, staff_top, staff_bottom))
+        .collect();
+
+    let mut out: Vec<(Rect, Option<String>)> = Vec::new();
+
+    // -- Step A: Spalten-Grouping fuer ToneCore -------------------------
+    let tone_indices: Vec<usize> = (0..rects.len())
+        .filter(|&i| kinds[i] == RectKind::ToneCore)
+        .collect();
+    let n = tone_indices.len();
+    if n > 0 {
+        // Two CCs sind in der gleichen Spalte wenn ihre x-Bereiche
+        // ueberlappen ODER der x-Gap < 0.4 * line_spacing ist.
+        let gap_x = ((line_spacing * 0.4) as i32).max(2);
+        let mut parent: Vec<usize> = (0..n).collect();
+        fn find(p: &mut [usize], x: usize) -> usize {
+            if p[x] != x {
+                let r = find(p, p[x]);
+                p[x] = r;
+            }
+            p[x]
+        }
+        fn union(p: &mut [usize], a: usize, b: usize) {
+            let ra = find(p, a);
+            let rb = find(p, b);
+            if ra != rb {
+                p[ra] = rb;
+            }
+        }
+        for i in 0..n {
+            for j in (i + 1)..n {
+                let a = &rects[tone_indices[i]];
+                let b = &rects[tone_indices[j]];
+                let ax0 = a.x as i32;
+                let ax1 = (a.x + a.w) as i32;
+                let bx0 = b.x as i32;
+                let bx1 = (b.x + b.w) as i32;
+                let dx = if ax1 < bx0 {
+                    bx0 - ax1
+                } else if bx1 < ax0 {
+                    ax0 - bx1
+                } else {
+                    0
+                };
+                if dx <= gap_x {
+                    union(&mut parent, i, j);
+                }
+            }
+        }
+        let mut groups: std::collections::BTreeMap<usize, Vec<usize>> =
+            std::collections::BTreeMap::new();
+        for i in 0..n {
+            let r = find(&mut parent, i);
+            groups.entry(r).or_default().push(tone_indices[i]);
+        }
+        for (_, members) in groups {
+            let mut bbox = rects[members[0]];
+            for &i in members.iter().skip(1) {
+                bbox = union_rect(bbox, rects[i]);
+            }
+            out.push((bbox, None));
+        }
+    }
+
+    // -- Step B: TextOrFar horizontal mergen (Worte) -------------------
+    let text_indices: Vec<usize> = (0..rects.len())
+        .filter(|&i| kinds[i] == RectKind::TextOrFar)
+        .collect();
+    let text_rects: Vec<Rect> = text_indices.iter().map(|&i| rects[i]).collect();
+    // Horizontale Toleranz fuer Wort-Merge: 0.6 * line_spacing.
+    let merged_text = merge_close_horizontal(&text_rects, line_spacing);
+    for r in merged_text {
+        out.push((r, None));
+    }
+
+    // -- Step C: Hairpins standalone -----------------------------------
+    for i in 0..rects.len() {
+        if kinds[i] == RectKind::Hairpin {
+            // Crescendo vs Decrescendo nur grob — User entscheidet endgueltig.
+            // Heuristik: pruefe ob der Pixel-Schwerpunkt links oder rechts
+            // ist — koennte spaeter ergaenzt werden. Fuer's Erste: keine
+            // Vor-Klassifikation, User waehlt aus hairpin/cres oder /decres.
+            out.push((rects[i], None));
+        }
+    }
+
+    out.sort_by_key(|(r, _)| (r.x, r.y));
+    out
+}
+
+/// Merget Rects horizontal zu Wort-Bloecken (vertikal STRENG nahe + horizontal locker).
+///
+/// Zwei Rects mergen wenn:
+/// - x-Gap <= 0.6 * line_spacing  (typischer Buchstabenabstand)
+/// - y-Bereiche ueberlappen (gleiche Zeile)
+fn merge_close_horizontal(rects: &[Rect], line_spacing: f32) -> Vec<Rect> {
+    if rects.is_empty() {
+        return Vec::new();
+    }
+    let n = rects.len();
+    let mut parent: Vec<usize> = (0..n).collect();
+    fn find(p: &mut [usize], x: usize) -> usize {
+        if p[x] != x {
+            let r = find(p, p[x]);
+            p[x] = r;
+        }
+        p[x]
+    }
+    fn union(p: &mut [usize], a: usize, b: usize) {
+        let ra = find(p, a);
+        let rb = find(p, b);
+        if ra != rb {
+            p[ra] = rb;
+        }
+    }
+    let gap_x = ((line_spacing * 0.6) as i32).max(3);
+    for i in 0..n {
+        for j in (i + 1)..n {
+            let a = &rects[i];
+            let b = &rects[j];
+            let ax1 = (a.x + a.w) as i32;
+            let bx0 = b.x as i32;
+            let bx1 = (b.x + b.w) as i32;
+            let ax0 = a.x as i32;
+            let dx = if ax1 < bx0 {
+                bx0 - ax1
+            } else if bx1 < ax0 {
+                ax0 - bx1
+            } else {
+                0
+            };
+            // Strikte y-Ueberlappung pruefen
+            let ay0 = a.y as i32;
+            let ay1 = (a.y + a.h) as i32;
+            let by0 = b.y as i32;
+            let by1 = (b.y + b.h) as i32;
+            let y_overlap = ay0 < by1 && by0 < ay1;
+            if dx <= gap_x && y_overlap {
+                union(&mut parent, i, j);
+            }
+        }
+    }
+    let mut groups: std::collections::BTreeMap<usize, Vec<usize>> =
+        std::collections::BTreeMap::new();
+    for i in 0..n {
+        let r = find(&mut parent, i);
+        groups.entry(r).or_default().push(i);
+    }
+    let mut out = Vec::new();
+    for (_, members) in groups {
+        let mut bbox = rects[members[0]];
+        for &i in members.iter().skip(1) {
+            bbox = union_rect(bbox, rects[i]);
+        }
+        out.push(bbox);
+    }
     out.sort_by_key(|r| (r.x, r.y));
     out
 }

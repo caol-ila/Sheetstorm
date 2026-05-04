@@ -425,15 +425,15 @@ pub fn top_k_for_class_item(state: &AppState) -> Vec<(String, f32)> {
 }
 
 /// Default-Top-5 fuer Class-Items ohne trainierten Classifier und ohne
-/// User-Historie: die haeufigsten Blasmusik-Group-Klassen. Wird ersetzt,
+/// User-Historie: die haeufigsten Blasmusik-Ton-Ereignisse. Wird ersetzt,
 /// sobald der User Klassen gelabelt hat oder ein Embedding-Index vorliegt.
 pub fn default_class_top_k() -> Vec<(String, f32)> {
     vec![
-        ("group/single_note_quarter".to_string(), 0.0),
-        ("group/single_note_eighth".to_string(), 0.0),
-        ("group/beamed_group_2_eighths".to_string(), 0.0),
-        ("group/beamed_group_4_sixteenths".to_string(), 0.0),
-        ("group/chord_2_notes".to_string(), 0.0),
+        ("ton/viertel".to_string(), 0.0),
+        ("ton/achtel".to_string(), 0.0),
+        ("balken/2_noten".to_string(), 0.0),
+        ("balken/4_noten".to_string(), 0.0),
+        ("akkord/2_noten".to_string(), 0.0),
     ]
 }
 
