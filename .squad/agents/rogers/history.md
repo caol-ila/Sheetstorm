@@ -358,3 +358,45 @@ uget.org\ (wie History-Entry vom 2026-04-20 dokumentiert).
 **Decision Log:** \.squad/decisions/inbox/rogers-backend-stack.md\ (EF Core Version, Aspire SDK Fallback, Testcontainers, NuGet-Feed, FluentAssertions Downgrade)
 
 <!-- Append learnings below -->
+
+---
+
+### 2026-04-21: Flutter E2E Test Infrastructure (#124)
+
+**Context:** Added comprehensive E2E test infrastructure for PDF Labeler Flutter app on `feat-124-e2e-ui` branch (against `feat/124-pdf-labeler-mvp`). Task split into 3 parts: CLI exe name fix (Task 1 by Stark), integration_test suite (Task 2), Playwright web smoke (Task 3).
+
+**Task 1: CLI Executable Name Fix** (done by Stark, commit 3a9cb3e):
+- Fixed `Sheetstorm.PdfLabeling.Cli.csproj` `<AssemblyName>` to match Flutter's subprocess lookup
+- Flutter's `LabelingService` resolves CLI path via hardcoded filename `Sheetstorm.PdfLabeling.Cli.exe`
+- **Outcome:** DONE (by Stark)
+
+**Task 2: Flutter integration_test Suite**:
+- Created `integration_test/` with E2E-style tests covering UI flows + mocked LabelingService
+- Modified `LabelingNotifier` to accept injected service via `.withService(service)` constructor
+- Fixed `widget_test.dart` to wrap app in `ProviderScope` → 18/18 tests now passing
+- **Blocker:** Cannot run locally on Windows without Developer Mode (symlink requirement for integration_test/)
+- Tests are syntactically valid, will run in CI
+- **Outcome:** DONE_WITH_CONCERNS (tests valid but local execution blocked)
+
+**Task 3: Playwright Web Smoke Tests**:
+- Added web platform support (`flutter create --platforms=web`)
+- Created `e2e-playwright/` with Playwright tests (3/3 passed)
+- Tests: app boots, keyboard nav, window resize
+- **Scope:** Smoke only — browser cannot spawn CLI
+- **Outcome:** DONE
+
+**Test Results:**
+- Unit: 18/18 passing
+- Integration: Syntax valid, cannot run locally
+- Playwright: 3/3 passing
+
+**Lessons:**
+1. **integration_test/** triggers desktop build → symlink dependency → needs Dev Mode
+2. **Provider overrides** enable clean DI for testing
+3. **Flutter web CanvasKit rendering** limits DOM selectors, use screenshots + keyboard testing
+4. **Playwright webServer** config auto-manages http-server lifecycle
+
+**PR:** https://github.com/caol-ila/Sheetstorm/pull/128
+- **Status:** DONE_WITH_CONCERNS
+
+---

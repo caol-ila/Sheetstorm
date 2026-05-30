@@ -134,3 +134,26 @@
 **Risk:** CLI wrapper is new attack surface (malformed NDJSON, process spawn failures). Mitigation: comprehensive error handling in Flutter `CliService`, timeout guards on Process.start().
 
 **Next:** Rogers delivers CLI wrapper, Parker delivers Flutter UI — parallel work, independent timelines.
+
+### AssemblyName Override Removal — 2026-04-21 08:30
+
+**Issue:** #124 (PDF Labeler MVP)  
+**Branch:** feat-124-e2e-ui  
+**Commit:** 3a9cb3e
+
+**Problem:** C# CLI project had `<AssemblyName>pdflabeler</AssemblyName>` producing `pdflabeler.exe`, but Flutter's `labeling_service.dart` subprocess lookup expected `Sheetstorm.PdfLabeling.Cli.exe`.
+
+**Solution:** Removed AssemblyName override to use default (project name = exe name). Updated display strings in `--help` and `--version` output to match.
+
+**TDD Process:**
+1. **RED:** Updated test expectations (`ProgramTests.cs`) to expect "Sheetstorm.PdfLabeling.Cli" instead of "pdflabeler" — verified failures (2/7 tests failed as expected)
+2. **GREEN:** Removed `<AssemblyName>` property, updated `PrintHelp()` and `--version` output strings
+3. **VERIFY:** Built and confirmed `Sheetstorm.PdfLabeling.Cli.exe` exists, old name gone; all 7 CLI tests + 89 library tests GREEN
+
+**Files Changed:**
+- `src/Sheetstorm.PdfLabeling.Cli/Sheetstorm.PdfLabeling.Cli.csproj` — removed AssemblyName
+- `src/Sheetstorm.PdfLabeling.Cli/Program.cs` — updated help/version display strings
+- `tests/Sheetstorm.PdfLabeling.Cli.Tests/ProgramTests.cs` — updated test expectations
+
+**Key Lesson:** AssemblyName overrides should only exist when the project name itself is problematic (legacy, conflicts). For new projects, let default naming work — reduces surprises for tooling and external integrations (like subprocess spawning).
+

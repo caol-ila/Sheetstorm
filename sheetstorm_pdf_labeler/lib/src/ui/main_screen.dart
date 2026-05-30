@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_selector/file_selector.dart';
@@ -7,6 +8,68 @@ import 'package:sheetstorm_pdf_labeler/src/models/labeling_state.dart';
 
 class MainScreen extends ConsumerWidget {
   const MainScreen({super.key});
+
+  Future<void> _pickOrEnterDirectory({
+    required BuildContext context,
+    required String label,
+    required String? currentPath,
+    required ValueChanged<String> onPicked,
+  }) async {
+    // Try native folder picker first (desktop / mobile)
+    if (!kIsWeb) {
+      try {
+        final dir = await getDirectoryPath();
+        if (dir != null) {
+          onPicked(dir);
+          return;
+        }
+      } catch (_) {
+        // fall through to manual entry dialog
+      }
+      return;
+    }
+
+    // Web: no native folder picker → prompt for manual path
+    if (!context.mounted) return;
+    final entered = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        final controller = TextEditingController(text: currentPath ?? '');
+        return AlertDialog(
+          title: Text('$label — Pfad eingeben'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Im Web-Build gibt es keine native Ordnerauswahl. '
+                'Gib den Pfad zum Ordner ein (wird vom Desktop-CLI gelesen).',
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: controller,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  hintText: r'C:\Temp\Noten-Smoke',
+                ),
+                autofocus: true,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+              child: const Text('Übernehmen'),
+            ),
+          ],
+        );
+      },
+    );
+    if (entered != null && entered.isNotEmpty) {
+      onPicked(entered);
+    }
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -27,30 +90,43 @@ class MainScreen extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            if (kIsWeb)
+              Card(
+                color: Theme.of(context).colorScheme.tertiaryContainer,
+                child: const Padding(
+                  padding: EdgeInsets.all(12.0),
+                  child: Text(
+                    'Web-Demo-Modus: Ordnerauswahl per Pfad-Eingabe. '
+                    'Tatsächliches Labeling benötigt Desktop-Build (CLI-Subprocess).',
+                  ),
+                ),
+              ),
+            if (kIsWeb) const SizedBox(height: 12),
             _FolderPickerCard(
               label: 'Source Folder',
               path: settings.sourcePath,
-              onPick: () async {
-                final directory = await getDirectoryPath();
-                if (directory != null) {
-                  ref.read(settingsProvider.notifier).setSourcePath(directory);
-                }
-              },
+              onPick: () => _pickOrEnterDirectory(
+                context: context,
+                label: 'Source Folder',
+                currentPath: settings.sourcePath,
+                onPicked: (p) => ref.read(settingsProvider.notifier).setSourcePath(p),
+              ),
             ),
             const SizedBox(height: 16),
             _FolderPickerCard(
               label: 'Target Folder',
               path: settings.targetPath,
-              onPick: () async {
-                final directory = await getDirectoryPath();
-                if (directory != null) {
-                  ref.read(settingsProvider.notifier).setTargetPath(directory);
-                }
-              },
+              onPick: () => _pickOrEnterDirectory(
+                context: context,
+                label: 'Target Folder',
+                currentPath: settings.targetPath,
+                onPicked: (p) => ref.read(settingsProvider.notifier).setTargetPath(p),
+              ),
             ),
             const SizedBox(height: 16),
             _PatField(
               value: settings.pat ?? '',
+              patSource: settings.patSource,
               rememberPat: settings.rememberPat,
               onChanged: (value) {
                 ref.read(settingsProvider.notifier).setPat(value);
@@ -123,12 +199,14 @@ class _FolderPickerCard extends StatelessWidget {
 
 class _PatField extends StatelessWidget {
   final String value;
+  final String? patSource;
   final bool rememberPat;
   final ValueChanged<String> onChanged;
   final ValueChanged<bool?> onRememberChanged;
 
   const _PatField({
     required this.value,
+    required this.patSource,
     required this.rememberPat,
     required this.onChanged,
     required this.onRememberChanged,
@@ -136,20 +214,37 @@ class _PatField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasAutoToken = value.isNotEmpty && patSource != null && patSource != 'manual';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         TextField(
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             labelText: 'GitHub PAT',
-            hintText: 'Enter your GitHub Personal Access Token',
-            border: OutlineInputBorder(),
+            hintText: hasAutoToken
+                ? 'Automatisch geladen via $patSource'
+                : 'Enter your GitHub Personal Access Token',
+            border: const OutlineInputBorder(),
+            suffixIcon: hasAutoToken
+                ? const Tooltip(
+                    message: 'Token automatisch erkannt — keine Eingabe nötig',
+                    child: Icon(Icons.check_circle, color: Colors.green),
+                  )
+                : null,
           ),
           obscureText: true,
           onChanged: onChanged,
           controller: TextEditingController(text: value)
             ..selection = TextSelection.collapsed(offset: value.length),
         ),
+        if (hasAutoToken)
+          Padding(
+            padding: const EdgeInsets.only(top: 4, left: 4),
+            child: Text(
+              'Quelle: $patSource',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
         CheckboxListTile(
           title: const Text('Remember token securely'),
           value: rememberPat,
